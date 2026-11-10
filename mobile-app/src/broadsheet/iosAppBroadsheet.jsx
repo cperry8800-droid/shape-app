@@ -1780,14 +1780,15 @@ function BSHalftone({ height = 180, accent, pattern = 'dots' }) {
 // Tab icons — monochrome, inherit color via currentColor. Line art, or `filled`
 // for the selected tab (Instagram's way); `cut` is the colour a filled icon's
 // inner marks are drawn in (the surface it sits on).
-// 'market' is the member's Coaches tab (owner, 2026-11-09: a sixth tab between Eat and Chat), drawn as a coach's whistle.
+// 'market' is the member's Coaches tab (owner, 2026-11-09: a sixth tab between Eat and Chat), drawn as a coach's
+// megaphone (owner, 2026-11-10: "go with 6", of ten drawings; it was a whistle).
 const BS_TAB_ICON_KEYS = new Set(['home', 'train', 'eat', 'market', 'chat', 'store', 'me', 'today', 'clients', 'programs', 'plans']);
 // Each filled icon's optical nudge in the selected tab's gem, in px at 24 (owner, 2026-10-24: "make sure
 // the emojis are centered in the black shape"). A glyph's painted weight sits off its box's centre: the
 // house's walls under its roof, the bubble above its tail, the apple left of its leaf, the second person
 // beside the first. Measured as the centroid of each icon's pixels in the gem on the built app; the
 // nudge puts that centroid on the gem's centre. Programs and Plans measure centred.
-const BS_TAB_ICON_NUDGE = { home: [0, -1.25], train: [0.5, 0], eat: [1, 0.5], market: [1, -1], chat: [-0.5, 1.75], today: [0, -1], clients: [1.75, -1.25] };
+const BS_TAB_ICON_NUDGE = { home: [0, -1.25], train: [0.5, 0], eat: [1, 0.5], market: [0.75, -0.5], chat: [-0.5, 1.75], today: [0, -1], clients: [1.75, -1.25] };
 function BSTabIcon({ name, size = 22, weight = 1.7, filled = false, cut = 'transparent' }) {
   const nudge = filled ? BS_TAB_ICON_NUDGE[name] : null;
   const p = { width: size, height: size, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: weight, strokeLinecap: 'round', strokeLinejoin: 'round', 'aria-hidden': true,
@@ -1798,7 +1799,7 @@ function BSTabIcon({ name, size = 22, weight = 1.7, filled = false, cut = 'trans
       case 'home': return <svg {...p}><path {...F} d="M12 3 3.5 10.1V20.2c0 .4.4.8.8.8H9.6v-5.4h4.8V21h5.3c.4 0 .8-.4.8-.8V10.1z" /></svg>;
       case 'train': return <svg {...p} stroke="none"><g {...F}><rect x="2.8" y="8.4" width="2.6" height="7.2" rx="1" /><rect x="5.9" y="6.4" width="2.8" height="11.2" rx="1" /><rect x="15.3" y="6.4" width="2.8" height="11.2" rx="1" /><rect x="18.6" y="8.4" width="2.6" height="7.2" rx="1" /><rect x="8.4" y="10.8" width="7.2" height="2.4" rx=".6" /></g></svg>;
       case 'eat': return <svg {...p}><path {...F} d="M12 8c-1-2-4-2.4-5.6-.9C4 8.8 4.6 13 7 16.4c1 1.4 1.9 1.9 2.7 1.5.8-.4 1.8-.4 2.6 0 .8.4 1.7-.1 2.7-1.5 2.4-3.4 3-7.6.6-9.3C16 5.6 13 6 12 8Z" /><path d="M12 8c0-1.8 1-3.2 3-3.7" /></svg>;
-      case 'market': return <svg {...p}><path {...F} d="M14.4 12.8H21V8.5H9A5.5 5.5 0 1 0 14.4 12.8Z" /><circle cx="9" cy="14" r="1.6" fill={cut} stroke="none" /><path d="M16.5 8.5V6.3" /></svg>;
+      case 'market': return <svg {...p}><path {...F} d="M3.6 9.6h3.6L16.6 4.8v14l-9.4-4.4H3.6z" /><path d="M7.4 14.4l1.3 4.6h2.3l-1-3.4" /><path d="M19.4 9.6a3.4 3.4 0 0 1 0 4.8" /></svg>;
       case 'chat': return <svg {...p}><path {...F} d="M4.5 5.5h15v10h-10l-4 3.5v-3.5h-1z" /></svg>;
       case 'store': return <svg {...p}><path {...F} d="M5.5 8h13l-1 11.5h-11z" /><path d="M9 8V6.5a3 3 0 0 1 6 0V8" /></svg>;
       case 'me': return <svg {...p}><circle {...F} cx="12" cy="8.2" r="3.4" /><path {...F} d="M5.6 20c0-3.5 3-5.5 6.4-5.5S18.4 16.5 18.4 20z" /></svg>;
@@ -1813,7 +1814,7 @@ function BSTabIcon({ name, size = 22, weight = 1.7, filled = false, cut = 'trans
     case 'home': return <svg {...p}><path d="M3 10.5 12 3l9 7.5" /><path d="M5.5 9.5V20h13V9.5" /></svg>;
     case 'train': return <svg {...p}><path d="M4 9v6M7 7.5v9M17 7.5v9M20 9v6M7 12h10" /></svg>;
     case 'eat': return <svg {...p}><path d="M12 8c-1-2-4-2.4-5.6-.9C4 8.8 4.6 13 7 16.4c1 1.4 1.9 1.9 2.7 1.5.8-.4 1.8-.4 2.6 0 .8.4 1.7-.1 2.7-1.5 2.4-3.4 3-7.6.6-9.3C16 5.6 13 6 12 8Z" /><path d="M12 8c0-1.8 1-3.2 3-3.7" /></svg>;
-    case 'market': return <svg {...p}><path d="M14.4 12.8H21V8.5H9A5.5 5.5 0 1 0 14.4 12.8Z" /><circle cx="9" cy="14" r="1.5" /><path d="M16.5 8.5V6.3" /></svg>;
+    case 'market': return <svg {...p}><path d="M3.8 9.8h3.4L16.5 5v13.6l-9.3-4.4H3.8z" /><path d="M7.4 14.4l1.3 4.6h2.3l-1-3.4" /><path d="M19.4 9.6a3.4 3.4 0 0 1 0 4.8" /></svg>;
     case 'chat': return <svg {...p}><path d="M4.5 5.5h15v10h-10l-4 3.5v-3.5h-1z" /></svg>;
     case 'store': return <svg {...p}><path d="M5.5 8h13l-1 11.5h-11z" /><path d="M9 8V6.5a3 3 0 0 1 6 0V8" /></svg>;
     case 'me': return <svg {...p}><circle cx="12" cy="8.2" r="3.3" /><path d="M5.6 20c0-3.5 3-5.5 6.4-5.5S18.4 16.5 18.4 20" /></svg>;

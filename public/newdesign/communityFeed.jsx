@@ -789,8 +789,141 @@ function cfChannelOf(p) {
   return CF_KNOWN_CHANNELS.indexOf(ch) >= 0 ? ch : cfKindOfRole(p && p.role);
 }
 function cfFeedScope(role) {
+  // ⚠ NO ROLE, NO ROLE ROOM (Codex P1 on #2671): a signed-in member whose role could not be read
+  // reaches the Wall and Community only, never a guessed role's peer room.
+  if (role == null || role === "") return ["COMMUNITY", "SHAPE"];
   const mine = role === "trainer" ? "TRAINER" : role === "nutritionist" ? "NUTRI" : "CLIENT";
   return ["COMMUNITY", mine, "SHAPE"];
+}
+
+// ── The places (owner, 2026-11-10: "just have it match the app, referring to whats
+// available on the chat page", then "make sure the feeds are showing the same") ──────
+// The bubble now carries the app's three feed places as TABS — Wall, Community and the
+// viewer's own role — so the posts are filed the way the app files them, place by place,
+// from the same read. The app's rules (iosAppBroadsheetClient.jsx, the chat page):
+//   Wall       `activityFeed`: every post that is an activity (`bsActivityFromPost`) or a
+//              photo/video that is not a repost (`bsWallMediaCard`).
+//   Community  `posts.filter(p => p.kind === 'SHAPE')`, kept to posts with words.
+//   Role       the same, for the viewer's own role channel.
+// Two deliberate differences, both on the side of showing less to the wrong people or
+// losing nothing already posted:
+//   · the Wall still keeps to `cfFeedScope` for a post filed EXPLICITLY into another
+//     role's peer channel (a trainers'-room photo stays in the trainers' room). An
+//     activity with no channel — an auto-post, a logged workout — reaches everyone's
+//     Wall, as in the app.
+//   · a post this site made on the Wall (channel COMMUNITY) stays on the Wall even with
+//     no media: every web post before this change was filed there.
+function cfExplicitChannel(p) {
+  const ch = String((p && p.channel) || "").trim().toUpperCase();
+  return CF_KNOWN_CHANNELS.indexOf(ch) >= 0 ? ch : "";
+}
+function cfRoleChannel(role) {
+  const r = String(role || "").trim().toLowerCase();
+  return r === "trainer" ? "TRAINER" : r === "nutritionist" ? "NUTRI" : "CLIENT";
+}
+// The channel a post made in a place is filed under, as the app's composer writes it
+// (`createPost({ channel: kind })`, kind = the chip you post from).
+function cfPlaceChannel(place, role) {
+  if (place === "community") return "SHAPE";
+  if (place === "role") return cfRoleChannel(role);
+  return CF_POST_CHANNEL;
+}
+const CF_WALL_KINDS = ["pr", "run", "workout", "tier", "meal", "streak", "milestone"];
+function cfIsWallCard(p) {
+  if (!p) return false;
+  if (CF_WALL_KINDS.indexOf(p.kind) >= 0) return true;
+  if (Array.isArray(p.buckets) && p.buckets.some((b) => b !== "post")) return true;
+  return !!((p.photo || p.video) && !p.repost);
+}
+function cfInPlace(p, place, role, scope) {
+  const ch = cfChannelOf(p);
+  if (place === "community") return ch === "SHAPE" && !!p.body;
+  if (place === "role") return !!role && ch === cfRoleChannel(role) && !!p.body;
+  const explicit = cfExplicitChannel(p);
+  // ⚠ NOT A REPOST (Codex P2 on #2671): a repost is never a Wall card, in the app or here, and the
+  // web's old reposts carry COMMUNITY too.
+  if (explicit === "COMMUNITY" && !p.repost) return true;
+  return cfIsWallCard(p) && (explicit === "" || scope.indexOf(explicit) >= 0);
+}
+// The app's own signed-out sample for Community and the role places (`SAMPLE` in the
+// chat page, word for word), so a visitor previews the same conversation on both. Shown
+// only when there is nothing live to show, and labelled a preview.
+const CF_SAMPLE_TALK = [
+  ["SHAPE", "Emma Rivera", "Member", "1h", "New to Shape this week, coming off a long layoff. Any tips for not going too hard the first couple weeks?", 22, 15],
+  ["SHAPE", "Tom Becker", "Member", "3h", "Anyone in the Riverside Runners group doing the 6am long run Saturday? Looking for someone to hold ~8:00 pace.", 18, 9],
+  ["SHAPE", "Aisha Khan", "Member", "6h", "Three weeks in and the daily check-in is the habit that actually stuck. Small, but it adds up.", 34, 6],
+  ["SHAPE", "Carlos Mendez", "Member", "1d", "PSA: the cork mobility ball from the Shape Store is worth it. My calves have never been this happy.", 27, 8],
+  ["SHAPE", "Nina Patel", "Member", "2d", "Hit my 100th logged workout today 🎉 Started barely able to do a push-up. Keep showing up — it works.", 63, 19],
+  ["SHAPE", "Jordan Chen", "Trainer", "2h", "Trainer here 👋 Happy to eyeball form for anyone in the community — post a side-on clip of your squat or deadlift and tag me.", 38, 14],
+  ["SHAPE", "Dr. Maya Patel", "Nutritionist", "4h", "Nutritionist tip for the group: front-load protein at breakfast (30–40g). It blunts the afternoon snack spiral better than any willpower hack.", 52, 11],
+  ["SHAPE", "Diego Morales", "Trainer", "1d", "Reminder from a coach: soreness isn't the scoreboard. Consistency + sleep beat crushing yourself once a week. Play the long game.", 44, 7],
+  ["SHAPE", "Priya Iyer", "Nutritionist", "1d", "Traveling this week? A banana + a palm of nuts is a perfectly good \"I couldn't meal prep\" lunch. Don't let perfect wreck good.", 31, 5],
+  ["TRAINER", "Jordan Chen", "Trainer", "2h", "Fellow coaches — anyone seeing better adherence moving check-ins from Monday to Sunday night? Early data on two clients looks promising.", 14, 11],
+  ["TRAINER", "Maya Okafor", "Trainer", "5h", "What are you all using for async form review? I'm on video + timestamps but it's eating my evenings.", 9, 13],
+  ["TRAINER", "Diego Morales", "Trainer", "1d", "Heads up: the Shape payout split updated this month — check your Connect dashboard, the net breakdown is clearer now.", 18, 7],
+  ["TRAINER", "Tariq Osei", "Trainer", "1d", "Got a masters lifter (58M) returning from a disc issue. Anyone have a conservative deadlift re-entry progression they like?", 11, 9],
+  ["TRAINER", "Sana Bhatt", "Trainer", "2d", "Referral: I'm at capacity on postpartum clients. If anyone has room for at-home / kettlebell-leaning programming, DM me.", 8, 6],
+  ["TRAINER", "Lena Park", "Trainer", "2d", "How do you all keep clients on Zone 2? I keep losing them to \"it feels too easy.\" Cues that have landed for you?", 15, 14],
+  ["TRAINER", "Jordan Chen", "Trainer", "3d", "Shape Radio coach slot opened up for Thursday 7pm — who wants it? Good way to pull in new clients.", 12, 5],
+  ["TRAINER", "Diego Morales", "Trainer", "4d", "Programming debate: RPE vs percentage-based for intermediate lifters. I've been running hybrid lately — where do you land?", 20, 22],
+  ["NUTRI", "Dr. Maya Patel", "Nutritionist", "3h", "Colleagues — how aggressive are you going with refeeds for clients deep in a cut? I've settled on one structured high-carb day weekly.", 16, 12],
+  ["NUTRI", "Owen Halverson", "Nutritionist", "7h", "Anyone have a clean race-week fueling handout they're willing to share? Rebuilding mine and don't want to reinvent it.", 11, 8],
+  ["NUTRI", "Priya Iyer", "Nutritionist", "1d", "Low-FODMAP clients: what's your go-to when they travel? Reintroductions always slip on the road.", 9, 7],
+  ["NUTRI", "Jules Bonner", "Nutritionist", "2d", "CDCES question — coordinating macros with a client's endo on a GLP-1. How are you holding the protein floor on low appetite?", 13, 10],
+  ["NUTRI", "Owen Halverson", "Nutritionist", "3d", "Shape added carbs/fat to the meal-plan builder 🙌 swaps finally carry full macros now. Big quality-of-life win.", 22, 6],
+  ["NUTRI", "Dr. Maya Patel", "Nutritionist", "3d", "Full on sports-nutrition clients this quarter. If anyone has capacity for endurance / plant-based, I've got two referrals.", 10, 5],
+  ["NUTRI", "Priya Iyer", "Nutritionist", "4d", "What adherence tracking are you using beyond photo logs? Looking for something clients actually keep up with.", 14, 11],
+  ["CLIENT", "Sofia Martinez", "Client", "4h", "First sub-9 min mile today!", 18, 3],
+  ["CLIENT", "Andre Willis", "Client", "6h", "Hit a 200 lb deadlift for the first time. Started at 95 back in January 😤", 47, 11],
+  ["CLIENT", "Lena Park", "Client", "1d", "Meal-prepped all five lunches on Sunday. Future me is grateful.", 15, 2],
+  ["CLIENT", "Priya R.", "Client", "1d", "30-day protein streak ✅ Hardest habit to build, easiest to feel.", 29, 6],
+  ["CLIENT", "Marcus J.", "Client", "2d", "Made all four sessions this week even with travel. Momentum > motivation.", 33, 4],
+  ["CLIENT", "Dani Cole", "Client", "2d", "Three months ago a flight of stairs wrecked me. Did a 5k this morning without stopping. 🥹", 58, 13],
+  ["CLIENT", "Sam Okafor", "Client", "3d", "Down 14 lb and my resting HR went 72 → 61. The wearable doesn't lie. 📉", 49, 9],
+  ["CLIENT", "Renée Dubois", "Client", "4d", "Slept 7.5h five nights straight for the first time in years. Recovery scores are night and day.", 31, 5],
+].map(([channel, who, role, time, body, likes, comments]) => ({ kind: "post", channel, who, role, time, body, likes, comments }));
+
+// ── A face for every author ────────────────────────────────────────────────
+// The card drew a blank disc for everyone. A member's own photo (get_public_profile,
+// which applies their visibility) when they have one, read once per author and
+// shared by every card; otherwise their initials on their role's colour. The sample
+// cast wears initials, as the app draws its own sample: a stock face picked by a hash
+// of the name put a woman's photo over "Marcus J.".
+const cfAvatarCache = {};
+const cfAvatarWaiters = {};
+function cfAvatarFor(uid) {
+  if (!uid) return Promise.resolve(null);
+  if (uid in cfAvatarCache) return Promise.resolve(cfAvatarCache[uid]);
+  if (cfAvatarWaiters[uid]) return cfAvatarWaiters[uid];
+  const cl = window.shapeDb && window.shapeDb.client;
+  if (!cl || !cl.rpc) return Promise.resolve(null);
+  cfAvatarWaiters[uid] = cl.rpc("get_public_profile", { p_user_id: uid }).then((r) => {
+    const d = r && r.data; const row = Array.isArray(d) ? d[0] : d;
+    cfAvatarCache[uid] = (row && row.avatar) || null;
+    return cfAvatarCache[uid];
+  }).catch(() => { cfAvatarCache[uid] = null; return null; }).finally(() => { delete cfAvatarWaiters[uid]; });
+  return cfAvatarWaiters[uid];
+}
+function cfInitials(name) {
+  const parts = String(name || "").replace(/[^\p{L}\p{N}\s.'-]/gu, "").trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return "?";
+  return (parts[0][0] + (parts.length > 1 ? parts[parts.length - 1][0] : "")).toUpperCase();
+}
+function CfAvatar({ p, size = 40 }) {
+  const [photo, setPhoto] = React.useState(() => (p.authorId ? (cfAvatarCache[p.authorId] || null) : null));
+  React.useEffect(() => {
+    if (!p.authorId) return undefined;
+    let on = true;
+    cfAvatarFor(p.authorId).then((u) => { if (on) setPhoto(u || null); });
+    return () => { on = false; };
+  }, [p.authorId]);
+  const heat = cfHeat(p);
+  return (
+    <span aria-hidden style={{ position: "relative", flex: "none", width: size, height: size, borderRadius: 999, display: "grid", placeItems: "center", overflow: "hidden", background: `linear-gradient(135deg, ${cfHexA(heat, 0.55)}, ${cfHexA(heat, 0.18)})`, boxShadow: `0 0 0 1.5px ${cfHexA(heat, 0.55)}`, color: INK, fontFamily: CF_DISP, fontWeight: 700, fontSize: Math.round(size * 0.36), letterSpacing: "0.02em" }}>
+      {cfInitials(p.who)}
+      {photo && <img src={photo} alt="" loading="lazy" onError={(e) => { e.currentTarget.style.display = "none"; }} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />}
+    </span>
+  );
 }
 
 // ── The reader's units ──────────────────────────────────────────────────────
@@ -894,8 +1027,17 @@ function cfUnitizePost(p, U, prefs) {
   };
 }
 
-function CommunityFeed() {
-  const ME = { who: "Priya M.", role: "Hypertrophy · 2,140" };
+function CommunityFeed({ place = "wall" } = {}) {
+  // The member posting: their own name, read with their account below (`meName`). It
+  // was a sample person's ("Priya M."), so the composer and a new post's optimistic row
+  // named someone else until the feed was read again.
+  const [meName, setMeName] = React.useState("");
+  // The signed-in account's role, from its profile: null until read (see `myRole`).
+  const [acctRole, setAcctRole] = React.useState(null);
+  // ⚠ THREE STATES, NOT TWO. null = not resolved yet, false = measured signed
+  // out, true = measured signed in. Collapsing null into false would disable
+  // posting for a signed-in member for as long as the read takes.
+  const [signedIn, setSignedIn] = React.useState(null);
   const [composerOpen, setComposerOpen] = React.useState(false);
   // "+25 · CAREER" confirmation — shown ONLY when award_work_milestone
   // actually granted (spec 2026-07-13; a same-month duplicate shows nothing).
@@ -1011,8 +1153,28 @@ function CommunityFeed() {
   // `cfEnsureWallFonts` for why it is one link from here rather than an edit to
   // all 35 host pages.
   React.useEffect(() => { cfEnsureWallFonts(); }, []);
-  const myRole = (typeof window !== "undefined" && window.shapeViewerRole)
-    ? String(window.shapeViewerRole() || "").toLowerCase() : "client";
+  // ⚠ THE ROLE IS THE ACCOUNT'S, READ WITH IT (Codex P1 on #2671). `shapeViewerRole` is
+  // filled in by globalChatButton.js after a profile read of its own, so on a first visit,
+  // after cleared storage or a switch of account it still said "client": a trainer's post
+  // made in the role place was filed under CLIENT for good, and the role place showed them
+  // the clients' room. The feed reads the profile's role itself (`acctRole`, below); the
+  // cached one stands in only for a visitor or while that read is out, and posting in the
+  // role place waits for it.
+  const cachedRole = (typeof window !== "undefined" && window.shapeViewerRole)
+    ? String(window.shapeViewerRole() || "").toLowerCase() : "";
+  // ⚠ SIGNED IN, THE ROLE IS THE ACCOUNT'S OR NONE (Codex P1 on #2671, again): a profile read that
+  // failed left the cache's guess (the last account's, or "client") choosing which peer room the
+  // role place read. Until the account's role is read, the role place shows nothing and the scope
+  // holds no role room. The cache stands in only for a visitor, and only for the label.
+  const myRole = signedIn === true ? (acctRole || null) : (cachedRole || "client");
+  const labelRole = myRole || cachedRole || "client";
+  const roleUnsure = place === "role" && signedIn === true && !acctRole;
+  // This place, in the app's words: where a post made here is filed, and what it is called.
+  const postChannel = cfPlaceChannel(place, myRole);
+  const placeName = place === "community" ? "Community"
+    : place === "role" ? (labelRole === "trainer" ? "Trainer" : labelRole === "nutritionist" ? "Nutritionist" : "Client")
+    : "Wall";
+  const meRoleLabel = myRole === "trainer" ? "Trainer" : myRole === "nutritionist" ? "Nutritionist" : "Member";
 
   const DEMO_FEED = [
     { kind: "pr", channel: "COMMUNITY", who: "Marcus J.", role: "Tempo · 1,412", time: "8m", lift: "Bench Press", load: "225 lb", delta: "+10 lb", reps: "5 × 5", body: "First time hitting 225 on bench after 8 months. Maya's programming is unreal.", likes: 47, comments: 12, tag: "STRENGTH" },
@@ -1031,22 +1193,44 @@ function CommunityFeed() {
     { kind: "tier", channel: "COMMUNITY", who: "Ana P.", role: "Tempo · 752", time: "2h", from: "Raw", to: "Tempo", earned: 752, body: "Three weeks in. Tempo unlocked — limited drops open up on the store, here we come.", likes: 56, comments: 14, tag: "GENERAL" },
     { kind: "meal", channel: "COMMUNITY", who: "Priya S.", role: "Tempo · 1,284", time: "3h", title: "Sheet-pan salmon, sweet potato & broccoli", kcal: 620, p: 44, c: 58, f: 22, source: "From Rae · cook-along", likes: 12, comments: 2, tag: "NUTRITION" },
     { kind: "streak", channel: "COMMUNITY", who: "Diego R.", role: "Form · 2,540", time: "4h", days: 21, body: "Three weeks straight. Sunday-night protein prep is the unlock.", likes: 41, comments: 9, tag: "GENERAL" },
-    { kind: "post", channel: "SHAPE", who: "Elena R.", role: "Peak · 6,108", time: "5h", body: "Down 14 lb and running negative splits for the first time ever. Rae's post-run fueling protocol changed everything.", likes: 82, comments: 24, tag: "NUTRITION" },
-    { kind: "post", channel: "SHAPE", who: "Jonah W.", role: "Tempo · 980", time: "7h", body: "Race day Sunday — Brooklyn Half. Meet by the start corral at 6:45 if you're running. Coffee on me after.", likes: 19, comments: 8, tag: "RACING" },
-  ];
-  const [feed, setFeed] = React.useState(DEMO_FEED);
+  ].concat(CF_SAMPLE_TALK);
+  // ⚠ NOTHING IS DRAWN UNTIL THE READ ANSWERS. The feed started on the sample set, so a
+  // signed-in member watched sample people's posts for as long as the read took and then
+  // saw them swapped for their own community's. `loaded` holds a quiet skeleton instead.
+  const [feed, setFeed] = React.useState([]);
+  const [loaded, setLoaded] = React.useState(false);
+  // A read that did not complete is not an empty feed: say so, and offer it again.
+  const [loadFailed, setLoadFailed] = React.useState(false);
+  // The sample set is on screen (signed out, nothing live): labelled a preview.
+  const [showingSample, setShowingSample] = React.useState(false);
+  // ⚠ THE FEED KEEPS UP. It was read once per open, so a post made in the app — or by
+  // anyone — never appeared until the panel was closed and opened again, and a post made
+  // here kept its stand-in row (no id: no like, no reply, no delete) until then. It is
+  // read again after a post of yours lands, when the window comes back into view, and
+  // every 45 seconds while it is in view. The app reads its feed on open and after a
+  // post of yours (`feedNonce`); the poll is this panel's, which stays open on a desk.
+  const [refreshNonce, setRefreshNonce] = React.useState(0);
+  const lastLoadRef = React.useRef(0);
+  const refreshFeed = React.useCallback(() => setRefreshNonce((n) => n + 1), []);
+  React.useEffect(() => {
+    const visible = () => typeof document === "undefined" || document.visibilityState !== "hidden";
+    const id = setInterval(() => { if (visible()) refreshFeed(); }, 45000);
+    const back = () => { if (visible() && Date.now() - lastLoadRef.current > 15000) refreshFeed(); };
+    document.addEventListener("visibilitychange", back);
+    window.addEventListener("focus", back);
+    return () => { clearInterval(id); document.removeEventListener("visibilitychange", back); window.removeEventListener("focus", back); };
+  }, [refreshFeed]);
   // Community feed viewing lens — UNIVERSAL (everyone's public activity, the
   // default) vs FOLLOWING (accepted follows + you, incl. their followers-tier
   // posts). Persisted per device; the route + RLS enforce visibility.
   const [feedMode, setFeedMode] = React.useState(() => {
     try { return localStorage.getItem('shape.feedMode') === 'following' ? 'following' : 'universal'; } catch (e) { return 'universal'; }
   });
-  const switchFeedMode = (m) => { setFeedMode(m); try { localStorage.setItem('shape.feedMode', m); } catch (e) {} };
+  const switchFeedMode = (m) => { if (m !== feedMode) setLoaded(false); setFeedMode(m); try { localStorage.setItem('shape.feedMode', m); } catch (e) {} };
   const [liveEmpty, setLiveEmpty] = React.useState(false);
-  // ⚠ THREE STATES, NOT TWO. null = not resolved yet, false = measured signed
-  // out, true = measured signed in. Collapsing null into false would disable
-  // posting for a signed-in member for as long as the read takes.
-  const [signedIn, setSignedIn] = React.useState(null);
+  const loadedRef = React.useRef(false);
+  // A new lens is a new read: its first answer may say it failed.
+  React.useEffect(() => { loadedRef.current = false; }, [feedMode]);
   // ＋ Post elsewhere on the site (the living profile's own feed head, livingShared.jsx
   // lvComposePost) asks for the composer: a one-shot request read once the account is known
   // to be signed in, and an event for a feed already on screen. Signed out, it is left alone.
@@ -1064,6 +1248,8 @@ function CommunityFeed() {
   // The converter and the member's unit setting, once both have loaded. Until
   // then a card renders its figures as stored.
   const [units, setUnits] = React.useState(null);
+  const cardEnvRef = React.useRef({ units: null, place });
+  const cardTypeRef = React.useRef(null);
 
   // Hydrate the live posts on top of the demo content. The /api/community/feed
   // endpoint returns rows from community_posts (newest first); we map each row
@@ -1202,7 +1388,19 @@ function CommunityFeed() {
         photo: p.photo_url || null,
         mentions: (p.metrics && Array.isArray(p.metrics.mentions)) ? p.metrics.mentions : [],
         likes: Array.isArray(p.likes) ? p.likes.length : 0,
+        // ⚠ WHETHER YOU LIKED IT IS READ, NOT ASSUMED. The heart started empty on every
+        // card, so tapping one you had liked in the app counted +1 here while the write
+        // REMOVED your like: the two surfaces then disagreed by two.
+        likedByMe: !!(uid && Array.isArray(p.likes) && p.likes.some((l) => l && l.user_id === uid)),
         comments: Array.isArray(p.comments) ? p.comments.length : 0,
+        // The replies themselves, oldest first, as the app shows them: the card showed a
+        // count and only the replies typed on this page since it opened.
+        commentList: Array.isArray(p.comments) ? p.comments.slice()
+          .sort((a, b) => String((a && a.created_at) || "").localeCompare(String((b && b.created_at) || "")))
+          .map((c) => ({ id: c.id || null, who: (uid && c.user_id === uid) ? "You" : (c.author_name || "Member"), t: String(c.body || ""), time: c.created_at ? since(c.created_at) : "", mine: !!(uid && c.user_id === uid) })) : [],
+        authorId: p.author_id || null,
+        // A repost is never a Wall card (`bsWallMediaCard` refuses one), whatever it quotes.
+        repost: !!(m && m.repostOf),
         // Meal posts pin the NUTRITION tag from metrics.kind — activity_type
         // defaults to 'workout' on this API, so it can't be trusted alone
         // (CodeRabbit: the visible pill must match the Nutrition bucket).
@@ -1235,24 +1433,74 @@ function CommunityFeed() {
       // there's nothing yet); the demo sample posts are for signed-out preview only.
       let signedIn = false;
       let uid = null;
-      try { const sb = window.shapeDb && window.shapeDb.client; if (sb) { const { data } = await sb.auth.getUser(); uid = data && data.user && data.user.id; signedIn = !!uid; } } catch (e) {}
-      setSignedIn(signedIn);
-      cfLoadUnits(signedIn).then((u) => { if (alive && u) setUnits(u); });
-      let live = [];
+      let name = "";
+      let role = null;
+      // The feed is asked for at once; the account is found while it answers. Who you are
+      // decides only which cards are yours and which hearts are filled.
+      const feedReq = fetch('/api/community/feed' + (feedMode === 'following' ? '?mode=following' : ''), { credentials: 'same-origin' })
+        .then((r) => (r.ok ? r.json() : null)).catch(() => null);
+      // ⚠ LOAD THE CLIENT AND BRIDGE THE COOKIE SESSION; DO NOT ASSUME EITHER. Most pages
+      // that carry the bubble do not load /supabase.js, so `window.shapeDb` was absent at
+      // this read and a signed-in member was taken for a visitor: sample posts, "Sign in
+      // to post", and a heart that wrote nothing. The widget's own reads load it the same
+      // way (`shapeEnsureDb`, pageShell.jsx).
       try {
-        const r = await fetch('/api/community/feed' + (feedMode === 'following' ? '?mode=following' : ''), { credentials: 'same-origin' });
-        if (r.ok) { const d = await r.json(); if (d && Array.isArray(d.posts)) live = d.posts.map(p => mapPost(p, uid)); }
+        const sdb = (window.shapeEnsureDb ? await window.shapeEnsureDb() : null) || window.shapeDb;
+        const sb = sdb && sdb.client;
+        if (sb) {
+          try { if (sdb.getSession) await sdb.getSession(); } catch (e) {}
+          const { data } = await sb.auth.getUser();
+          const u = data && data.user;
+          uid = u && u.id; signedIn = !!uid;
+          if (u) name = (u.user_metadata && u.user_metadata.full_name) || String(u.email || "").split("@")[0] || "";
+          if (u && sdb.getProfile) {
+            try {
+              const pr = await sdb.getProfile(u.id);
+              const r = pr && pr.role ? String(pr.role).trim().toLowerCase() : "";
+              if (r) role = r;
+              if (pr && pr.full_name) name = pr.full_name;
+            } catch (e) { /* the role stays unknown, and the role place waits */ }
+          }
+        }
       } catch (e) {}
       if (!alive) return;
-      // Signed-out preview shows the demo set in BOTH modes (mobile parity —
-      // spec AC6): the demo band already labels it a preview, so a signed-out
-      // Following never dead-ends on a bare "nothing here" (CodeRabbit). The
-      // SIGNED-IN Following empty state stays honest via liveEmpty below.
-      setFeed(signedIn ? live : [...live, ...DEMO_FEED]);
+      setSignedIn(signedIn);
+      setMeName(name);
+      if (signedIn && role) {
+        setAcctRole(role);
+        // The bubble's role tab reads the same cache: tell it, as globalChatButton.js does
+        // once it knows (`shape.viewerRole`), so its label follows the account.
+        if (window.__shapeViewerRole !== role) {
+          window.__shapeViewerRole = role;
+          try { localStorage.setItem("shape.viewerRole", role); } catch (e) {}
+          try { window.dispatchEvent(new Event("shape:viewer-role")); } catch (e) {}
+        }
+      } else if (!signedIn) setAcctRole(null);
+      cfLoadUnits(signedIn).then((u) => { if (alive && u) setUnits(u); });
+      let live = [];
+      let ok = false;
+      const d = await feedReq;
+      if (d && Array.isArray(d.posts)) { live = d.posts.map(p => mapPost(p, uid)); ok = true; }
+      if (!alive) return;
+      lastLoadRef.current = Date.now();
+      // ⚠ A FAILED RE-READ KEEPS WHAT IS ON SCREEN. Only a first read that failed says so.
+      if (!ok && loadedRef.current) return;
+      setLoadFailed(!ok && signedIn);
+      // The app's rule, both modes: what is live, else — signed out, with nothing live —
+      // its sample. Signed in it is only ever live, so an empty Following is honestly
+      // empty (liveEmpty below) and never the sample presented as your follows.
+      const sample = !signedIn && live.length === 0;
+      setShowingSample(sample);
+      // A post of yours still on its way keeps its stand-in row until the read has it.
+      setFeed((prev) => prev.filter((x) => x && x.pending).concat(sample ? DEMO_FEED : live));
       setLiveEmpty(signedIn && feedMode === 'following' && live.length === 0);
+      // Only an answer counts as loaded: after a failed first read, the next read (a retry,
+      // the timer) is still allowed to replace the error.
+      loadedRef.current = ok || !signedIn;
+      setLoaded(true);
     })();
     return () => { alive = false; };
-  }, [feedMode]);
+  }, [feedMode, refreshNonce]);
 
   // ── The two blocks the wall plate does NOT absorb ─────────────────────
   // THE PLATE (spec 2026-07-12) — a REAL shared meal's signature block: kcal
@@ -1503,9 +1751,15 @@ function CommunityFeed() {
     // read it — and `stored` is kept for every place that writes the post
     // somewhere: a repost (its title and the quote it carries), the edit sheet
     // and a private send. Those keep what the author wrote.
+    const env = cardEnvRef.current;
+    const units = env.units;
     const p = React.useMemo(() => (units ? cfUnitizePost(stored, units.U, units.prefs) : stored), [stored, units]);
     // One model per card, both populations.
     const wall = cfWallModel(p);
+    // ⚠ COMMUNITY AND THE ROLE PLACES ARE CONVERSATION, NOT RECORDS. The app draws their
+    // posts as words under a name; set as a plate, a question became a 19px headline
+    // with a full stop added. A post there that carries a record keeps its plate.
+    const talk = env.place !== "wall" && !wall.heroStat && !p.meal && !p.milestone;
     // ⚠ A DEMO RUN KEEPS ITS NAME IN `session.title` AND NOWHERE ELSE, so
     // without this fallback the richest card on the board lost its headline —
     // the retired session button was what used to print it. It is taken for
@@ -1523,8 +1777,10 @@ function CommunityFeed() {
       || p.lift
       || (p.isLive ? "" : (p.session && p.session.title) || "")
     ).trim();
-    const [liked, setLiked] = React.useState(false);
+    const [liked, setLiked] = React.useState(!!p.likedByMe);
     const [likeCount, setLikeCount] = React.useState(p.likes);
+    // A re-read carries the post's own count and whether you liked it (from the app, too).
+    React.useEffect(() => { setLiked(!!p.likedByMe); setLikeCount(p.likes); }, [p.likes, p.likedByMe]);
     const [sendOpen, setSendOpen] = React.useState(false);
     const [sessionOpen, setSessionOpen] = React.useState(false);
     // Share-as-image chooser (web-parity spec 2026-07-13): OWN real posts
@@ -1535,7 +1791,13 @@ function CommunityFeed() {
     const [showReplies, setShowReplies] = React.useState(false);
     const [draft, setDraft] = React.useState("");
     const [replies, setReplies] = React.useState([]);
-    const totalReplies = p.comments + replies.length;
+    // The replies the post carries, then yours still on their way; a re-read that has
+    // yours takes over from the stand-in.
+    const serverReplies = Array.isArray(p.commentList) ? p.commentList : [];
+    const ownServer = serverReplies.filter((r) => r.mine).map((r) => r.t);
+    const localReplies = replies.filter((r) => ownServer.indexOf(r.t) < 0);
+    const allReplies = serverReplies.concat(localReplies);
+    const totalReplies = (Array.isArray(p.commentList) ? serverReplies.length : p.comments) + localReplies.length;
 
     // Live posts persist engagement to the real tables (same RLS the app uses);
     // demo cards stay optimistic-local so the feed always demonstrates itself.
@@ -1564,20 +1826,25 @@ function CommunityFeed() {
         const { data: u } = await client.auth.getUser();
         const uid = u && u.user && u.user.id; if (!uid) return;
         const name = (u.user.user_metadata && u.user.user_metadata.full_name) || String(u.user.email || "Member").split("@")[0];
-        await client.from("community_comments").insert({ post_id: p.id, user_id: uid, author_name: name, body: t });
+        const { error } = await client.from("community_comments").insert({ post_id: p.id, user_id: uid, author_name: name, body: t });
+        if (!error) refreshFeed();
       } catch (e) {}
     };
-    // ⚠ A REPOST IS A FEED WRITE, so it carries the channel like every other
-    // one (Codex P2 on #2102). Without it the app's mapper falls back to the
-    // REPOSTER'S ROLE and files it under Client/Trainer/Nutri instead of the
-    // Wall — and the reposted card is the one most likely to be a record.
-    // Pre-existing, and this PR owns it: making `CF_POST_CHANNEL` the file's
-    // write-side invariant is what turned a gap into a broken invariant.
+    // ⚠ A REPOST IS A FEED WRITE, so it carries a channel like every other one (Codex P2 on
+    // #2102), and it is FILED WHERE THE APP FILES ITS OWN (Codex P2 on #2671). It was stamped
+    // COMMUNITY to reach the Wall, but a repost is a note and never a Wall card, in the app or
+    // here. The app writes its reposts with no channel, so they land in the reposter's role place
+    // (`KIND_OF(role)`); here that place is named outright, from the account's role, and a
+    // repost waits for that role as the role place's composer does.
     const onRepost = async () => {
+      const env = cardEnvRef.current || {};
+      if (env.roleUnsure) { try { window.alert("Checking your account \u2014 try again in a moment."); } catch (e) {} return; }
+      const repostChannel = cfRoleChannel(env.role);
       if (!p.isLive || !p.id) { try { window.alert("Sample post — repost works on real posts."); } catch (e) {} return; }
       try {
-        const res = await fetch("/api/community/feed", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ title: stored.title || "Repost", note: stored.body || "", privacy: "public", metrics: { kind: "note", channel: CF_POST_CHANNEL, repostOf: { postId: p.id, who: p.who || "", title: stored.title || "", body: String(stored.body || "").slice(0, 240) } } }) });
+        const res = await fetch("/api/community/feed", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ title: stored.title || "Repost", note: stored.body || "", privacy: "public", metrics: { kind: "note", channel: repostChannel, repostOf: { postId: p.id, who: p.who || "", title: stored.title || "", body: String(stored.body || "").slice(0, 240) } } }) });
         if (!res.ok) throw new Error("repost_failed");
+        refreshFeed();
         try { window.alert("Reposted to the feed"); } catch (e) {}
       } catch (e2) { try { window.alert("Could not repost."); } catch (e3) {} }
     };
@@ -1590,16 +1857,16 @@ function CommunityFeed() {
     };
 
     return (
-      <CfCard style={{ padding: 22 }}>
-        <div style={{ display: "flex", gap: 12, marginBottom: 14, alignItems: "center" }}>
-          <div style={{ width: 40, height: 40, borderRadius: 999, background: "var(--sh-ink-soft, #efece6)", flexShrink: 0 }} />
+      <CfCard style={{ padding: talk ? "18px 20px 14px" : 22, opacity: p.pending ? 0.72 : 1 }}>
+        <div style={{ display: "flex", gap: 12, marginBottom: talk ? 10 : 14, alignItems: "center" }}>
+          <CfAvatar p={p} size={talk ? 38 : 40} />
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-              <div style={{ fontSize: 14, fontWeight: 500 }}>{p.who}</div>
-              <div style={{ fontSize: 11, color: TEAL_BRIGHT, fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.04em" }}>{p.role}</div>
+              <div style={{ fontSize: 14, fontWeight: 600, letterSpacing: "-0.005em" }}>{p.who}</div>
+              <div style={{ fontSize: 11, color: wall.heat, fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.04em" }}>{p.role}</div>
             </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
-              <span style={{ fontFamily: mono, fontSize: 10, color: cfHexA(INK, 0.45), letterSpacing: "0.04em" }}>{p.time}</span>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 3 }}>
+              <span style={{ fontFamily: mono, fontSize: 10, color: cfHexA(INK, 0.45), letterSpacing: "0.04em" }}>{p.pending ? "Posting…" : p.time}</span>
             </div>
           </div>
           {/* The activity type as the app sets it — a heat-underlined caption
@@ -1612,10 +1879,12 @@ function CommunityFeed() {
             (iosAppBroadsheetClient.jsx:21907) rather than to one chip, so the
             six blocks this retired (PRStat/WorkoutStat/RunStat/TierStat/
             MealStat/StreakStat) had no chip left to render on. */}
-        <CfWallPlate p={p} model={wall} title={wallTitle} />
+        {talk
+          ? <div style={{ fontFamily: sans, fontSize: 14.5, lineHeight: 1.55, color: cfHexA(INK, 0.92), whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{p.body}</div>
+          : <CfWallPlate p={p} model={wall} title={wallTitle} />}
         {p.meal && <MealPlate meal={p.meal} />}
         {p.milestone && <MilestoneStamp m={p.milestone} />}
-        {p.body && p.body !== wallTitle && <div style={{ fontFamily: sans, fontSize: 13, lineHeight: 1.45, color: cfHexA(INK, 0.75), marginTop: 7 }}>{p.body}</div>}
+        {!talk && p.body && p.body !== wallTitle && <div style={{ fontFamily: sans, fontSize: 13, lineHeight: 1.45, color: cfHexA(INK, 0.75), marginTop: 7 }}>{p.body}</div>}
         {p.photo && <img src={p.photo} alt={p.title || p.body || `Photo shared by ${p.who || "a member"}`} loading="lazy" style={{ display: "block", width: "100%", aspectRatio: "4 / 3", objectFit: "cover", borderRadius: 12, marginTop: p.body ? 12 : 2, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)", background: "rgba(var(--sh-ink-rgb, 242,237,228),0.05)" }} />}
         {p.video && <video src={p.video} controls playsInline preload="metadata" style={{ display: "block", width: "100%", aspectRatio: "4 / 3", objectFit: "cover", borderRadius: 12, marginTop: p.body ? 12 : 2, background: "#000", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)" }} />}
         {Array.isArray(p.mentions) && p.mentions.length > 0 && (
@@ -1630,40 +1899,40 @@ function CommunityFeed() {
         )}
         <CfWallEvidence model={wall} onOpen={p.session ? () => setSessionOpen(true) : null} />
         {p.note && !p.photo && <div style={{ fontSize: 12.5, lineHeight: 1.5, color: "var(--sh-ink2, #a09b94)", fontStyle: "italic", marginTop: 6 }}>"{p.note}"</div>}
-        <div style={{ marginTop: 14, paddingTop: 12, borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.06)", display: "flex", gap: 20, alignItems: "center", fontSize: 12, color: "var(--sh-ink2, #a09b94)", fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.04em" }}>
-          <button onClick={toggleLike} aria-pressed={liked} aria-label={liked ? "Unlike" : "Like"}
-            style={{ display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer", background: "transparent", border: 0, padding: 0, color: liked ? TEAL_BRIGHT : "var(--sh-ink2, #a09b94)", fontFamily: "inherit", fontSize: "inherit", letterSpacing: "inherit", transition: "color 0.15s, transform 0.15s", transform: liked ? "scale(1.05)" : "scale(1)" }}>
+        <div style={{ marginTop: 12, paddingTop: 8, borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.06)", display: "flex", gap: 6, rowGap: 2, flexWrap: "wrap", alignItems: "center", fontSize: 11.5, color: "var(--sh-ink2, #a09b94)", fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.04em" }}>
+          <button type="button" className="cf-act" onClick={toggleLike} aria-pressed={liked} aria-label={liked ? "Unlike" : "Like"}
+            style={{ color: liked ? TEAL_BRIGHT : "var(--sh-ink2, #a09b94)", fontFamily: "inherit", fontSize: "inherit", letterSpacing: "inherit", transition: "color 0.15s, transform 0.15s", transform: liked ? "scale(1.05)" : "scale(1)" }}>
             <svg width="12" height="12" viewBox="0 0 12 12" fill={liked ? "currentColor" : "none"}>
               <path d="M6 10.2S1.5 7.5 1.5 4.5a2.5 2.5 0 0 1 4.5-1.5 2.5 2.5 0 0 1 4.5 1.5c0 3-4.5 5.7-4.5 5.7Z" stroke="currentColor" strokeWidth="1.1" strokeLinejoin="round"/>
             </svg>
             {likeCount}
           </button>
-          <button onClick={() => setShowReplies(v => !v)} aria-expanded={showReplies} aria-label={showReplies ? "Hide replies" : "Show replies"}
-            style={{ display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer", background: "transparent", border: 0, padding: 0, color: showReplies ? TEAL_BRIGHT : "var(--sh-ink2, #a09b94)", fontFamily: "inherit", fontSize: "inherit", letterSpacing: "inherit" }}>
+          <button type="button" className="cf-act" onClick={() => setShowReplies(v => !v)} aria-expanded={showReplies} aria-label={showReplies ? "Hide replies" : "Show replies"}
+            style={{ color: showReplies ? TEAL_BRIGHT : "var(--sh-ink2, #a09b94)", fontFamily: "inherit", fontSize: "inherit", letterSpacing: "inherit" }}>
             <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 5.5a3 3 0 0 1 3-3h4a2 2 0 0 1 2 2v2a2 2 0 0 1-2 2H5l-2.5 2V7a2.5 2.5 0 0 1-.5-1.5Z" stroke="currentColor" strokeWidth="1.1" strokeLinejoin="round"/></svg>
             {totalReplies} replies
           </button>
-          <button onClick={() => { if (!p.isLive || !p.id) { try { window.alert("Sample post — sending works on real posts."); } catch (e) {} return; } setSendOpen(true); }} aria-label="Send privately"
-            style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer", background: "transparent", border: 0, padding: 0, color: "var(--sh-ink2, #a09b94)", fontFamily: "inherit", fontSize: "inherit", letterSpacing: "inherit" }}>
+          <button type="button" className="cf-act" onClick={() => { if (!p.isLive || !p.id) { try { window.alert("Sample post — sending works on real posts."); } catch (e) {} return; } setSendOpen(true); }} aria-label="Send privately"
+            style={{ marginLeft: "auto", color: "var(--sh-ink2, #a09b94)", fontFamily: "inherit", fontSize: "inherit", letterSpacing: "inherit" }}>
             ✉ SEND
           </button>
-          <button onClick={() => { if (canShareImage) setShareOpen(true); else onShare(); }} aria-label="Share"
-            style={{ display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer", background: "transparent", border: 0, padding: 0, color: "var(--sh-ink2, #a09b94)", fontFamily: "inherit", fontSize: "inherit", letterSpacing: "inherit" }}>
+          <button type="button" className="cf-act" onClick={() => { if (canShareImage) setShareOpen(true); else onShare(); }} aria-label="Share"
+            style={{ color: "var(--sh-ink2, #a09b94)", fontFamily: "inherit", fontSize: "inherit", letterSpacing: "inherit" }}>
             <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M9 4.5V3a1 1 0 0 0-1-1H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h5a1 1 0 0 0 1-1V7.5M6.5 4.5H10m0 0L8 2.5M10 4.5 8 6.5" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" strokeLinejoin="round"/></svg>
             SHARE
           </button>
-          <button onClick={onRepost} aria-label="Repost"
-            style={{ display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer", background: "transparent", border: 0, padding: 0, color: "var(--sh-ink2, #a09b94)", fontFamily: "inherit", fontSize: "inherit", letterSpacing: "inherit" }}>
+          <button type="button" className="cf-act" onClick={onRepost} aria-label="Repost"
+            style={{ color: "var(--sh-ink2, #a09b94)", fontFamily: "inherit", fontSize: "inherit", letterSpacing: "inherit" }}>
             ⇄ REPOST
           </button>
           {p.isMe && p.isLive && p.id && onEdit && (
-            <button onClick={() => onEdit(stored)} aria-label="Edit post"
-              style={{ display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer", background: "transparent", border: 0, padding: 0, color: "var(--sh-ink2, #a09b94)", fontFamily: "inherit", fontSize: "inherit", letterSpacing: "inherit" }}>
+            <button type="button" className="cf-act" onClick={() => onEdit(stored)} aria-label="Edit post"
+              style={{ color: "var(--sh-ink2, #a09b94)", fontFamily: "inherit", fontSize: "inherit", letterSpacing: "inherit" }}>
               ✎ EDIT
             </button>
           )}
           {p.isMe && p.isLive && p.id && (
-            <button onClick={async () => {
+            <button type="button" className="cf-act" onClick={async () => {
               if (!(await window.ShapeConfirm.open({ title: "Delete this post?", message: "This permanently removes the post and its photo/video, likes, and comments.", confirmLabel: "Delete post" }))) return;
               try {
                 const res = await fetch("/api/community/feed?id=" + encodeURIComponent(p.id), { method: "DELETE", credentials: "same-origin" });
@@ -1671,7 +1940,7 @@ function CommunityFeed() {
                 if (typeof onDeleted === "function") onDeleted(p.id);
               } catch (e) { try { window.alert("Could not delete."); } catch (e2) {} }
             }} aria-label="Delete post"
-              style={{ display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer", background: "transparent", border: 0, padding: 0, color: "var(--sh-rust2, #c0533b)", fontFamily: "inherit", fontSize: "inherit", letterSpacing: "inherit" }}>
+              style={{ color: "var(--sh-rust2, #c0533b)", fontFamily: "inherit", fontSize: "inherit", letterSpacing: "inherit" }}>
               × DELETE
             </button>
           )}
@@ -1682,12 +1951,12 @@ function CommunityFeed() {
 
         {showReplies && (
           <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.06)" }}>
-            {replies.length > 0 && (
-              <div style={{ marginBottom: 12 }}>
-                {replies.map((r, i) => (
-                  <div key={i} style={{ padding: "10px 12px", background: "rgba(var(--sh-accent2-rgb, 10,197,168),0.06)", borderRadius: 8, marginBottom: 6 }}>
-                    <div style={{ fontSize: 12, color: TEAL_BRIGHT, fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.04em", marginBottom: 4 }}>{r.who} · {r.time}</div>
-                    <div style={{ fontSize: 13.5, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.9)", lineHeight: 1.5 }}>{r.t}</div>
+            {allReplies.length > 0 && (
+              <div style={{ marginBottom: 12, display: "flex", flexDirection: "column", gap: 6 }}>
+                {allReplies.map((r, i) => (
+                  <div key={r.id || `l-${i}`} style={{ padding: "10px 12px", background: r.mine || r.who === "You" ? "rgba(var(--sh-accent2-rgb, 10,197,168),0.08)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.04)", borderRadius: 10 }}>
+                    <div style={{ fontSize: 11.5, color: r.mine || r.who === "You" ? TEAL_BRIGHT : "var(--sh-ink2, #a09b94)", fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.04em", marginBottom: 4 }}>{r.who}{r.time ? ` · ${r.time}` : ""}</div>
+                    <div style={{ fontSize: 13.5, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.9)", lineHeight: 1.5, overflowWrap: "anywhere" }}>{r.t}</div>
                   </div>
                 ))}
               </div>
@@ -1716,10 +1985,47 @@ function CommunityFeed() {
   // hardcoded eyebrow reading "4,218 MEMBERS · 128 ACTIVE NOW" — two figures
   // nobody measured, on a surface whose own cards are held to the honest-data
   // rule. A count we cannot take is not shown at all.
+  // The lens, as the app's Wall carries it: Universal (everyone's) or Following.
+  // ⚠ ONE CARD COMPONENT FOR THE FEED'S LIFE. `FeedItem` is declared in this body, so
+  // each render made a new component TYPE and React remounted every card: an open reply
+  // box, its draft, a Send or Share sheet, all gone. Rare while the feed rendered rarely;
+  // every 45 seconds once it keeps up. The first render's `FeedItem` is kept, and what
+  // it needs from later renders (the reader's units, the place) it reads from
+  // `cardEnvRef`. Everything else it closes over is state-free or stable.
+  cardEnvRef.current = { units, place, role: myRole, roleUnsure: signedIn === true && !acctRole };
+  const CfFeedCard = cardTypeRef.current || (cardTypeRef.current = FeedItem);
+  const lens = (
+    <div className="cf-seg" role="group" aria-label="Whose posts">
+      {[["universal", "Universal"], ["following", "Following"]].map(([m, lab]) => {
+        const on = feedMode === m;
+        return (<button key={m} type="button" onClick={() => switchFeedMode(m)} aria-pressed={on}>{lab}</button>);
+      })}
+    </div>
+  );
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", minHeight: 0 }}>
-      <div style={{ flex: "none", display: "flex", alignItems: "center", gap: 10, padding: "11px 18px", borderBottom: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)" }}>
-        <button onClick={() => setMyPostsOnly(v => !v)} style={{ background: myPostsOnly ? "rgba(var(--sh-accent2-rgb, 10,197,168),0.16)" : "transparent", color: myPostsOnly ? "var(--sh-accent-ink, #2ee0c4)" : INK, border: `1px solid ${myPostsOnly ? "rgba(var(--sh-accent2-rgb, 10,197,168),0.4)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.25)"}`, padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer", whiteSpace: "nowrap" }}>{myPostsOnly ? "All posts" : "My posts"}</button>
+      <style>{`
+        .cf-seg { display: inline-flex; padding: 3px; gap: 2px; border-radius: 999px; background: rgba(var(--sh-ink-rgb, 242,237,228),0.05); border: 1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08); }
+        .cf-seg button { min-height: 30px; padding: 0 14px; border: 0; border-radius: 999px; background: transparent; color: var(--sh-ink2, #a09b94); font-family: inherit; font-size: 12.5px; font-weight: 500; cursor: pointer; transition: background .15s ease, color .15s ease; }
+        .cf-seg button:hover { color: var(--sh-ink, #f2ede4); }
+        .cf-seg button[aria-pressed="true"] { background: rgba(var(--sh-ink-rgb, 242,237,228),0.12); color: var(--sh-ink, #f2ede4); }
+        .cf-btn { display: inline-flex; align-items: center; gap: 7px; min-height: 36px; padding: 0 16px; border-radius: 999px; border: 1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.16); background: transparent; color: var(--sh-ink, #f2ede4); font-family: inherit; font-size: 13px; font-weight: 500; white-space: nowrap; cursor: pointer; transition: border-color .15s ease, background .15s ease; }
+        .cf-btn:hover:not(:disabled) { border-color: rgba(var(--sh-ink-rgb, 242,237,228),0.32); }
+        .cf-btn[aria-pressed="true"] { border-color: rgba(var(--sh-accent2-rgb, 10,197,168),0.5); background: rgba(var(--sh-accent2-rgb, 10,197,168),0.12); color: var(--sh-accent-ink, #2ee0c4); }
+        .cf-btn-primary { border: 0; background: var(--sh-accent2, #0ac5a8); color: var(--sh-ground, #1a1612); font-weight: 600; }
+        .cf-btn-primary:hover:not(:disabled) { transform: translateY(-1px); }
+        .cf-btn-primary:disabled { background: rgba(var(--sh-ink-rgb, 242,237,228),0.07); color: var(--sh-ink3, #75706a); cursor: default; }
+        .cf-act { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 0 8px; margin: 0 -2px; border: 0; border-radius: 8px; background: transparent; color: var(--sh-ink2, #a09b94); font: inherit; letter-spacing: inherit; cursor: pointer; transition: background .15s ease, color .15s ease; }
+        .cf-act:hover { background: rgba(var(--sh-ink-rgb, 242,237,228),0.06); color: var(--sh-ink, #f2ede4); }
+        @keyframes cfPulse { 0%, 100% { opacity: .55 } 50% { opacity: .25 } }
+        .cf-skel { border-radius: 22px; border: 1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08); background: rgba(var(--sh-ink-rgb, 242,237,228),0.04); animation: cfPulse 1.6s ease-in-out infinite; }
+        @media (prefers-reduced-motion: reduce) { .cf-skel { animation: none; } .cf-btn-primary:hover:not(:disabled) { transform: none; } }
+        @media (max-width: 560px) { .cf-bar-sub { display: none; } }
+      `}</style>
+      <div style={{ flex: "none", display: "flex", alignItems: "center", gap: 10, padding: "12px 18px", borderBottom: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)", flexWrap: "wrap" }}>
+        {lens}
+        <span aria-hidden style={{ flex: 1 }} />
+        {signedIn === true && <button type="button" className="cf-btn" onClick={() => setMyPostsOnly(v => !v)} aria-pressed={myPostsOnly}>{myPostsOnly ? "All posts" : "My posts"}</button>}
         {/* ⚠ GATED, AND IT DID NOT USED TO NEED TO BE. As a dashboard page this
             composer was already behind a signed-in shell. The feed now renders in
             the site-wide chat bubble, which mounts on Landing and Login too — so a
@@ -1730,51 +2036,67 @@ function CommunityFeed() {
             It RENDERS rather than disappearing, and says why — the roster-CSV
             precedent: a control that is simply absent is not discoverable, and one
             that leads nowhere costs more trust than one that explains itself. */}
-        <button onClick={() => setComposerOpen(true)} disabled={signedIn !== true}
-          title={signedIn === false ? "Sign in to post" : signedIn === null ? "Checking your account…" : ""}
-          style={{ background: signedIn === true ? INK : "rgba(var(--sh-ink-rgb, 242,237,228),0.06)", color: signedIn === true ? PAPER : "var(--sh-ink3, #75706a)", border: 0, padding: "10px 22px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: signedIn === true ? "pointer" : "default", whiteSpace: "nowrap" }}>New post</button>
+        <button type="button" className="cf-btn cf-btn-primary" onClick={() => setComposerOpen(true)} disabled={signedIn !== true || roleUnsure}
+          title={signedIn === false ? "Sign in to post" : (signedIn === null || roleUnsure) ? "Checking your account…" : `Post to ${placeName}`}>
+          <span aria-hidden style={{ fontSize: 15, lineHeight: 1 }}>＋</span> New post
+        </button>
         {signedIn === false && (
-          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--sh-ink3, #75706a)" }}>Sign in to post</span>
+          <a href="/newdesign/Login.html" style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: TEAL_BRIGHT, textDecoration: "none", whiteSpace: "nowrap" }}>Sign in to post →</a>
         )}
       </div>
-      <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "14px 18px 22px" }}>
-        <div style={{ maxWidth: 680, margin: "0 auto", display: "flex", flexDirection: "column", gap: 16 }}>
+      <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "16px 18px 26px" }}>
+        <div style={{ maxWidth: 680, margin: "0 auto", display: "flex", flexDirection: "column", gap: 14 }}>
           {(() => {
-            // ⚠ ONE LIST, THE SAME AUDIENCE — see `cfFeedScope`. The app splits
-            // this feed across three chips because its Chat has no tabs for
-            // those audiences; this bubble does, so the chips were duplicating
-            // tabs one level down and the row went. What the chips SCOPED is
-            // kept: the three channels they covered, merged rather than widened.
+            // ⚠ ONE READ, FILED BY PLACE — see `cfInPlace`. What the Wall, Community and
+            // role places show is the app's own filing of the same 50 posts, and the
+            // audience boundary `cfFeedScope` carried for the chip row still holds.
             const scope = cfFeedScope(myRole);
             const visible = feed.filter(p => {
               if (myPostsOnly && !p.isMe) return false;
-              return scope.indexOf(cfChannelOf(p)) >= 0;
+              // Community and the role place never reach past the viewer's channels; the
+              // Wall holds anything filed explicitly to the same boundary (`cfInPlace`).
+              if (place !== "wall" && scope.indexOf(cfChannelOf(p)) < 0) return false;
+              return cfInPlace(p, place, myRole, scope);
             });
+            if (!loaded) {
+              return [0, 1, 2].map((i) => <div key={i} className="cf-skel" aria-hidden style={{ height: i ? 180 : 240, animationDelay: `${i * 120}ms` }} />);
+            }
+            if (loadFailed) {
+              return (
+                <div role="alert" style={{ padding: "34px 8px", textAlign: "center" }}>
+                  <div style={{ fontFamily: serif, fontSize: 19, color: INK }}>The feed didn’t load.</div>
+                  <div style={{ marginTop: 6, fontSize: 13, color: "var(--sh-ink2, #a09b94)" }}>Check your connection, then try again.</div>
+                  <button type="button" className="cf-btn" onClick={() => { setLoaded(false); refreshFeed(); }} style={{ marginTop: 14 }}>Try again</button>
+                </div>
+              );
+            }
+            // The role place before the account's role is known: nothing, and it says why.
+            if (roleUnsure) {
+              return (
+                <div role="status" style={{ padding: "34px 8px", textAlign: "center" }}>
+                  <div style={{ fontFamily: serif, fontSize: 19, color: INK }}>Checking your account…</div>
+                  <div style={{ marginTop: 6, fontSize: 13, color: "var(--sh-ink2, #a09b94)" }}>This place shows the posts between people in your role, once Shape knows it.</div>
+                  <button type="button" className="cf-btn" onClick={refreshFeed} style={{ marginTop: 14 }}>Try again</button>
+                </div>
+              );
+            }
             if (feedMode === "following" && liveEmpty) {
               return (
-                <>
-                  <div style={{ display: "flex", gap: 18, marginBottom: 4 }}>
-                    {[["universal", "UNIVERSAL"], ["following", "FOLLOWING"]].map(([m, lab]) => {
-                      const on = feedMode === m;
-                      return (<button key={m} onClick={() => switchFeedMode(m)} aria-pressed={on} style={{ position: "relative", background: "transparent", border: 0, cursor: "pointer", padding: "8px 2px 10px", fontFamily: "'JetBrains Mono', monospace", fontSize: 11, fontWeight: 700, letterSpacing: "0.14em", color: on ? INK : "var(--sh-ink3, #75706a)" }}>{lab}{on && <span aria-hidden style={{ position: "absolute", left: 0, right: 0, bottom: 4, height: 2, background: TEAL_BRIGHT }} />}</button>);
-                    })}
-                  </div>
-                  <div style={{ padding: "26px 4px" }}>
-                    <div style={{ fontFamily: serif, fontSize: 19, fontWeight: 600, color: INK }}>Nothing from your people yet.</div>
-                    <div style={{ marginTop: 6, fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.12em", color: "var(--sh-ink2, #a09b94)" }}>FOLLOW MEMBERS TO BUILD THIS FEED</div>
-                    <button onClick={() => switchFeedMode("universal")} style={{ marginTop: 12, background: "transparent", border: 0, cursor: "pointer", padding: "8px 0", fontFamily: "'JetBrains Mono', monospace", fontSize: 11, fontWeight: 700, letterSpacing: "0.14em", color: TEAL_BRIGHT }}>SEE EVERYONE — UNIVERSAL →</button>
-                  </div>
-                </>
+                <div style={{ padding: "34px 8px", textAlign: "center" }}>
+                  <div style={{ fontFamily: serif, fontSize: 19, color: INK }}>Nothing from your people yet.</div>
+                  <div style={{ marginTop: 6, fontSize: 13, color: "var(--sh-ink2, #a09b94)" }}>Follow members to build this feed.</div>
+                  <button type="button" className="cf-btn" onClick={() => switchFeedMode("universal")} style={{ marginTop: 14 }}>See everyone · Universal →</button>
+                </div>
               );
             }
             return (
               <>
-                <div style={{ display: "flex", gap: 18, marginBottom: 4 }}>
-                  {[["universal", "UNIVERSAL"], ["following", "FOLLOWING"]].map(([m, lab]) => {
-                    const on = feedMode === m;
-                    return (<button key={m} onClick={() => switchFeedMode(m)} aria-pressed={on} style={{ position: "relative", background: "transparent", border: 0, cursor: "pointer", padding: "8px 2px 10px", fontFamily: "'JetBrains Mono', monospace", fontSize: 11, fontWeight: 700, letterSpacing: "0.14em", color: on ? INK : "var(--sh-ink3, #75706a)" }}>{lab}{on && <span aria-hidden style={{ position: "absolute", left: 0, right: 0, bottom: 4, height: 2, background: TEAL_BRIGHT }} />}</button>);
-                  })}
-                </div>
+                {showingSample && (
+                  <div role="note" style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", borderRadius: 12, border: "1px solid rgba(var(--sh-accent2-rgb, 10,197,168),0.25)", background: "rgba(var(--sh-accent2-rgb, 10,197,168),0.06)", fontSize: 12.5, lineHeight: 1.45, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.78)" }}>
+                    <span aria-hidden style={{ flex: "none", fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700, letterSpacing: "0.16em", color: TEAL_BRIGHT }}>PREVIEW</span>
+                    <span>Sample posts. Sign in to see what members are sharing.</span>
+                  </div>
+                )}
                 {/* The MY POSTS ONLY badge kept its own row when the chips went:
                     it is a state readout, not one of them. */}
                 {myPostsOnly && (
@@ -1786,11 +2108,14 @@ function CommunityFeed() {
                 )}
                 {visible.length === 0
                   ? (
-                    <div style={{ padding: "32px 4px", color: "var(--sh-ink2, #a09b94)", fontSize: 13, textAlign: "center" }}>
-                      {myPostsOnly ? "You haven't posted yet. Tap New post to share something." : "Nothing posted yet."}
+                    <div style={{ padding: "34px 8px", textAlign: "center" }}>
+                      <div style={{ fontFamily: serif, fontSize: 19, color: INK }}>{myPostsOnly ? "You haven’t posted here yet." : `Nothing in ${placeName} yet.`}</div>
+                      <div style={{ marginTop: 6, fontSize: 13, color: "var(--sh-ink2, #a09b94)" }}>
+                        {signedIn === true ? `Start it: tap New post to share with ${place === "role" ? "other " + placeName.toLowerCase() + "s" : "everyone on Shape"}.` : "Sign in to post."}
+                      </div>
                     </div>
                   )
-                  : visible.map((p, i) => <FeedItem key={p.id || i} p={p}
+                  : visible.map((p, i) => <CfFeedCard key={p.id || `${p.who}-${p.time}-${i}`} p={p}
                       onEdit={(post) => { setEditingPost(post); setComposerOpen(true); }}
                       onDeleted={(id) => setFeed(prev => prev.filter(x => x.id !== id))}
                     />)}
@@ -1804,7 +2129,8 @@ function CommunityFeed() {
       )}
       {composerOpen && (
         <PostComposer
-          me={ME}
+          me={{ who: meName || "You", role: meRoleLabel }}
+          where={placeName}
           editing={editingPost}
           onCancel={() => { setComposerOpen(false); setEditingPost(null); }}
           onSubmit={(post) => {
@@ -1844,7 +2170,11 @@ function CommunityFeed() {
             // any more, but the row is the same shape the mapper emits and the
             // app files by this field: see `CF_POST_CHANNEL`.
             const optimisticId = "me-" + Date.now();
-            setFeed(prev => [{ id: optimisticId, isMe: true, isLive: false, who: ME.who, role: ME.role, time: "now", likes: 0, comments: 0, ...post, channel: CF_POST_CHANNEL }, ...prev]);
+            // ⚠ AND THE CHANNEL IS THE PLACE'S. A post made in Community is filed SHAPE and
+            // one made in the role place under that role, as the app's composer files it
+            // (`createPost({ channel: kind })`), so it lands in the same place on both.
+            // `pending` keeps this stand-in through a re-read until the post has landed.
+            setFeed(prev => [{ id: optimisticId, pending: true, isMe: true, isLive: false, who: meName || "You", role: meRoleLabel, time: "now", likes: 0, comments: 0, ...post, channel: postChannel }, ...prev]);
             // Persist to the live feed (best-effort; the optimistic post already shows).
             const metrics = {};
             // ⚠ THE CHANNEL IS WRITTEN, NOT LEFT TO BE INFERRED. Without it a
@@ -1852,7 +2182,7 @@ function CommunityFeed() {
             // falls back to the author's ROLE and a member's post can never
             // reach the chip they posted it from. The app writes it the same
             // way (createPost({ channel: kind })).
-            metrics.channel = CF_POST_CHANNEL;
+            metrics.channel = postChannel;
             if (post.tag) metrics.tags = [String(post.tag).toUpperCase()];
             if (Array.isArray(post.mentions) && post.mentions.length) metrics.mentions = post.mentions;
             if (post.video) { metrics.kind = 'video'; metrics.video_url = post.video; }
@@ -1882,6 +2212,10 @@ function CommunityFeed() {
               // and is gone on their next load. The gate above makes the signed-out
               // case unreachable; this covers the race and every other refusal.
               if (!r || !r.ok) { setFeed(prev => prev.filter(x => x.id !== optimisticId)); return; }
+              // Landed: read the feed again, which replaces the stand-in with the real post
+              // (its id is what likes, replies, edit and delete need).
+              setFeed(prev => prev.map(x => (x.id === optimisticId ? { ...x, pending: false } : x)));
+              refreshFeed();
               if (!isMs) return;
               // The +25 CAREER award — AWAITED on the real post id (idempotent
               // monthly dedupe; granted=false on a same-month duplicate, and
@@ -1909,7 +2243,7 @@ function CommunityFeed() {
   );
 }
 
-function PostComposer({ me, onCancel, onSubmit, editing }) {
+function PostComposer({ me, onCancel, onSubmit, editing, where }) {
   const KINDS = [
     { value: "post", label: "Post", tag: "" },
     { value: "pr", label: "PR", tag: "STRENGTH" },
@@ -2057,7 +2391,7 @@ function PostComposer({ me, onCancel, onSubmit, editing }) {
         style={{ width: "min(560px, 100%)", background: "var(--sh-card, #25211d)", color: INK, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.12)", borderRadius: 16, padding: 28, boxShadow: "0 40px 120px rgba(0,0,0,0.6)" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
           <div>
-            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.14em", color: TEAL_BRIGHT }}>{ed ? "EDIT POST" : "NEW POST"}</div>
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.14em", color: TEAL_BRIGHT }}>{ed ? "EDIT POST" : (where ? "NEW POST · TO " + String(where).toUpperCase() : "NEW POST")}</div>
             <div style={{ fontFamily: serif, fontSize: 22, letterSpacing: "-0.015em", marginTop: 4 }}>{me.who}</div>
             <div style={{ fontSize: 11.5, color: "var(--sh-ink2, #a09b94)", marginTop: 2 }}>{me.role}</div>
           </div>

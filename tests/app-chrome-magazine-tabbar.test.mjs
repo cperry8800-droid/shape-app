@@ -190,7 +190,7 @@ for (const [paperMode, isLight] of [['light', true], ['dark', false]]) {
 
   // The member's six tabs (owner, 2026-11-09: Coaches, 'market', between Eat and Chat): each its icon, in
   // the nav's order, the capsule's ends in to 4px so a 320px phone keeps every tab a 44px target.
-  test(`six tabs: Coaches between Eat and Chat, a whistle filled when lit, 44px each on a 320px phone (${paperMode})`, async () => {
+  test(`six tabs: Coaches between Eat and Chat, a megaphone filled when lit, 44px each on a 320px phone (${paperMode})`, async () => {
     const SIX = [
       { key: 'home', label: 'Home' }, { key: 'train', label: 'Train' }, { key: 'eat', label: 'Eat' },
       { key: 'market', label: 'Coaches' }, { key: 'chat', label: 'Chat' }, { key: 'me', label: 'Me' },
@@ -322,13 +322,15 @@ for (const [paperMode, isLight] of [['light', true], ['dark', false]]) {
 // centre; an unselected line icon is never moved.
 test('the selected icon is optically centred in the gem, and only the selected one moves', async () => {
   // Measured on a 24px icon, so the nudge scales with the bar's 19px icon (21 until 2026-11-08).
-  const AT24 = { home: [0, -1.25], train: [0.5, 0], eat: [1, 0.5], chat: [-0.5, 1.75], today: [0, -1], clients: [1.75, -1.25] };
+  // Coaches' megaphone (2026-11-10) sits where the whistle did: measured against it in the same tab, on the app.
+  const AT24 = { home: [0, -1.25], train: [0.5, 0], eat: [1, 0.5], market: [0.75, -0.5], chat: [-0.5, 1.75], today: [0, -1], clients: [1.75, -1.25] };
   const NUDGE = Object.fromEntries(Object.entries(AT24).map(([k, [x, y]]) => [k, `${(x * 19) / 24}px, ${(y * 19) / 24}px`]));
   const COACH = [
     { key: 'today', label: 'Today' }, { key: 'clients', label: 'Clients' }, { key: 'programs', label: 'Programs' },
     { key: 'chat', label: 'Chat' }, { key: 'me', label: 'Me' },
   ];
-  for (const tabs of [TABS, COACH]) {
+  const MEMBER = [...TABS.slice(0, 3), { key: 'market', label: 'Coaches' }, ...TABS.slice(3)];
+  for (const tabs of [TABS, COACH, MEMBER]) {
     for (const tab of tabs) {
       if (tab.key === 'me') continue;   // the member's face, not an icon
       const { host, unmount } = await mount(React.createElement(window.BSTabBar, { tabs, active: tab.key, onChange() {} }), 'light');

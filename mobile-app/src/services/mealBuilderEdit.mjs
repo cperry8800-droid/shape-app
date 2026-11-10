@@ -42,8 +42,68 @@ export function swapMeal(M, doc, dayIdx, mealId, food) {
   if (!cur || !food) return doc;
   const next = clone(doc);
   // applyToVariants: a rest or travel day that still follows this meal takes the new one; one that
-  // overrides it keeps its own.
-  next.days[dayIdx] = M.editBaseMeal(next.days[dayIdx], mealId, { ...M.newMeal(food, cur.slot), id: mealId }, true);
+  // overrides it keeps its own. The meal's playlist stays with its place on the day, as editing a meal
+  // in the website builder keeps it: the dish changes, the music the nutritionist set for it does not.
+  const keep = cur.playlist ? { playlist: clone(cur.playlist) } : {};
+  next.days[dayIdx] = M.editBaseMeal(next.days[dayIdx], mealId, { ...M.newMeal(food, cur.slot), id: mealId, ...keep }, true);
+  return next;
+}
+
+// ── A playlist on a day or a meal (owner, 2026-11-10: "add a playlist picker to the coach app's meal
+// editor too - nutritionists should be able to add playlists to meal plans") ──
+// The same document the website builder writes (dashMealBuilder.jsx): `{ id?, name, meta }` on
+// `day.playlist` or `meal.playlist`, the key gone when cleared (never `null`), so Assign
+// (DashMeals.buildMealAssignment) sends it with that day or meal and the member's Eat labels it.
+
+/**
+ * The coach's saved playlists (GET /api/coach/soundtracks) a meal plan can carry, as the website's
+ * builder lists them (dmbPlaylistChoices): not one sent as a trainer's, which the member's Train page
+ * plays; `meta` as the website writes it ("12 tracks"), and the count for this screen to word.
+ */
+export function mealPlaylistChoices(rows) {
+  return (Array.isArray(rows) ? rows : [])
+    .filter((x) => x && x.role !== 'trainer' && typeof x.name === 'string' && x.name.trim())
+    .map((x) => {
+      const n = Number(x.tracks);
+      const tracks = Number.isFinite(n) && n > 0 ? Math.round(n) : 0;
+      return { ...(x.id != null && x.id !== '' ? { id: x.id } : {}), name: x.name.trim(), meta: tracks ? tracks + (tracks === 1 ? ' track' : ' tracks') : '', tracks };
+    });
+}
+
+const hasId = (p) => !!p && p.id != null && p.id !== '';
+/** A playlist's key in a picker: its saved id, else its name (one saved before ids). */
+export const playlistKey = (p) => (hasId(p) ? `id:${p.id}` : `name:${(p && p.name) || ''}`);
+/** Whether a choice is the playlist a day or meal carries: by id, by name for one without an id. */
+export const samePlaylist = (choice, value) => !!choice && !!value && (hasId(value) ? choice.id === value.id : choice.name === value.name);
+
+// As the plan stores it: id, name and meta only; anything without a name is no playlist.
+const stored = (p) => (p && typeof p.name === 'string' && p.name.trim()
+  ? { ...(hasId(p) ? { id: p.id } : {}), name: p.name.trim(), meta: typeof p.meta === 'string' ? p.meta : '' }
+  : null);
+const withPlaylist = (obj, p) => {
+  const next = { ...obj };
+  const s = stored(p);
+  if (s) next.playlist = s; else delete next.playlist;
+  return next;
+};
+const samePlace = (a, b) => JSON.stringify(stored(a)) === JSON.stringify(stored(b));
+
+/** The plan with a day's playlist set (or cleared, with null); the same document when nothing changes. */
+export function setDayPlaylist(doc, dayIdx, p) {
+  const day = doc && doc.days && doc.days[dayIdx];
+  if (!day || samePlace(day.playlist, p)) return doc;
+  const next = clone(doc);
+  next.days[dayIdx] = withPlaylist(next.days[dayIdx], p);
+  return next;
+}
+
+/** The plan with one of a day's meals' playlist set (or cleared, with null); the same document when nothing changes. */
+export function setMealPlaylist(doc, dayIdx, mealId, p) {
+  const day = doc && doc.days && doc.days[dayIdx];
+  const at = day ? day.slots.findIndex((m) => m && m.id === mealId) : -1;
+  if (at < 0 || samePlace(day.slots[at].playlist, p)) return doc;
+  const next = clone(doc);
+  next.days[dayIdx].slots[at] = withPlaylist(next.days[dayIdx].slots[at], p);
   return next;
 }
 

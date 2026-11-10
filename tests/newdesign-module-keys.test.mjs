@@ -54,10 +54,13 @@ const loads = (page, file) => read(page).includes('src="' + file);
 // every render to keep a deload week saved before the cadence the coach's to clear.
 // ⚠ 20261007c: workoutDocument.js only. The RPE climb: `rpeProgressionStatus` and `unpinned`,
 // which the builder's day editor, Sheet and bar call on every render and every edit.
+// ⚠ 20261110: dashMealCore.js only. `buildMealAssignment` sends a day's and a meal's playlist
+// (`sentPlaylist`). The quiet kind: a page handed the older copy throws nothing, it publishes the
+// plan without the playlists the nutritionist just linked in the (freshly hashed) builder.
 const MIN = {
   'workoutDocument.js': '20261007c',
   'dashBuilderCore.js': '20261007',
-  'dashMealCore.js': '20260922c',
+  'dashMealCore.js': '20261110',
   'dashSignals.js': '20260922b',
 };
 

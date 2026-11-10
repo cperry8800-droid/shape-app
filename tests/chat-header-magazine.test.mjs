@@ -125,8 +125,8 @@ test('Team\'s Coaches / Friends is one raised track, the list shown a teal pill 
 test('the Team list is in the magazine look: a masthead, flat faces, teal unread, hairlines', () => {
   const team = CLIENT.slice(CLIENT.indexOf("          const Row = (f, i, arr) => {"), CLIENT.indexOf('          // Friends — now a sub-tab INSIDE Team'));
   // The rows.
-  assert.match(team, /<BSFacetAvatar flat size=\{44\} c=\{t\.INK\} initial=\{bsInitials\(f\.n\) \|\| f\.i\}[^>]*online=\{online\} dotC=\{magAccent\} BG=\{t\.PAPER\} \/>/);
-  assert.match(team, /fontFamily: bsWsHead\(t\), fontWeight: 500, fontSize: 20[^}]*\}\}>\{f\.n\}<\/span>/, 'the name in the headline face');
+  assert.match(team, /<BSFacetAvatar flat size=\{BS_CHAT_SIZES\.rowFace\} c=\{t\.INK\} initial=\{bsInitials\(f\.n\) \|\| f\.i\}[^>]*online=\{online\} dotC=\{magAccent\} BG=\{t\.PAPER\} \/>/);
+  assert.match(team, /fontFamily: bsWsHead\(t\), fontWeight: 500, fontSize: BS_CHAT_SIZES\.rowName[^}]*\}\}>\{f\.n\}<\/span>/, 'the name in the headline face');
   assert.match(team, /\{count > 0 && <span style=\{\{ fontFamily: t\.MONO, fontSize: 10, fontWeight: 800, color: magAccent/, 'a bare teal count');
   assert.match(team, /border: 0, borderBottom: isLast \? 0 : `1px solid \$\{t\.HAIR\}`/, 'a hairline between rows, after the border reset');
   assert.doesNotMatch(team, /background: TEAL|teal\} 62%|bsSdPrBreath|bsTierColor/, 'no teal pill, gradient rule, breathing dot or tier gem');
@@ -169,9 +169,34 @@ test('Channels: the masthead, the magazine\'s teal, the names in the Wall\'s fac
   // The register alone: THE CHANNELS head went (owner, 2026-11-04: "remove this channels").
   assert.match(ch, /<header data-bs-channels-head="">/);
   assert.doesNotMatch(ch, /<header data-bs-channels-head="">[\s\S]{0,300}<h2 /, 'no big head over the channels');
-  assert.match(ch, /fontFamily: bsWsHead\(t\), fontWeight: 500, fontSize: 20[^}]*\}\}>#\{ch\.name\}/);
+  assert.match(ch, /fontFamily: bsWsHead\(t\), fontWeight: 500, fontSize: BS_CHAT_SIZES\.rowName[^}]*\}\}>#\{ch\.name\}/);
   assert.doesNotMatch(ch, /bsSdPrBreath|background: TEAL|linear-gradient\(90deg, \$\{t\.INK\}, \$\{tealSig\}/, 'no breathing dot, teal button or gradient rule');
   assert.match(CLIENT, /<div style=\{\{ padding: '7px 12px 90px', display: 'flex', flexDirection: 'column', gap: 12 \}\}>/, 'on the Wall\'s 12px edge, as close under the tabs as Team');
+});
+
+// One size for a face and a name wherever Chat shows a person (owner, 2026-11-10: "make the name and avatars
+// smaller on the coaches and friends page … the sizes on the chats need to remain consistent and the same
+// across all"). The list rows came down from a 44px face and a 20px name; the threads keep theirs. Every
+// site reads the one table, so a coach's thread, a friend's and a channel's can't drift apart.
+test('Chat: one size for faces and names, the list rows smaller, every thread alike', () => {
+  const table = between(CLIENT, 'const BS_CHAT_SIZES = Object.freeze({', '});');
+  assert.match(table, /rowFace: 36, rowName: 16,/, 'a list row: Coaches, Friends and a channel');
+  assert.match(table, /senderFace: 24, senderName: 8\.5,/, 'a message\'s sender and the typing row');
+  assert.match(table, /headFace: 48, headName: 25,/, 'the open thread\'s head');
+  const team = CLIENT.slice(CLIENT.indexOf("          const Row = (f, i, arr) => {"), CLIENT.indexOf('          // Friends — now a sub-tab INSIDE Team'));
+  // Coaches and Friends draw every row with the one Row, so a coach's row and a friend's are the same size.
+  assert.match(CLIENT, /\{friends\.map\(Row\)\}/);
+  assert.match(CLIENT, /\{coaches\.map\(Row\)\}/);
+  assert.doesNotMatch(team, /size=\{\d+\}|fontSize: 20\b/, 'a row sized on its own');
+  const th = between(CLIENT, 'function BSChatThread({', '\n}\n');
+  assert.equal((th.match(/roundFace\(BS_CHAT_SIZES\.senderFace,/g) || []).length, 2, 'the sender and the typing row');
+  assert.equal((th.match(/roundFace\(BS_CHAT_SIZES\.headFace,/g) || []).length, 1, 'the head');
+  assert.doesNotMatch(th, /roundFace\(\d/, 'a face sized on its own');
+  assert.match(th, /width: BS_CHAT_SIZES\.headFace, height: BS_CHAT_SIZES\.headFace, borderRadius: '50%'/, 'a channel\'s # at the head\'s size');
+  assert.match(th, /<span data-thread-name="" style=\{\{ display: 'block', fontFamily: t\.DISPLAY, fontSize: BS_CHAT_SIZES\.headName,/);
+  assert.match(th, /fontSize: BS_CHAT_SIZES\.senderName, fontWeight: 800, letterSpacing: '0\.16em', textTransform: 'uppercase', color: teal \}\}>\{senderName\}/);
+  // A channel's typing row names its typers at the sender's size (Codex P2 on #2674).
+  assert.match(th, /\{thread\.group && <span style=\{\{ minWidth: 0, fontFamily: t\.MONO, fontSize: BS_CHAT_SIZES\.senderName,[^}]*\}\}>\{typingWords\}<\/span>\}/);
 });
 
 // The thread screen left the magazine look for Nora's sheet's design (owner, 2026-11-01: "also use this

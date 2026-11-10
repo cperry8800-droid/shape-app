@@ -98,7 +98,8 @@ import { BSEatDay } from './BSEatDay.jsx';
 import { BSTrainBurnPage } from './BSTrainBurn.jsx';
 import { BSTrainDay } from './BSTrainDay.jsx';
 import { BSTrainPlanSheet } from './BSTrainPlan.jsx';
-import { bsTrainPlaylistCards } from './bsTrainPlaylists.mjs';
+import { BSEatComingUp, BSEatPlanSheet } from './BSEatPlan.jsx';
+import { bsTrainPlaylistCards, bsEatPlaylistCards, bsPlaylistOf } from './bsTrainPlaylists.mjs';
 import { BSPlanReadFailed } from './BSPlanReadFailed.jsx';
 import { BSWallTrainingNow } from './BSWallLive.jsx';
 import { BSLiveBoostSheet } from './BSLiveBoost.jsx';
@@ -4454,7 +4455,7 @@ function useBSCoachPlaylists(role) {
   }, [role]);
   return list;
 }
-function BSCoachPlaylists({ role, signedIn, demo, program = null, todayIdx = 0 }) {
+function BSCoachPlaylists({ role, signedIn, demo, program = null, todayIdx = 0, planCoach = null }) {
   const t = useBS();
   const tr = useShapeTr();
   const live = useBSCoachPlaylists(signedIn ? role : null);
@@ -4490,7 +4491,13 @@ function BSCoachPlaylists({ role, signedIn, demo, program = null, todayIdx = 0 }
     // A workout's own card names the coach who set it, or nobody (never " · Your trainer" with no name). The
     // plan names it and nothing more: no link, no service, so it is drawn bare, never as Spotify's (Codex on
     // #2669: an Apple Music playlist read "Open in Spotify").
-    cards = bsTrainPlaylistCards(items, program, todayIdx).map((c) => (c.onlyOnDay ? { ...c, k: c.coach ? byOf(c.coach) : null, bare: true } : c));
+    // Eat's are the nutritionist's, on a day or a meal: the plan's nutritionist set them (`planCoach`).
+    const matched = role === 'nutritionist' ? bsEatPlaylistCards(items, program, todayIdx) : bsTrainPlaylistCards(items, program, todayIdx);
+    cards = matched.map((c) => {
+      if (!c.onlyOnDay) return c;
+      const by = c.coach || (role === 'nutritionist' ? planCoach : null);
+      return { ...c, coach: by, k: by ? byOf(by) : null, bare: true };
+    });
     if (!who) who = firstName(cards.find((c) => c.coach) && cards.find((c) => c.coach).coach);
   }
   if (!cards.length) return null;
@@ -11316,6 +11323,10 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
     : tr('nutrition:eat.goalMaintain', { defaultValue: 'Maintaining' });
   const [swapMealId, setSwapMealId] = useStateBSC(null);     // meal id being swapped, or null
   const [mealOverrides, setMealOverrides] = useStateBSC({}); // meal id → { title, kcal, p, c, f }
+  // The meal plan sheet (BSEatPlan.jsx): the weekday it opens on, or null when closed, and its week: 0 this
+  // one, 1 the next (a Coming up day past Sunday opens the week that holds it; Codex on #2670).
+  const [eatPlanAt, setEatPlanAt] = useStateBSC(null);
+  const [eatPlanWeek, setEatPlanWeek] = useStateBSC(0);
   React.useEffect(() => {
     let cancelled = false;
     if (!(window.shapeDb && window.shapeDb.getUserGoals)) return undefined;
@@ -11353,12 +11364,14 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
   }, []);
 
   // ── Compact builder for non-anchor days. Generates a full BSMealPreview-shaped record.
-  const mk = ({ id, time, tag, tagColor, title, kcal, p, c, f, state, last, hero, brief, ingredients, steps, coachNote, prep = '10 min', portion = '1 plate', score = 'A' }) => ({
+  const mk = ({ id, time, tag, tagColor, title, kcal, p, c, f, state, last, hero, brief, ingredients, steps, coachNote, prep = '10 min', portion = '1 plate', score = 'A', playlist = null }) => ({
     id, time, tag, tagColor, title,
     sub: `${kcal} kcal · ${p}P · ${c}C · ${f}F`,
     state, last,
     kcal, p, c, f, prep, portion, score,
     hero, brief, ingredients, steps, coachNote,
+    // The nutritionist's playlist for this meal (dashMealBuilder.jsx), or null.
+    playlist,
   });
 
   // Build the 7-day menu from a live meal plan (days[] from /api/client/plan),
@@ -11402,6 +11415,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
           steps: meal.steps || [],
           coachNote: meal.coachNote || '',
           prep: meal.prep || '—', portion: meal.portion || '1 plate', score: meal.score || '—',
+          playlist: bsPlaylistOf(meal.playlist),
         });
       });
       const tot = dy.totals || {}; const tgt = dy.targets || {};
@@ -11427,6 +11441,8 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
           cal: str(tot.cal), p: str(tot.p), c: str(tot.c), f: str(tot.f),
           target: { cal: str(tgt.cal), p: str(tgt.p), c: str(tgt.c), f: str(tgt.f) },
         },
+        // The nutritionist's playlist for the day (a Sunday prep), or null (dashMealBuilder.jsx).
+        playlist: bsPlaylistOf(dy.playlist),
         meals,
       };
     });
@@ -12217,6 +12233,8 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
       d: 'S 23',
       kicker: 'Section · Nutrition',
       title: <>Easy plate.</>,
+      // The sample's cooking playlist, on the Sunday batch it was made for (BS_COACH_PLAYLISTS' "Sun prep").
+      playlist: { name: 'Meal prep, low-key', meta: '45m · 12 tracks' },
       tag: 'REST',
       tagColor: t.GREEN,
       accent: t.GREEN,
@@ -12950,6 +12968,10 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
   // left reads "—", not 0 kcal, and the coach link names no 0 kcal target. A member the read says has no
   // plan is unchanged.
   const bsEatFuelUnread = bsEatSignedIn && !eatPlanRead && !liveMealDays;
+  // Coming up and the meal plan show the week once it is known (Codex on #2670): signed out (the sample),
+  // a plan already read, or a read that answered. While the read is out or failed the week is the open
+  // stand-in, and they would tell the member "No menu" over a plan that only could not be read.
+  const eatPlanShown = !bsEatSignedIn || eatPlanRead || !!liveMealDays;
   // A macro tile's own page (owner, 2026-10-24: "the 3 of these are links to the same page"): the
   // macro's figures as the tile reads them, the day's meals by it, and the week against the target
   // (a coach's Adjust target is the current one, so it is every day's).
@@ -13027,6 +13049,23 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
     </div>
   ) : null;
   // The menu's rows: each meal at its time, its stamps, its shop list and its door.
+  // A day's meals as the menu shows them, for Coming up and the meal plan (BSEatPlan.jsx): the plan's meals
+  // with the member's swaps (by title, then that date's own swap by id) and the meals they planned that date.
+  // `off` is days from today (Coming up, past Sunday into next week's dates); without it, this week's day.
+  const eatMealsOf = (idx, off = null) => {
+    const dd = PROGRAM[idx];
+    if (!dd) return [];
+    const md = bsMealDayOf(myDays, bsYmdAdd(bsLocalDay(Date.now()), off != null ? off : idx - bsWeekdayIdx()));
+    const macro = (x) => `${x.kcal} kcal · ${x.p}P · ${x.c}C · ${x.f}F`;
+    const base = (dd.meals || []).map((m) => {
+      const ov = mealOverrides[m.title];
+      const sw = ov ? { ...m, ...ov, _swapped: true } : m;
+      const ds = md.swap[m.id];
+      return ds ? { ...sw, title: ds.title, kcal: ds.kcal, p: ds.p, c: ds.c, f: ds.f, sub: macro(ds), _swapped: true } : sw;
+    });
+    const own = md.add.map((a) => ({ id: `own-${a.id}`, time: a.time || BS_OWN_SLOT_TIME[a.slot] || '', tag: a.slot.slice(0, 5), tagColor: eatSlotColor[a.slot] || t.AMBER, title: a.title, kcal: a.kcal, p: a.p, c: a.c, f: a.f, sub: macro(a), _own: true }));
+    return bsEatByTime([...base, ...own], (m) => bsFocusMin(bsMealSchedTime(m)));
+  };
   const _eatRows = effMeals.map((m) => {
     const logged = m.state === 'done';
     const isNext = !!(bsEatNextMeal && m.id === bsEatNextMeal.id);
@@ -13095,6 +13134,10 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
         slotOf={_eatSlot} timeOf={bsMealSchedLabel} fmt12={bsFmt12} macroRow={_eatMacro}
         onOpenMeal={(id) => setPreviewMealId(id)} onSwapMeal={(id) => setSwapMealId(id)} onSwapPick={() => setSwapMealId('pick')} />
 
+      {/* Coming up (owner, 2026-11-10: "add a 'Coming up' preview of the next days' meals to Eat"): the next
+          three days' menus, each opening the meal plan on its day (BSEatPlan.jsx). */}
+      {eatPlanShown && <BSEatComingUp program={PROGRAM} mealsOf={eatMealsOf} onPlan={(idx, week) => { setEatPlanWeek(week === 1 ? 1 : 0); setEatPlanAt(Number.isInteger(idx) ? idx : bsWeekdayIdx()); }} />}
+
       {/* Tonight's prep for tomorrow (owner, 2026-10-05): the same list the reminder names. A dish
           the nutritionist ticked has no catalog method to walk, so it has no Start (Phase 2). */}
       {prepTonightGroups.map((g) => (
@@ -13148,6 +13191,9 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
           <div style={{ marginTop: t.sectGap }}>
             <BSFocusLink tour="hero-grocery" color={t.GREEN} glyph="◎" label={tr('nutrition:eat.shopList', { defaultValue: 'The shop list' })} tag={total > 0 ? toGet : ''} sub={[byline, cats].filter(Boolean).join(' · ')} onOpen={() => setView('grocery')} />
             <BSFocusLink data-bsck-door="prep" color={t.isLight ? '#0a8f87' : t.ACCENT} glyph="→" label={tr('cook:prep.door', { defaultValue: 'Prep the week' })} onOpen={() => openPrep()} />
+            {/* The week's meal plan as a sheet, every day and meal (owner, 2026-11-10: "a pop-up of the full week's
+                meal plan, the same way Train now works"). */}
+            {eatPlanShown && <BSFocusLink data-bsck-door="meal-plan" color={t.INK70} glyph="▤" label={tr('nutrition:eat.mealPlan', { defaultValue: 'Meal plan' })} tag={liveMealTitle || ''} onOpen={() => { setEatPlanWeek(0); setEatPlanAt(bsWeekdayIdx()); }} />}
             <BSFocusLink color="#a07a2e" glyph="✎" label={coach} tag={bsEatFuelUnread && !bsEatCoachSet('calories') ? planGoalLabel : `${planGoalLabel} · ${bsEatCalTgt.toLocaleString()}`} onOpen={() => setPreviewDayBrief(true)} />
             {cur.coachLine ? (
               <div style={{ margin: `10px ${t.padX}px 0`, padding: '2px 0 2px 12px', borderLeft: '3px solid #a07a2e', fontFamily: tClean.DISPLAY, fontStyle: 'italic', fontSize: 14, lineHeight: 1.45, color: t.INK70 }}>&ldquo;{cur.coachLine}&rdquo;</div>
@@ -13165,11 +13211,24 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
       {(() => {
         const all = Array.isArray(window.BS_COACH_PLAYLISTS) ? window.BS_COACH_PLAYLISTS : [];
         const lists = all.filter(p => p.role === 'Nutritionist');
-        const items = lists.length ? lists.map(p => ({ k: tr('nutrition:eat.playlistBy', { defaultValue: '{who} · Your nutritionist', who: p.by }), title: p.name, meta: tr('nutrition:eat.playlistMeta', { defaultValue: '{len} · {bpm} BPM · {tracks, plural, one {# track} other {# tracks}}', len: p.len, bpm: p.bpm, tracks: p.tracks }) + (p.attached ? ` · ${p.attached}` : ''), url: p.url, provider: p.provider, tracks: p.songs }))
-          : [{ k: 'Dr. Maya Patel · Your nutritionist', title: 'Meal prep, low-key', meta: '45m · 85-100 BPM · 12 tracks · Sun prep' }];
+        // Which day a sample plays on is the sample week's own (its Sunday's `playlist`), matched as a
+        // nutritionist's is, so `attached` no longer rides in its meta.
+        const items = lists.length ? lists.map(p => ({ k: tr('nutrition:eat.playlistBy', { defaultValue: '{who} · Your nutritionist', who: p.by }), title: p.name, meta: tr('nutrition:eat.playlistMeta', { defaultValue: '{len} · {bpm} BPM · {tracks, plural, one {# track} other {# tracks}}', len: p.len, bpm: p.bpm, tracks: p.tracks }), url: p.url, provider: p.provider, tracks: p.songs }))
+          : [{ k: 'Dr. Maya Patel · Your nutritionist', title: 'Meal prep, low-key', meta: '45m · 85-100 BPM · 12 tracks' }];
         const who = lists.length ? String(lists[0].by || '').replace(/^Dr\.?\s+/i, '').split(' ')[0] : 'Maya';
-        return <BSCoachPlaylists role="nutritionist" signedIn={bsEatSignedIn} demo={{ who, items }} />;
+        // Each day's meals as the menu shows them (eatMealsOf), on that weekday's next date, the week the
+        // labels read soonest first (Codex on #2670): a swapped dish's playlist says the dish on the plate.
+        const todayIdx = bsWeekdayIdx();
+        const playWeek = PROGRAM.map((d, i) => (d ? { ...d, meals: eatMealsOf(i, (i - todayIdx + 7) % 7) } : d));
+        return <BSCoachPlaylists role="nutritionist" signedIn={bsEatSignedIn} demo={{ who, items }} program={playWeek} todayIdx={todayIdx} planCoach={bsEatSignedIn ? (liveMealCoach || null) : 'Dr. Maya Patel'} />;
       })()}
+
+      {/* The meal plan: the week as a sheet, each day's meals as the menu shows them. It portals out of the
+          clean area and keeps its type (bsCleanSheet). */}
+      {eatPlanAt != null && (
+        <BSEatPlanSheet program={PROGRAM} focusIdx={eatPlanAt} weekOffset={eatPlanWeek} planName={liveMealTitle || ''} coach={bsEatSignedIn ? (liveMealCoach || null) : 'Dr. Maya Patel'}
+          mealsOf={(i, off) => eatMealsOf(i, off)} onClose={() => setEatPlanAt(null)} onMonth={() => { setEatPlanAt(null); goCalendar(); }} />
+      )}
       </BSCleanType>
 
       {/* Meal swap sheet — pick which meal, then a coach-approved alternate. */}
@@ -22416,6 +22475,17 @@ function BSWallYourBest({ loggedIn, onLogActivity, onPostedRecord }) {
 
 
 
+// One size for a face and a name wherever Chat shows a person (owner, 2026-11-10: "make the name and avatars
+// smaller on the coaches and friends page … the sizes on the chats need to remain consistent and the same
+// across all"). A list row is Coaches', Friends' and a channel's alike (it was a 44px face and a 20px name);
+// a message's sender and the typing row are one size in every thread, a coach's, a friend's or a channel's;
+// the open thread's head is one size. Every site reads this table, so no list or thread drifts on its own.
+const BS_CHAT_SIZES = Object.freeze({
+  rowFace: 36, rowName: 16,
+  senderFace: 24, senderName: 8.5,
+  headFace: 48, headName: 25,
+});
+
 function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   const t = useBS();
   const tr = useShapeTr();
@@ -23417,10 +23487,10 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
             // last line in the body face, an unread count as a bare teal number, a hairline between rows.
             return (
               <button key={i} onClick={() => { window.ShapeUnread?.markConversationRead?.(f.conversation_id); setOpenChat(f); }} style={{ display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 12, alignItems: 'center', padding: '12px 0', background: 'transparent', border: 0, borderBottom: isLast ? 0 : `1px solid ${t.HAIR}`, color: cardInk, textAlign: 'left', cursor: 'pointer', width: '100%' }}>
-                <BSFacetAvatar flat size={44} c={t.INK} initial={bsInitials(f.n) || f.i} photo={f.conversation_id ? undefined : bsDemoFace(f.n)} showRank={false} online={online} dotC={magAccent} BG={t.PAPER} />
+                <BSFacetAvatar flat size={BS_CHAT_SIZES.rowFace} c={t.INK} initial={bsInitials(f.n) || f.i} photo={f.conversation_id ? undefined : bsDemoFace(f.n)} showRank={false} online={online} dotC={magAccent} BG={t.PAPER} />
                 <span style={{ minWidth: 0, display: 'block' }}>
                   {f.s && <span style={{ display: 'block', fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.14em', textTransform: 'uppercase', color: muted, fontWeight: 800, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{f.s}</span>}
-                  <span style={{ display: 'block', marginTop: f.s ? 3 : 0, fontFamily: bsWsHead(t), fontWeight: 500, fontSize: 20, lineHeight: 1.05, color: t.INK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{f.n}</span>
+                  <span style={{ display: 'block', marginTop: f.s ? 3 : 0, fontFamily: bsWsHead(t), fontWeight: 500, fontSize: BS_CHAT_SIZES.rowName, lineHeight: 1.1, color: t.INK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{f.n}</span>
                   {last && <span style={{ display: 'block', fontFamily: t.BODY, fontSize: 13, color: count > 0 ? t.INK : muted, marginTop: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{last}</span>}
                 </span>
                 <span style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 7, alignSelf: 'flex-start', marginTop: 2 }}>
@@ -23513,7 +23583,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
               <div key={ch.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 2px', borderTop: i ? `1px solid ${hair}66` : 0, ...(chReduced ? null : { animation: 'bsSdFadeUp 300ms ease both', animationDelay: `${Math.min(i, 10) * 26}ms` }) }}>
                 <button onClick={openOrJoin} style={{ flex: 1, minWidth: 0, background: 'transparent', border: 0, textAlign: 'left', cursor: 'pointer', color: cardInk, padding: 0 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-                    <span style={{ fontFamily: bsWsHead(t), fontWeight: 500, fontSize: 20, lineHeight: 1.05, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>#{ch.name}</span>
+                    <span style={{ fontFamily: bsWsHead(t), fontWeight: 500, fontSize: BS_CHAT_SIZES.rowName, lineHeight: 1.1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>#{ch.name}</span>
                     {ch.live && (
                       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
                         <span aria-hidden style={{ width: 5, height: 5, borderRadius: 999, background: tealSig }} />
@@ -25764,15 +25834,15 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSen
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginTop: 6 }}>
           <button onClick={() => !thread.group && openP(thread.who)} style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 13, minWidth: 0, background: 'transparent', border: 0, padding: 0, textAlign: 'left', cursor: thread.group ? 'default' : 'pointer', color: 'inherit' }}>
             {thread.group ? (
-              <span aria-hidden style={{ flex: 'none', width: 48, height: 48, borderRadius: '50%', display: 'grid', placeItems: 'center', background: bsTHexA(deskTeal, 0.16), color: deskTeal, boxShadow: `0 0 0 2px ${DESK}, 0 0 0 3.5px ${deskTeal}`, fontFamily: t.MONO, fontSize: 20, fontWeight: 800 }}>#</span>
+              <span aria-hidden style={{ flex: 'none', width: BS_CHAT_SIZES.headFace, height: BS_CHAT_SIZES.headFace, borderRadius: '50%', display: 'grid', placeItems: 'center', background: bsTHexA(deskTeal, 0.16), color: deskTeal, boxShadow: `0 0 0 2px ${DESK}, 0 0 0 3.5px ${deskTeal}`, fontFamily: t.MONO, fontSize: 20, fontWeight: 800 }}>#</span>
             ) : (
               <span style={{ position: 'relative', flex: 'none' }}>
-                {roundFace(48, headPhoto, bsInitials(thread.who) || (thread.who.match(/[A-Z]/) || ['?'])[0], `0 0 0 2px ${DESK}, 0 0 0 3.5px ${deskTeal}`)}
+                {roundFace(BS_CHAT_SIZES.headFace, headPhoto, bsInitials(thread.who) || (thread.who.match(/[A-Z]/) || ['?'])[0], `0 0 0 2px ${DESK}, 0 0 0 3.5px ${deskTeal}`)}
                 {headOnline && <span aria-hidden style={{ position: 'absolute', right: -2, bottom: -2, width: 13, height: 13, borderRadius: '50%', background: deskTeal, border: `2.5px solid ${DESK}`, boxSizing: 'border-box' }} />}
               </span>
             )}
             <span style={{ minWidth: 0 }}>
-              <span data-thread-name="" style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 25, fontWeight: 600, lineHeight: 1, letterSpacing: '-0.01em', color: DESK_INK, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{thread.who}</span>
+              <span data-thread-name="" style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: BS_CHAT_SIZES.headName, fontWeight: 600, lineHeight: 1, letterSpacing: '-0.01em', color: DESK_INK, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{thread.who}</span>
               <span style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: deskMuted, whiteSpace: 'nowrap', overflow: 'hidden' }}>
                 <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{thread.role}</span>
                 {headOnline && <><span aria-hidden>·</span><span style={{ color: deskTeal }}>{tr('profile:trainer.online', { defaultValue: 'Online now' })}</span></>}
@@ -25910,11 +25980,11 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSen
               {!sameRun && (
                 <button onClick={() => openP(senderName, m.userId)} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', minHeight: 28, marginBottom: 6, padding: 0, border: 0, background: 'transparent', cursor: 'pointer', textAlign: 'left' }}>
                   <span style={{ position: 'relative', display: 'inline-flex' }}>
-                    {roundFace(24, senderPhoto, bsInitials(senderName) || '?')}
+                    {roundFace(BS_CHAT_SIZES.senderFace, senderPhoto, bsInitials(senderName) || '?')}
                     {/* Online, or mid-workout / at the stove (amber), as the facet faces' dot was. */}
                     {(senderActivity || bsIsUserOnline(m.userId)) && <span aria-hidden style={{ position: 'absolute', right: -2, bottom: -2, width: 9, height: 9, borderRadius: '50%', background: senderActivity === 'cooking' ? '#d8a23a' : teal, border: `2px solid ${t.PAPER}`, boxSizing: 'border-box' }} />}
                   </span>
-                  <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: teal }}>{senderName}</span>
+                  <span style={{ fontFamily: t.MONO, fontSize: BS_CHAT_SIZES.senderName, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: teal }}>{senderName}</span>
                   {thread.group && <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{String(senderTierLabel).toUpperCase()}</span>}
                   {thread.group && roleLabel && <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: senderRole === 'nutritionist' ? '#a07a2e' : t.RUST }}>{roleLabel}</span>}
                 </button>
@@ -25979,11 +26049,11 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSen
             (a channel). The dots hold still under reduced motion (index.html). */}
         {typers.length > 0 && (
           <div data-thread-typing="" aria-hidden style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 18, minHeight: 28, minWidth: 0 }}>
-            {!thread.group && roundFace(24, headPhoto, bsInitials(thread.who) || '?')}
+            {!thread.group && roundFace(BS_CHAT_SIZES.senderFace, headPhoto, bsInitials(thread.who) || '?')}
             <span style={{ flex: 'none', display: 'inline-flex', alignItems: 'center', gap: 4, padding: '9px 12px', borderRadius: 16, background: bsTHexA(t.INK, 0.06) }}>
               {[0, 1, 2].map((k) => <span key={k} className="bs-typing-dot" style={{ width: 6, height: 6, borderRadius: '50%', background: teal, animation: `bsTypingDot 1.2s ease-in-out ${k * 0.16}s infinite` }} />)}
             </span>
-            {thread.group && <span style={{ minWidth: 0, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{typingWords}</span>}
+            {thread.group && <span style={{ minWidth: 0, fontFamily: t.MONO, fontSize: BS_CHAT_SIZES.senderName, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{typingWords}</span>}
           </div>
         )}
         <span role="status" aria-live="polite" style={BS_SR_ONLY}>{typingWords}</span>

@@ -9,6 +9,7 @@
 //     constraints: { proteinFloor: n|null, exclusions: ['shellfish',…], maxPrep: n|null },
 //     days: [ {
 //       name: 'Day A',
+//       playlist: { id?, name, meta } | absent,     // the coach's saved playlist for this day
 //       slots: [ meal ],                            // base = the TRAINING-day version
 //       variants: {                                 // FIRST-CLASS: overlays, not copies
 //         rest:   { overrides: { [mealId]: meal|null }, extras: [meal] },
@@ -18,7 +19,8 @@
 //   }
 //   meal = { id, slot: 'Breakfast'|'Lunch'|'Dinner'|'Snack'|custom, name,
 //            kcal, p, c, f, prepMin|null, ingredients: [{name, qty, unit}],
-//            swaps: [≤3 {name, kcal, p, c, f}] }    // approved alternates
+//            swaps: [≤3 {name, kcal, p, c, f}],     // approved alternates
+//            playlist?: { id?, name, meta } }       // the coach's saved playlist for this meal
 //
 // A variant resolves as: base meals, minus overrides set to null, with
 // overridden meals replaced, plus extras. Editing a base meal either flows
@@ -467,8 +469,9 @@
   // ── Assignment snapshot (scaled per client; variant per weekday) ──────────
   // Produces the client_meal_plans payload shape the plan API + app already
   // read: days[{dow,title,tag,targets{cal,p,c,f},meals[{slot,title,kcal,p,c,f,
-  // ingredients[{qty,name}],alts}]}]. Targets ship SCALED so the client's
-  // ledger measures against this plan, not defaults.
+  // ingredients[{qty,name}],alts,prepNightBefore?,playlist?}],playlist?}].
+  // Targets ship SCALED so the client's ledger measures against this plan, not
+  // defaults.
   //
   // opts.groceryEdits — the coach's grocery-list edits, keyed "name|unit"
   // (lowercased): { remove: true } drops the ingredient from every meal;
@@ -477,6 +480,20 @@
   // client grocery surface auto-builds from the plan's meals.
   var SLOT_TIMES = { Breakfast: "08:00", Lunch: "12:30", Snack: "16:00", Dinner: "19:00" };
   function groceryKey(ing) { return (ing.name + "|" + (ing.unit || "")).toLowerCase(); }
+  // A playlist the nutritionist linked to a day (`day.playlist`) or a meal (`meal.playlist`), as the
+  // member is sent it: `{ id?, name, meta }`, `id` the coach's saved playlist (coach_soundtracks) when
+  // known, so the member's app can label it "For Sun · Sunday prep". Only one with a name counts, and
+  // anything else is no playlist, so a day or meal without one is published exactly as before.
+  function sentPlaylist(p) {
+    if (!p || typeof p !== "object") return null;
+    var name = typeof p.name === "string" ? p.name.trim() : "";
+    if (!name) return null;
+    var out = {};
+    if ((typeof p.id === "string" && p.id) || (typeof p.id === "number" && isFinite(p.id))) out.id = p.id;
+    out.name = name;
+    out.meta = typeof p.meta === "string" ? p.meta : "";
+    return out;
+  }
   function buildMealAssignment(plan, opts) {
     opts = opts || {};
     var scale = opts.scale || 1;
@@ -518,7 +535,7 @@
       });
     }
     var days = weekMeals.map(function (meals, dow) {
-      return {
+      var day = {
         dow: dow,
         title: meta[dow].src.name + (meta[dow].variant === "rest" ? " · rest" : ""),
         tag: meta[dow].variant === "rest" ? "REST" : "TRAIN",
@@ -536,9 +553,17 @@
           // Night-before prep (Phase 2): only a meal that needs it carries the key, so every other
           // meal is published exactly as before.
           if (madeAheadMeal(sm)) out.prepNightBefore = true;
+          // The meal's playlist, from the meal as this weekday serves it (a rest day's own version
+          // of the meal carries its own). No playlist, no key.
+          var mealList = sentPlaylist(sm.playlist);
+          if (mealList) out.playlist = mealList;
           return out;
         }),
       };
+      // The day's playlist, from the plan day this weekday is served from, on a rest day too.
+      var dayList = sentPlaylist(meta[dow].src.playlist);
+      if (dayList) day.playlist = dayList;
+      return day;
     });
     return { days: days, grocery: buildGrocery(weekMeals, 1) };
   }
@@ -857,7 +882,7 @@
     resolveDay: resolveDay, editBaseMeal: editBaseMeal, hasVariantFollowers: hasVariantFollowers,
     mealsTotals: mealsTotals, scaleMeal: scaleMeal, phaseShift: phaseShift,
     checkConstraints: checkConstraints, buildGrocery: buildGrocery,
-    buildMealAssignment: buildMealAssignment, buildPlanLifecycle: buildPlanLifecycle, planTodo: planTodo, phaseKeyOf: phaseKeyOf,
+    buildMealAssignment: buildMealAssignment, sentPlaylist: sentPlaylist, buildPlanLifecycle: buildPlanLifecycle, planTodo: planTodo, phaseKeyOf: phaseKeyOf,
     planOwnDiet: planOwnDiet, planWho: planWho, mostUsedPlan: mostUsedPlan,
     demoMealTemplates: demoMealTemplates,
     ALLERGENS: ALLERGENS, mealDiet: mealDiet, planServed: planServed, planDiet: planDiet, planPrep: planPrep,

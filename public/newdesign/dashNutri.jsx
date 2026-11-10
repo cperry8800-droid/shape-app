@@ -41,6 +41,7 @@ function dnuDayMeals(day) {
     title: m.title || "Meal",
     kcal: Number(m.kcal) || 0, p: Number(m.p) || 0, c: Number(m.c) || 0, f: Number(m.f) || 0,
     alts: Array.isArray(m.alts) ? m.alts : [],
+    playlist: m.playlist && m.playlist.name ? m.playlist : null, // the nutritionist's playlist for the meal
   }));
 }
 function dnuDayTargets(day) {
@@ -364,6 +365,7 @@ function ClientNutritionPage() {
               headerNote={pickedDay ? (pickedDay.title || (isToday ? "today" : DNU_DOW[pickedDow])) : null}
               swapStorageKey={"shape.dashNutriSwap." + dnuIso(new Date()) + "." + pickedDow}
               interactive={isToday}
+              playlist={pickedDay && pickedDay.playlist && pickedDay.playlist.name ? pickedDay.playlist : null}
             />
             {(() => {
               // PREPPED stamps for the picked day's meals — exact title/id

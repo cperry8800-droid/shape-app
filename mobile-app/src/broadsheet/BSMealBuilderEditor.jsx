@@ -1,6 +1,6 @@
 import React from 'react';
 import '../../../public/newdesign/dashMealCore.js'; // → window.DashMeals, the website builder's core
-import { mealBuilderDoc, dayMeals, dayTotals, hasVariants, foodsFor, swapMeal, removeMeal, addMeal, setTarget, mealPlanMeta, mealDraftKey, readMealDraft } from '../services/mealBuilderEdit.mjs';
+import { mealBuilderDoc, dayMeals, dayTotals, hasVariants, foodsFor, swapMeal, removeMeal, addMeal, setTarget, mealPlanMeta, mealDraftKey, readMealDraft, mealPlaylistChoices, playlistKey, samePlaylist, setDayPlaylist, setMealPlaylist } from '../services/mealBuilderEdit.mjs';
 import { holdLeave } from '../services/leaveGuard.mjs';
 import { BS_CLEAN_HEAD, BS_CLEAN_SANS, useBSClean, BSCleanType } from './bsCleanType.jsx';
 
@@ -14,6 +14,12 @@ import { BS_CLEAN_HEAD, BS_CLEAN_SANS, useBSClean, BSCleanType } from './bsClean
 //
 // What the app leaves to the website, and says so: a dish of the nutritionist's own, and a day's
 // rest-day or travel-day version (kept as it is; a swap flows into it unless it replaces that meal).
+//
+// A playlist (owner, 2026-11-10: "add a playlist picker to the coach app's meal editor too -
+// nutritionists should be able to add playlists to meal plans"): one of the coach's saved playlists
+// (ShapeSoundtracks, GET /api/coach/soundtracks, not a trainer's) for the day and for each meal, written
+// as the website builder writes it (mealBuilderEdit.mjs), so Assign sends it and the member's Eat says
+// "For Sun · Batch prep".
 //
 // ⚠ WINDOW GLOBALS ARE READ AT CALL TIME, NEVER AT MODULE TOP (BSMastRow, BSBackRow, BSPage,
 // bsAskConfirm, ShapeCoachPlans, DashMeals): this module is a static import of the pros module.
@@ -35,6 +41,25 @@ const primaryBtn = (t, off) => ({ display: 'flex', alignItems: 'center', justify
 const quietBtn = (t, off) => ({ ...primaryBtn(t, off), border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK });
 const linkBtn = (t) => ({ flexShrink: 0, minHeight: 44, padding: '0 4px', border: 0, background: 'transparent', cursor: 'pointer', fontFamily: BS_CLEAN_SANS, fontSize: 13, fontWeight: 600, color: t.isLight ? '#07706a' : '#34d6c5', whiteSpace: 'nowrap' });
 const field = (t) => ({ width: '100%', minWidth: 0, boxSizing: 'border-box', minHeight: 44, padding: '0 10px', borderRadius: 10, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, fontFamily: BS_CLEAN_SANS, fontSize: 16, outline: 'none' });
+
+// A playlist picker: "No playlist", then the coach's playlists. A playlist the day or meal already carries
+// is listed and selected even when the list lacks it (signed out, a read that failed, one since deleted),
+// matched by id, or by name for one saved without an id, as the website's picker keeps it.
+function PlaylistSelect({ t, tr, value, playlists, label, onChange, data = {} }) {
+  const list = Array.isArray(playlists) ? playlists : [];
+  const has = !!(value && typeof value.name === 'string' && value.name.trim());
+  const lists = has && !list.some((p) => samePlaylist(p, value)) ? [value, ...list] : list;
+  const current = has ? lists.find((p) => samePlaylist(p, value)) : null;
+  const sub = (p) => (p.tracks ? tr('coach:mealEditor.tracks', { defaultValue: '{n, plural, one {# track} other {# tracks}}', n: p.tracks }) : (p.meta || ''));
+  return (
+    <select aria-label={label} {...data} value={current ? playlistKey(current) : ''} onChange={(e) => onChange(lists.find((x) => playlistKey(x) === e.target.value) || null)}
+      style={{ ...field(t), color: current ? (t.isLight ? '#07706a' : '#34d6c5') : t.INK70 }}>
+      <option value="">{tr('coach:mealEditor.noPlaylist', { defaultValue: 'No playlist' })}</option>
+      {lists.map((p) => <option key={playlistKey(p)} value={playlistKey(p)}>{p.name}{sub(p) ? ` · ${sub(p)}` : ''}</option>)}
+      {!lists.length ? <option value="" disabled>{tr('coach:mealEditor.noPlaylists', { defaultValue: 'No playlists yet' })}</option> : null}
+    </select>
+  );
+}
 
 export default function BSMealBuilderEditor({ plan, ownerId = null, onClose, onSaved = () => {}, onAssign = () => {} }) {
   const t = useBSClean();
@@ -102,6 +127,16 @@ export default function BSMealBuilderEditor({ plan, ownerId = null, onClose, onS
   // ⚠ The tab bar is under this editor (Codex on #2594): while it has unsaved changes, a tab tap or a
   // jump elsewhere asks the same question Back does (services/leaveGuard.mjs), never drops them.
   React.useEffect(() => (unsaved ? holdLeave(window, askLeave) : undefined), [unsaved]);
+  // The coach's saved playlists, read once (ShapeSoundtracks, read at call time). Signed out or a read that
+  // failed leaves the list empty, and a day or meal keeps showing the playlist it has.
+  const [playlists, setPlaylists] = React.useState([]);
+  React.useEffect(() => {
+    const list = window.ShapeSoundtracks && window.ShapeSoundtracks.list;
+    if (typeof list !== 'function') return undefined;
+    let on = true;
+    Promise.resolve().then(() => list()).then((rows) => { if (on) setPlaylists(mealPlaylistChoices(rows || [])); }).catch(() => {});
+    return () => { on = false; };
+  }, []);
 
   const head = (trailing) => (
     <>
@@ -261,6 +296,12 @@ export default function BSMealBuilderEditor({ plan, ownerId = null, onClose, onS
             </div>
           ) : null}
 
+          <label data-meal-day-playlist="" style={{ display: 'block', marginTop: 14 }}>
+            <span style={{ display: 'block', marginBottom: 6, ...overline(t) }}>{tr('coach:mealEditor.dayPlaylist', { defaultValue: 'Playlist for this day' })}</span>
+            <PlaylistSelect t={t} tr={tr} value={day.playlist} playlists={playlists} label={tr('coach:mealEditor.dayPlaylistAria', { defaultValue: 'Playlist for {day}', day: day.name })}
+              onChange={(p) => change(setDayPlaylist(doc, di, p))} />
+          </label>
+
           <p data-meal-day-total="" style={{ margin: '12px 0 0', fontFamily: BS_CLEAN_SANS, fontSize: 13.5, fontWeight: 600, color: t.INK }}>
             {tr('coach:mealEditor.dayTotal', { defaultValue: '{kcal} of {target} kcal · {p} of {tp} g protein', kcal: tot.kcal, target: doc.targets.kcal, p: tot.p, tp: doc.targets.p })}
           </p>
@@ -277,6 +318,13 @@ export default function BSMealBuilderEditor({ plan, ownerId = null, onClose, onS
                     <div style={overline(t)}>{slotLabel(m.slot)}</div>
                     <div style={{ marginTop: 2, fontFamily: BS_CLEAN_SANS, fontSize: 15, fontWeight: 600, color: t.INK }}>{m.name}</div>
                     <div style={{ marginTop: 2, fontFamily: BS_CLEAN_SANS, fontSize: 12.5, color: t.INK70 }}>{macros(m)}</div>
+                    {base ? (
+                      <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span aria-hidden="true" style={{ flexShrink: 0, fontFamily: BS_CLEAN_SANS, fontSize: 14, color: t.INK50 }}>♪</span>
+                        <PlaylistSelect t={t} tr={tr} value={m.playlist} playlists={playlists} data={{ 'data-meal-playlist': m.id }}
+                          label={tr('coach:mealEditor.mealPlaylist', { defaultValue: '{meal} playlist', meal: m.name })} onChange={(p) => change(setMealPlaylist(doc, di, m.id, p))} />
+                      </div>
+                    ) : null}
                   </div>
                   {base ? <>
                     <button type="button" data-meal-swap={m.id} onClick={() => { setQuery(''); setPicker({ mode: 'swap', mealId: m.id, label: m.name }); }} style={linkBtn(t)}>{tr('coach:mealEditor.swap', { defaultValue: 'Swap' })}</button>

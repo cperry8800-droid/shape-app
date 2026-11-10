@@ -148,7 +148,50 @@ function dmbNextSlot(slots) {
   return slots.length === 0 ? "Breakfast" : "Lunch";
 }
 
-function DmbMealRow({ meal, onChange, onRemove, constraints, followers, badge, customFoods }) {
+// ── A playlist on a day or a meal ───────────────────────────────────────────
+// The nutritionist links one of their saved playlists (GET /api/coach/soundtracks) to a plan day
+// ("Sunday prep") or to one meal, as `{ id?, name, meta }` on `day.playlist` or `meal.playlist`; the
+// assignment sends it with that day or meal (DashMeals.buildMealAssignment), so the member's app can
+// label it "For Sun · Sunday prep". Cleared, the key goes, so an untouched plan stores what it did.
+// The list is the trainer builder's (dashBuilder.jsx's dbuPlaylistChoice), less a playlist sent as a
+// trainer's (`role: 'trainer'`), which the member's Train page plays, not Eat.
+function dmbPlaylistChoices(rows) {
+  return (Array.isArray(rows) ? rows : [])
+    .filter((x) => x && x.role !== "trainer" && typeof x.name === "string" && x.name.trim())
+    .map((x) => {
+      const n = Number(x.tracks);
+      return { ...(x.id != null && x.id !== "" ? { id: x.id } : {}), name: x.name.trim(), meta: Number.isFinite(n) && n > 0 ? n + (n === 1 ? " track" : " tracks") : "" };
+    });
+}
+const dmbHasPlaylist = (p) => !!(p && typeof p.name === "string" && p.name.trim());
+// The day or meal with this playlist, or with none: no `null` is stored, the key goes.
+function dmbWithPlaylist(obj, p) {
+  const next = { ...obj };
+  if (p) next.playlist = { ...(p.id != null && p.id !== "" ? { id: p.id } : {}), name: p.name, meta: p.meta || "" };
+  else delete next.playlist;
+  return next;
+}
+// ⚠ A PLAYLIST THE DAY OR MEAL ALREADY CARRIES IS OFFERED EVEN WHEN THE LIST LACKS IT (signed out,
+// a read that failed, or one since deleted), or the select would show "No playlist" over a day that
+// has one, as DbuDayChips keeps it. Matched by id, and by name for one saved without an id.
+function DmbPlaylistSelect({ value, playlists, onChange, label, style }) {
+  const keyOf = (p) => (p && p.id != null && p.id !== "" ? "id:" + p.id : "name:" + ((p && p.name) || ""));
+  const same = (p, q) => !!p && !!q && (q.id != null && q.id !== "" ? p.id === q.id : p.name === q.name);
+  const list = Array.isArray(playlists) ? playlists : [];
+  const has = dmbHasPlaylist(value);
+  const lists = has && !list.some((p) => same(p, value)) ? [value, ...list] : list;
+  const current = has ? lists.find((p) => same(p, value)) : null;
+  return (
+    <select aria-label={label} value={current ? keyOf(current) : ""} style={style}
+      onChange={(e) => onChange(lists.find((x) => keyOf(x) === e.target.value) || null)}>
+      <option value="">No playlist</option>
+      {lists.map((p) => <option key={keyOf(p)} value={keyOf(p)}>{p.name}{p.meta ? " · " + p.meta : ""}</option>)}
+      {!lists.length && <option value="" disabled>No playlists yet</option>}
+    </select>
+  );
+}
+
+function DmbMealRow({ meal, onChange, onRemove, constraints, followers, badge, customFoods, playlists }) {
   const [swapPicker, setSwapPicker] = React.useState(false);
   const set = (k, v) => onChange({ ...meal, [k]: v });
   const num = (k) => (e) => set(k, Math.max(0, Number(e.target.value) || 0));
@@ -187,6 +230,13 @@ function DmbMealRow({ meal, onChange, onRemove, constraints, followers, badge, c
             Prep the night before
           </label>
         )}
+        {/* A playlist for this meal, sent with it (`playlist` on the assignment's meal). */}
+        <label data-meal-playlist="" style={{ display: "inline-flex", alignItems: "center", gap: 6, minHeight: 32, fontFamily: DMB_MONO, fontSize: 8.5, letterSpacing: "0.08em", textTransform: "uppercase", color: dmbHasPlaylist(meal.playlist) ? "var(--sh-accent-ink, #2ee0c4)" : DMB_INK50 }}>
+          <span aria-hidden="true">♪ Playlist</span>
+          <DmbPlaylistSelect value={meal.playlist} playlists={playlists} label={(meal.name || "This meal") + " playlist"}
+            onChange={(p) => onChange(dmbWithPlaylist(meal, p))}
+            style={{ ...dmbField, fontFamily: DMB_MONO, fontSize: 9, letterSpacing: "0.04em", textTransform: "none", padding: "5px 7px", maxWidth: 220 }} />
+        </label>
       </div>
       {/* Swap group — approved alternates; the client's ⇄ chip cycles these */}
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
@@ -240,9 +290,10 @@ function DmbTotalsBar({ meals, targets, warnings }) {
 // Controlled: the builder owns the variant selection so the running macro bar
 // and the client preview always show the SAME resolved day as the editor.
 // `only` (step 6c): the week shows every meal, so the editor under it opens ONE — the meal picked in
-// the week (its id), or none (null), when it shows only the day's name, its versions and what a rest
+// the week (its id), or none (null), when it shows only the day's name and playlist, its versions and what a rest
 // or travel day has removed. Left out, it lists them all, as before.
-function DmbDayEditor({ day, onChange, plan, variant, setVariant, customFoods, only, onAdded, onDuplicate, onDelete }) {
+// `playlists`: the coach's saved playlists for the day's and each meal's picker (DmbPlaylistSelect).
+function DmbDayEditor({ day, onChange, plan, variant, setVariant, customFoods, only, onAdded, onDuplicate, onDelete, playlists }) {
   const shows = (m) => only === undefined || (only != null && m.id === only);
   const [picker, setPicker] = React.useState(false);
   const applyDecisions = React.useRef({}); // mealId → true once "apply to variants" accepted
@@ -274,6 +325,12 @@ function DmbDayEditor({ day, onChange, plan, variant, setVariant, customFoods, o
           <span style={dmbLabel}>Day name</span>
           <input aria-label="Meal day name" value={day.name} onChange={(e) => onChange({ ...day, name: e.target.value })} style={{ ...dmbField, width: "100%", fontSize: 14 }} />
         </div>
+        {/* The day's playlist goes with every weekday this day is served on, a rest day too. */}
+        <div data-day-playlist="" style={{ flex: "0 1 220px", minWidth: 150 }}>
+          <span style={dmbLabel}>Playlist for this day</span>
+          <DmbPlaylistSelect value={day.playlist} playlists={playlists} label={"Playlist for " + (day.name || "this day")}
+            onChange={(p) => onChange(dmbWithPlaylist(day, p))} style={{ ...dmbField, width: "100%", fontSize: 12.5, color: dmbHasPlaylist(day.playlist) ? "var(--sh-accent-ink, #2ee0c4)" : dmbField.color }} />
+        </div>
         <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
           {activeVariants.map((v) => (
             <span key={v.key} style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
@@ -294,7 +351,7 @@ function DmbDayEditor({ day, onChange, plan, variant, setVariant, customFoods, o
       {cur === "training" ? (
         <React.Fragment>
           {day.slots.filter(shows).map((m) => (
-            <DmbMealRow key={m.id} meal={m} constraints={plan.constraints} customFoods={customFoods}
+            <DmbMealRow key={m.id} meal={m} constraints={plan.constraints} customFoods={customFoods} playlists={playlists}
               followers={DashMeals.hasVariantFollowers(day, m.id)}
               onChange={(next) => editBase(m.id, next)}
               onRemove={() => onChange({ ...day, slots: day.slots.filter((x) => x.id !== m.id) })} />
@@ -330,7 +387,7 @@ function DmbDayEditor({ day, onChange, plan, variant, setVariant, customFoods, o
             }
             if (hasOv) {
               return (
-                <DmbMealRow key={m.id} meal={ov} constraints={plan.constraints} customFoods={customFoods} badge={{ label: "Overridden", c: DMB_GOLD }}
+                <DmbMealRow key={m.id} meal={ov} constraints={plan.constraints} customFoods={customFoods} playlists={playlists} badge={{ label: "Overridden", c: DMB_GOLD }}
                   onChange={(next) => setVariantData(cur, { ...vdata, overrides: { ...vdata.overrides, [m.id]: { ...next, id: m.id } } })}
                   onRemove={() => setVariantData(cur, { ...vdata, overrides: { ...vdata.overrides, [m.id]: null } })} />
               );
@@ -348,7 +405,7 @@ function DmbDayEditor({ day, onChange, plan, variant, setVariant, customFoods, o
             );
           })}
           {(vdata.extras || []).map((m, i) => !shows(m) ? null : (
-            <DmbMealRow key={m.id} meal={m} constraints={plan.constraints} customFoods={customFoods} badge={{ label: "This day only", c: "var(--sh-accent, #2ee0c4)" }}
+            <DmbMealRow key={m.id} meal={m} constraints={plan.constraints} customFoods={customFoods} playlists={playlists} badge={{ label: "This day only", c: "var(--sh-accent, #2ee0c4)" }}
               onChange={(next) => setVariantData(cur, { ...vdata, extras: vdata.extras.map((x, j) => (j === i ? next : x)) })}
               onRemove={() => setVariantData(cur, { ...vdata, extras: vdata.extras.filter((_, j) => j !== i) })} />
           ))}
@@ -575,6 +632,8 @@ function DmbClientPreview({ doc, day, variant, targets, label }) {
   const meals = React.useMemo(() => DashMeals.resolveDay(day, variant).map((m, i) => ({
     id: m.id || "pv-" + i, slot: m.slot, time: null, title: m.name,
     kcal: m.kcal, p: m.p, c: m.c, f: m.f, alts: m.swaps || [],
+    // The meal's playlist as the member's card shows it (the assignment sends it: sentPlaylist).
+    playlist: m.playlist && m.playlist.name ? m.playlist : null,
   })), [JSON.stringify(day), variant]);
   const [ledger, setLedger] = React.useState({ kcal: 0, p: 0, c: 0, f: 0 });
   const [logged, setLogged] = React.useState({});
@@ -595,6 +654,7 @@ function DmbClientPreview({ doc, day, variant, targets, label }) {
             setLedger((l) => ({ kcal: l.kcal + (m.kcal || 0), p: l.p + (m.p || 0), c: l.c + (m.c || 0), f: l.f + (m.f || 0) }));
           }}
           headerNote={label || (variant === "training" ? "training day" : variant + " day")}
+          playlist={day && day.playlist && day.playlist.name ? day.playlist : null}
         />
       </div>
     </div>
@@ -921,6 +981,23 @@ function DmbBuilder({ template, preselectId, clients, queue, lifecycle, live, on
   // ── Shape Kitchen and the coach's own ──
   const kitchen = React.useMemo(() => (Array.isArray(window.SHAPE_RECIPES) ? W.kitchenFoods(window.SHAPE_RECIPES, typeof window.recipeNeeds === "function" ? window.recipeNeeds : null) : null), []);
   const own = useDmbOwnKitchen(!!live && !!ownerId, ownerId);
+  // The coach's saved playlists, read once, for the day's and each meal's playlist picker. Signed out
+  // (the preview) there are none to read; a failed read leaves the list empty, and a day or meal keeps
+  // showing the playlist it has.
+  const [playlists, setPlaylists] = React.useState([]);
+  React.useEffect(() => {
+    if (!live) { setPlaylists((prev) => (prev.length ? [] : prev)); return undefined; }
+    let on = true;
+    (async () => {
+      try {
+        const res = await fetch("/api/coach/soundtracks", { credentials: "same-origin" });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (on) setPlaylists(dmbPlaylistChoices(data && data.soundtracks));
+      } catch (e) { /* the list stays empty */ }
+    })();
+    return () => { on = false; };
+  }, [live]);
   const mine = React.useMemo(() => {
     const fromKitchen = own.state === "ready" ? (own.recipes || []).map(W.ownRecipeFood).filter(Boolean) : [];
     // ⚠ A KITCHEN RECIPE PUT ON A PLAN IS STILL SHAPE'S, not the coach's: the plans' dishes are read
@@ -1095,9 +1172,9 @@ function DmbBuilder({ template, preselectId, clients, queue, lifecycle, live, on
                                   onClick={() => { setSel(c.index); setPick({ meal: m.id }); }}>
                                   <b>{m.name}</b>
                                   <small>{DashMeals.foodHasMacros(m) ? dmbFmt(m.kcal) + " kcal · " + (Number(m.p) || 0) + " g P" : "Macros not set"}
-                                    {(DashMeals.madeAheadMeal(m) || (m.swaps || []).length > 0 || (typeof m.note === "string" && m.note.trim())) && (
-                                      <span className="dmb-marks" aria-label={[DashMeals.madeAheadMeal(m) ? "prepped the night before" : null, (m.swaps || []).length ? (m.swaps.length + (m.swaps.length === 1 ? " swap" : " swaps")) : null, typeof m.note === "string" && m.note.trim() ? "a note to the client" : null].filter(Boolean).join(", ")}>
-                                        {DashMeals.madeAheadMeal(m) ? "☾" : ""}{(m.swaps || []).length ? " ⇄" + m.swaps.length : ""}{typeof m.note === "string" && m.note.trim() ? " ✎" : ""}
+                                    {(DashMeals.madeAheadMeal(m) || (m.swaps || []).length > 0 || (typeof m.note === "string" && m.note.trim()) || dmbHasPlaylist(m.playlist)) && (
+                                      <span className="dmb-marks" aria-label={[DashMeals.madeAheadMeal(m) ? "prepped the night before" : null, (m.swaps || []).length ? (m.swaps.length + (m.swaps.length === 1 ? " swap" : " swaps")) : null, typeof m.note === "string" && m.note.trim() ? "a note to the client" : null, dmbHasPlaylist(m.playlist) ? "a playlist" : null].filter(Boolean).join(", ")}>
+                                        {DashMeals.madeAheadMeal(m) ? "☾" : ""}{(m.swaps || []).length ? " ⇄" + m.swaps.length : ""}{typeof m.note === "string" && m.note.trim() ? " ✎" : ""}{dmbHasPlaylist(m.playlist) ? " ♪" : ""}
                                       </span>
                                     )}
                                   </small>
@@ -1123,9 +1200,9 @@ function DmbBuilder({ template, preselectId, clients, queue, lifecycle, live, on
               <div style={{ minWidth: 0 }}>
                 {(warnings || []).map((w, i) => <p key={i} className="dmb-quiet" style={{ color: DMB_RED }}>⚠ {w}</p>)}
                 <DmbDayEditor day={day} onChange={(next) => setDay(sel, next)} plan={doc} variant={curVariant} setVariant={setPreviewVariant} customFoods={ownFoods}
-                  only={pick && pick.meal ? pick.meal : null} onAdded={(id) => setPick({ meal: id })}
+                  only={pick && pick.meal ? pick.meal : null} onAdded={(id) => setPick({ meal: id })} playlists={playlists}
                   onDuplicate={() => duplicateDay(sel)} onDelete={doc.days.length > 1 ? () => deleteDay(sel) : null} />
-                {!(pick && pick.meal) && <p className="dmb-quiet">Pick a meal in the week to open it here: its macros, swaps, night-before prep and a note to the client.</p>}
+                {!(pick && pick.meal) && <p className="dmb-quiet">Pick a meal in the week to open it here: its macros, swaps, night-before prep, a playlist and a note to the client.</p>}
               </div>
             </div>
           )}

@@ -14,7 +14,7 @@ import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { loadRealModule } from './helpers/load-real-module.mjs';
-import { mealBuilderDoc, dayTotals, hasVariants, foodsFor, swapMeal, removeMeal, addMeal, setTarget, mealPlanMeta, assignmentDays } from '../mobile-app/src/services/mealBuilderEdit.mjs';
+import { mealBuilderDoc, dayTotals, hasVariants, foodsFor, swapMeal, removeMeal, addMeal, setTarget, mealPlanMeta, assignmentDays, mealPlaylistChoices, setDayPlaylist, setMealPlaylist } from '../mobile-app/src/services/mealBuilderEdit.mjs';
 import { cleanMealBrief, pickMeals, buildMealDoc } from '../src/lib/ai/mealDraft.mjs';
 
 const require_ = createRequire(import.meta.url);
@@ -518,4 +518,105 @@ test('the editor: Back with changes asks first; a plan with rest-day versions sa
   } finally { await m.close(); delete W.bsAskConfirm; }
   const plain = await mount({ plan: PLAN, onClose: () => {} });
   try { assert.ok(!plain.q('[data-meal-variants-note]')); } finally { await plain.close(); }
+});
+
+// ── A playlist on a day or a meal (owner, 2026-11-10: "add a playlist picker to the coach app's meal
+// editor too - nutritionists should be able to add playlists to meal plans") ──
+// The same document the website builder writes (tests/meal-plan-playlists.test.mjs): `{ id?, name, meta }`
+// on `day.playlist` / `meal.playlist`, the key gone when cleared, so Assign sends it to the member.
+const ROWS = [
+  { id: 'st-1', name: ' Sunday prep ', tracks: 12, role: 'nutritionist' },
+  { id: 'st-2', name: 'Breakfast beats', tracks: 1, role: null },
+  { id: 'st-3', name: 'Pull day tempo', tracks: 14, role: 'trainer' },
+  { id: 'st-4', name: '   ', tracks: 3 },
+];
+
+test('the playlists a meal plan can carry: the coach\'s, not a trainer\'s, as the website lists them', () => {
+  assert.deepEqual(mealPlaylistChoices(ROWS), [
+    { id: 'st-1', name: 'Sunday prep', meta: '12 tracks', tracks: 12 },
+    { id: 'st-2', name: 'Breakfast beats', meta: '1 track', tracks: 1 },
+  ]);
+  assert.deepEqual(mealPlaylistChoices(null), []);
+});
+
+test('a day\'s and a meal\'s playlist are set as the website writes them, cleared without a trace, and Assign sends them', () => {
+  const doc = clone(FULL);
+  const before = clone(doc);
+  const first = doc.days[0].slots[0];
+  const [sunday, beats] = mealPlaylistChoices(ROWS);
+  const a = setDayPlaylist(doc, 0, sunday);
+  assert.deepEqual(a.days[0].playlist, { id: 'st-1', name: 'Sunday prep', meta: '12 tracks' }, 'id, name and meta only');
+  const b = setMealPlaylist(a, 0, first.id, beats);
+  assert.deepEqual(b.days[0].slots[0].playlist, { id: 'st-2', name: 'Breakfast beats', meta: '1 track' });
+  assert.deepEqual(doc, before, 'the plan handed in is never written to');
+  assert.equal(setDayPlaylist(b, 0, { ...sunday }), b, 'the same playlist again: the same document, nothing to save');
+  assert.equal(setMealPlaylist(b, 0, 'nope', beats), b, 'no such meal: unchanged');
+  assert.equal(setDayPlaylist(b, 9, sunday), b, 'no such day: unchanged');
+  // Assign sends the week the member reads: the day's playlist on each weekday it is served, the meal's on the meal.
+  const sent = assignmentDays(M, b);
+  assert.deepEqual(sent[0].playlist, { id: 'st-1', name: 'Sunday prep', meta: '12 tracks' });
+  assert.deepEqual(sent[0].meals.find((x) => x.title === first.name).playlist, { id: 'st-2', name: 'Breakfast beats', meta: '1 track' });
+  // A swap keeps the meal's playlist, as editing a meal on the website does; the dish is the library's.
+  const swapped = swapMeal(M, b, 0, first.id, food('f9'));
+  assert.equal(swapped.days[0].slots[0].name, 'Tofu stir-fry + rice');
+  assert.deepEqual(swapped.days[0].slots[0].playlist, { id: 'st-2', name: 'Breakfast beats', meta: '1 track' });
+  // Cleared, the keys go: never `null`, and the plan sends what it did before.
+  const cleared = setMealPlaylist(setDayPlaylist(b, 0, null), 0, first.id, null);
+  assert.equal('playlist' in cleared.days[0], false);
+  assert.equal('playlist' in cleared.days[0].slots[0], false);
+  assert.deepEqual(assignmentDays(M, cleared), assignmentDays(M, doc));
+});
+
+const pickOption = async (sel, value) => {
+  const set = Object.getOwnPropertyDescriptor(W.HTMLSelectElement.prototype, 'value').set;
+  await React.act(async () => { set.call(sel, value); sel.dispatchEvent(new W.Event('change', { bubbles: true })); });
+};
+
+test('the editor: a playlist for the day and for a meal, from the coach\'s saved playlists; Save writes them', async () => {
+  const calls = [];
+  W.ShapeSoundtracks = { list: async () => ROWS };
+  W.ShapeCoachPlans = { update: async (body) => { calls.push(body); return { id: 'plan-1', name: body.name, meta: body.meta, detail: { ...PLAN.detail, ...body.detail } }; } };
+  const m = await mount({ plan: PLAN, ownerId: 'nutri-1', onClose: () => {} });
+  try {
+    await React.act(async () => { await new Promise((r) => setTimeout(r, 0)); });
+    const daySel = m.q('[data-meal-day-playlist] select');
+    assert.equal(daySel.getAttribute('aria-label'), `Playlist for ${NORA.days[0].name}`);
+    assert.deepEqual([...daySel.options].map((o) => o.textContent), ['No playlist', 'Sunday prep · 12 tracks', 'Breakfast beats · 1 track'], 'the coach\'s playlists, not a trainer\'s');
+    assert.equal(daySel.value, '', 'none yet');
+    await pickOption(daySel, 'id:st-1');
+    const first = NORA.days[0].slots[0];
+    const mealSel = m.q(`[data-meal-playlist="${first.id}"]`);
+    assert.equal(mealSel.getAttribute('aria-label'), `${first.name} playlist`);
+    await pickOption(mealSel, 'id:st-2');
+    assert.equal(m.q('[data-meal-save]').disabled, false, 'a playlist is a change to save');
+    await m.click(m.q('[data-meal-save]'));
+    assert.equal(calls.length, 1);
+    const saved = calls[0].detail.mealBuilder;
+    assert.deepEqual(saved.days[0].playlist, { id: 'st-1', name: 'Sunday prep', meta: '12 tracks' });
+    assert.deepEqual(saved.days[0].slots[0].playlist, { id: 'st-2', name: 'Breakfast beats', meta: '1 track' });
+    assert.equal(saved.days[1].playlist, undefined, 'another day keeps none');
+    // Cleared, it goes from the document.
+    await pickOption(m.q(`[data-meal-playlist="${first.id}"]`), '');
+    await m.click(m.q('[data-meal-save]'));
+    assert.equal('playlist' in calls[1].detail.mealBuilder.days[0].slots[0], false);
+  } finally { await m.close(); delete W.ShapeSoundtracks; delete W.ShapeCoachPlans; }
+});
+
+test('the editor: a playlist the plan already has stays shown when the list lacks it; signed out, there are none to pick', async () => {
+  const doc = clone(NORA);
+  doc.days[0].playlist = { id: 'st-9', name: 'Old prep mix', meta: '8 tracks' };
+  doc.days[0].slots[0].playlist = { name: 'Saved before ids', meta: '' };
+  W.ShapeSoundtracks = { list: async () => null };
+  const m = await mount({ plan: { ...PLAN, detail: { mealBuilder: doc } }, ownerId: 'nutri-1', onClose: () => {} });
+  try {
+    await React.act(async () => { await new Promise((r) => setTimeout(r, 0)); });
+    const daySel = m.q('[data-meal-day-playlist] select');
+    assert.equal(daySel.value, 'id:st-9');
+    assert.deepEqual([...daySel.options].map((o) => o.textContent), ['No playlist', 'Old prep mix · 8 tracks']);
+    const mealSel = m.q(`[data-meal-playlist="${doc.days[0].slots[0].id}"]`);
+    assert.equal(mealSel.value, 'name:Saved before ids', 'one saved without an id, by its name');
+    const other = m.q(`[data-meal-playlist="${doc.days[0].slots[1].id}"]`);
+    assert.deepEqual([...other.options].map((o) => [o.textContent, o.disabled]), [['No playlist', false], ['No playlists yet', true]]);
+    assert.equal(m.q('[data-meal-save]').disabled, true, 'showing what the plan has changes nothing');
+  } finally { await m.close(); delete W.ShapeSoundtracks; }
 });

@@ -104,7 +104,11 @@ test('website: a face that will not load is asked for once more, then Nora\'s ma
   cwPhotoError({ currentTarget: member });
   assert.equal(member.style.visibility, 'hidden');
   // Both of her faces, and every facet avatar, use it.
-  assert.equal((WEB.match(/<img src="\/nora-avatar\.png"[^>]*onError=\{cwPhotoError\} data-fallback=\{CW_NORA_MARK\}/g) ?? []).length, 2);
+  // Every face of hers falls back (the masthead, the talk button, her messages, her
+  // reply being written, the thread head: the panel redesign of 2026-11-10 drew her in more places).
+  const herFaces = (WEB.match(/<img src="\/nora-avatar\.png"/g) ?? []).length;
+  assert.ok(herFaces >= 2, 'her faces were not found');
+  assert.equal((WEB.match(/<img src="\/nora-avatar\.png"[^>]*onError=\{cwPhotoError\} data-fallback=\{CW_NORA_MARK\}/g) ?? []).length, herFaces, 'a face of hers has no fallback');
   assert.match(WEB, /\{photo && <img key=\{photo\} src=\{photo\} alt="" onError=\{cwPhotoError\}/);
 });
 
@@ -118,7 +122,7 @@ test('website: Talk replaced the Voice chat chip and hold-to-talk, and starts in
   assert.ok(face, 'her face is the talk button, on Nora\'s tab, when she can listen');
   assert.match(face[0], /aria-label="Talk to Nora"/);
   assert.match(face[0], /<img src="\/nora-avatar\.png" alt="" aria-hidden/);
-  assert.ok(WEB.indexOf('data-nora-talk-button') < WEB.indexOf('{noraMode ? "✦ ASK NORA" : "SHAPE"}'), 'in the header, before her name');
+  assert.ok(WEB.indexOf('data-nora-talk-button') < WEB.indexOf('{noraMode ? "Nora" : (inTeam(currentTab)'), 'in the header, before her name');
   assert.equal((WEB.match(/data-nora-talk-button/g) ?? []).length, 1, 'one way in');
   assert.doesNotMatch(WEB, />\s*Talk to Nora\s*<\/button>/, 'the pill is gone');
   assert.match(WEB, /@media \(prefers-reduced-motion: reduce\) \{ \.cw-nora-face \{ transition: none; \} \.cw-nora-face::before \{ animation: none;/, 'the ring holds still for reduced motion');
