@@ -22,6 +22,7 @@ import { formatDate as bsZoneFormatDate, formatTime as bsZoneFormatTime, onZoneC
 import { bsChatStamp, bsChatDayLabel, bsChatClock, bsChatDividerIndexes } from '../services/chatTime.mjs';
 import { bsReplyFor, bsReplyFromMetadata, bsReplySnippet, bsReplySwipeDecide, bsReplySwipeOffset, bsReplySwipeCommits, BS_REPLY_SWIPE } from '../services/chatReply.mjs';
 import { bsTypingSend, bsTypingWho, bsReceiptFor, bsMergeThreadHistory, BS_SIGNALS_EMPTY } from '../services/chatSignals.mjs';
+import { bsThreadNavKey, bsThreadViaNav } from '../services/chatThreadBack.mjs';
 import { bsScoreRecord, RANGE_KEYS } from '../services/scoreHistory.mjs';
 // The ONE ceiling. The prompt must ask at exactly the load the core refuses to
 // admit unconsidered — a local copy of 150 that drifted would leave the screen
@@ -765,8 +766,11 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
     if (loc.overlay === 'settings') { setSettingsStart(loc.sub || ''); setShowSettings(true); }
     else { setShowSettings(false); setSettingsStart(''); }
     if (loc.tab === 'store') setStoreView(loc.sub === 'score' ? 'score' : 'store');
-    if (loc.tab === 'market') { setMarketRole((loc.detail && loc.detail.role) || null); setMarketCoach(null); }
-    if (loc.tab === 'chat' && loc.detail) setChatRequest({ ...loc.detail, nonce: Date.now() });
+    // Coaches comes back on the coach whose profile was open (BSMarketplaceScreen announces it), or its list.
+    if (loc.tab === 'market') { setMarketRole((loc.detail && loc.detail.role) || null); setMarketCoach((loc.detail && loc.detail.coach) || null); }
+    // A Back to Chat's list carries no thread, and drops any older one, which the remounting page would
+    // otherwise open again.
+    if (loc.tab === 'chat') setChatRequest(loc.detail ? { ...loc.detail, nonce: Date.now() } : null);
     if (loc.tab === 'eat') setEatStart(loc.sub || '');
     if (loc.tab === 'me') setMeStart(loc.sub || '');
     if (loc.tab) setTab(loc.tab);
@@ -790,7 +794,8 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
   const goCalendar = (date) => { navPush(); setCalendarDate(date instanceof Date ? date : null); setShowCalendar(true); };
   // Open the chat tab on a specific coach's DM (Team → Coaches).
   const [chatRequest, setChatRequest] = useStateBSC(null);
-  const goChat = (coach, role) => { navPush(); setChatRequest({ coach: coach || null, role: role || null, nonce: Date.now() }); setTab('chat'); };
+  // `back: 'nav'`: this jump pushed where the member was, so the thread's ← steps back there (BSClientFeed).
+  const goChat = (coach, role) => { navPush(); setChatRequest({ coach: coach || null, role: role || null, back: 'nav', nonce: Date.now() }); setTab('chat'); };
   // The shape:* event effects below register ONCE ([] deps), so their handlers
   // must read the CURRENT render's jump closures at fire time — a mount-render
   // goSettings/goIntegrations would be frozen at that render's state. (navPush
@@ -809,6 +814,9 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
   // jump's, never the tab's.
   const enterTab = (k) => {
     if (k === 'market' && tab !== 'market') { setMarketRole(null); setMarketCoach(null); }
+    // Chat from another tab opens on its list: a thread a jump opened earlier (Coaches' Message) is that
+    // jump's, and the remounting page would otherwise open it again (2026-11-10).
+    if (k === 'chat' && tab !== 'chat') setChatRequest(null);
     setTab(k);
   };
   const onNavGesture = (intent) => {
@@ -1077,7 +1085,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
       // Settings is a full-screen overlay above the tabs; a conversation opened from
       // inside it (Help's "Ask Nora") would land underneath, invisible (Codex, #2241).
       setShowSettings(false);
-      setChatRequest({ conversationId: d.conversationId || null, channel: d.channel || null, support: !!d.support, coach: d.name || null, nonce: Date.now() });
+      setChatRequest({ conversationId: d.conversationId || null, channel: d.channel || null, support: !!d.support, coach: d.name || null, back: 'nav', nonce: Date.now() });
       setTab('chat');
     };
     window.addEventListener('shape:openConversation', open);
@@ -22576,14 +22584,27 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   const [coachThreads, setCoachThreads] = useStateBSC(null);
   const [openChat, setOpenChat] = useStateBSC(null); // selected DM/channel row → thread view
   const [openProfile, setOpenProfile] = useStateBSC(null); // tapped a chat avatar → public profile
+  // Where the open thread's ← goes (owner, 2026-11-10: "when i click on messages from the coaches page …
+  // when i hit back, it bring me to teams page. Make sure back buttons are going back to previous page and
+  // location user was on"; services/chatThreadBack.mjs). A thread another page opened (Coaches' Message,
+  // Home's coach card, a search result, a notification, a coach's client) came with `back: 'nav'`: that
+  // jump pushed where the member was, so ← and the swipe step back there, at the scroll it left. A thread
+  // opened from Chat's own lists closes to the list, as before.
+  const [navBackKey, setNavBackKey] = useStateBSC(null);
+  const backViaNav = bsThreadViaNav(openChat, navBackKey);
+  const closeThread = () => {
+    setOpenChat(null);
+    setNavBackKey(null);
+    if (backViaNav && window.ShapeNav?.canPop?.()) window.ShapeNav.back();
+  };
   // Nav announce: only threads re-enterable via chatRequest are announced
   // (conversation-id DMs; real channels). Demo/local-only threads announce
   // nothing — a push from them records the chat tab root. Channels carry their
   // id at openChat.channelId (with name/members/host alongside), so we rebuild
   // the { channel } shape that setChatRequest({ channel }) → openChannelNow
   // replays; sample/demo channels (id 'sample…') are local-only, so skipped.
-  const chatNavDetail = openChat && openChat.conversation_id ? { conversationId: openChat.conversation_id, coach: openChat.n || null, role: openChat.s || null }
-    : openChat && openChat.channelId != null && !String(openChat.channelId).startsWith('sample') ? { channel: { id: openChat.channelId, name: openChat.n, memberCount: openChat.memberCount, isHost: openChat.isHost } }
+  const chatNavDetail = openChat && openChat.conversation_id ? { conversationId: openChat.conversation_id, coach: openChat.n || null, role: openChat.s || null, ...(backViaNav ? { back: 'nav' } : null) }
+    : openChat && openChat.channelId != null && !String(openChat.channelId).startsWith('sample') ? { channel: { id: openChat.channelId, name: openChat.n, memberCount: openChat.memberCount, isHost: openChat.isHost }, ...(backViaNav ? { back: 'nav' } : null) }
     : null;
   React.useEffect(() => {
     window.ShapeNav?.announce?.(chatNavDetail ? { detail: chatNavDetail } : null);
@@ -22618,6 +22639,8 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   React.useEffect(() => {
     if (!openRequest || !openRequest.nonce) return;
     const name = openRequest.coach;
+    // A request that opens no thread (the Wall, Nora, Team's list) leaves none held for a nav Back.
+    setNavBackKey(null);
     // Deep-link to an exact conversation (e.g. a coach tapping MESSAGE on a
     // client profile): open that thread directly by id.
     if (openRequest.conversationId) {
@@ -22625,6 +22648,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
       // loads the history itself by id.
       const listed = (threadRows || []).find(r => r.conversation_id === openRequest.conversationId);
       setOpenChat(listed || { n: name || 'Client', s: openRequest.role || tr('feed:thread.directMessage', { defaultValue: 'Direct message' }), c: '#0a8f87', i: (name || 'C').charAt(0), conversation_id: openRequest.conversationId, dm: true, messages: [] });
+      setNavBackKey(bsThreadNavKey(openRequest, { conversation_id: openRequest.conversationId }));
       return;
     }
     // Deep-link to a channel (e.g. from universal search): open it directly,
@@ -22632,6 +22656,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
     if (openRequest.channel && openRequest.channel.id != null) {
       setTab('channels');
       openChannelNow(openRequest.channel);
+      setNavBackKey(bsThreadNavKey(openRequest, { channelId: openRequest.channel.id }));
       return;
     }
     // Deep-link to the Wall (Home's "On the wall" card).
@@ -22667,7 +22692,9 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
     const sample = BS_SAMPLE_COACH_DMS[name]
       ? { n: name, s: openRequest.role || 'Coach', c: '#c0533b', i: name.charAt(0), conversation_id: null, messages: BS_SAMPLE_COACH_DMS[name] }
       : null;
-    setOpenChat(byName || (threadRows && threadRows[0]) || sample || { n: name, s: openRequest.role || 'Coach', c: '#c0533b', i: (name || 'C').charAt(0), conversation_id: null, messages: [] });
+    const pick = byName || (threadRows && threadRows[0]) || sample || { n: name, s: openRequest.role || 'Coach', c: '#c0533b', i: (name || 'C').charAt(0), conversation_id: null, messages: [] };
+    setOpenChat(pick);
+    setNavBackKey(bsThreadNavKey(openRequest, pick));
   }, [openRequest && openRequest.nonce]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Member-created community channels ("run club" style).
@@ -23295,7 +23322,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
           key={openChat.conversation_id || (openChat.channelId != null ? 'ch:' + openChat.channelId : 'n:' + (openChat.n || ''))}
           thread={{ who: isCh && !String(openChat.n || '').startsWith('#') ? `# ${openChat.n}` : openChat.n, role: openChat.s || (isCh ? tr('feed:thread.channel', { defaultValue: 'Channel' }) : tr('feed:thread.directMessage', { defaultValue: 'Direct message' })), last: openChat.last, time: '', at: openChat.at || null, messages: openChat.messages || [], group: isCh, conversationId: openChat.conversation_id, channelId: openChat.channelId }}
           eyebrow={openChat.channelId ? tr('feed:thread.channel', { defaultValue: 'Channel' }) : openChat.dm ? tr('feed:thread.privateThread', { defaultValue: 'Private thread' }) : tr('feed:thread.directMessage', { defaultValue: 'Direct message' })}
-          onBack={() => setOpenChat(null)}
+          onBack={closeThread}
           onOpenProfile={(person) => setOpenProfile(person)}
           onSendChannel={openChat.channelId && !String(openChat.channelId).startsWith('sample') ? () => setSendPostFor({ channel: { id: openChat.channelId, name: openChat.n, memberCount: openChat.memberCount || 0 } }) : null}
           grocerySaveTo={myRole === 'client' ? 'member' : bsIsCoachRole(myRole) ? 'coach' : null}

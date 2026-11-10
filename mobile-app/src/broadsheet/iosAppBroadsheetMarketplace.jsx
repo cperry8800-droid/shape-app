@@ -1058,9 +1058,21 @@ function BSMarketplaceScreen({ onBack = null, onProfile, initialRole, goChat, in
     if (!initialCoach || !remoteCoaches) return;
     const pool = initialCoach.role === 'nutritionist' ? (remoteCoaches.Nutritionist || []) : (remoteCoaches.Trainer || []);
     const hit = pool.find((c) => Number(c.provider_id) === Number(initialCoach.providerId));
-    if (hit) { setOpen(hit); setOpenNo(null); setOpenIntro(false); setDeepMiss(false); } else setDeepMiss(true);
+    if (hit) { setOpen(hit); setOpenNo(null); setOpenIntro(false); setOpenListing(!!initialCoach.listing); setDeepMiss(false); } else setDeepMiss(true);
     if (onCoachConsumed) onCoachConsumed();
   }, [initialCoach, remoteCoaches]);
+
+  // What Coaches has open rides on the nav history (owner, 2026-11-10: Back goes "to previous page and
+  // location user was on"). A live coach's profile, or its listing, is announced, so a jump out of it
+  // (Message → the thread) comes back to it through the deep-open above; the role picked rides along, as
+  // the shell's own location carries it. A sample coach has no listing id to find it by again, so a Back
+  // to one lands on the directory.
+  const openCoachLoc = open && open.provider_id != null && (open.provider_role === 'trainer' || open.provider_role === 'nutritionist')
+    ? { role: open.provider_role, providerId: open.provider_id, ...(openListing ? { listing: true } : null) } : null;
+  useEffectBSM2(() => {
+    window.ShapeNav?.announce?.(openCoachLoc ? { detail: { ...(initialRole ? { role: initialRole } : null), coach: openCoachLoc } } : null);
+    return () => window.ShapeNav?.announce?.(null);
+  }, [JSON.stringify(openCoachLoc), initialRole]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Demo fallback: the "YOUR COACH"/"YOUR NUTRITIONIST" relationship badges are
   // honest only in the signed-out preview — strip them for a signed-in account

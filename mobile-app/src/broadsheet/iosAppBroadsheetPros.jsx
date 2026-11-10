@@ -733,7 +733,7 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
       // Settings is a full-screen overlay above the tabs; a conversation opened from
       // inside it (Help's "Ask Nora") would land underneath, invisible (Codex, #2241).
       setShowSettings(false);
-      setChatRequest({ conversationId: d.conversationId || null, channel: d.channel || null, support: !!d.support, coach: d.name || null, nonce: Date.now() });
+      setChatRequest({ conversationId: d.conversationId || null, channel: d.channel || null, support: !!d.support, coach: d.name || null, back: 'nav', nonce: Date.now() });
       setTab('chat');
     };
     window.addEventListener('shape:openConversation', open);
@@ -905,7 +905,8 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
     else { setShowSettings(false); setSettingsStart(''); }
     if (loc.tab === 'store') setStoreView(loc.sub === 'score' ? 'score' : 'store');
     if (loc.tab === 'programs') setProgramInitialTab(loc.sub || 'programs');
-    if (loc.tab === 'chat' && loc.detail) setChatRequest({ ...loc.detail, nonce: Date.now() });
+    // A Back to Chat's list carries no thread, and drops any older one (the client shell's rule).
+    if (loc.tab === 'chat') setChatRequest(loc.detail ? { ...loc.detail, nonce: Date.now() } : null);
     if (loc.tab) setTab(loc.tab);
   };
   const { navPush, navBack } = useBSNavHistory({ navLoc, navResolve });
@@ -955,8 +956,10 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
     const next = bsNavStepTab(['today', 'clients', 'programs', 'chat', 'me'], tab, intent);
     if (!next) return;
     navSlide(intent === 'next-tab' ? 'l' : 'r');
-    setTab(next);
+    enterTab(next);
   };
+  // Chat from another tab opens on its list: a thread a jump opened earlier is that jump's (2026-11-10).
+  const enterTab = (k) => { if (k === 'chat' && tab !== 'chat') setChatRequest(null); setTab(k); };
   navJumpRef.current = { navPush, goSettings, openHomeWidget, onNavGesture };
   useBSNavGestureHandler(navJumpRef);
   React.useEffect(() => {
@@ -975,7 +978,7 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
       if (!cid && uid && window.ShapeMessages?.getOrCreateMemberConversation) {
         try { const conv = await window.ShapeMessages.getOrCreateMemberConversation({ otherUserId: uid }); cid = (conv && conv.data) || null; } catch (err) {}
       }
-      setChatRequest({ coach: name, role: 'Client', conversationId: cid, nonce: Date.now() });
+      setChatRequest({ coach: name, role: 'Client', conversationId: cid, back: 'nav', nonce: Date.now() });
       setTab('chat');
     };
     window.addEventListener('shape:proMessageClient', onMsg);
@@ -1012,7 +1015,7 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
       if (d.clientId && d.counterpartUserId && window.ShapeCareTeam?.openThread) {
         try { cid = await window.ShapeCareTeam.openThread(d.clientId, d.counterpartUserId); } catch (err) {}
       }
-      setChatRequest({ coach: d.name || 'Coach', role: d.role || 'Care team', conversationId: cid, nonce: Date.now() });
+      setChatRequest({ coach: d.name || 'Coach', role: d.role || 'Care team', conversationId: cid, back: 'nav', nonce: Date.now() });
       setTab('chat');
     };
     window.addEventListener('shape:proMessageCoach', onCoach);
@@ -1088,7 +1091,7 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
       </div>
       {/* Feed composer portals into this slot (see BSClientFeed). */}
       <div id="bs-composer-slot" style={{ position: 'absolute', left: 0, right: 0, bottom: (window.BS_TABBAR_CSS || window.BS_TABBAR_H || 64), zIndex: 60, pointerEvents: 'none' }} />
-      <BSTabBar active={tab} onChange={setTab} tabs={[
+      <BSTabBar active={tab} onChange={enterTab} tabs={[
         { key: 'today',    label: tr('coach:nav.today', { defaultValue: 'Today' }) },
         { key: 'clients',  label: tr('coach:nav.clients', { defaultValue: 'Clients' }) },
         { key: 'programs', label: tr('coach:nav.plans', { defaultValue: 'Plans' }) },
@@ -6567,7 +6570,7 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
       // Settings is a full-screen overlay above the tabs; a conversation opened from
       // inside it (Help's "Ask Nora") would land underneath, invisible (Codex, #2241).
       setShowSettings(false);
-      setChatRequest({ conversationId: d.conversationId || null, channel: d.channel || null, support: !!d.support, coach: d.name || null, nonce: Date.now() });
+      setChatRequest({ conversationId: d.conversationId || null, channel: d.channel || null, support: !!d.support, coach: d.name || null, back: 'nav', nonce: Date.now() });
       setTab('chat');
     };
     window.addEventListener('shape:openConversation', open);
@@ -6725,7 +6728,8 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
     if (loc.overlay === 'settings') { setSettingsStart(loc.sub || ''); setShowSettings(true); }
     else { setShowSettings(false); setSettingsStart(''); }
     if (loc.tab === 'store') setStoreView(loc.sub === 'score' ? 'score' : 'store');
-    if (loc.tab === 'chat' && loc.detail) setChatRequest({ ...loc.detail, nonce: Date.now() });
+    // A Back to Chat's list carries no thread, and drops any older one (the client shell's rule).
+    if (loc.tab === 'chat') setChatRequest(loc.detail ? { ...loc.detail, nonce: Date.now() } : null);
     if (loc.tab) setTab(loc.tab);
   };
   const { navPush, navBack } = useBSNavHistory({ navLoc, navResolve });
@@ -6765,8 +6769,10 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
     const next = bsNavStepTab(['today', 'clients', 'plans', 'chat', 'me'], tab, intent);
     if (!next) return;
     navSlide(intent === 'next-tab' ? 'l' : 'r');
-    setTab(next);
+    enterTab(next);
   };
+  // Chat from another tab opens on its list: a thread a jump opened earlier is that jump's (2026-11-10).
+  const enterTab = (k) => { if (k === 'chat' && tab !== 'chat') setChatRequest(null); setTab(k); };
   // A swipe that reaches the shell (a tab step, or a back with no page Back to take it) leaves
   // whatever is open, so a screen holding unsaved changes is asked first, as for a tab tap (Codex on #2594).
   const onNavGesture = (intent) => { mayLeave(window).then((ok) => { if (ok) stepNav(intent); }); };
@@ -6788,7 +6794,7 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
       if (!cid && uid && window.ShapeMessages?.getOrCreateMemberConversation) {
         try { const conv = await window.ShapeMessages.getOrCreateMemberConversation({ otherUserId: uid }); cid = (conv && conv.data) || null; } catch (err) {}
       }
-      setChatRequest({ coach: name, role: 'Client', conversationId: cid, nonce: Date.now() });
+      setChatRequest({ coach: name, role: 'Client', conversationId: cid, back: 'nav', nonce: Date.now() });
       setTab('chat');
     };
     window.addEventListener('shape:proMessageClient', onMsg);
@@ -6804,7 +6810,7 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
       if (d.clientId && d.counterpartUserId && window.ShapeCareTeam?.openThread) {
         try { cid = await window.ShapeCareTeam.openThread(d.clientId, d.counterpartUserId); } catch (err) {}
       }
-      setChatRequest({ coach: d.name || 'Coach', role: d.role || 'Care team', conversationId: cid, nonce: Date.now() });
+      setChatRequest({ coach: d.name || 'Coach', role: d.role || 'Care team', conversationId: cid, back: 'nav', nonce: Date.now() });
       setTab('chat');
     };
     window.addEventListener('shape:proMessageCoach', onCoach);
@@ -6902,7 +6908,7 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
       {/* Feed composer portals into this slot (see BSClientFeed). */}
       <div id="bs-composer-slot" style={{ position: 'absolute', left: 0, right: 0, bottom: (window.BS_TABBAR_CSS || window.BS_TABBAR_H || 64), zIndex: 60, pointerEvents: 'none' }} />
       {/* A tab tap asks a screen holding unsaved changes first (services/leaveGuard.mjs), as Back does. */}
-      <BSTabBar active={tab} onChange={(k) => { mayLeave(window).then((ok) => { if (ok) setTab(k); }); }} tabs={[
+      <BSTabBar active={tab} onChange={(k) => { mayLeave(window).then((ok) => { if (ok) enterTab(k); }); }} tabs={[
         { key: 'today',    label: tr('coach:nav.today', { defaultValue: 'Today' }) },
         { key: 'clients',  label: tr('coach:nav.clients', { defaultValue: 'Clients' }) },
         { key: 'plans',    label: tr('coach:nav.plans', { defaultValue: 'Plans' }) },
