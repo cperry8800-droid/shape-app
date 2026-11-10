@@ -417,5 +417,6 @@
   "channels.changePicture": "Cambia l’immagine del canale",
   "channels.pictureSaved": "Immagine salvata",
   "channels.pictureError": "Impossibile salvare l’immagine — riprova.",
+  "channels.openError": "Impossibile aprire il canale — riprova.",
   "channels.readOnly": "Qui pubblica solo Shape"
 }

@@ -417,5 +417,6 @@
   "channels.changePicture": "Сменить изображение канала",
   "channels.pictureSaved": "Изображение сохранено",
   "channels.pictureError": "Не удалось сохранить изображение — попробуйте снова.",
+  "channels.openError": "Не удалось открыть канал — попробуйте снова.",
   "channels.readOnly": "Здесь публикует только Shape"
 }

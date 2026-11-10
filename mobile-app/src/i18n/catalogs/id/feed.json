@@ -417,5 +417,6 @@
   "channels.changePicture": "Ganti gambar kanal",
   "channels.pictureSaved": "Gambar disimpan",
   "channels.pictureError": "Gagal menyimpan gambar — coba lagi.",
+  "channels.openError": "Gagal membuka saluran — coba lagi.",
   "channels.readOnly": "Hanya Shape yang memposting di sini"
 }

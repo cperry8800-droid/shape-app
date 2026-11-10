@@ -417,5 +417,6 @@
   "channels.changePicture": "Đổi ảnh kênh",
   "channels.pictureSaved": "Đã lưu ảnh",
   "channels.pictureError": "Không thể lưu ảnh — thử lại.",
+  "channels.openError": "Không thể mở kênh — thử lại.",
   "channels.readOnly": "Chỉ Shape đăng bài ở đây"
 }

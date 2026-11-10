@@ -417,5 +417,6 @@
   "channels.changePicture": "Bild des Kanals ändern",
   "channels.pictureSaved": "Bild gespeichert",
   "channels.pictureError": "Bild konnte nicht gespeichert werden – versuch es erneut.",
+  "channels.openError": "Kanal konnte nicht geöffnet werden – versuch es erneut.",
   "channels.readOnly": "Hier postet nur Shape"
 }

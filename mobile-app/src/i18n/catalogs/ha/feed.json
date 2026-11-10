@@ -417,5 +417,6 @@
   "channels.changePicture": "Canza hoton tashar",
   "channels.pictureSaved": "An adana hoton",
   "channels.pictureError": "An kāsa adana hoton — sāke gwadawa.",
+  "channels.openError": "An kāsa buɗe tashar — sāke gwadawa.",
   "channels.readOnly": "Shape kaɗai ke wallafawa a nan"
 }

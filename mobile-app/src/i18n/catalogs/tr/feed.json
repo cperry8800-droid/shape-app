@@ -417,5 +417,6 @@
   "channels.changePicture": "Kanalın resmini değiştir",
   "channels.pictureSaved": "Resim kaydedildi",
   "channels.pictureError": "Resim kaydedilemedi — tekrar dene.",
+  "channels.openError": "Kanal açılamadı — tekrar dene.",
   "channels.readOnly": "Burada yalnızca Shape paylaşım yapar"
 }

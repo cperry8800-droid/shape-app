@@ -118,7 +118,7 @@ test('the app\'s new lines are in all 13 languages', () => {
   assert.equal(locales.length, 13);
   for (const loc of locales) {
     const cat = JSON.parse(read(`${dir}/${loc}/feed.json`));
-    for (const k of ['channels.changePicture', 'channels.pictureSaved', 'channels.pictureError', 'channels.readOnly']) {
+    for (const k of ['channels.changePicture', 'channels.pictureSaved', 'channels.pictureError', 'channels.readOnly', 'channels.openError']) {
       assert.ok(typeof cat[k] === 'string' && cat[k].trim(), `${loc} lacks feed:${k}`);
     }
   }
@@ -237,11 +237,65 @@ test('the app opens a channel as the list has it, and Shape HQ without joining i
   // A deep link is opened as the list has that channel, by its id.
   const link = CLIENT.slice(CLIENT.indexOf("    if (openRequest.channel && openRequest.channel.id != null) {"), CLIENT.indexOf("    // Deep-link to the Wall (Home's"));
   assert.ok(link.length > 0, 'the channel deep link moved');
-  assert.match(link, /window\.ShapeChannels\.list\(\)\.then\(\(r\) => \{\n\s*const full = \(\(r && r\.data\) \|\| \[\]\)\.find\(\(c\) => c\.id === asked\.id\);\n\s*openChannelNow\(full \? \{ \.\.\.asked, \.\.\.full \} : asked\);/, 'a deep link opens on the fields it carries');
   assert.doesNotMatch(link, /setTab\('channels'\);\n\s*openChannelNow\(openRequest\.channel\);/, 'a deep link opens on the fields it carries');
   // A read-only channel opens, for a member or not, and its row offers no Join.
   assert.match(CLIENT, /const openable = ch\.joined \|\| ch\.readOnly;\n\s*const openOrJoin = \(\) => openable \? openChannelNow\(ch\) : joinChannelNow\(ch\);/, 'Shape HQ is joined on the first tap');
   assert.match(CLIENT, /\{openable\n\s*\? <button onClick=\{openOrJoin\} aria-label=\{tr\('feed:channels\.openChannel'/, 'Shape HQ\'s row offers Join');
+});
+
+// Codex P2 on #2676 (30cad0b): a list that failed, or had no such channel, opened the link's own few
+// fields, so a shared Shape HQ card opened with a composer. The deep link's branch, lifted and run.
+function liftChannelLink() {
+  const from = CLIENT.indexOf("    if (openRequest.channel && openRequest.channel.id != null) {");
+  const to = CLIENT.indexOf("    // Deep-link to the Wall (Home's");
+  assert.ok(from > 0 && to > from, 'the channel deep link moved');
+  const body = CLIENT.slice(from, to);
+  return async ({ asked, list, channels }) => {
+    const calls = { opened: [], toasts: [], back: [], tab: [] };
+    const win = {
+      ShapeChannels: { list: list || undefined },
+      __bsToast: (msg, kind) => calls.toasts.push({ msg, kind }),
+    };
+    const tr = (k) => k;
+    const bsThreadNavKey = (req, key) => 'k:' + key.channelId;
+    new Function('openRequest', 'setTab', 'setNavBackKey', 'openChannelNow', 'tr', 'channels', 'window', 'bsThreadNavKey', body)(
+      { nonce: 1, channel: asked }, (t) => calls.tab.push(t), (k) => calls.back.push(k), (ch) => calls.opened.push(ch), tr, channels, win, bsThreadNavKey);
+    for (let i = 0; i < 5; i++) await new Promise((r) => setImmediate(r));
+    return calls;
+  };
+}
+
+test('a channel link opens as the list has it; never on the link\'s fields alone', async () => {
+  const run = liftChannelLink();
+  const asked = { id: 'hq', name: 'Shape HQ', memberCount: 0 };
+  const hq = { id: 'hq', name: 'Shape HQ', memberCount: 0, readOnly: true, official: true, picture: null, joined: false };
+  // The list answers: the full row.
+  let c = await run({ asked, list: async () => ({ data: [hq] }), channels: null });
+  assert.equal(c.opened.length, 1);
+  assert.equal(c.opened[0].readOnly, true, 'the list\'s read-only flag');
+  assert.equal(c.opened[0].official, true);
+  assert.deepEqual(c.toasts, []);
+  assert.deepEqual(c.back, ['k:hq']);
+  // The list fails: the row the list already holds.
+  c = await run({ asked, list: async () => { throw new Error('offline'); }, channels: [{ id: 'x', name: 'Run' }, hq] });
+  assert.equal(c.opened.length, 1, 'a failed list opens the row held');
+  assert.equal(c.opened[0].readOnly, true, 'a failed list opens the link\'s fields');
+  assert.deepEqual(c.toasts, []);
+  // The list fails and holds nothing: nothing opens, the member is told, and no Back is held.
+  c = await run({ asked, list: async () => { throw new Error('offline'); }, channels: null });
+  assert.equal(c.opened.length, 0, 'a failed list opens the link\'s fields');
+  assert.deepEqual(c.toasts.map((t) => [t.msg, t.kind]), [['feed:channels.openError', 'err']]);
+  assert.equal(c.back.at(-1), null, 'a link that opens nothing keeps a Back');
+  assert.deepEqual(c.tab, ['channels']);
+  // The list answers without that channel (gone, or not yours to read): nothing opens.
+  c = await run({ asked, list: async () => ({ data: [{ id: 'x', name: 'Run' }] }), channels: [hq] });
+  assert.equal(c.opened.length, 0, 'a channel the list lacks opens on the link');
+  assert.equal(c.toasts.length, 1);
+  assert.equal(c.back.at(-1), null);
+  // A sample channel, or no backend, opens as asked.
+  c = await run({ asked: { id: 'sample-hq', name: 'Shape HQ', messages: [{ t: 'hi' }] }, list: async () => { throw new Error('unused'); }, channels: null });
+  assert.equal(c.opened.length, 1);
+  assert.equal(c.opened[0].id, 'sample-hq');
 });
 
 // Codex P2 on #2676: Shape HQ has no members, and a channel's unread count and read mark were the

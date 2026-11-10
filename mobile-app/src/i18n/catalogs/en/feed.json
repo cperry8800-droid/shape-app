@@ -417,5 +417,6 @@
   "channels.changePicture": "Change the channel’s picture",
   "channels.pictureSaved": "Picture saved",
   "channels.pictureError": "Couldn’t save the picture. Try again.",
+  "channels.openError": "Couldn’t open that channel. Try again.",
   "channels.readOnly": "Only Shape posts here"
 }

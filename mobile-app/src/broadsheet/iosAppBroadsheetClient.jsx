@@ -22675,10 +22675,20 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
       setNavBackKey(bsThreadNavKey(openRequest, { channelId: openRequest.channel.id }));
       const sample = String(asked.id).startsWith('sample');
       if (sample || !window.ShapeChannels?.list) { openChannelNow(asked); return; }
+      // ⚠ AND NEVER ON THE LINK ALONE: a list that fails, or that has no such channel, opened the
+      // link's few fields (Codex P2 on #2676), Shape HQ with a composer again. A failed read opens
+      // the row the list already holds; else nothing opens, and the member is told.
+      const cannotOpen = () => {
+        setNavBackKey(null);
+        window.__bsToast?.(tr('feed:channels.openError', { defaultValue: 'Couldn’t open that channel. Try again.' }), 'err');
+      };
       window.ShapeChannels.list().then((r) => {
         const full = ((r && r.data) || []).find((c) => c.id === asked.id);
-        openChannelNow(full ? { ...asked, ...full } : asked);
-      }).catch(() => openChannelNow(asked));
+        if (full) openChannelNow({ ...asked, ...full }); else cannotOpen();
+      }).catch(() => {
+        const held = (channels || []).find((c) => c.id === asked.id);
+        if (held) openChannelNow({ ...asked, ...held }); else cannotOpen();
+      });
       return;
     }
     // Deep-link to the Wall (Home's "On the wall" card).
