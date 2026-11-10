@@ -304,6 +304,13 @@ test('5: the station runs the door beside Icecast, inside the machine; Icecast n
   assert.match(entry, /printf '%s' "\$BOOT" > "\$STATION_BOOT_FILE"/);
   assert.ok(entry.indexOf('> "$STATION_BOOT_FILE"') > entry.indexOf('BOOT="$(date -u +%s)'), 'written once named');
   assert.match(read('services/station/door/Dockerfile'), /USER node/);
+  // ⚠ Icecast runs as icecast2, so the volume's directory is made in its image and owned by it: a new
+  // named volume takes that owner, and a root-owned one failed the write and Icecast with it
+  // (Codex P1 on #2675). Made before the image drops to icecast2.
+  const ice = read('services/station/icecast/Dockerfile').replace(/^\s*#.*$/gm, '');
+  assert.match(ice, /mkdir -p [^\n]*\/run\/station/);
+  assert.match(ice, /chown icecast2:icecast [^\n]*\/run\/station/);
+  assert.ok(ice.indexOf('/run/station') < ice.indexOf('USER icecast2'), 'made while still root');
   // Caddy still serves /live only (tests/radio-station-config.test.mjs): Icecast's admin stays private.
   assert.doesNotMatch(read('services/station/caddy/Caddyfile').replace(/^\s*#.*$/gm, ''), /admin/);
 });
