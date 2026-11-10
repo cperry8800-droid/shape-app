@@ -337,9 +337,10 @@ test('a free or past-due account gets a locked teaser, never an error and never 
   assert.match(m[0], /readout\.locked \? <DprWeeklyReadoutLocked code=\{readout\.locked\} \/> : <DprWeeklyReadout/);
   const card = fn(PROG, 'DprWeeklyReadoutLocked');
   assert.ok(!/held|readout\.summary|insights/.test(card), 'the teaser reads a readout');
-  assert.match(card, /const base = code === "payment_past_due" \? "pastdue" : "join";/);
-  // The readout is assistant Nora's, which the free week opens too: a week that ran out says so.
-  assert.match(card, /M\.noraLock\(code === "payment_past_due" \? "payment_past_due" : "membership_required", window\.__shapeClientMembership \|\| null\)/);
+  // The readout is assistant Nora's, the membership's alone (owner, 2026-11-10: no free week): a free
+  // account sees Join, a renewal that failed Update your card, and there is no "ended" lock.
+  assert.match(card, /const kind = code === "payment_past_due" \? "pastdue" : "join";/);
+  assert.doesNotMatch(card, /ended|noraLock|__shapeClientMembership/, 'the free week\'s "ended" lock is back');
   assert.match(card, /<Lock kind=\{kind\} feature="Nora's weekly read"/);
 });
 

@@ -2254,10 +2254,8 @@ Object.assign(window, { ShapeConfirm: { open: shapeConfirmOpen } });
 // cards, voice and the weekly readout), Shape Radio, the AI helpers, Cook Mode voice, the points
 // Store, and the full leaderboard with your exact rank. An approved coach and an admin have them
 // too, and so does an account that pays a coach on Shape, for as long as it pays
-// (`includedWithCoach`). No billing trials: a free account's first three completed workouts
-// unlock one free week of assistant Nora, once, with no card (`nora`, `noraPreview`). A renewal
-// that failed (Stripe retrying) is PAST DUE: free until the card is updated, and told so at
-// every paid feature (ShapePaidLock below).
+// (`includedWithCoach`). No billing trials. A renewal that failed (Stripe retrying) is PAST DUE:
+// free until the card is updated, and told so at every paid feature (ShapePaidLock below).
 // One door for every "start your membership" button on the website: the upgrade prompt at a
 // paid feature, the client dashboard's membership page, Pricing. `returnTo` is the page to
 // come back to; the server confirms the payment on the way back (/api/stripe/platform-return)
@@ -2315,10 +2313,10 @@ async function shapeOpenBillingPortal(returnPath) {
   }
 }
 // What the account has, from /api/me/membership: { signedIn: false } | { signedIn: true, member
-// (the paid features), coach, includedWithCoach, nora (assistant Nora now), noraPreview (null |
-// { startedAt, endsAt, active }), ageRestricted, pastDue, status } | { unknown: true } when it did
-// not answer. One read per page, shared by every surface on it; the client dashboard's own answer
-// (ClientApp.html leaves it on window) is used as it is. peek() is the answer already in hand.
+// (the paid features), coach, includedWithCoach, nora (assistant Nora: the paid features),
+// ageRestricted, pastDue, status } | { unknown: true } when it did not answer. One read per page,
+// shared by every surface on it; the client dashboard's own answer (ClientApp.html leaves it on
+// window) is used as it is. peek() is the answer already in hand.
 let shapeMembershipRead = null;
 let shapeMembershipHeld = null;
 function shapeReadMembership() {
@@ -2339,7 +2337,7 @@ function shapeMembershipPeek() {
 }
 // The paid features: the membership, an approved coach's, an admin's, or coaching on Shape's.
 function shapeHasPaid(m) { return !!m && m.signedIn === true && (m.member === true || m.coach === true || m.includedWithCoach === true); }
-// Assistant Nora: the paid features, or the free week. An answer without `nora` reads the paid ones.
+// Assistant Nora: the paid features (`nora`). An answer without `nora` reads the paid ones.
 function shapeHasNora(m) { return !!m && m.signedIn === true && (typeof m.nora === "boolean" ? m.nora : shapeHasPaid(m)); }
 // Which prompt a locked paid feature shows, from a paid route's 402 code or a membership answer:
 // "pastdue" (the renewal failed), "join" (a free account), "signin" (no account), or null (it is
@@ -2352,30 +2350,15 @@ function shapeLockKind(x) {
   if (x.signedIn !== true || shapeHasPaid(x)) return null;
   return x.pastDue === true ? "pastdue" : "join";
 }
-// The same for an assistant-Nora piece (action cards, voice, the weekly readout), which the free
-// week opens too, and which says so once that week has run out: "ended". `held` is the membership
-// answer to read the week from when `x` is a route's code (the page's own, when not given).
-function shapeNoraLock(x, held) {
-  let m = held;
-  let kind;
-  if (typeof x === "string") {
-    kind = shapeLockKind(x);
-    if (m === undefined) m = shapeMembershipPeek();
-  } else {
-    m = x;
-    if (!m || typeof m !== "object" || m.unknown) return null;
-    if (m.signedIn === false) return "signin";
-    if (m.signedIn !== true || shapeHasNora(m)) return null;
-    kind = m.pastDue === true ? "pastdue" : "join";
-  }
-  return kind === "join" && m && m.noraPreview && m.noraPreview.active === false ? "ended" : kind;
-}
-// Whole days left of a free week with Nora, from its `endsAt` (null when it is not running).
-function shapeNoraDaysLeft(m) {
-  const p = m && m.noraPreview;
-  if (!p || p.active !== true) return null;
-  const end = Date.parse(p.endsAt);
-  return Number.isFinite(end) ? Math.max(1, Math.ceil((end - Date.now()) / 86400000)) : null;
+// The same for an assistant-Nora piece (action cards, voice, the weekly readout), read on `nora`.
+// A route's code reads as shapeLockKind's.
+function shapeNoraLock(x) {
+  if (typeof x === "string") return shapeLockKind(x);
+  const m = x;
+  if (!m || typeof m !== "object" || m.unknown) return null;
+  if (m.signedIn === false) return "signin";
+  if (m.signedIn !== true || shapeHasNora(m)) return null;
+  return m.pastDue === true ? "pastdue" : "join";
 }
 // The answer, for a component: null while it is read.
 function useShapeMembership() {
@@ -2420,29 +2403,25 @@ function shapeAnnualSaving(plans) {
   const pct = Math.round((1 - plans.annual.priceCents / (plans.monthly.priceCents * 12)) * 100);
   return pct > 0 ? pct : null;
 }
-// The owner's words for a renewal that failed (2026-11-10), at every paid feature, and for a free
-// week with Nora that has run out.
+// The owner's words for a renewal that failed (2026-11-10), at every paid feature.
 const SHAPE_PAST_DUE_LINE = "Your payment didn’t go through. Update your card to get Shape Radio and Nora back.";
-const SHAPE_NORA_ENDED_LINE = "Your free week with Nora has ended. Join to keep her.";
 // The prompt at a locked paid feature, one voice everywhere. A free account: what the feature is
 // part of, and Join (the membership checkout, back to this page), monthly or, where it is set up,
-// yearly. Past due: the owner's line and Update your card (the billing portal). The free week
-// with Nora over ("ended"): that, and Join. No account: the line and a way in. `kind` is
-// shapeLockKind's or shapeNoraLock's; `feature` names the thing ("Shape Radio", "Nora's weekly
-// read"); `text` replaces the free account's line; `compact` is the one-line form for a control
-// row; `more` sits after the buttons (a "what's included" link).
+// yearly. Past due: the owner's line and Update your card (the billing portal). No account: the
+// line and a way in. `kind` is shapeLockKind's or shapeNoraLock's; `feature` names the thing
+// ("Shape Radio", "Nora's weekly read"); `text` replaces the free account's line; `compact` is the
+// one-line form for a control row; `more` sits after the buttons (a "what's included" link).
 // The paper's own accent and deep ink, both of which follow the paper, so the button reads on
 // every skin (tests/newdesign-paper-pairs: no paper ink on a fill that stays put).
 function ShapePaidLock({ kind, feature, text, returnTo, compact, more }) {
   const [busy, setBusy] = React.useState(false);
   const [err, setErr] = React.useState("");
   const plans = useShapePlans();
-  if (kind !== "pastdue" && kind !== "join" && kind !== "signin" && kind !== "ended") return null;
+  if (kind !== "pastdue" && kind !== "join" && kind !== "signin") return null;
   const ac = "var(--sh-accent, #2ee0c4)";
   const what = feature || "This";
   const price = plans ? shapeMoney(plans.monthly.priceCents) + " a month" + (plans.annual ? " or " + shapeMoney(plans.annual.priceCents) + " a year" : "") : "$5 a month";
   const line = kind === "pastdue" ? SHAPE_PAST_DUE_LINE
-    : kind === "ended" ? SHAPE_NORA_ENDED_LINE
     : kind === "join" ? (text || what + " is part of Shape membership, " + price + ".")
     : what + " is part of Shape membership. Make a free account, then add it for " + price + ".";
   const act = async (plan) => {
@@ -2456,7 +2435,7 @@ function ShapePaidLock({ kind, feature, text, returnTo, compact, more }) {
   const btn = { flex: "none", minHeight: compact ? 28 : 36, padding: compact ? "5px 12px" : "8px 16px", borderRadius: 999, border: 0, background: ac, color: "var(--sh-deep, #06231f)", fontFamily: mono, fontSize: compact ? 9.5 : 10.5, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", textDecoration: "none", display: "inline-flex", alignItems: "center", cursor: busy ? "default" : "pointer", opacity: busy ? 0.65 : 1 };
   const alt = { ...btn, background: "transparent", color: "inherit", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.25)" };
   const saving = shapeAnnualSaving(plans);
-  const joining = kind === "join" || kind === "ended";
+  const joining = kind === "join";
   return (
     <div data-shape-lock={kind} role="status" style={{ display: "flex", alignItems: "center", gap: compact ? 8 : 12, flexWrap: "wrap", padding: compact ? "8px 10px" : "12px 14px", borderRadius: 10, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.14)", borderLeft: "3px solid " + ac, fontFamily: sans, textAlign: "left" }}>
       <svg aria-hidden width="12" height="14" viewBox="0 0 12 14" style={{ flex: "none", color: ac }}>
@@ -2478,9 +2457,9 @@ function ShapePaidLock({ kind, feature, text, returnTo, compact, more }) {
 Object.assign(window, {
   ShapeMembership: {
     start: shapeStartMembership, here: shapeMembershipHere, portal: shapeOpenBillingPortal, read: shapeReadMembership, peek: shapeMembershipPeek,
-    lockKind: shapeLockKind, noraLock: shapeNoraLock, hasPaid: shapeHasPaid, hasNora: shapeHasNora, noraDaysLeft: shapeNoraDaysLeft,
+    lockKind: shapeLockKind, noraLock: shapeNoraLock, hasPaid: shapeHasPaid, hasNora: shapeHasNora,
     plans: shapeReadPlans, money: shapeMoney, annualSaving: shapeAnnualSaving,
-    pastDueLine: SHAPE_PAST_DUE_LINE, noraEndedLine: SHAPE_NORA_ENDED_LINE, coachIncludedLine: SHAPE_COACH_INCLUDED_LINE,
+    pastDueLine: SHAPE_PAST_DUE_LINE, coachIncludedLine: SHAPE_COACH_INCLUDED_LINE,
   },
   ShapePaidLock, useShapeMembership, useShapePlans,
 });

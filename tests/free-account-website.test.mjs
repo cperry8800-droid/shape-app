@@ -86,16 +86,16 @@ function fakeFetch(routes) {
 const KIT_SRC = jsx(slice(SHELL, '// ── The $5 membership checkout, from any page', 'Object.assign(window, {\n  ShapeMembership:'));
 function kit(win, fetchImpl) {
   return new Function('React', 'window', 'fetch', 'mono', 'sans', KIT_SRC
-    + '\nreturn { shapeStartMembership, shapeOpenBillingPortal, shapeLockKind, shapeNoraLock, shapeHasPaid, shapeHasNora, shapeNoraDaysLeft, shapeReadMembership, shapeMembershipPeek, shapeReadPlans, shapeMoney, shapeAnnualSaving, useShapeMembership, useShapePlans, ShapePaidLock, SHAPE_PAST_DUE_LINE, SHAPE_NORA_ENDED_LINE, SHAPE_COACH_INCLUDED_LINE };')(React, win, fetchImpl, 'mono', 'sans');
+    + '\nreturn { shapeStartMembership, shapeOpenBillingPortal, shapeLockKind, shapeNoraLock, shapeHasPaid, shapeHasNora, shapeReadMembership, shapeMembershipPeek, shapeReadPlans, shapeMoney, shapeAnnualSaving, useShapeMembership, useShapePlans, ShapePaidLock, SHAPE_PAST_DUE_LINE, SHAPE_COACH_INCLUDED_LINE };')(React, win, fetchImpl, 'mono', 'sans');
 }
 // window.ShapeMembership as pageShell.jsx publishes it, over a given window and fetch.
 function publish(win, fetchImpl) {
   const k = kit(win, fetchImpl);
   win.ShapeMembership = {
     start: k.shapeStartMembership, portal: k.shapeOpenBillingPortal, read: k.shapeReadMembership, peek: k.shapeMembershipPeek,
-    lockKind: k.shapeLockKind, noraLock: k.shapeNoraLock, hasPaid: k.shapeHasPaid, hasNora: k.shapeHasNora, noraDaysLeft: k.shapeNoraDaysLeft,
+    lockKind: k.shapeLockKind, noraLock: k.shapeNoraLock, hasPaid: k.shapeHasPaid, hasNora: k.shapeHasNora,
     plans: k.shapeReadPlans, money: k.shapeMoney, annualSaving: k.shapeAnnualSaving,
-    pastDueLine: k.SHAPE_PAST_DUE_LINE, noraEndedLine: k.SHAPE_NORA_ENDED_LINE, coachIncludedLine: k.SHAPE_COACH_INCLUDED_LINE,
+    pastDueLine: k.SHAPE_PAST_DUE_LINE, coachIncludedLine: k.SHAPE_COACH_INCLUDED_LINE,
   };
   win.ShapePaidLock = k.ShapePaidLock;
   win.useShapeMembership = k.useShapeMembership;
@@ -103,7 +103,9 @@ function publish(win, fetchImpl) {
   return k;
 }
 const PLANS = { monthly: { priceCents: 500, interval: 'month' }, annual: { priceCents: 4800, interval: 'year' } };
+// The free week with Nora is gone (owner, 2026-11-10): its words must not come back.
 const ENDED = 'Your free week with Nora has ended. Join to keep her.';
+const FREE_WEEK = /free week|free for a week|three workouts|days? left with Nora/i;
 
 // ── the shell ───────────────────────────────────────────────────────────────────────────────
 test('shell: which prompt a locked paid feature shows, from a 402 code or a membership answer', () => {
@@ -210,24 +212,29 @@ test('shell: the yearly plan — start() passes it, the lock offers both at the 
   await only.unmount();
 });
 
-test('shell: assistant Nora is on `nora` (the free week too); a week that ran out says so', async () => {
+test('shell: assistant Nora is on `nora`, the paid features; a free account sees Join, and there is no free week', async () => {
   const k = kit(fakeWindow(), async () => ({}));
-  const WEEK = { startedAt: '2026-11-08T10:00:00Z', endsAt: new Date(Date.now() + 2.5 * 86400000).toISOString(), active: true };
+  // An answer from before the free week was dropped, still carrying one: read as nothing.
   const OVER = { startedAt: '2026-10-01T10:00:00Z', endsAt: '2026-10-08T10:00:00Z', active: false };
-  assert.equal(k.shapeHasNora({ ...FREE, nora: true, noraPreview: WEEK }), true, 'the free week opens Nora');
-  assert.equal(k.shapeHasPaid({ ...FREE, nora: true, noraPreview: WEEK }), false, '…and nothing else');
-  assert.equal(k.shapeLockKind({ ...FREE, nora: true, noraPreview: WEEK }), 'join', 'Radio, the Store and the full board stay locked');
-  assert.equal(k.shapeNoraLock({ ...FREE, nora: true, noraPreview: WEEK }), null);
-  assert.equal(k.shapeNoraDaysLeft({ ...FREE, noraPreview: WEEK }), 3);
-  assert.equal(k.shapeNoraLock({ ...FREE, nora: false, noraPreview: OVER }), 'ended');
-  assert.equal(k.shapeNoraLock({ ...FREE, nora: false, noraPreview: OVER, pastDue: true }), 'pastdue', 'past due says past due');
-  assert.equal(k.shapeNoraLock({ ...FREE, nora: false, noraPreview: null }), 'join');
-  assert.equal(k.shapeNoraLock('membership_required', { ...FREE, noraPreview: OVER }), 'ended', 'a 402, read against the answer in hand');
-  assert.equal(k.shapeNoraLock('membership_required', { ...FREE, noraPreview: null }), 'join');
-  assert.equal(k.shapeNoraLock('payment_past_due', { ...FREE, noraPreview: OVER }), 'pastdue');
+  assert.equal(k.shapeHasNora({ ...FREE, nora: false }), false, 'a free account has no assistant Nora');
+  assert.equal(k.shapeHasNora({ ...FREE, member: true, nora: true }), true);
+  assert.equal(k.shapeNoraLock({ ...FREE, nora: false }), 'join', 'a signed-in free account sees Join');
+  assert.equal(k.shapeNoraLock({ ...FREE, nora: false, noraPreview: OVER }), 'join', 'a week in the answer is no "ended" lock');
+  assert.equal(k.shapeNoraLock({ ...FREE, nora: false, pastDue: true }), 'pastdue', 'past due says past due');
+  assert.equal(k.shapeNoraLock({ ...FREE, member: true, nora: true }), null, 'a member is not locked');
+  assert.equal(k.shapeNoraLock({ signedIn: false }), 'signin');
+  assert.equal(k.shapeNoraLock({ unknown: true }), null);
+  assert.equal(k.shapeNoraLock('membership_required'), 'join', 'a 402 reads as its code');
+  assert.equal(k.shapeNoraLock('payment_past_due'), 'pastdue');
   assert.equal(k.shapeHasNora({ ...FREE, member: true }), true, 'an answer without `nora` reads the paid features');
-  const v = await mount(React.createElement(k.ShapePaidLock, { kind: 'ended', feature: 'Nora\'s weekly read' }));
-  assert.ok(v.text().includes(ENDED), v.text());
+  assert.doesNotMatch(SHELL, /noraPreview|shapeNoraDaysLeft|noraDaysLeft|SHAPE_NORA_ENDED_LINE|noraEndedLine|"ended"/, 'the free week is back in the shell');
+  assert.doesNotMatch(SHELL, FREE_WEEK);
+  const gone = await mount(React.createElement(k.ShapePaidLock, { kind: 'ended', feature: 'Nora\'s weekly read' }));
+  assert.equal(gone.text(), '', 'no "ended" lock is drawn');
+  await gone.unmount();
+  const v = await mount(React.createElement(k.ShapePaidLock, { kind: 'join', feature: 'Nora\'s weekly read' }));
+  assert.match(v.text(), /Nora's weekly read is part of Shape membership, \$5 a month\./);
+  assert.ok(!v.text().includes(ENDED), v.text());
   assert.ok(button(v.host, /^Join$/));
   await v.unmount();
 });
@@ -362,7 +369,7 @@ test('membership page: lists only what the membership adds, and says the rest is
   assert.match(DASH, /pastDue \? "Your payment didn’t go through\."/);
 });
 
-test('membership page: monthly and yearly at the real prices, coaching that includes it, and the free week with Nora', async () => {
+test('membership page: monthly and yearly at the real prices, coaching that includes it, and no free week with Nora', async () => {
   const src = jsx(slice(DASH, 'const DCL_JOIN_PERKS = [', '// ── Your week:'));
   const draw = async (m, plansBody) => {
     const f = fakeFetch({
@@ -380,49 +387,42 @@ test('membership page: monthly and yearly at the real prices, coaching that incl
   assert.ok(button(free.v.host, /^Monthly · \$5\/mo$/));
   await click(button(free.v.host, /^Annual · \$48\/yr · save 20%$/));
   assert.deepEqual(free.f.calls.at(-1)[2], { returnTo: '/newdesign/ClientApp.html#today', cancelPath: '/newdesign/ClientApp.html#today', plan: 'annual' });
-  assert.match(free.v.text(), /Try Nora free for a week after your first three workouts — no card\./, 'the free week is offered before it has happened');
+  assert.doesNotMatch(free.v.text(), FREE_WEEK, 'the free week with Nora is offered again');
+  assert.ok(!free.v.host.querySelector('[data-nora-week]'));
   assert.match(free.v.text(), /Membership is included while you're coached on Shape\./);
   await free.v.unmount();
   const monthlyOnly = await draw(FREE, null);
   assert.ok(button(monthlyOnly.v.host, /Start membership · \$5\/month/), 'no plans answer: the monthly start');
   assert.ok(!button(monthlyOnly.v.host, /Annual/));
   await monthlyOnly.v.unmount();
-  const week = await draw({ ...FREE, nora: true, noraPreview: { startedAt: 'a', endsAt: new Date(Date.now() + 4.2 * 86400000).toISOString(), active: true } }, PLANS);
-  assert.match(week.v.text(), /Your free week with Nora: 5 days left\./);
-  await week.v.unmount();
-  const over = await draw({ ...FREE, nora: false, noraPreview: { startedAt: 'a', endsAt: '2026-10-08T00:00:00Z', active: false } }, PLANS);
-  assert.ok(over.v.text().includes(ENDED));
-  assert.doesNotMatch(over.v.text(), /Try Nora free for a week/, 'the week is once per account');
-  await over.v.unmount();
+  // An answer still carrying a week (from before it was dropped) says nothing about one, and joins.
+  for (const noraPreview of [{ startedAt: 'a', endsAt: new Date(Date.now() + 4.2 * 86400000).toISOString(), active: true }, { startedAt: 'a', endsAt: '2026-10-08T00:00:00Z', active: false }]) {
+    const old = await draw({ ...FREE, nora: false, noraPreview }, PLANS);
+    assert.doesNotMatch(old.v.text(), FREE_WEEK);
+    assert.ok(!old.v.text().includes(ENDED));
+    assert.ok(!old.v.host.querySelector('[data-nora-week]'));
+    assert.ok(button(old.v.host, /^Monthly · \$5\/mo$/), 'a free account joins');
+    await old.v.unmount();
+  }
   const coached = await draw({ ...FREE, includedWithCoach: true }, PLANS);
   assert.match(coached.v.text(), /Your coaching includes membership\./);
   assert.ok(!button(coached.v.host, /Monthly|Annual|Start membership/), 'no Join prompts for an account its coaching covers');
   await coached.v.unmount();
 });
 
-test('free week with Nora: told once when it first appears, with the days left; never to a member', async () => {
+test('no free week with Nora (owner, 2026-11-10): the notice tells a free account nothing about one', async () => {
   const WEEK = { startedAt: '2026-11-09T08:00:00Z', endsAt: new Date(Date.now() + 6.4 * 86400000).toISOString(), active: true };
-  const store = new Map();
-  const ls = { getItem: (k) => (store.has(k) ? store.get(k) : null), setItem: (k, v) => store.set(k, String(v)) };
-  const w = fakeWindow({ fetch: fakeFetch({}), localStorage: ls, __shapeClientMembership: { ...FREE, nora: true, noraPreview: WEEK } });
-  publish(w, w.fetch);
-  const v = await mount(React.createElement(notice(w)));
-  assert.ok(v.host.querySelector('[data-membership-notice="nora-week"]'));
-  assert.match(v.text(), /You've unlocked a free week of Nora as your assistant/);
-  assert.match(v.text(), /7 days left, no card needed\./);
-  await click(button(v.host, /Got it/));
-  assert.equal(v.text(), '', 'closed');
-  assert.equal(store.get('shape.noraWeek.told.' + WEEK.startedAt), '1');
-  await v.unmount();
-  const again = await mount(React.createElement(notice(w)));
-  assert.equal(again.text(), '', 'once: not told again on the next route');
-  await again.unmount();
-  const paid = fakeWindow({ fetch: fakeFetch({}), localStorage: new Map(), __shapeClientMembership: { ...FREE, member: true, nora: true, noraPreview: WEEK } });
-  paid.localStorage = { getItem: () => null, setItem() {} };
-  publish(paid, paid.fetch);
-  const m = await mount(React.createElement(notice(paid)));
-  assert.equal(m.text(), '', 'a member is not told about a free week');
-  await m.unmount();
+  // An answer still carrying a week (from before it was dropped), for a free account and a member.
+  for (const m of [{ ...FREE, nora: false, noraPreview: WEEK }, { ...FREE, member: true, nora: true, noraPreview: WEEK }]) {
+    const w = fakeWindow({ fetch: fakeFetch({}), localStorage: { getItem: () => null, setItem() {} }, __shapeClientMembership: m });
+    publish(w, w.fetch);
+    const v = await mount(React.createElement(notice(w)));
+    assert.equal(v.text(), '', JSON.stringify(m) + ' was told about a free week');
+    assert.ok(!v.host.querySelector('[data-membership-notice="nora-week"]'));
+    await v.unmount();
+  }
+  assert.doesNotMatch(DASH, /noraPreview|noraWeek|NORA_WEEK|NoraDaysLeft|nora-week|Join to keep her/);
+  assert.doesNotMatch(DASH, FREE_WEEK);
 });
 
 // ── Settings: Plan & billing ────────────────────────────────────────────────────────────────
@@ -532,15 +532,15 @@ test('store: every signed-in account reads its own balance and locker; the sampl
 });
 
 // ── Pricing ─────────────────────────────────────────────────────────────────────────────────
-test('pricing: monthly and yearly, the free week with Nora, and coaching that includes the membership', () => {
+test('pricing: monthly and yearly, no free week with Nora, and coaching that includes the membership', () => {
   const P = read('public/newdesign/pricing.jsx');
   for (const s of ['$5/mo', '$5/month', '$48/year']) assert.ok(P.includes(s), s);
-  assert.match(P, /const NORA_WEEK_LINE = "Try Nora free for a week after your first three workouts — no card\.";/);
+  assert.doesNotMatch(P, /NORA_WEEK_LINE/);
+  assert.doesNotMatch(P, FREE_WEEK, 'the free week with Nora is offered again');
   assert.match(P, /const COACH_INCLUDED_LINE = "Membership is included while you’re coached on Shape\.";/);
   assert.match(P, /window\.ShapeMembership\.start\(home, \{ plan: plan \|\| null, cancelTo: "\/newdesign\/Pricing\.html" \}\)/);
   assert.match(P, /onClick=\{\(e\) => startPlatformCheckout\(e, "annual"\)\}/);
   assert.match(P, /"The full leaderboard and your exact rank"/);
-  assert.doesNotMatch(P, /No trials\./, 'the free week with Nora is not a trial, and the page no longer says there are none');
   // ⚠ No yearly button before the plans say there is one (Codex P2 on #2675): while they are read,
   // or when they did not answer, a year would be offered that the checkout refuses.
   assert.match(P, /const annual = plans \? plans\.annual : null;/);
@@ -578,6 +578,7 @@ test('pricing and the homepage: the yearly price is said only once the plans say
     assert.match(t, /Free account · \$5 \/ month membership/);
   }
   const yes = await draw(PLANS);
+  assert.doesNotMatch(yes, FREE_WEEK, 'the hero, the FAQ or the homepage card offers the free week with Nora');
   assert.match(yes, /The membership, \$5 a month or \$48 a year, adds Nora as your assistant/);
   assert.match(yes, /Is there a yearly plan\?/);
   assert.match(yes, /Free account · \$5 \/ month or \$48 \/ year membership/);
@@ -650,8 +651,8 @@ test('Nora\'s card: a 402 from Confirm shows the upgrade or the past-due line, n
   for (const [code, says, act_, held] of [
     ['membership_required', /Nora making changes for you is part of Shape membership, \$5 a month\./, /^Join$/, FREE],
     ['payment_past_due', new RegExp(PAST_DUE.replace(/\./g, '\\.')), /Update your card/, FREE],
-    // The free week with Nora is over: the card says so (owner, 2026-11-10).
-    ['membership_required', new RegExp(ENDED.replace(/\./g, '\\.')), /^Join$/, { ...FREE, nora: false, noraPreview: OVER }],
+    // No free week (owner, 2026-11-10): an answer still carrying an ended one is a plain Join.
+    ['membership_required', /Nora making changes for you is part of Shape membership, \$5 a month\./, /^Join$/, { ...FREE, nora: false, noraPreview: OVER }],
   ]) {
     const f = fakeFetch({ '/api/ai/proposals/confirm': () => ({ status: 402, body: { error: 'Shape membership required.', code } }) });
     const w = fakeWindow({ dispatchEvent: () => true, addEventListener() {}, removeEventListener() {}, __shapeClientMembership: held });
@@ -664,6 +665,7 @@ test('Nora\'s card: a 402 from Confirm shows the upgrade or the past-due line, n
     assert.ok(!/Shape membership required\./.test(v.text()), 'the route\'s raw refusal is shown');
     assert.ok(!button(v.host, /Try again|Confirm/), 'a retry that cannot work is offered');
     assert.ok(button(v.host, act_), 'no way in');
+    assert.ok(!v.text().includes(ENDED), 'the free week\'s "ended" line');
     await v.unmount();
   }
   // Undo's 402 the same way.
@@ -671,13 +673,14 @@ test('Nora\'s card: a 402 from Confirm shows the upgrade or the past-due line, n
   assert.match(CHAT, /failed\.lock = res\.status === 402 \? \(data\.code === "payment_past_due" \? "pastdue" : "join"\) : null;/);
 });
 
-test('Nora in the chat: voice is on `nora` (the free week too), with the days left while it runs and "ended" after', () => {
+test('Nora in the chat: voice is on `nora`, the paid features; a signed-in free account sees Join, and there is no free week', () => {
   const at = CHAT.indexOf('const [account, setAccount] = React.useState(null);');
   const check = CHAT.slice(at, CHAT.indexOf('const [voiceGate, setVoiceGate]', at));
   assert.match(check, /setMember\(!!\(md && md\.signedIn === true && \(typeof md\.nora === "boolean" \? md\.nora : paid\)\)\);/);
   assert.match(check, /const paid = !!\(md && \(md\.member === true \|\| md\.coach === true \|\| md\.includedWithCoach === true\)\);/);
-  assert.match(check, /setNoraWeek\(md && md\.signedIn === true && !paid && md\.noraPreview/, 'a member\'s own Nora is no free week');
-  assert.match(CHAT, /\{member === true && noraWeekLeft != null && \(\n\s+<div data-nora-week-left[^>]*>\n\s+\{noraWeekLeft\} \{noraWeekLeft === 1 \? "day" : "days"\} left with Nora/);
-  assert.match(CHAT, /<span[^>]*>\{pastDue \? CW_PAST_DUE_LINE : noraWeekEnded \? CW_NORA_ENDED_LINE : "Voice chat with Nora unlocks with membership\."\}<\/span>/);
-  assert.match(CHAT, /const CW_NORA_ENDED_LINE = "Your free week with Nora has ended\. Join to keep her\.";/);
+  assert.doesNotMatch(check, /noraWeek|noraPreview/, 'the chat reads a free week again');
+  assert.doesNotMatch(CHAT, /noraWeekLeft|noraWeekEnded|data-nora-week-left|CW_NORA_ENDED_LINE/);
+  assert.doesNotMatch(CHAT, FREE_WEEK);
+  assert.match(CHAT, /data-nora-voice-locked=\{pastDue \? "pastdue" : account === "in" \? "join" : "signin"\}/, 'a signed-in free account\'s voice note is Join');
+  assert.match(CHAT, /<span[^>]*>\{pastDue \? CW_PAST_DUE_LINE : "Voice chat with Nora unlocks with membership\."\}<\/span>/);
 });

@@ -919,11 +919,11 @@ function useDprWeeklyReadout(live) {
   // message. The response carries the authoritative `user_id`, so the subject is
   // taken FROM the answer rather than made a precondition of the question.
   const [held, setHeld] = React.useState(null);
-  // The weekly readout is assistant Nora's (owner, 2026-11-10: the membership, or a free week of
-  // Nora after the first three workouts). A 402 is no failure to hide:
-  // the route's code ("membership_required" for a free account, "payment_past_due" for a renewal
-  // that failed), and the card draws a locked teaser for it instead (DprWeeklyReadoutLocked). It
-  // holds no one's data, so nothing about it can leak across an account switch.
+  // The weekly readout is assistant Nora's (owner, 2026-11-10: the membership). A 402 is no failure
+  // to hide: the route's code ("membership_required" for a free account, "payment_past_due" for a
+  // renewal that failed), and the card draws a locked teaser for it instead
+  // (DprWeeklyReadoutLocked). It holds no one's data, so nothing about it can leak across an
+  // account switch.
   const [locked, setLocked] = React.useState(null);
   // The account signed in NOW, against which a held readout's own subject is
   // checked. `undefined` means not yet resolved — which is not the same as "no
@@ -1059,12 +1059,8 @@ function useDprWeeklyReadout(live) {
 // The readout's place for an account without it: what it is, and the way in (pageShell.jsx's
 // ShapePaidLock: Join for a free account; for a renewal that failed, the past-due line and
 // Update your card). No readout, no finding and no sample: a teaser of the card, not of a body.
-// The readout is assistant Nora's, which the free week opens too (owner, 2026-11-10), so a week that
-// has run out says so ("ended"): pageShell.jsx's shapeNoraLock, read against the shell's answer.
 function DprWeeklyReadoutLocked({ code }) {
-  const M = window.ShapeMembership;
-  const base = code === "payment_past_due" ? "pastdue" : "join";
-  const kind = (M && M.noraLock ? M.noraLock(code === "payment_past_due" ? "payment_past_due" : "membership_required", window.__shapeClientMembership || null) : null) || base;
+  const kind = code === "payment_past_due" ? "pastdue" : "join";
   const Lock = window.ShapePaidLock;
   return (
     <div data-readout-locked={kind} className="dash-plate dash-plate--tick dash-plate--bracket" style={{ "--dac": DPR_TEAL, paddingLeft: 24 }}>
@@ -1073,7 +1069,7 @@ function DprWeeklyReadoutLocked({ code }) {
         Each week Nora reads your training, food and check-ins together and writes what moved, with the pattern behind it.
       </div>
       <div style={{ marginTop: 12 }}>
-        {Lock ? <Lock kind={kind} feature="Nora's weekly read" more={kind === "join" || kind === "ended" ? <a href="#membership" style={{ fontFamily: DPR_MONO, fontSize: 9, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: DPR_TEAL, textDecoration: "none" }}>What's included</a> : null} /> : null}
+        {Lock ? <Lock kind={kind} feature="Nora's weekly read" more={kind === "join" ? <a href="#membership" style={{ fontFamily: DPR_MONO, fontSize: 9, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: DPR_TEAL, textDecoration: "none" }}>What's included</a> : null} /> : null}
       </div>
     </div>
   );

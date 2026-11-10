@@ -1060,20 +1060,11 @@ const DCL_JOIN_PERKS = [
   "The full leaderboard and your exact rank",
 ];
 const DCL_FREE_WITH_ACCOUNT = "Free with your account, membership or not: logging workouts and meals, your dashboard, the programs you build, the leaderboards' top 10, hiring and messaging coaches, their reviews, community channels, and Nora's help with the app.";
-const DCL_NORA_WEEK_LINE = "Try Nora free for a week after your first three workouts — no card.";
 
 // Whether /api/me/membership's answer has the paid features: the membership, an approved coach's
 // role, an admin's, or coaching on Shape (`includedWithCoach`; `coach` is read too, to be safe).
 function dclHasPaid(m) { return !!(m && m.signedIn === true && (m.member === true || m.coach === true || m.includedWithCoach === true)); }
 function dclPendingInUrl() { try { return new URLSearchParams(window.location.search).get("member") === "pending"; } catch (e) { return false; } }
-// Whole days left of the free week with Nora, or null when it is not running.
-function dclNoraDaysLeft(m) {
-  const p = m && m.noraPreview;
-  if (!p || p.active !== true) return null;
-  const end = Date.parse(p.endsAt);
-  return Number.isFinite(end) ? Math.max(1, Math.ceil((end - Date.now()) / 86400000)) : null;
-}
-function dclDays(n) { return n + (n === 1 ? " day" : " days"); }
 // `member=pending` in the URL means Stripe took the payment but the membership was not confirmed
 // on the way back (platform-return). It is asked again every 3 seconds for a minute, and once it
 // is a member the page reloads on the same route with `member=joined`, so the shell's answer is
@@ -1104,20 +1095,14 @@ function useDclPendingMembership(pending) {
   }, []);
   return state;
 }
-// The free week with Nora is told once, when it first appears (owner, 2026-11-10): kept per week
-// (its startedAt) on this browser once the member closes it.
-function dclNoraWeekKey(m) { return "shape.noraWeek.told." + String((m && m.noraPreview && m.noraPreview.startedAt) || ""); }
-function dclNoraWeekTold(m) { try { return window.localStorage.getItem(dclNoraWeekKey(m)) === "1"; } catch (e) { return false; } }
 
 // The client shell's one notice (ClientApp.html sets it as window.ShapeDashNotice; DashFrame draws
 // it under the app bar on every route). A renewal that failed: the owner's line and Update your
 // card, which opens Shape's billing portal (owner, 2026-11-10: past due is free until the card is
-// updated). A membership payment still clearing: said, until it lands. A free week with Nora just
-// unlocked: said once, with the days left. Nothing otherwise.
+// updated). A membership payment still clearing: said, until it lands. Nothing otherwise.
 function ClientMembershipNotice() {
   const m = window.__shapeClientMembership;
   const wait = useDclPendingMembership(dclPendingInUrl() && !!m && m.signedIn === true && !dclHasPaid(m));
-  const [weekClosed, setWeekClosed] = React.useState(false);
   if (!m || m.signedIn !== true) return null;
   const box = { margin: "14px clamp(16px, 3vw, 32px) 0" };
   const note = { ...box, padding: "12px 14px", borderRadius: 10, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.14)", borderLeft: "3px solid " + DCL_TEAL, fontSize: 13.5, lineHeight: 1.5 };
@@ -1134,18 +1119,6 @@ function ClientMembershipNotice() {
     const Lock = window.ShapePaidLock;
     return Lock ? <div data-membership-notice="pastdue" style={box}><Lock kind="pastdue" /></div> : null;
   }
-  const left = dclNoraDaysLeft(m);
-  if (left != null && !dclHasPaid(m) && !weekClosed && !dclNoraWeekTold(m)) {
-    const close = () => { try { window.localStorage.setItem(dclNoraWeekKey(m), "1"); } catch (e) {} setWeekClosed(true); };
-    return (
-      <div data-membership-notice="nora-week" role="status" style={{ ...note, display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-        <span style={{ flex: "1 1 260px", minWidth: 0 }}>
-          You've unlocked a free week of Nora as your assistant: she makes the changes you ask for, for you to confirm or undo, talks with you, and writes your weekly read. {dclDays(left)} left, no card needed.
-        </span>
-        <button type="button" onClick={close} style={{ flex: "none", minHeight: 28, padding: "4px 12px", borderRadius: 999, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.25)", background: "transparent", color: "inherit", fontFamily: DCL_MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", cursor: "pointer" }}>Got it</button>
-      </div>
-    );
-  }
   return null;
 }
 
@@ -1161,8 +1134,6 @@ function ClientJoinPage() {
   const plans = window.useShapePlans ? window.useShapePlans() : null;
   const [busy, setBusy] = React.useState(false);
   const [err, setErr] = React.useState("");
-  const left = dclNoraDaysLeft(m);
-  const weekOver = !!(m && m.noraPreview && m.noraPreview.active === false);
   const go = async (plan) => {
     if (busy) return;
     setBusy(true); setErr("");
@@ -1195,9 +1166,6 @@ function ClientJoinPage() {
                   ? money(plans.monthly.priceCents) + " a month or " + money(plans.annual.priceCents) + " a year, cancel any time in Settings. Everything else on Shape stays free with your account."
                   : "$5 a month, cancel any time in Settings. Everything else on Shape stays free with your account.")}
         </p>
-        {!paid && left != null && <p data-nora-week="on" style={{ fontSize: 14, lineHeight: 1.55, margin: "12px 0 0" }}>Your free week with Nora: {dclDays(left)} left.</p>}
-        {!paid && !pastDue && weekOver && <p data-nora-week="ended" style={{ fontSize: 14, lineHeight: 1.55, margin: "12px 0 0" }}>Your free week with Nora has ended. Join to keep her.</p>}
-        {!paid && !pastDue && !(m && m.noraPreview) && <p data-nora-week="offer" style={{ fontSize: 14, lineHeight: 1.55, margin: "12px 0 0" }}>{DCL_NORA_WEEK_LINE}</p>}
         <ul style={{ listStyle: "none", padding: 0, margin: "22px 0 0", display: "grid", gap: 8 }}>
           {DCL_JOIN_PERKS.map((t) => (
             <li key={t} style={{ fontSize: 14, display: "flex", gap: 10, alignItems: "baseline" }}>

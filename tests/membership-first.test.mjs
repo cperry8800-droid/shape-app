@@ -932,7 +932,7 @@ test('website: every membership button goes through one helper that posts return
   // The plan rides along when one was chosen (owner, 2026-11-10: $5 a month or $48 a year); none is the server's monthly.
   assert.match(shell, /fetch\("\/api\/stripe\/platform-checkout", \{\n\s+method: "POST", credentials: "same-origin", headers: \{ "Content-Type": "application\/json" \},\n\s+body: JSON\.stringify\(\{ returnTo: back, cancelPath: o\.cancelTo \|\| back, \.\.\.\(plan \? \{ plan \} : \{\}\) \}\),/);
   assert.match(shell, /start: shapeStartMembership, here: shapeMembershipHere, portal: shapeOpenBillingPortal, read: shapeReadMembership, peek: shapeMembershipPeek,/);
-  assert.match(shell, /lockKind: shapeLockKind, noraLock: shapeNoraLock, hasPaid: shapeHasPaid, hasNora: shapeHasNora, noraDaysLeft: shapeNoraDaysLeft,/);
+  assert.match(shell, /lockKind: shapeLockKind, noraLock: shapeNoraLock, hasPaid: shapeHasPaid, hasNora: shapeHasNora,\n/);
   // A past-due account's checkout answers 409 payment_past_due: the billing portal, not a second membership.
   assert.match(shell, /if \(res\.status === 409 && j && j\.code === "payment_past_due"\) return shapeOpenBillingPortal\(back\);/);
   assert.match(shell, /q\.delete\("member"\);/, 'a second trip does not stack member= parameters');
