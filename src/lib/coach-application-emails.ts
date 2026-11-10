@@ -134,6 +134,51 @@ export function approvalEmail(args: {
 }
 
 /**
+ * The approval email when the application was sent signed out and an account in use already has
+ * this address (src/lib/coach-approval.ts). Nothing is set up yet: the link opens /coach/confirm,
+ * where that account, signed in, turns coaching on. It carries no token, so a forwarded copy is
+ * no use to anyone who cannot sign in to the account.
+ */
+export function approvalConfirmEmail(args: {
+  firstName: string;
+  role: CoachRole;
+  confirmUrl: string;
+  applicantNote?: string;
+}): BuiltEmail {
+  const roleLabel = args.role === 'nutritionist' ? 'nutritionist' : 'trainer';
+  const first = args.firstName.trim() || 'there';
+  const note = noteBlock(args.applicantNote ?? '');
+  const html = `
+    ${WRAP_OPEN}
+      <h2 style="margin:0 0 16px;font-size:22px;font-weight:500;">You're approved, ${escapeHtml(first)}.</h2>
+      <p style="margin:0 0 16px;line-height:1.55;">Your application to coach on Shape as a ${escapeHtml(roleLabel)} has been approved.</p>
+      ${note.html}
+      <p style="margin:0 0 12px;line-height:1.55;">This email address already has a Shape account. To turn coaching on for that account, sign in and confirm:</p>
+      ${button(args.confirmUrl, 'Confirm and turn on coaching')}
+      <p style="margin:0 0 16px;color:#666;font-size:13px;line-height:1.5;">Your coach profile and listing are set up only when you confirm. Your account, its data and its membership stay as they are. If you didn't apply to coach on Shape, ignore this email and nothing changes.</p>
+      <p style="margin:0 0 16px;line-height:1.55;">Questions? Just reply to this email.</p>
+      ${SIGN_OFF_HTML}
+    </div>
+  `;
+  const text = [
+    `You're approved, ${first}.`,
+    '',
+    `Your application to coach on Shape as a ${roleLabel} has been approved.`,
+    '',
+    ...note.text,
+    'This email address already has a Shape account. To turn coaching on for that account, sign in and confirm:',
+    args.confirmUrl,
+    '',
+    "Your coach profile and listing are set up only when you confirm. Your account, its data and its membership stay as they are. If you didn't apply to coach on Shape, ignore this email and nothing changes.",
+    '',
+    'Questions? Just reply to this email.',
+    '',
+    ...SIGN_OFF_TEXT,
+  ].join('\n');
+  return { subject: `Confirm your coach account on Shape, ${first}`, html, text };
+}
+
+/**
  * The decision email when an application is not approved. Generic unless the reviewer wrote a
  * note FOR THE APPLICANT (a separate field); the internal review notes are never sent.
  */

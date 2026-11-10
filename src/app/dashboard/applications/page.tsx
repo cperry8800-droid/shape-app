@@ -14,6 +14,7 @@ import {
 } from '@/lib/provider-applications';
 import { EXPERIENCE_STANDARD_YEARS, belowExperienceStandard } from '@/lib/provider-experience.mjs';
 import { APPLICATION_FILE_KINDS } from '@/lib/application-files.mjs';
+import { pendingConfirmation, stampedAccountId } from '@/lib/coach-approval';
 import {
   approveApplication,
   markApplicationInReview,
@@ -78,6 +79,8 @@ const NOTICES: Record<string, string> = {
   approval_conflict:
     'This application changed while it was being approved (another Approve, or another review action), so nothing was provisioned. Reload it and approve again if it still needs it.',
   experience_tick_required: `This applicant has under ${EXPERIENCE_STANDARD_YEARS} years of experience, so approving them takes the tick under their experience answers. Nothing was changed.`,
+  account_gone:
+    'This application was sent signed in, and that account no longer exists, so nothing was set up. Ask the applicant to apply again from their account.',
 };
 
 function emailNotice(email: string | undefined, account: string | undefined): { ok: boolean; text: string } | null {
@@ -88,16 +91,20 @@ function emailNotice(email: string | undefined, account: string | undefined): { 
       text:
         account === 'new'
           ? 'The applicant was emailed a link to set their password.'
-          : account === 'existing'
+          : account === 'existing' || account === 'stamped'
             ? 'The applicant was emailed; they sign in with the account they already have.'
-            : 'The applicant was emailed.',
+            : account === 'confirm'
+              ? 'An account already uses this address and the application was sent signed out, so nothing is set up yet. The address was emailed a link: the coach role and listing are made when that account, signed in, confirms.'
+              : 'The applicant was emailed.',
     };
   }
   const why = email === 'email_not_configured' ? 'email is not configured (RESEND_API_KEY)' : `the send failed (${email})`;
   const recover =
     account === 'new'
       ? ' Tell them yourself: they can set a password with Forgot password on the sign-in page, using the email they applied with.'
-      : ' Tell them yourself.';
+      : account === 'confirm'
+        ? ' Nothing is set up until the account confirms: Approve again to resend the link.'
+        : ' Tell them yourself.';
   return { ok: false, text: `The applicant was NOT emailed: ${why}.${recover}` };
 }
 
@@ -342,6 +349,7 @@ function ApplicationCard({ row, documents }: { row: ApplicationRow; documents: D
     ['Anything else', textValue(details.experience_notes)],
   ];
   const experienceException = asRecord(review.experience_exception);
+  const pending = pendingConfirmation(row);
 
   return (
     <article className="rounded-xl border border-neutral-800 bg-neutral-950 p-5">
@@ -363,6 +371,11 @@ function ApplicationCard({ row, documents }: { row: ApplicationRow; documents: D
               : 'No date of birth on file — cannot be approved'}
           </p>
           <p className="text-xs text-neutral-500 mt-1">Submitted {created}</p>
+          <p className="text-xs text-neutral-500 mt-1">
+            {stampedAccountId(details)
+              ? 'Sent signed in: the approval goes to the account that sent it.'
+              : 'Sent signed out: approval invites this address, or, if an account in use has it, asks that account to confirm first.'}
+          </p>
         </div>
         <div className="text-right text-sm text-neutral-300">
           <div>{row.specialty || 'No specialty listed'}</div>
@@ -495,6 +508,13 @@ function ApplicationCard({ row, documents }: { row: ApplicationRow; documents: D
           )}
         </section>
       )}
+
+      {!isApproved && pending ? (
+        <section className="mt-5 rounded-lg border border-amber-400/30 bg-amber-400/10 p-4 text-sm text-amber-100">
+          Approved {pending.at ? `on ${pending.at} ` : ''}and waiting for the account at this address to confirm, signed in. Nothing is set up
+          until it does. Approve again to resend the link; Reject or Mark in review withdraws it.
+        </section>
+      ) : null}
 
       {isApproved ? (
         <section className="mt-5 rounded-lg border border-teal-400/20 bg-teal-400/10 p-4 text-sm text-teal-100">
