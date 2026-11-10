@@ -447,3 +447,34 @@ test('a program card is the program\'s own photo with nothing drawn over it; wit
   assert.doesNotMatch(src, /data-program-peaks|cpwPeaks/, 'the program sheet draws none either');
   await p.unmount();
 });
+
+// ── The coach dashboard's Profile tab (owner, 2026-11-10: "profile should take up full width of page and
+// formatting looks bad. Everything looks huge. I want it to look like what the preview design was", the
+// Coach Cockpit preview). Scoped to the dashboard (chrome off) and to a wide screen; the public page keeps
+// its centred 1440 and its own sizes.
+test('in the dashboard the Climb takes the page\'s width at the preview\'s scale; the public page keeps its own', async () => {
+  WIDE = true; backend();
+  const dash = await mount(LIVE);
+  assert.equal($('[data-coach-profile]').getAttribute('data-in-dash'), '', 'the dashboard page is not marked');
+  await dash.unmount();
+  backend();
+  const pub = await mount({ ...LIVE, chrome: true });
+  assert.equal($('[data-coach-profile]').hasAttribute('data-in-dash'), false, 'the public page is marked as the dashboard\'s');
+  await pub.unmount();
+  const src = read('public/newdesign/coachProfileWeb.jsx');
+  const at = src.indexOf('.cpw[data-in-dash] .cpw-wrap');
+  assert.ok(at > 0, 'the dashboard block is gone');
+  const block = src.slice(src.lastIndexOf('@media (min-width:1000px){', at), src.indexOf('\n    }\n', at));
+  assert.match(block, /^@media \(min-width:1000px\)\{/, 'the dashboard sizes reach phones');
+  assert.match(block, /\.cpw\[data-in-dash\] \.cpw-wrap\{max-width:none;padding:0 32px\}/, 'the dashboard page is capped again');
+  // The name is sized to its own column: 100vw counted the rail, so it ran 106px at a 1916px window.
+  assert.match(block, /\.cpw-stage-text\{[^}]*container-type:inline-size/);
+  assert.match(block, /\.cpw\[data-in-dash\] \.cpw-h1\{[^}]*min\(78px,calc\(min\(620px,100cqi\)/);
+  assert.doesNotMatch(block, /100vw/, 'a dashboard size reads the window, rail and all');
+  assert.match(block, /\.cpw-stage\.cpw-has-wire\{border-radius:18px 18px 0 0/, 'the wire is not joined to the stage');
+  assert.match(src, /className=\{"cpw-stage" \+ \(wire\.length \? " cpw-has-wire" : ""\)\}/, 'a stage with no wire under it loses its rounded foot');
+  // The public page's rules are untouched.
+  assert.match(src, /\.cpw-wrap\{max-width:1440px;margin:0 auto;padding:0 32px\}/);
+  // And the coach's own setup below it follows the profile's width.
+  assert.match(read('public/newdesign/dashProfileExtras.jsx'), /<section className="px-setup" aria-labelledby="px-setup-title" style=\{\{ padding: "36px 32px 34px", boxSizing: "border-box" \}\}>/);
+});
