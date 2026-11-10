@@ -712,6 +712,8 @@
   }
 
   function openFallbackPanel() {
+    // The panel takes the waiting request itself; a later bare open is a bare open.
+    waiting = false;
     var node = panel();
     var req = window.__openChatRequest || null;
     try { delete window.__openChatRequest; } catch (e) { window.__openChatRequest = null; }
@@ -728,16 +730,32 @@
   // that don't already have it, lazily load + mount it; if anything
   // fails, gracefully fall back to the self-contained panel.
   var chatBootStarted = false;
+  // ⚠ A REQUEST THE WIDGET ALREADY TOOK IS NOT OPENED AGAIN (2026-11-10). A deep link that waited
+  // for the boot (window.__openChatRequest: __openChatTo, a page's Message button) is taken by the
+  // widget itself as it mounts (chatWidget.jsx), which opens it there. The poll below then found no
+  // request and called a bare __openChat(), which turns Nora's mode off and leaves her tab: on every
+  // page that boots the widget late (the coach dashboard), "Set up with Nora" and every other
+  // "open Nora" link landed in Chat. `waiting` remembers that a request was there when the boot
+  // began, so an empty stash afterwards means it was delivered, not that there never was one.
+  var waiting = false;
   // Flush a stashed deep-link request (window.__openChatRequest) into the
   // widget once it exists — otherwise just open the panel.
   function flushOpen() {
     var req = window.__openChatRequest || undefined;
     try { delete window.__openChatRequest; } catch (e) {}
+    var delivered = !req && waiting;
+    waiting = false;
+    if (delivered) return;
     window.__openChat(req, req && req.tab);
   }
+  // ONE WAITER (Codex on #2678): a second tap while the widget loads used to start a second poll,
+  // and once the first had seen the request delivered, the second opened a bare chat (Nora off).
+  // A tap during the boot only updates the stash and `waiting`; the one poll opens once.
+  var polling = false;
   function waitAndOpen(tries) {
-    if (typeof window.__openChat === "function") { flushOpen(); return; }
-    if (tries > 60) { openFallbackPanel(); return; }
+    if (tries === 0) { if (polling) return; polling = true; }
+    if (typeof window.__openChat === "function") { polling = false; flushOpen(); return; }
+    if (tries > 60) { polling = false; openFallbackPanel(); return; }
     window.setTimeout(function () { waitAndOpen(tries + 1); }, 80);
   }
   // On deployed pages the JSX is precompiled (scripts/build-newdesign.mjs) and
@@ -779,6 +797,7 @@
   }
   function openRichChat() {
     if (typeof window.__openChat === "function") { flushOpen(); return; }
+    if (window.__openChatRequest) waiting = true;
     if (chatBootStarted) { waitAndOpen(0); return; }
     chatBootStarted = true;
     if (window.__ndCompiled && window.React && window.ReactDOM) {

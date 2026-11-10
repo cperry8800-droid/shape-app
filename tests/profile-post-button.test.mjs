@@ -123,7 +123,8 @@ test('every owner feed head uses the button, and no ＋ Post is a bare label', (
 });
 
 // The member pages load the widget and the feed; the coach pages load only the bubble, whose
-// lazy boot loads both (in both of its lists) and then hands the stashed request to the widget.
+// lazy boot loads both (in both of its lists) and then hands the stashed request to the widget,
+// unless the widget already took it as it mounted (then a second, bare open would leave Nora's tab).
 test('every page with a living profile can open the Feed tab', () => {
   const hosts = readdirSync(ND).filter((f) => f.endsWith('.html') && /living(Signal|Terrain|Desktop)\.jsx/.test(read(f)));
   assert.ok(hosts.length >= 7, 'the sweep found ' + hosts.length + ' living-profile pages');
@@ -131,5 +132,5 @@ test('every page with a living profile can open the Feed tab', () => {
   const bubble = read('globalChatButton.js');
   assert.match(bubble, /var names = \["pageShell\.jsx", "clientChatThreads\.jsx", "communityFeed\.jsx", "chatWidget\.jsx"\];/);
   assert.match(bubble, /\["\/newdesign\/pageShell\.jsx", "\/newdesign\/clientChatThreads\.jsx", "\/newdesign\/communityFeed\.jsx", "\/newdesign\/chatWidget\.jsx"\]/);
-  assert.match(bubble, /function flushOpen\(\) \{\n\s+var req = window\.__openChatRequest \|\| undefined;[\s\S]{0,120}window\.__openChat\(req, req && req\.tab\);/);
+  assert.match(bubble, /function flushOpen\(\) \{\n\s+var req = window\.__openChatRequest \|\| undefined;[\s\S]{0,120}var delivered = !req && waiting;[\s\S]{0,60}if \(delivered\) return;\n\s+window\.__openChat\(req, req && req\.tab\);/);
 });

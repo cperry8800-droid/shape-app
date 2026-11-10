@@ -700,7 +700,7 @@ test('payment notices open what they are about, and a rejection is notified', as
   assert.match(CLIENT, /const \[showBusiness, setShowBusiness\] = useStateBSC\(initialPage === 'business' \? 'money' : null\);/);
   assert.match(CLIENT, /case 'admin': window\.ShapeStaff\?\.openConsole\?\.\(\); return;/);
   const pros = read('mobile-app/src/broadsheet/iosAppBroadsheetPros.jsx');
-  assert.equal((pros.match(/case 'business': clear\(\); setSettingsStart\('business'\); setShowSettings\(true\); return;/g) || []).length, 2, 'both coach apps open Business');
+  assert.equal((pros.match(/case 'business': clear\(\); setSettingsStart\('business'\); setSettingsLanded\(true\); setShowSettings\(true\); return;/g) || []).length, 2, 'both coach apps open Business');
   assert.match(read('public/newdesign/pageShell.jsx'), /business: "business",/);
   assert.match(read('src/lib/coach-thread.ts'), /type: 'payment',\s+title: `Payment received: \$\{shown\}`,\s+body: `\$\{shown\} bought \$\{what\}\$\{pay\}\.`,\s+route: 'business',/);
   const actions = read('src/app/dashboard/credentials/actions.ts');

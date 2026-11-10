@@ -261,6 +261,7 @@ function DashSidebar({ navItems, payoutCard, homeHref = "index.html" }) {
               </div>
             )}
             {foot.map(link)}
+            <DashGuideButton place="rail" />
             <a href={homeHref} className="dash-rail-link dash-rail-site">
               {dashRailIcon("website")}
               <span className="dash-rail-label">Shape website</span>
@@ -269,6 +270,31 @@ function DashSidebar({ navItems, payoutCard, homeHref = "index.html" }) {
         </nav>
       </div>
     </aside>
+  );
+}
+
+// The page's Guide (dashTour.js, owner 2026-11-10): a minute on what this page does, on every coach
+// tab that has one. Beside the tab's name in the app bar; at the end of the tab row on a phone, where
+// the bar shows the logo instead (dash.css shows one of the two). Ticked once that guide is finished.
+// A member's dashboard has none, so nothing is drawn there.
+function DashGuideButton({ place }) {
+  const [, bump] = React.useState(0);
+  React.useEffect(() => {
+    const again = () => bump((n) => n + 1);
+    window.addEventListener("hashchange", again);
+    window.addEventListener("shape:guides", again);
+    return () => { window.removeEventListener("hashchange", again); window.removeEventListener("shape:guides", again); };
+  }, []);
+  const T = typeof window !== "undefined" ? window.ShapeDashTour : null;
+  const g = T && typeof T.guideHere === "function" ? T.guideHere() : null;
+  if (!g) return null;
+  return (
+    <button type="button" className={"dash-guide-btn dash-guide-btn--" + place} data-guide-btn=""
+      onClick={() => T.startGuide(g.key)} aria-label={"Guide: " + g.title + (g.done ? ", done" : "")}>
+      <span aria-hidden className="dash-guide-q">?</span>
+      <span>Guide</span>
+      {g.done && <span aria-hidden className="dash-guide-done">✓</span>}
+    </button>
   );
 }
 
@@ -282,7 +308,10 @@ function DashFrame({ navItems, payoutCard, title, children }) {
       <DashSidebar navItems={navItems} payoutCard={payoutCard} />
       <div className="dash-app-main">
         <div className="dash-appbar">
-          {heading && <div className="dash-appbar-title" aria-hidden>{heading}</div>}
+          <div className="dash-appbar-lead">
+            {heading && <div className="dash-appbar-title" aria-hidden>{heading}</div>}
+            <DashGuideButton place="bar" />
+          </div>
           <Header />
         </div>
         {children}
@@ -895,4 +924,4 @@ function DashExportButton({ kind, build, live, label }) {
   );
 }
 
-Object.assign(window, { goalQuarterLabel, DashShell, DashPage, DashFrame, DashSidebar, Sparkline, Card, SectionTitle, DashSegmented, DashPaperPicker, Pill, RecentPayouts, ProfileHero, BioCard, SubscriptionCard, DashExportButton });
+Object.assign(window, { goalQuarterLabel, DashShell, DashPage, DashFrame, DashSidebar, DashGuideButton, Sparkline, Card, SectionTitle, DashSegmented, DashPaperPicker, Pill, RecentPayouts, ProfileHero, BioCard, SubscriptionCard, DashExportButton });

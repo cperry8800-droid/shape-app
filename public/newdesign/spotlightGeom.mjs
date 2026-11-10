@@ -24,3 +24,30 @@ export function coachmarkPos(target, root, card, gap = 14) {
 export function stepBounds(i, total) {
   return { isFirst: i <= 0, isLast: i >= total - 1, canBack: i > 0, canNext: i < total - 1 };
 }
+
+// Below this root width the card stops floating beside its target and docks across the
+// visible width, at the bottom, or at the top when the target sits in the lower half, so it
+// never covers the control it is pointing at on a phone.
+export const DOCK_BELOW = 560;
+
+// The docked card: `vis` is the part of the root on screen ({y, h} in root coordinates; a
+// website root is the whole page, so only a window of it shows), `target` the lit element
+// (or null for a centred step). Returns { top, left, width }.
+export function dockPos(target, vis, rootW, card, margin = 8) {
+  const width = Math.max(0, rootW - margin * 2);
+  const low = vis.y + margin;
+  const high = Math.max(low, vis.y + vis.h - card.h - margin);
+  const lower = target ? target.y + target.h / 2 > vis.y + vis.h / 2 : false;
+  return { top: lower ? low : high, left: margin, width };
+}
+
+// The steps a tour actually shows: a step whose `when()` says the account doesn't have the
+// feature is left out (the empty-state version is its own step), and one whose `when` throws
+// is shown, since a step that can't be checked is better offered than lost.
+export function visibleSteps(steps) {
+  return (Array.isArray(steps) ? steps : []).filter((s) => {
+    if (!s) return false;
+    if (typeof s.when !== 'function') return true;
+    try { return !!s.when(); } catch (_) { return true; }
+  });
+}

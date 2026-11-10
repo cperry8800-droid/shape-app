@@ -111,7 +111,8 @@ export function BSNoraHint({ t }) {
   const ink = t.isLight ? '#ffffff' : '#04201d';
   return (
     <div ref={boxRef} data-nora-hint="" style={{ position: 'relative', height: 0, zIndex: 5 }}>
-      <div role="note" style={{
+      {/* data-guide-wait: hidden while a tour's card is up (spotlightTour.js), never drawn over it. */}
+      <div role="note" data-guide-wait="" style={{
         position: 'absolute', top: place ? place.top : 0,
         ...(place && place.arrowLeft != null ? { left: t.padX } : { right: t.padX }),
         width: `min(264px, calc(100% - ${t.padX * 2}px))`, boxSizing: 'border-box',
