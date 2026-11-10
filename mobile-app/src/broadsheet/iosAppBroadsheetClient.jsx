@@ -25968,7 +25968,7 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSen
             <span style={{ flex: 'none', display: 'inline-flex', alignItems: 'center', gap: 4, padding: '9px 12px', borderRadius: 16, background: bsTHexA(t.INK, 0.06) }}>
               {[0, 1, 2].map((k) => <span key={k} className="bs-typing-dot" style={{ width: 6, height: 6, borderRadius: '50%', background: teal, animation: `bsTypingDot 1.2s ease-in-out ${k * 0.16}s infinite` }} />)}
             </span>
-            {thread.group && <span style={{ minWidth: 0, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{typingWords}</span>}
+            {thread.group && <span style={{ minWidth: 0, fontFamily: t.MONO, fontSize: BS_CHAT_SIZES.senderName, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{typingWords}</span>}
           </div>
         )}
         <span role="status" aria-live="polite" style={BS_SR_ONLY}>{typingWords}</span>

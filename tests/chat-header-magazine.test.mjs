@@ -195,6 +195,8 @@ test('Chat: one size for faces and names, the list rows smaller, every thread al
   assert.match(th, /width: BS_CHAT_SIZES\.headFace, height: BS_CHAT_SIZES\.headFace, borderRadius: '50%'/, 'a channel\'s # at the head\'s size');
   assert.match(th, /<span data-thread-name="" style=\{\{ display: 'block', fontFamily: t\.DISPLAY, fontSize: BS_CHAT_SIZES\.headName,/);
   assert.match(th, /fontSize: BS_CHAT_SIZES\.senderName, fontWeight: 800, letterSpacing: '0\.16em', textTransform: 'uppercase', color: teal \}\}>\{senderName\}/);
+  // A channel's typing row names its typers at the sender's size (Codex P2 on #2674).
+  assert.match(th, /\{thread\.group && <span style=\{\{ minWidth: 0, fontFamily: t\.MONO, fontSize: BS_CHAT_SIZES\.senderName,[^}]*\}\}>\{typingWords\}<\/span>\}/);
 });
 
 // The thread screen left the magazine look for Nora's sheet's design (owner, 2026-11-01: "also use this
