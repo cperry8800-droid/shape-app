@@ -603,6 +603,20 @@ function CwChannelHash() {
 function cwChannelRole(n, desc) {
   return `${n} ${n === 1 ? "member" : "members"}${desc ? " · " + desc : ""}`;
 }
+// What a read adds to a copy the member has typed in (the install, below): every thread here stays,
+// and the live ones this copy lacks are added, a thread known by its conversation and a channel by
+// its id (Codex, #2391). ⚠ ON CHANNELS, the sample set has no ids, so nothing could ever match it:
+// once the real channels arrive a sample channel goes, unless the member wrote in it (Codex P2 on
+// #2676). Coach and friend threads keep what was here.
+function cwMergeTyped(list, live, tabId) {
+  const key = (t) => (t && (t.conversationId || (t.channelId ? "ch:" + t.channelId : null))) || null;
+  const base = list || [];
+  const have = new Set(base.map(key).filter(Boolean));
+  const add = live.filter((t) => key(t) && !have.has(key(t)));
+  const kept = tabId === "community" ? base.filter((t) => key(t) || (t && (t.messages || []).some((x) => x && x.me))) : base;
+  return add.length || kept.length !== base.length ? [...kept, ...add] : list;
+}
+
 // Every membership row of these channels, a page at a time. The API answers at most 1,000 rows a
 // request, so one read cut the counts short past that and could drop the member's own row, showing
 // a member Join instead of the composer (Codex P2 on #2676). Past the last page read (a server that
@@ -1577,18 +1591,25 @@ function ChatWidget(props) {
         // gives a thread's client access only when it has a provider (owner,
         // 2026-10-15: "fix the privacy one first"), so this row no longer comes
         // back at all. The clause stays: it is still what this tab means.
-        const convRes = await db.from("conversations").select("*")
-          .eq("kind", "direct").is("dm_key", null).eq("client_id", me)
-          .not("provider_role", "is", null)
-          .order("last_message_at", { ascending: false, nullsFirst: false });
+        let convRes;
+        try {
+          convRes = await db.from("conversations").select("*")
+            .eq("kind", "direct").is("dm_key", null).eq("client_id", me)
+            .not("provider_role", "is", null)
+            .order("last_message_at", { ascending: false, nullsFirst: false });
+        } catch (e) { convRes = { error: e }; }
         if (cancelled) return;
         // ⚠ A FAILED READ IS NOT AN EMPTY INBOX. Falling through to `[]` here
         // would replace a member's real coach threads with "no conversations",
-        // which is a claim rather than an absence.
-        if (convRes && convRes.error) { setThreadsLive(false); return; }
-        const convs = (convRes && convRes.data) || [];
+        // which is a claim rather than an absence: the coach threads and DMs are
+        // left as they are (`inboxOk`). ⚠ AND IT DOES NOT STOP THE CHANNELS, which
+        // are another table: an early return here kept a member on the sample
+        // channels for the session (Codex P2 on #2676).
+        const inboxOk = !(convRes && convRes.error);
+        const convs = (inboxOk && convRes.data) || [];
 
-        const dmRes = await db.rpc("list_member_dm_threads");
+        let dmRes = null;
+        if (inboxOk) { try { dmRes = await db.rpc("list_member_dm_threads"); } catch (e) { dmRes = { error: e }; } }
         if (cancelled) return;
         // The DM leg failing is survivable on its own — the coach threads are
         // still real — so it degrades to no DMs rather than discarding both.
@@ -1669,7 +1690,9 @@ function ChatWidget(props) {
           }
         } catch (e) { /* channels stay as they were */ }
 
-        if (!cancelled) setThreadsLive({ circle: coachThreads, friends: dmThreads, ...(channelThreads ? { community: channelThreads } : {}) });
+        // What was read, and only that: a leg that failed leaves its tabs as they are.
+        const live = { ...(inboxOk ? { circle: coachThreads, friends: dmThreads } : {}), ...(channelThreads ? { community: channelThreads } : {}) };
+        if (!cancelled) setThreadsLive(Object.keys(live).length ? live : false);
       } catch (e) {
         if (!cancelled) setThreadsLive(false);
       }
@@ -1700,13 +1723,14 @@ function ChatWidget(props) {
       setThreadsByTab(prev => prev.map((list, i) => {
         const id = tabs[i] && tabs[i].id;
         const live = Object.prototype.hasOwnProperty.call(threadsLive, id) ? threadsLive[id] : null;
-        if (!live) return list;
-        // A thread is known by its conversation, or a channel by its id.
-        const key = (t) => (t && (t.conversationId || (t.channelId ? "ch:" + t.channelId : null))) || null;
-        const have = new Set((list || []).map(key).filter(Boolean));
-        const add = live.filter((t) => key(t) && !have.has(key(t)));
-        return add.length ? [...(list || []), ...add] : list;
+        return live ? cwMergeTyped(list, live, id) : list;
       }));
+      // The open channel stays open: the sample set going moves it up the list, and a thread is
+      // open by its place in it.
+      const ci = tabs.findIndex((t) => t && t.id === "community");
+      const was = ci >= 0 && Object.prototype.hasOwnProperty.call(threadsLive, "community") ? (threadsRef.current || [])[ci] : null;
+      const now = was ? cwMergeTyped(was, threadsLive.community, "community") : null;
+      if (was && now !== was) setActiveByTab(prev => prev.map((v, i) => { if (i !== ci) return v; const at = now.indexOf(was[v || 0]); return at >= 0 ? at : 0; }));
       return;
     }
     setThreadsByTab(prev => prev.map((list, i) => {

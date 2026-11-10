@@ -47,9 +47,13 @@ test('the cookie session is bridged BEFORE any read', () => {
 
 test('a FAILED read is never presented as an empty inbox', () => {
   // ⚠ Falling through to [] replaces a member's real threads with "you have no
-  // conversations" — a claim, not an absence. The hard leg bails instead.
-  assert.match(BLOCK, /if \(convRes && convRes\.error\) \{ setThreadsLive\(false\); return; \}/,
-    'a failed conversations read no longer bails');
+  // conversations" — a claim, not an absence. A failed inbox read installs no coach
+  // threads or DMs (`inboxOk`); the channels, another table, are still read and
+  // installed on their own (Codex P2 on #2676; tests/website-chat-channels.test.mjs).
+  assert.match(BLOCK, /const inboxOk = !\(convRes && convRes\.error\);/, 'a failed conversations read is no longer told apart');
+  assert.match(BLOCK, /\.\.\.\(inboxOk \? \{ circle: coachThreads, friends: dmThreads \} : \{\}\)/,
+    'a failed conversations read installs an empty inbox');
+  assert.match(BLOCK, /setThreadsLive\(Object\.keys\(live\)\.length \? live : false\);/, 'nothing read installs nothing');
   assert.match(BLOCK, /catch \(e\) \{\s*if \(!cancelled\) setThreadsLive\(false\);/,
     'a thrown read no longer bails');
 });
@@ -94,7 +98,12 @@ test('the install is BY TAB ID, waits for the hydrate, and never clobbers a draf
   // and the mount test in nora-thread-load-retry.test.mjs drives it.
   assert.match(BLOCK, /if \(dirtyRef\.current\) \{\n\s+setThreadsByTab\(prev => prev\.map\(\(list, i\) => \{/, 'a real read can clobber what the member typed');
   // A thread is known by its conversation, a channel by its id (the real channels, 2026-11-10).
-  assert.match(BLOCK, /const key = \(t\) => \(t && \(t\.conversationId \|\| \(t\.channelId \? "ch:" \+ t\.channelId : null\)\)\) \|\| null;\n\s+const have = new Set\(\(list \|\| \[\]\)\.map\(key\)\.filter\(Boolean\)\);\n\s+const add = live\.filter\(\(t\) => key\(t\) && !have\.has\(key\(t\)\)\);\n\s+return add\.length \? \[\.\.\.\(list \|\| \[\]\), \.\.\.add\] : list;/, 'the typed-in copy only gains the missing conversations and channels');
+  assert.match(BLOCK, /return live \? cwMergeTyped\(list, live, id\) : list;/, 'the typed-in copy is not merged');
+  const merge = WIDGET.slice(WIDGET.indexOf('function cwMergeTyped('), WIDGET.indexOf('\n}\n', WIDGET.indexOf('function cwMergeTyped(')));
+  assert.match(merge, /const key = \(t\) => \(t && \(t\.conversationId \|\| \(t\.channelId \? "ch:" \+ t\.channelId : null\)\)\) \|\| null;/);
+  assert.match(merge, /const add = live\.filter\(\(t\) => key\(t\) && !have\.has\(key\(t\)\)\);/, 'the typed-in copy only gains the missing conversations and channels');
+  // Only on Channels does a sample thread (no id) go, and not one the member wrote in (Codex P2 on #2676).
+  assert.match(merge, /const kept = tabId === "community" \? base\.filter\(\(t\) => key\(t\) \|\| \(t && \(t\.messages \|\| \[\]\)\.some\(\(x\) => x && x\.me\)\)\) : base;/, 'the typed-in copy drops what was here');
 });
 
 test('the hydrate publishes its completion as STATE, not only a ref', () => {

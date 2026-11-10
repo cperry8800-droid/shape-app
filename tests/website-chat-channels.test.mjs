@@ -35,7 +35,9 @@ const settle = async (n = 8) => { for (let i = 0; i < n; i++) await React.act(as
 // A query builder that records what it was asked and answers from `tables` when awaited.
 // `maxRows`: the API's ceiling on one answer (PostgREST's max-rows, 1,000 on Supabase); `ignoreRange`: a
 // server that answers every page with the first one.
-function fakeDb({ tables, log, failChannels = false, insertError = null, maxRows = 1000, ignoreRange = false }) {
+// `failConversations`: the coach inbox read is refused; `gate`: a promise the account read waits on,
+// so a test can type before the reads land.
+function fakeDb({ tables, log, failChannels = false, insertError = null, maxRows = 1000, ignoreRange = false, failConversations = false, gate = null }) {
   const answer = (state) => {
     const ops = state.ops;
     const has = (k) => ops.find((o) => o[0] === k);
@@ -57,6 +59,7 @@ function fakeDb({ tables, log, failChannels = false, insertError = null, maxRows
     }
     log.push(['select', state.table, ops.map((o) => o[0]).join('.')]);
     if (state.table === 'channels') return failChannels ? { data: null, error: { message: 'down' } } : { data: tables.channels, error: null };
+    if (state.table === 'conversations' && failConversations) return { data: null, error: { message: 'refused' } };
     if (state.table === 'channel_members') {
       const ids = (has('in') || [, [, []]])[1][1];
       const who = ops.find((o) => o[0] === 'eq' && o[1][0] === 'user_id');
@@ -111,7 +114,7 @@ function fakeDb({ tables, log, failChannels = false, insertError = null, maxRows
     getSession: async () => ({}),
     getUserGoals: async () => null,
     getProfile: async () => ({ full_name: 'Ann Lee' }),
-    client: { auth: { getUser: async () => ({ data: { user } }) }, from, rpc, storage },
+    client: { auth: { getUser: async () => { if (gate) await gate; return { data: { user } }; } }, from, rpc, storage },
   };
 }
 
@@ -140,6 +143,7 @@ async function mount({ signedIn = true, db = null } = {}) {
   const tabs = [
     { id: 'community', label: 'Channels', eyebrow: 'SHAPE COMMUNITY', title: 'Channels', canCreate: true, threads: [
       { who: '# shape-community', role: '41,208 members · 2,104 online · Everyone on Shape', last: 'Nina O: welcome', time: '4m', unread: 12, group: true, pinned: true, messages: [{ who: 'Nina O.', t: 'welcome everyone', time: '4m', me: false }] },
+      { who: '# sample-two', role: '12 members', last: 'Morning', time: '1h', unread: 0, group: true, messages: [{ who: 'Ivy', t: 'Morning', time: '1h', me: false }] },
     ] },
     { id: 'support', label: 'Help', title: 'Help', support: true, threads: [{ who: 'Nora', messages: [{ who: 'Nora', t: 'Hi, I am Nora.', me: false }] }] },
   ];
@@ -201,7 +205,7 @@ test('a member sees the real channels, in the app\'s order, and not the sample',
   try {
     const r = m.rows();
     assert.equal(r.length, 6, 'six real channels: ' + r.join(' | '));
-    assert.ok(!r.some((x) => /shape-community/.test(x)), 'the sample channel is still listed');
+    assert.ok(!r.some((x) => /shape-community|sample-two/.test(x)), 'a sample channel is still listed');
     assert.match(r[0], /Shape HQ/, 'Shape HQ is pinned first, for everyone');
     assert.match(r[1], /PR Wall/, 'then the PR Wall');
     assert.match(r[0], /SHAPE/, 'marked as Shape\'s own');
@@ -465,4 +469,37 @@ test('a server that answers every page with the first one: the read stops, and y
   assert.equal(mine.length, 1, 'your own row is missing, or there twice');
   assert.equal(mine[0].role, 'host');
   assert.ok(mine[0].pinned);
+});
+
+// Codex P2 on #2676: the channel reads came after the coach inbox read, which returned early on a
+// failure, so a refused inbox kept a member on the sample channels for the session.
+test('a refused inbox read leaves the coach threads be, and the channels are still the real ones', async () => {
+  const m = await mount({ db: fakeDb({ tables: world(), log: [], failConversations: true }) });
+  try {
+    const r = m.rows();
+    assert.ok(!r.some((x) => /shape-community|sample-two/.test(x)), 'the sample channels stayed: ' + r.join(' | '));
+    assert.match(r[0], /Shape HQ/, 'the real channels were not read');
+  } finally { await m.done(); }
+});
+
+// Codex P2 on #2676: with something typed before the reads landed, the merge kept every thread and
+// only added the live ones, and the sample channels (no ids) were never replaced.
+test('typed before the reads land: the sample channels go, the one you wrote in stays, and stays open', async () => {
+  let release;
+  const gate = new Promise((res) => { release = res; });
+  const m = await mount({ db: fakeDb({ tables: world(), log: [], gate }) });
+  try {
+    assert.ok(m.rows().some((x) => /sample-two/.test(x)), 'the sample is not what shows before the reads land');
+    // The second sample channel, so the first one going moves it up the list.
+    await m.click(m.row('sample-two'));
+    await m.type('First!');
+    await m.click(m.doc.querySelector('.cw-send'));
+    await React.act(async () => { release(); });
+    await settle(14);
+    const r = m.rows();
+    assert.ok(r.some((x) => /Shape HQ/.test(x)), 'the real channels did not arrive: ' + r.join(' | '));
+    assert.ok(!r.some((x) => /shape-community/.test(x)), 'a sample channel nobody wrote in stayed beside the real ones');
+    assert.ok(r.some((x) => /sample-two/.test(x)), 'the channel the member wrote in was taken away');
+    assert.match(m.doc.querySelector('[data-chat-panel]').textContent, /First!/, 'the open channel is no longer the one the member wrote in');
+  } finally { await m.done(); }
 });
