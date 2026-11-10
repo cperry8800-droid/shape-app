@@ -12,23 +12,7 @@ import {
   asRecord,
   withAdminBackgroundCheck,
 } from '@/lib/provider-applications';
-import {
-  MIGRATION,
-  approvalBlocker,
-  claimForApproval,
-  experienceExceptionRecord,
-  provisionApproval,
-  recordDecisionEmail,
-  releaseApprovalClaim,
-  requestConfirmation,
-  resolveApprovalBinding,
-  reviewWriteError,
-  pendingConfirmation,
-  stampedAccountId,
-  type ApprovalBinding,
-  type ProviderApplication,
-  type ProviderRole,
-} from '@/lib/coach-approval';
+import { MIGRATION, approvalBlocker, claimForApproval, experienceExceptionRecord, provisionApproval, recordDecisionEmail, releaseApprovalClaim, requestConfirmation, resolveApprovalBinding, reviewWriteError, pendingConfirmation, stampedAccountId, type ApprovalBinding, type ProviderApplication, type ProviderRole, APPROVAL_CLAIM_MS, OPEN_APPLICATION_STATUSES } from '@/lib/coach-approval';
 
 const PAGE = '/dashboard/applications';
 
@@ -152,11 +136,11 @@ export async function rejectApplication(formData: FormData): Promise<void> {
 
   const { data: application, error: appError } = await admin
     .from('provider_applications')
-    .select('id, status, provider_type, first_name, email, details, admin_review')
+    .select('id, status, provider_type, first_name, email, details, admin_review, updated_at')
     .eq('id', applicationId)
     .single();
   if (appError) throw reviewWriteError(appError);
-  const typed = application as Pick<ProviderApplication, 'id' | 'status' | 'provider_type' | 'first_name' | 'email' | 'details' | 'admin_review'>;
+  const typed = application as Pick<ProviderApplication, 'id' | 'status' | 'provider_type' | 'first_name' | 'email' | 'details' | 'admin_review' | 'updated_at'>;
 
   // ⚠ REJECTING AN APPROVED APPLICATION WOULD NOT TAKE THE COACH DOWN. The listing approval
   // published stays live whatever the application's status says, so a reject here only made the
@@ -164,6 +148,14 @@ export async function rejectApplication(formData: FormData): Promise<void> {
   // breaks its subscriptions, so the action is refused and the page says what is missing.
   if (typed.status === 'approved') backToReview({ notice: 'reject_approved' });
   if (typed.status === 'rejected') backToReview({ notice: 'already_rejected' });
+  // ⚠ NOT WHILE AN APPROVAL IS SETTING THE COACH UP (Codex P1 on #2675). An Approve that has
+  // claimed the application grants the coach role and publishes the listing before it marks the
+  // application approved; a reject in between was overwritten by it, and a rejected applicant was
+  // left a coach. A live claim refuses the reject, and the reject below is a compare-and-set on
+  // `updated_at`, so a claim written after this read makes it match nothing.
+  const claimAt = Date.parse(String(asRecord(asRecord(typed.admin_review).approval_claim).at ?? ''));
+  if (Number.isFinite(claimAt) && Date.now() - claimAt < APPROVAL_CLAIM_MS) backToReview({ notice: 'reject_approval_in_progress' });
+  if (!typed.updated_at) backToReview({ notice: 'already_decided' });
 
   const now = new Date().toISOString();
   const nextReview: Record<string, unknown> = {
@@ -184,10 +176,12 @@ export async function rejectApplication(formData: FormData): Promise<void> {
       admin_review: nextReview,
     })
     .eq('id', applicationId)
-    .in('status', ['pending', 'in_review', 'withdrawn'])
+    .eq('updated_at', typed.updated_at)
+    .in('status', OPEN_APPLICATION_STATUSES)
     .select('id');
   if (error) throw reviewWriteError(error);
-  // Decided by someone else between the read and the write: they sent the email.
+  // Decided by someone else between the read and the write (or claimed for approval): they send
+  // the email.
   if (!changed?.length) backToReview({ notice: 'already_decided' });
 
   revalidatePath(PAGE);
@@ -271,8 +265,9 @@ export async function approveApplication(formData: FormData): Promise<void> {
   }
 
   const outcome = await provisionApproval(admin, typed, binding, decision);
-  // A concurrent Approve marked it first; that one sends the email.
-  if (!outcome.done) backToReview({ notice: 'already_approved' });
+  // A concurrent Approve marked it first (that one sends the email), or a reject landed after this
+  // approval's claim ran out: it stays rejected, and the setup is said and logged.
+  if (!outcome.done) backToReview({ notice: outcome.rejectedMeanwhile ? 'rejected_meanwhile' : 'already_approved' });
 
   revalidatePath(PAGE);
   revalidatePath('/trainers');

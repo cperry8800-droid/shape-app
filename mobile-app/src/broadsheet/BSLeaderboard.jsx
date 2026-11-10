@@ -242,10 +242,13 @@ export function BSLeaderboard({ onBack, mode = 'member', role: initialRole = 'tr
   // The top 10 only, with no history, for a free or past-due account (a board from before the field
   // reads as full). Its lock is the read's reason, else the shell's own flags.
   const fullBoard = coach || d.fullBoard !== false;
+  // 'unknown' (the membership could not be read): the shell's own answer, else no lock at all, so a
+  // paying member is never told to join (Codex P2 on #2675).
   const boardLock = fullBoard ? null
     : d.locked === 'past_due' ? 'pastDue'
       : d.locked === 'free_account' ? 'free'
-        : (bsPaidLockRead() || 'free');
+        : d.locked === 'unknown' ? bsPaidLockRead()
+          : (bsPaidLockRead() || 'free');
   const climb = coach && view === 'climb';
   const value = (e) => (climb ? Number(e.gained) || 0 : Number(e.points) || 0);
   const shown = (e) => (climb ? ((e.gained || 0) < 0 ? '−' : '+') + fmt(Math.abs(e.gained || 0)) : fmt(e.points));

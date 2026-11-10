@@ -74,6 +74,10 @@ const NOTICES: Record<string, string> = {
     'This coach is already live. Rejecting the application would not take their listing down, so nothing was changed. Taking a live coach off the marketplace needs a “Suspend listing” action, which is not built yet.',
   already_rejected: 'This application is already rejected. Mark it in review to reopen it.',
   already_decided: 'This application was decided a moment ago by another review. Nothing was changed.',
+  rejected_meanwhile:
+    'This application was rejected while this Approve was still setting the coach up, so it stays rejected and no approval email was sent. The coach role and listing this Approve set up were logged for taking down.',
+  reject_approval_in_progress:
+    'An Approve on this application is still setting up the coach, so it was not rejected. Reload in a minute: an approved application cannot be rejected here; if that approval failed, you can reject it then.',
   approval_in_progress:
     'Another Approve on this application started a moment ago and may still be setting up the coach, so nothing was done. Reload in a minute: it will show as approved, or, if that approval failed, you can approve it again.',
   approval_conflict:

@@ -54,6 +54,8 @@ export type ProviderApplication = {
 // approval takes (a server action is cut off well before it); a claim older than this belongs to
 // a request that died, and a new Approve may take the application over.
 export const APPROVAL_CLAIM_MS = 10 * 60 * 1000;
+/** The statuses an application can still be decided from: approved or rejected is final. */
+export const OPEN_APPLICATION_STATUSES: ApplicationStatus[] = ['pending', 'in_review', 'withdrawn'];
 export const MIGRATION = 'supabase-migrations/2026-10-12-coach-application-review.sql';
 /** The value /api/apply writes beside `account_id` when it stamps the signed-in sender. */
 export const ACCOUNT_SOURCE_SESSION = 'session';
@@ -440,7 +442,7 @@ export async function claimForApproval(admin: Admin, application: ProviderApplic
     .update({ admin_review: { ...priorReview, approval_claim: { at: new Date().toISOString(), by } } })
     .eq('id', application.id)
     .eq('updated_at', application.updated_at)
-    .neq('status', 'approved')
+    .in('status', OPEN_APPLICATION_STATUSES)
     .select('id');
   if (error) throw reviewWriteError(error);
   return claimed?.length ? 'claimed' : 'conflict';
@@ -480,8 +482,8 @@ export type ApprovalDecision = {
 
 export type ApprovalOutcome =
   | { done: true; providerId: number; email: { ok: boolean; error?: string } }
-  /** Another request approved it first; that one sends the email. */
-  | { done: false };
+  /** Another request approved it first (that one sends the email), or it was rejected meanwhile. */
+  | { done: false; rejectedMeanwhile?: boolean };
 
 /**
  * Sets the coach up on `binding.user` and marks the application approved, then emails them. The
@@ -540,10 +542,20 @@ export async function provisionApproval(
       admin_review: nextReview,
     })
     .eq('id', application.id)
-    .neq('status', 'approved')
+    .in('status', OPEN_APPLICATION_STATUSES)
     .select('id');
   if (updateError) throw reviewWriteError(updateError);
-  if (!changed?.length) return { done: false };
+  if (!changed?.length) {
+    // ⚠ NEVER OVER A REJECTION (Codex P1 on #2675): only an open application is approved. A reject
+    // cannot land while the claim is live; one that landed after the claim ran out leaves a coach
+    // set up for a rejected application, which is said loudly for an admin to undo.
+    const { data: now2 } = await admin.from('provider_applications').select('status').eq('id', application.id).maybeSingle();
+    if (now2 && (now2 as { status?: string }).status === 'rejected') {
+      console.error('[shape] an approval set a coach up for an application rejected meanwhile; take the role and listing down', { application: application.id, provider_id: providerId, owner_id: binding.user.id });
+      return { done: false, rejectedMeanwhile: true };
+    }
+    return { done: false };
+  }
 
   // ⚠ THE APPLICANT IS TOLD. Approval used to send nothing of ours, and a reused account got no
   // invite either, so an approved coach learned of it only by finding their own listing.
@@ -595,7 +607,8 @@ export async function requestConfirmation(
       admin_review: nextReview,
     })
     .eq('id', application.id)
-    .neq('status', 'approved')
+    // Only an open application: a rejection is never reopened into a waiting approval (Codex P1 on #2675).
+    .in('status', OPEN_APPLICATION_STATUSES)
     .select('id');
   if (error) throw reviewWriteError(error);
   if (!changed?.length) return null;

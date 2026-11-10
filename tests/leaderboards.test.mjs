@@ -665,6 +665,19 @@ test('member board: a free or past-due account is ranked, sees the top 10 and it
   const u = await (await (await loadRoute('src/app/api/leaderboard/route.ts', unread, { id: UID }, new Error('down'))).GET(req('/api/leaderboard'))).json();
   assert.equal(u.fullBoard, false);
   assert.equal(u.me.rank, null);
+  // ⚠ ...and says it is unknown, never a free account (Codex P2 on #2675): a paying member whose
+  // read failed is not told they are free, nor sent to buy what they have.
+  assert.equal(u.locked, 'unknown');
+});
+
+test('the boards\' clients: an unknown membership offers no Join, on the website and in the app (Codex P2 on #2675)', () => {
+  const web = read('public/newdesign/leaderboards.jsx');
+  assert.match(web, /return d\.locked === "past_due" \? "pastdue" : d\.locked === "unknown" \? "unknown" : "join";/);
+  assert.match(web, /if \(kind === "unknown"\) return <LbUnknownLine \/>;/);
+  const unknownLine = web.slice(web.indexOf('function LbUnknownLine()'), web.indexOf('function LbJoinLine('));
+  assert.doesNotMatch(unknownLine, /Join|start\(|portal\(/, 'no checkout from an unknown');
+  const app = read('mobile-app/src/broadsheet/BSLeaderboard.jsx');
+  assert.match(app, /: d\.locked === 'unknown' \? bsPaidLockRead\(\)\n/, 'the shell\'s own answer, else no lock');
 });
 
 test('the board ranks every account that earned points: no membership migration narrows it', () => {

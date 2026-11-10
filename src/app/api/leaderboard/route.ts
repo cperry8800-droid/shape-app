@@ -8,7 +8,8 @@
 //        hidden: null | 'off' | 'private' | 'team_unasked' | 'team_off',
 //                                        why OTHER members do not see the caller here
 //        fullBoard: boolean,             the whole board, your exact rank and movement (paid)
-//        locked: null | 'free_account' | 'past_due',   why it is not the full board
+//        locked: null | 'free_account' | 'past_due' | 'unknown',   why it is not the full board
+//                                                     ('unknown': the membership could not be read)
 //        privacy: { leaderboard, teamBoard } | null,   the two switches (null: unread)
 //        hasCoach?: boolean | null,      team only
 //        following?: number | null }     following only
@@ -90,7 +91,9 @@ export async function GET(request: Request) {
   // their rank only when it is in that top, and no movement. A membership that could not be read
   // is the free board: nothing paid is shown on a guess.
   const fullBoard = membership ? membership.isMember : false;
-  const locked: 'free_account' | 'past_due' | null = fullBoard ? null : membership?.pastDue ? 'past_due' : 'free_account';
+  // ⚠ An unread membership is 'unknown', never a free account (Codex P2 on #2675): a paying member
+  // whose read failed is not told they are free, nor sent to a second checkout.
+  const locked: BoardLock = fullBoard ? null : !membership ? 'unknown' : membership.pastDue ? 'past_due' : 'free_account';
 
   if (board.error) {
     if (isMissingRelation(board.error)) return legacyBoard(supabase, user.id, scope, period, limit, own, locked);
@@ -125,6 +128,8 @@ export async function GET(request: Request) {
   return NextResponse.json(body);
 }
 
+type BoardLock = 'free_account' | 'past_due' | 'unknown' | null;
+
 /** How many places a free account sees at the top of a board (owner, 2026-11-10, after Strava). */
 const FREE_TOP = 10;
 
@@ -148,7 +153,7 @@ function freeBoard(all: BoardEntry[], mine: BoardEntry | null, total: number) {
 async function legacyBoard(
   supabase: SupabaseClient, userId: string, scope: Scope, period: Period, limit: number,
   own: { privacy: Privacy; visibility: unknown } | null,
-  locked: 'free_account' | 'past_due' | null = null,
+  locked: BoardLock = null,
 ) {
   if (scope !== 'everyone') return NextResponse.json({ error: 'This leaderboard is not switched on yet.' }, { status: 503 });
   const [{ data: rows, error }, { data: meRows, error: meError }] = await Promise.all([

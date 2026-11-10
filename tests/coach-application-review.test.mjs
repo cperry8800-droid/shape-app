@@ -797,6 +797,66 @@ test('3: rejecting an approved application is refused, and so is rejecting twice
   assert.equal(r2.sent.length, 0, 'no second email');
 });
 
+test('3: a reject cannot race an approval: refused while an Approve is setting the coach up, and a reject read before a claim landed matches nothing (Codex P1 on #2675)', async () => {
+  // An Approve's claim is live: the reject is refused, nothing is written and nobody is emailed.
+  const live = { ...CLEAR_REVIEW, approval_claim: { at: new Date(Date.now() - 20_000).toISOString(), by: ADMIN.id } };
+  const held = fakeAdmin({ tables: { provider_applications: [application({ admin_review: live })] } });
+  const h = await loadActions(held);
+  assert.equal((await h.run('rejectApplication', { application_id: APP_ID })).searchParams.get('notice'), 'reject_approval_in_progress');
+  assert.equal(held.tables.provider_applications[0].status, 'pending');
+  assert.equal(stmts(held.calls, 'provider_applications', 'update').length, 0);
+  assert.equal(h.sent.length, 0);
+  // The claim lands between the reject's read and its write: the reject's compare-and-set misses.
+  let raced = false;
+  const race = fakeAdmin({
+    tables: { provider_applications: [application()] },
+    afterRead: ({ table, tables }) => {
+      if (raced || table !== 'provider_applications') return;
+      raced = true;
+      tables.provider_applications[0].updated_at = '2026-10-12T21:00:00.000001+00:00';
+    },
+  });
+  const r = await loadActions(race);
+  assert.equal((await r.run('rejectApplication', { application_id: APP_ID })).searchParams.get('notice'), 'already_decided');
+  assert.equal(race.tables.provider_applications[0].status, 'pending', 'not rejected under the approval');
+  assert.equal(r.sent.length, 0, 'no rejection email');
+  // A claim older than the hold belongs to a request that died: the reject goes through.
+  const stale = { ...CLEAR_REVIEW, approval_claim: { at: new Date(Date.now() - 11 * 60_000).toISOString(), by: ADMIN.id } };
+  const late = fakeAdmin({ tables: { provider_applications: [application({ admin_review: stale })] } });
+  const l = await loadActions(late);
+  assert.equal((await l.run('rejectApplication', { application_id: APP_ID })).searchParams.get('updated'), 'rejected');
+  assert.equal(late.tables.provider_applications[0].status, 'rejected');
+});
+
+test('2: an approval never overwrites a rejection; one that lands after the claim ran out is said and logged (Codex P1 on #2675)', async () => {
+  // The reject lands while this Approve is publishing the listing (its claim had run out).
+  let rejected = false;
+  const admin = fakeAdmin({
+    tables: { provider_applications: [application()], profiles: [], trainers: [] },
+    afterRead: ({ table, tables }) => {
+      if (rejected || table !== 'trainers') return;
+      rejected = true;
+      tables.provider_applications[0].status = 'rejected';
+    },
+  });
+  const { run, sent } = await loadActions(admin);
+  const logged = [];
+  const prior = console.error;
+  console.error = (...a) => { logged.push(a.map(String).join(' ')); };
+  let to;
+  try { to = await run('approveApplication', { application_id: APP_ID, review_notes: '', applicant_note: '' }); }
+  finally { console.error = prior; }
+  assert.equal(to.searchParams.get('notice'), 'rejected_meanwhile');
+  assert.equal(admin.tables.provider_applications[0].status, 'rejected', 'the rejection stands');
+  assert.equal(sent.length, 0, 'no approval email');
+  assert.ok(logged.some((l) => /rejected meanwhile/.test(l)), 'the setup is logged for taking down');
+  // Every write that decides the application is limited to one still open.
+  const lib = stripComments(read('src/lib/coach-approval.ts'));
+  assert.doesNotMatch(lib, /\.neq\('status', 'approved'\)\n\s+\.select\('id'\)/, 'no decision write excludes only approved');
+  assert.match(read('src/app/dashboard/applications/page.tsx'), /rejected_meanwhile:/);
+  assert.match(read('src/app/dashboard/applications/page.tsx'), /reject_approval_in_progress:/);
+});
+
 test('2/3: the approved card has no Approve, Reject or status buttons', () => {
   const src = read('src/app/dashboard/applications/page.tsx');
   assert.match(src, /const canApprove = !isApproved && bg\.consented && bg\.status === 'clear';/);

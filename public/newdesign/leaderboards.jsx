@@ -181,9 +181,18 @@ function lbWithGaps(all, skip) {
 const LB_PAST_DUE_LINE = "Your payment didn’t go through. Update your card to get Shape Radio and Nora back.";
 function lbBoardLock(d) {
   if (!d || typeof d !== "object" || d.fullBoard !== false) return null;
-  return d.locked === "past_due" ? "pastdue" : "join";
+  // "unknown": the membership could not be read, so the top 10 shows with no Join (a paying member
+  // is never told to buy what they have).
+  return d.locked === "past_due" ? "pastdue" : d.locked === "unknown" ? "unknown" : "join";
 }
 function LbLockLine({ kind, inTop }) {
+  if (kind === "unknown") return <LbUnknownLine />;
+  return <LbJoinLine kind={kind} inTop={inTop} />;
+}
+function LbUnknownLine() {
+  return <div className="lb-note" data-lb-locked="unknown" style={{ margin: "8px 0 0" }}>We couldn’t check your membership just now, so this is the top 10. Reload to see the full board.</div>;
+}
+function LbJoinLine({ kind, inTop }) {
   const [busy, setBusy] = React.useState(false);
   const [err, setErr] = React.useState("");
   // Monthly, and yearly where it is set up (pageShell.jsx's /api/membership/plans read).
