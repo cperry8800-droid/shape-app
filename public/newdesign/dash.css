@@ -905,7 +905,7 @@ a { text-decoration: none; color: inherit; }
    see-through card: near-white ink on the system's white. Glass's options take its solid ground, for
    every select on these pages. The other dark papers' cards are solid, so their lists already read.
    ⚠ Not the colour scheme property: it restyles native controls (tests/dashboard-paper-switch.test.mjs). */
-html[data-paper="glass"] select :is(option, optgroup) { background-color:var(--sh-ground, #0a1020); color:var(--sh-ink, #eef2f8); }
+html[data-paper="glass"] select :is(option, optgroup) { background-color:var(--sh-ground, #1a1612); color:var(--sh-ink, #f2ede4); }
 
 /* ── Thin scrollbars ──────────────────────────────────────────────────────────
    Owner, on the exercise picker: "remove this scroll bar". The chunky native bar
