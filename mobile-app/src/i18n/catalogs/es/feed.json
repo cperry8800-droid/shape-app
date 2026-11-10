@@ -413,5 +413,10 @@
   "thread.voiceUnplayable": "Esta nota de voz no se puede reproducir ahora.",
   "thread.voiceNotSent": "No enviada",
   "thread.voiceFailed": "No se pudo enviar la nota de voz.",
-  "thread.voicePreview": "Nota de voz · {time}"
+  "thread.voicePreview": "Nota de voz · {time}",
+  "channels.changePicture": "Cambiar la imagen del canal",
+  "channels.pictureSaved": "Imagen guardada",
+  "channels.pictureError": "No se pudo guardar la imagen: inténtalo de nuevo.",
+  "channels.openError": "No se pudo abrir el canal: inténtalo de nuevo.",
+  "channels.readOnly": "Aquí solo publica Shape"
 }

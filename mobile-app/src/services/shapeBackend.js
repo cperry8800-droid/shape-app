@@ -8383,18 +8383,16 @@ function channelDisplayName() {
 async function listChannels() {
   if (!supabase || !state.user?.id) return { stored: 'local', data: [] };
   const uid = state.user.id;
+  // Every column: `picture_path` and `read_only` exist once 2026-11-10-channel-pictures-and-shape-hq.sql
+  // has run, and naming them before then would fail the whole read (the channel_messages precedent).
   const { data: channels, error } = await supabase
     .from('channels')
-    .select('id, name, description, created_by, visibility, last_message, last_message_at, created_at')
+    .select('*')
     .order('last_message_at', { ascending: false, nullsFirst: false })
     .order('created_at', { ascending: false });
   if (error) throw error;
   const ids = (channels || []).map(c => c.id);
-  let members = [];
-  if (ids.length) {
-    const { data: mem } = await supabase.from('channel_members').select('channel_id, user_id, role, pinned').in('channel_id', ids);
-    members = mem || [];
-  }
+  const members = ids.length ? await readChannelMembers(ids, uid) : [];
   const byChannel = {};
   members.forEach(m => { (byChannel[m.channel_id] = byChannel[m.channel_id] || []).push(m); });
   const rows = (channels || []).map(c => {
@@ -8408,10 +8406,64 @@ async function listChannels() {
       private: c.visibility === 'private',
       pinned: !!(mine && mine.pinned),
       last: c.last_message || '', lastAt: c.last_message_at,
+      // The host's picture, built from its storage path by this client (never a stored URL);
+      // a channel only Shape posts in; and Shape's own channels, by the flag only Shape sets (not
+      // "no owner": a deleted member's channel has none either; before the migration has run there
+      // is no flag, and the ownerless PR Wall is Shape's).
+      picture: channelPictureUrl(c.picture_path),
+      readOnly: c.read_only === true,
+      official: c.official === true || (c.official === undefined && !c.created_by),
     };
   });
   rows.sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0)); // pinned first; stable otherwise
   return { stored: 'supabase', data: rows };
+}
+// Every membership row of these channels, a page at a time. The API answers at most 1,000 rows a
+// request, so one read cut the counts short past that and could drop the member's own row, showing
+// a member Join (Codex P2 on #2676). Past the last page read, or at a later page that failed, the
+// counts stop there and the member's own rows are read on their own, so joined, host and pin stay
+// exact. ⚠ A PARTIAL SET IS NEVER PASSED OFF AS WHOLE (Codex P2 on #2676): a failed first page, or a
+// failed read of the member's own rows, fails the read, and the list stays as it was.
+const CHANNEL_MEMBER_PAGE = 1000, CHANNEL_MEMBER_PAGES = 100;
+async function readChannelMembers(ids, uid) {
+  const cols = 'channel_id, user_id, role, pinned';
+  const all = [];
+  for (let p = 0; p < CHANNEL_MEMBER_PAGES; p++) {
+    const { data, error } = await supabase.from('channel_members').select(cols).in('channel_id', ids)
+      .order('channel_id', { ascending: true }).order('user_id', { ascending: true })
+      .range(p * CHANNEL_MEMBER_PAGE, (p + 1) * CHANNEL_MEMBER_PAGE - 1);
+    if (error) { if (p === 0) throw error; break; }
+    const rows = data || [];
+    for (const x of rows) all.push(x);
+    if (rows.length < CHANNEL_MEMBER_PAGE) return all;
+  }
+  const { data: own, error } = await supabase.from('channel_members').select(cols).in('channel_id', ids).eq('user_id', uid);
+  if (error) throw error;
+  const mine = new Set(all.filter(x => x.user_id === uid).map(x => x.channel_id));
+  for (const x of own || []) if (!mine.has(x.channel_id)) all.push(x);
+  return all;
+}
+// A channel's picture: its storage path in the public channel-pictures bucket, under the channel's
+// own id (the table's check holds it there), turned into an address by this client.
+function channelPictureUrl(path) {
+  if (!supabase || typeof path !== 'string' || !path) return null;
+  try { return supabase.storage.from('channel-pictures').getPublicUrl(path).data?.publicUrl || null; } catch (e) { return null; }
+}
+// The host sets it (owner, 2026-11-10: "have creators of channels upload custom pictures"): the file
+// into the channel's folder (only its host may write there), then the path onto the channel.
+async function setChannelPicture(channelId, file) {
+  if (!supabase || !state.user?.id) throw new Error('Sign in to change the picture.');
+  if (!channelId || !file) throw new Error('No picture selected.');
+  const type = String(file.type || '').toLowerCase();
+  if (!/^image\/(jpeg|png|webp|gif)$/.test(type)) throw new Error('Use a JPEG, PNG, WebP or GIF.');
+  if (file.size > 5 * 1024 * 1024) throw new Error('Use a picture under 5 MB.');
+  const ext = type.split('/')[1] === 'jpeg' ? 'jpg' : type.split('/')[1];
+  const path = `${channelId}/${Date.now()}-${Math.random().toString(36).slice(2, 7)}.${ext}`;
+  const up = await supabase.storage.from('channel-pictures').upload(path, file, { contentType: type, upsert: false });
+  if (up.error) throw up.error;
+  const { error } = await supabase.from('channels').update({ picture_path: path }).eq('id', channelId);
+  if (error) throw error;
+  return { stored: 'supabase', data: { path, url: channelPictureUrl(path) } };
 }
 async function createChannel({ name, description, visibility } = {}) {
   if (!supabase || !state.user?.id) throw new Error('Sign in to create a channel.');
@@ -8518,6 +8570,7 @@ function subscribeDirectMessages(onInsert) {
 window.ShapeChannels = {
   list: listChannels,
   create: createChannel,
+  setPicture: setChannelPicture,
   join: joinChannel,
   leave: leaveChannel,
   addMember: addChannelMember,
@@ -8718,7 +8771,9 @@ async function startUnread() {
   const gen = _unread.gen;
   // Drop any demo seed once real data takes over.
   if (_unread.demoSeeded) { _unread.map = {}; _unread.demoSeeded = false; }
-  try { const ch = await listChannels(); if (gen !== _unread.gen) return; (ch.data || []).forEach(c => { if (c.joined) _unread.myChannels.add(c.id); }); } catch (e) {}
+  // The channels whose new messages count: the member's own, and a channel only Shape posts in (Shape
+  // HQ), which is read, not joined (2026-11-10-shape-hq-unread.sql; Codex P2 on #2676).
+  try { const ch = await listChannels(); if (gen !== _unread.gen) return; (ch.data || []).forEach(c => { if (c.joined || (c.official && c.readOnly)) _unread.myChannels.add(c.id); }); } catch (e) {}
   try { const { data } = await supabase.rpc('channel_unread'); if (gen !== _unread.gen) return; (data || []).forEach(r => { _unread.map['ch:' + r.channel_id] = Number(r.unread) || 0; }); } catch (e) {}
   try { const { data } = await supabase.rpc('dm_unread'); if (gen !== _unread.gen) return; (data || []).forEach(r => { _unread.map['dm:' + r.conversation_id] = Number(r.unread) || 0; }); } catch (e) {}
   if (gen !== _unread.gen) return; // a failed await lands here via its catch — never attach stale subs

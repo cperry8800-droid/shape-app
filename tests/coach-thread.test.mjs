@@ -670,11 +670,11 @@ test('the app opens the membership welcome ("home") and a new client with no thr
   assert.equal((pros.match(/window\.addEventListener\('shape:openClient', open\);/g) || []).length, 2);
   // By id, or by the booked name when a booking carries none (the Up next card's "Open their file",
   // owner 2026-10-31: tests/coach-up-next.test.mjs).
-  assert.equal((pros.match(/setOpenClientReq\(\{ clientId: clientId \|\| null, clientName, nonce: Date\.now\(\) \}\); setTab\('clients'\);/g) || []).length, 2);
+  assert.equal((pros.match(/setOpenClientReq\(\{ clientId: clientId \|\| null, clientName, back: 'nav', nonce: Date\.now\(\) \}\); setTab\('clients'\);/g) || []).length, 2);
   for (const [fn, list] of [['BSTrainerClients', 'COACH_CLIENTS'], ['BSNutriClients', 'NUTRI_CLIENTS']]) {
     assert.match(pros, new RegExp(`clients:  <${fn} sheet=\\{sheet\\} openRequest=\\{openClientReq\\} onOpenConsumed=\\{\\(\\) => setOpenClientReq\\(null\\)\\} />`), fn);
     const body = pros.slice(pros.indexOf(`function ${fn}(`), pros.indexOf(`function ${fn}(`) + 3000);
-    assert.match(body, new RegExp(`if \\(!openRequest \\|\\| !\\(openRequest\\.clientId \\|\\| openRequest\\.clientName\\) \\|\\| rosterStatus === 'loading'\\) return;\\s+const hit = openRequest\\.clientId \\? ${list}\\.find\\(\\(c\\) => c\\.userId === openRequest\\.clientId\\) : bsProRosterByName\\(${list}, openRequest\\.clientName\\);\\s+if \\(hit\\) \\{ setPreviewClient\\(null\\); setFullClient\\(hit\\); \\}\\s+onOpenConsumed\\(\\);`), fn);
+    assert.match(body, new RegExp(`if \\(!openRequest \\|\\| !\\(openRequest\\.clientId \\|\\| openRequest\\.clientName\\) \\|\\| rosterStatus === 'loading'\\) return;\\s+const hit = openRequest\\.clientId \\? ${list}\\.find\\(\\(c\\) => c\\.userId === openRequest\\.clientId\\) : bsProRosterByName\\(${list}, openRequest\\.clientName\\);\\s+if \\(hit\\) \\{ setPreviewClient\\(null\\); setFullClient\\(hit\\); setFullViaNav\\(openRequest\\.back === 'nav'\\); \\}\\s+onOpenConsumed\\(\\);`), fn);
   }
 });
 
