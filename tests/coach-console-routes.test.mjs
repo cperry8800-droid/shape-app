@@ -61,6 +61,12 @@ function fakeDb(tables, { fail = null, onClient = true } = {}) {
         out = out.slice().sort((a, b) => (String(a[col]) < String(b[col]) ? -dir : String(a[col]) > String(b[col]) ? dir : 0))
       }
       for (const [op, n] of call.ops) if (op === 'limit') out = out.slice(0, n)
+      // Only the columns the read names, as PostgREST answers (`alias:column` comes back as `alias`), so a
+      // read that leaves out a column it then uses (a page walk's `id`) gets nothing for it.
+      if (call.select && !/[(*]/.test(call.select)) {
+        const cols = call.select.split(',').map((c) => c.trim().split(':')[0]).filter(Boolean)
+        out = out.map((r) => Object.fromEntries(cols.filter((c) => c in r).map((c) => [c, r[c]])))
+      }
       return { data: single ? (out[0] ?? null) : out, error: null }
     }
     const q = new Proxy({}, {
