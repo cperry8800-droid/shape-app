@@ -71,7 +71,7 @@ test('2: the figures are the member\'s own, and honest about what is not known',
   assert.equal(streak.streak, 3, 'counted back from today, an abandoned one is no workout');
 });
 
-async function recapRoute({ denied = null, user = { id: 'u1' }, fail = [], zone = NY } = {}) {
+async function recapRoute({ denied = null, user = { id: 'u1' }, fail = [], zone = NY, zoneFails = false } = {}) {
   const reads = [];
   const supabase = {
     from: (table) => {
@@ -88,7 +88,7 @@ async function recapRoute({ denied = null, user = { id: 'u1' }, fail = [], zone 
       ['next/server', nextServer],
       ['@/lib/request-auth', { currentUser: async () => user, clientForRequest: async () => supabase }],
       ['@/lib/require-membership', { requireAccount: async () => denied, requireNora: async () => denied }],
-      ['@/lib/account-timezone', { readAccountZone: async () => ({ ready: true, zone, error: false }) }],
+      ['@/lib/account-timezone', { readAccountZone: async () => (zoneFails ? { ready: false, zone: null, error: true } : { ready: true, zone, error: false }) }],
     ]),
   });
   return { route, reads };
@@ -106,6 +106,15 @@ test('3: the recap is free for any account, its own rows only, private; a failed
   const refused = new nextServer.NextResponse(null, { status: 401 });
   assert.equal((await (await recapRoute({ denied: refused })).route.GET(new Request('https://shape.test/api/client/weekly-recap'))).status, 401);
   assert.equal((await (await recapRoute({ fail: ['score_ledger'] })).route.GET(new Request('https://shape.test/api/client/weekly-recap'))).status, 503);
+  // ⚠ A zone that could not be read is not "no zone" (Codex P2 on #2675): read as UTC, the recap
+  // would be of the wrong Monday-to-Sunday. No recap, and no read of the member's rows.
+  const lost = await recapRoute({ zoneFails: true });
+  const lostRes = await lost.route.GET(new Request('https://shape.test/api/client/weekly-recap'));
+  assert.equal(lostRes.status, 503);
+  assert.equal(lostRes.headers.get('cache-control'), 'private, no-store, max-age=0');
+  assert.equal(lost.reads.length, 0);
+  // An account with no zone of its own is a real answer: its week is UTC's.
+  assert.equal((await (await recapRoute({ zone: null })).route.GET(new Request('https://shape.test/api/client/weekly-recap'))).status, 200);
 });
 
 test('4: /api/membership/plans reads the month and the year from Stripe; a wrong interval or a missing price is none', async () => {

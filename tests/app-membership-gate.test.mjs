@@ -30,9 +30,12 @@ test('the gate: an account is in, paid or not; a session with no account is not'
 test('the flags: ShapeCanChat is any account, ShapePaid the paid features, ShapeNora assistant Nora, unknown until answered', () => {
   const m = (o) => ({ loading: false, ...o });
   const f = (o) => ({ noraPreview: null, ...o });
-  assert.deepEqual(bsPaidFlags({ signedIn: true, isApprovedCoach: false, membership: m({ active: false }) }), f({ canChat: true, paid: false, pastDue: false, nora: false }), 'a free account messages its coaches');
+  assert.deepEqual(bsPaidFlags({ signedIn: true, isApprovedCoach: false, membership: m({ active: false, nora: false }) }), f({ canChat: true, paid: false, pastDue: false, nora: false }), 'a free account messages its coaches');
+  // ⚠ A seeded answer with no lookup heard yet (a cold launch whose lookup failed): Nora is unknown,
+  // which never locks a free week (Codex P2 on #2675). The paid features still read the seed.
+  assert.deepEqual(bsPaidFlags({ signedIn: true, isApprovedCoach: false, membership: m({ active: false, nora: undefined, pastDue: undefined }) }), f({ canChat: true, paid: false, pastDue: false, nora: undefined }), 'unheard: Nora unknown, never false');
   assert.deepEqual(bsPaidFlags({ signedIn: true, isApprovedCoach: false, membership: m({ active: true }) }), f({ canChat: true, paid: true, pastDue: false, nora: true }));
-  assert.deepEqual(bsPaidFlags({ signedIn: true, isApprovedCoach: false, membership: m({ active: false, pastDue: true }) }), f({ canChat: true, paid: false, pastDue: true, nora: false }));
+  assert.deepEqual(bsPaidFlags({ signedIn: true, isApprovedCoach: false, membership: m({ active: false, pastDue: true, nora: false }) }), f({ canChat: true, paid: false, pastDue: true, nora: false }));
   assert.deepEqual(bsPaidFlags({ signedIn: true, isApprovedCoach: false, membership: m({ active: true, pastDue: true }) }).pastDue, false, 'a member is never past due on screen');
   assert.deepEqual(bsPaidFlags({ signedIn: true, isApprovedCoach: false, membership: { loading: true, active: false } }), f({ canChat: true, paid: undefined, pastDue: false, nora: undefined }), 'unknown: nothing locks a member on a cold launch');
   assert.deepEqual(bsPaidFlags({ signedIn: true, isApprovedCoach: true, membership: { loading: true } }), f({ canChat: true, paid: true, pastDue: false, nora: true }), 'an approved coach has the paid features');
@@ -63,7 +66,7 @@ test('the shell uses those rules, asks /api/me/membership, and re-checks when it
   assert.match(main, /const \{ allowed: accountAllowed, loading: gateLoading \} = bsAccountGate\(\{ isApprovedCoach, authReady, signedIn, membership \}\);/);
   assert.match(main, /const admitted = accountAllowed && !ageBlocked;/, 'a known minor is not admitted');
   assert.match(main, /window\.ShapeMembershipApi\?\.lookup\?\.\(\)/);
-  assert.match(main, /const active = bsMembershipAfter\(known, answer\);\n\s+setMembership\(\{ loading: false, active, ageRestricted, pastDue: !active && pastDue, nora: active \|\| nora, noraPreview, includedWithCoach: active && includedWithCoach \}\);/);
+  assert.match(main, /const active = bsMembershipAfter\(known, answer\);\n\s+setMembership\(heard\n\s+\? \{ loading: false, active, ageRestricted, pastDue: !active && pastDue, nora: active \|\| nora, noraPreview, includedWithCoach: active && includedWithCoach \}/);
   assert.match(main, /localStorage\.setItem\('shape\.member', ageRestricted \? 'a' : answer \? '1' : '0'\)/);
   assert.match(main, /window\.addEventListener\('shape:membership-recheck', onRecheck\);/);
   assert.match(main, /document\.addEventListener\('visibilitychange', onVisible\);/);
@@ -72,6 +75,11 @@ test('the shell uses those rules, asks /api/me/membership, and re-checks when it
   assert.doesNotMatch(main, /fetch\(\s*['"`]\/api\/stripe\/subscription/, 'that read calls coaches and admins inactive and a failure "inactive"');
   // The flags every screen reads, from the same answer.
   assert.match(main, /const paidFlags = bsPaidFlags\(\{ signedIn, isApprovedCoach, membership \}\);/);
+  // Until a lookup answers on this account, Nora and past due are unknown, not false: a failed
+  // lookup on a cold launch neither locks a free week nor sends a past-due account to Join.
+  assert.match(main, /let heard = false;/);
+  assert.match(main, /if \(d\) \{\n\s+heard = true;/);
+  assert.match(main, /: \{ loading: false, active, ageRestricted, pastDue: undefined, nora: active \? true : undefined, noraPreview: null, includedWithCoach: false \}\);/);
   assert.match(main, /window\.ShapeCanChat = paidFlags\.canChat;\n\s+window\.ShapePaid = paidFlags\.paid;\n\s+window\.ShapePastDue = paidFlags\.pastDue;\n\s+window\.ShapeNora = paidFlags\.nora;\n\s+window\.ShapeNoraPreview = paidFlags\.noraPreview;\n\s+window\.ShapeIncludedWithCoach = includedWithCoach;\n\s+window\.dispatchEvent\(new Event\('shape:canchat'\)\);\n\s+window\.dispatchEvent\(new Event\('shape:paid'\)\);/);
   // The signed-out Preview and Browse are gone, and every way back to them.
   for (const gone of [/previewMode|setPreviewMode/, /browseMode|setBrowseMode/, /BSPreviewBanner/, /shape:exitPreview/, /bannerDismissed|noticeDismissed/, /onBrowse/, /onPreview/, /paywall\.preview/]) {

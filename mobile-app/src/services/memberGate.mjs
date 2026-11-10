@@ -47,7 +47,9 @@ export function bsPaidFlags({ signedIn, isApprovedCoach, membership }) {
   if (m.loading || typeof m.active !== 'boolean') return { canChat: true, paid: undefined, pastDue: false, nora: undefined, noraPreview: null };
   const paid = m.active === true;
   const noraPreview = bsNoraPreviewOf(m.noraPreview);
-  return { canChat: true, paid, pastDue: !paid && m.pastDue === true, nora: paid || m.nora === true, noraPreview };
+  // `nora` unknown (no lookup has answered yet) stays undefined, which never locks: only a false does.
+  const nora = paid ? true : typeof m.nora === 'boolean' ? m.nora : undefined;
+  return { canChat: true, paid, pastDue: !paid && m.pastDue === true, nora, noraPreview };
 }
 
 /** The free week as the server sent it, or null: { startedAt, endsAt, active }. */

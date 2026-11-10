@@ -1655,10 +1655,15 @@ function BSAppShell({ tweaks, setTweak }) {
     let nora = false;
     let noraPreview = null;
     let includedWithCoach = false;
+    // Whether any lookup has answered on this account yet. Until one does, a seeded `active` stands,
+    // but Nora and past due are unknown, never false: a free week is not locked, nor a past-due
+    // account sent to Join, by a lookup that failed on a cold launch (Codex P2 on #2675).
+    let heard = false;
     const run = () => Promise.resolve(window.ShapeMembershipApi?.lookup?.() ?? null).catch(() => null).then((d) => {
       if (cancelled) return null;
       const answer = d ? d.member : null;
       if (d) {
+        heard = true;
         ageRestricted = d.ageRestricted === true; pastDue = d.pastDue === true;
         nora = d.nora === true; noraPreview = d.noraPreview || null; includedWithCoach = d.includedWithCoach === true;
       }
@@ -1670,7 +1675,9 @@ function BSAppShell({ tweaks, setTweak }) {
         try { window.ShapeMembership = { active: answer }; localStorage.setItem('shape.member', ageRestricted ? 'a' : answer ? '1' : '0'); localStorage.setItem('shape.memberUid', uid); } catch (e) {}
       }
       const active = bsMembershipAfter(known, answer);
-      setMembership({ loading: false, active, ageRestricted, pastDue: !active && pastDue, nora: active || nora, noraPreview, includedWithCoach: active && includedWithCoach });
+      setMembership(heard
+        ? { loading: false, active, ageRestricted, pastDue: !active && pastDue, nora: active || nora, noraPreview, includedWithCoach: active && includedWithCoach }
+        : { loading: false, active, ageRestricted, pastDue: undefined, nora: active ? true : undefined, noraPreview: null, includedWithCoach: false });
       return active;
     });
     run();

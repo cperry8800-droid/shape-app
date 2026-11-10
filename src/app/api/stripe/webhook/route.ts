@@ -31,7 +31,7 @@ import { isRetryableDbError } from '@/lib/db-retryable';
 import { coachPaid, startCoaching, welcomeMember } from '@/lib/coach-thread';
 import { cancelRefundedSession } from '@/lib/refund-session';
 import { announcePayment } from '@/lib/payment-notices';
-import { markAccount } from '../../../../lib/radio/streams.mjs';
+import { recheckAccount } from '../../../../lib/radio/streams.mjs';
 
 export const runtime = 'nodejs';
 
@@ -968,24 +968,20 @@ export async function POST(request: Request) {
           console.warn('[shape-app] platform subscription update failed:', platformError.message);
         }
         // ⚠ A MEMBERSHIP THAT STOPS PAYING STOPS THE RADIO NOW (owner, 2026-11-10: only "your own
-        // paid membership"; past due loses the paid features). The account's live streams are marked
-        // to drop, and the station's door drops them within seconds; the minute-by-minute re-check
-        // (src/lib/radio/streams.mjs kicksFor) is the backstop. Best-effort: the row is written.
+        // paid membership"; past due loses the paid features). The account's live streams are
+        // confirmed again at the station's next ask (every few seconds) and dropped there unless the
+        // account is still paid another way: an admin, a coach by role, or coaching that includes the
+        // membership. That is the membership's own check (src/lib/radio/may-listen.ts), never a copy
+        // of it here, which missed the admin (Codex P2 on #2675). Best-effort: the row is written,
+        // and the minute-by-minute re-check (src/lib/radio/streams.mjs kicksFor) is the backstop.
         if (!platformError && status !== 'active') {
           for (const row of (platformRows ?? []) as Array<{ client_id?: string | null }>) {
             if (!row.client_id) continue;
             try {
-              // ⚠ STILL PAID FOR ANOTHER WAY, STILL LISTENING: coaching includes the membership, and
-              // a coach is a member by role (membership-core.ts). Their stream is left alone.
-              const [coached, profile] = await Promise.all([
-                admin.from('subscriptions').select('id').eq('client_id', row.client_id).eq('status', 'active').limit(1),
-                admin.from('profiles').select('role, roles').eq('id', row.client_id).maybeSingle(),
-              ]);
-              const roles = [String(profile.data?.role ?? ''), ...(Array.isArray(profile.data?.roles) ? (profile.data.roles as string[]) : [])];
-              const stillPaid = (coached.data?.length ?? 0) > 0 || roles.some((r) => r === 'trainer' || r === 'nutritionist' || r === 'dietitian');
-              if (!stillPaid) await markAccount(admin, { userId: row.client_id, now: Date.now(), reason: 'membership' });
+              const asked = await recheckAccount(admin, { userId: row.client_id });
+              if (!asked.ok) console.warn('[stripe webhook] radio streams not asked again', { subscription: sub.id });
             } catch (err) {
-              console.warn('[stripe webhook] radio streams not marked to drop', { subscription: sub.id, error: err instanceof Error ? err.message : String(err) });
+              console.warn('[stripe webhook] radio streams not asked again', { subscription: sub.id, error: err instanceof Error ? err.message : String(err) });
             }
           }
         }

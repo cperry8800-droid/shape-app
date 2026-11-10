@@ -97,12 +97,13 @@ function PricingHero() {
 
 function PricingCard() {
   // The real prices (/api/membership/plans) once they answer; the page's own words until then. The
-  // yearly plan is offered only where it is set up.
+  // yearly plan is offered only once the plans say it is set up: never while they are read or when
+  // they did not answer, since a checkout for a year with none set is refused (Codex P2 on #2675).
   const plans = window.useShapePlans ? window.useShapePlans() : null;
   const M = window.ShapeMembership;
   const money = (c) => (M && M.money ? M.money(c) : "$" + c / 100);
-  const annual = plans ? plans.annual : { priceCents: 4800 };
-  const saving = plans && M && M.annualSaving ? M.annualSaving(plans) : 20;
+  const annual = plans ? plans.annual : null;
+  const saving = plans && M && M.annualSaving ? M.annualSaving(plans) : null;
   return (
     <section style={{ padding: "30px 72px 70px" }}>
       <Reveal>

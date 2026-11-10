@@ -20,7 +20,7 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { loadRealModule } from './helpers/load-real-module.mjs';
 import { stripComments } from './helpers/strip-comments.mjs';
-import { openStream, admitConnection, leaveConnection, markAccount, kicksFor, RECHECK_SEC, KICK_RETRY_SEC, KICK_GIVE_UP_SEC } from '../src/lib/radio/streams.mjs';
+import { openStream, admitConnection, leaveConnection, markAccount, recheckAccount, kicksFor, RECHECK_SEC, KICK_RETRY_SEC, KICK_GIVE_UP_SEC } from '../src/lib/radio/streams.mjs';
 import { pollOnce, readBoot, MOUNTS } from '../services/station/door/door.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -169,6 +169,26 @@ test('1: ⚠ a membership that stops paying drops the account: at once on Stripe
   assert.deepEqual((await kicksFor(db, { boot: OLD_BOOT, now: NOW + 600000, mayListen: async () => false })).clients, []);
 });
 
+test('1: a plan that stopped paying is asked again at the next ask, and only the membership\'s check drops it', async () => {
+  const db = fakeDb();
+  const sa = await openStream(db, { userId: ANA, now: NOW });
+  await admitConnection(db, { streamId: sa, boot: BOOT, bootAt: BOOT_AT, client: 5, now: NOW });
+  const sb = await openStream(db, { userId: BEN, now: NOW });
+  await admitConnection(db, { streamId: sb, boot: BOOT, bootAt: BOOT_AT, client: 6, now: NOW });
+  assert.deepEqual(await recheckAccount(db, { userId: ANA }), { ok: true, rechecked: 1 });
+  assert.deepEqual(await recheckAccount(db, { userId: BEN }), { ok: true, rechecked: 1 });
+  assert.deepEqual(await recheckAccount(db, { userId: 'not-a-uuid' }), { ok: false, rechecked: 0 });
+  // Seconds later, well inside the minute: both are confirmed again. Ana is still paid another way
+  // (an admin, say), so she keeps listening; Ben is not, and his connection goes to the door.
+  const asked = [];
+  const r = await kicksFor(db, { boot: BOOT, now: NOW + 3000, mayListen: async (u) => { asked.push(u); return u === ANA; } });
+  assert.deepEqual(asked.sort(), [ANA, BEN].sort(), 'both asked at once, not after the minute');
+  assert.deepEqual(r.clients, [6]);
+  assert.equal(live(db).find((x) => x.client === 5).kick_requested_at, null, 'still paid another way: still listening');
+  // A connection already on its way out is not asked again.
+  assert.deepEqual(await recheckAccount(db, { userId: BEN }), { ok: true, rechecked: 0 });
+});
+
 test('1: records go: a drop never confirmed after ten minutes, a stream a day after it was opened', async () => {
   const db = fakeDb();
   const s = await openStream(db, { userId: ANA, now: NOW });
@@ -296,10 +316,10 @@ test('5: the door clears a connection\'s account as the station says the listene
 test('5: Stripe\'s word that a membership stopped paying drops the account\'s streams; the migration keeps the account only while it listens', () => {
   const hook = stripComments(read('src/app/api/stripe/webhook/route.ts'));
   assert.match(hook, /if \(!platformError && status !== 'active'\) \{\n\s+for \(const row of/);
-  assert.match(hook, /if \(!stillPaid\) await markAccount\(admin, \{ userId: row\.client_id, now: Date\.now\(\), reason: 'membership' \}\);/);
-  // Still paid another way (coaching includes the membership; a coach by role): left listening.
-  assert.match(hook, /admin\.from\('subscriptions'\)\.select\('id'\)\.eq\('client_id', row\.client_id\)\.eq\('status', 'active'\)\.limit\(1\)/);
-  assert.match(hook, /const stillPaid = \(coached\.data\?\.length \?\? 0\) > 0 \|\| roles\.some\(\(r\) => r === 'trainer' \|\| r === 'nutritionist' \|\| r === 'dietitian'\);/);
+  // ⚠ Asked again, never decided here (Codex P2 on #2675): a copy of "still paid another way"
+  // missed the admin. The membership's own check, at the station's next ask, decides.
+  assert.match(hook, /const asked = await recheckAccount\(admin, \{ userId: row\.client_id \}\);/);
+  assert.doesNotMatch(hook, /markAccount|stillPaid/, 'the webhook drops nobody itself');
   const sql = read('supabase-migrations/2026-11-10-radio-own-account.sql').replace(/^\s*--.*$/gm, '');
   assert.match(sql, /^begin;$/m);
   assert.match(sql, /^commit;\s*$/m);

@@ -34,6 +34,9 @@ export async function GET(request: Request) {
   const which = new URL(request.url).searchParams.get('week') === 'current' ? 'current' : 'last';
 
   const zoneRead = await readAccountZone(supabase, user.id);
+  // ⚠ A ZONE THAT COULD NOT BE READ IS NOT "NO ZONE" (Codex P2 on #2675): read as UTC, a member
+  // east or west of it would be handed a shareable recap of the wrong Monday-to-Sunday.
+  if (zoneRead.error) return unavailable();
   const zone = zoneRead.zone;
   const week = recapWeek({ now, zone, which });
   const [sessions, ledger] = await Promise.all([

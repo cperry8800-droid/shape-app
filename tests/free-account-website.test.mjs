@@ -526,6 +526,10 @@ test('pricing: monthly and yearly, the free week with Nora, and coaching that in
   assert.match(P, /onClick=\{\(e\) => startPlatformCheckout\(e, "annual"\)\}/);
   assert.match(P, /"The full leaderboard and your exact rank"/);
   assert.doesNotMatch(P, /No trials\./, 'the free week with Nora is not a trial, and the page no longer says there are none');
+  // ⚠ No yearly button before the plans say there is one (Codex P2 on #2675): while they are read,
+  // or when they did not answer, a year would be offered that the checkout refuses.
+  assert.match(P, /const annual = plans \? plans\.annual : null;/);
+  assert.match(P, /const saving = plans && M && M\.annualSaving \? M\.annualSaving\(plans\) : null;/);
 });
 
 

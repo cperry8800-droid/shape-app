@@ -318,7 +318,8 @@ test('Nora\'s free week: her features read ShapeNora, an ended week says so, and
   assert.equal(gate.bsPaidFlags({ signedIn: true, isApprovedCoach: false, membership: m({ nora: true, noraPreview: week }) }).nora, true);
   assert.equal(gate.bsPaidFlags({ signedIn: true, isApprovedCoach: false, membership: m({ nora: true, noraPreview: week }) }).paid, false, 'the week is not the membership');
   assert.equal(gate.bsPaidFlags({ signedIn: true, isApprovedCoach: false, membership: m({ active: true }) }).nora, true, 'a server with no field: a member has her');
-  assert.equal(gate.bsPaidFlags({ signedIn: true, isApprovedCoach: false, membership: m({}) }).nora, false);
+  assert.equal(gate.bsPaidFlags({ signedIn: true, isApprovedCoach: false, membership: m({ nora: false }) }).nora, false);
+  assert.equal(gate.bsPaidFlags({ signedIn: true, isApprovedCoach: false, membership: m({}) }).nora, undefined, 'no lookup heard: unknown, which never locks (Codex P2 on #2675)');
   // Her lock.
   assert.equal(gate.bsNoraLockNow({ nora: true, noraPreview: week }), null);
   assert.equal(gate.bsNoraLockNow({ nora: undefined }), null, 'unknown: never locked');

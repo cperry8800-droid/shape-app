@@ -11,6 +11,7 @@
 //                                                           are marked to drop (one device)
 //   leaveConnection(db, { boot, client })                   the station's word that they left
 //   markAccount(db, { userId, now, reason })                drop every connection of an account
+//   recheckAccount(db, { userId })                          confirm an account's membership at the next ask
 //                                                           (a membership that ended or went past
 //                                                           due: the Stripe webhook)
 //   kicksFor(db, { boot, now, mayListen })                  /api/radio/kicks, which the station's
@@ -94,6 +95,21 @@ export async function markAccount(db, { userId, now, reason = 'membership' }) {
     .update({ kick_requested_at: iso(now), kick_reason: reason })
     .eq('user_id', userId).is('kick_requested_at', null).select('client');
   return error ? { ok: false, marked: 0 } : { ok: true, marked: data?.length ?? 0 };
+}
+
+/**
+ * Ask again, at the station's next ask (its door asks every few seconds), whether an account may
+ * still listen: its live connections are marked as never confirmed, so kicksFor's re-check
+ * (`mayListen`, the membership's own rules: an admin's, a coach's and coaching's included) takes
+ * them first, and drops them only if it says no. For Stripe's webhook, which knows that a plan
+ * stopped paying but not whether the account is still paid another way (Codex P2 on #2675).
+ */
+export async function recheckAccount(db, { userId }) {
+  if (!UUID.test(String(userId || ''))) return { ok: false, rechecked: 0 };
+  const { data, error } = await db.from(CONNECTIONS)
+    .update({ checked_at: iso(0) })
+    .eq('user_id', userId).is('kick_requested_at', null).select('client');
+  return error ? { ok: false, rechecked: 0 } : { ok: true, rechecked: data?.length ?? 0 };
 }
 
 /**
