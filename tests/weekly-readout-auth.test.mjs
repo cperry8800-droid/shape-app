@@ -104,7 +104,7 @@ async function post({ headers = {}, body, cookieUser = null } = {}) {
     ['@/lib/request-auth', requestAuth],
     ['@/lib/request-utils', await ts('src/lib/request-utils.ts', new Map([['next/server', nextServer]]))],
     ['@/lib/ai', { hasOpenAIKey: () => true, callAI: async (req) => { w.ai.push(req); return { ok: true, data: { output_text: JSON.stringify(MODEL) } }; } }],
-    ['@/lib/require-membership', { requireMembership: async () => null, requireAccount: async () => null }],
+    ['@/lib/require-membership', { requireMembership: async () => null, requireAccount: async () => null, requireNora: async () => null }],
     ['@/lib/correlations', { computeCorrelations: () => CORRELATIONS, SNAPSHOT_SELECT: '*' }],
     ['@/lib/weekly-readout.mjs', readoutLib],
     ['@/lib/supabase/admin', { createAdminClient: () => ({

@@ -62,6 +62,12 @@ export type Membership = {
   pastDue: boolean;
   /** The newest platform subscription's status, or null (none, or not read for an admin). */
   platformStatus: string | null;
+  /**
+   * The paid features come with the member's coaching: an active subscription to a coach (owner,
+   * 2026-11-10: "Include the membership while someone is paying a coach"). False for an account
+   * that is a member on its own (a plan, a coach role, an admin), so a screen can say which.
+   */
+  includedWithCoach: boolean;
   isCoach: boolean;
   isAdmin: boolean;
   /**
@@ -80,7 +86,10 @@ export type Membership = {
   isKnownMinor: boolean;
 };
 
-/** Paid entitlement: approved coach OR admin OR an `active` platform subscription (never trialing or past_due). */
+/**
+ * Paid entitlement: approved coach OR admin OR an `active` platform subscription (never trialing or
+ * past_due) OR an active subscription to a coach (coaching includes the membership).
+ */
 export async function computeMembership(
   client: SupabaseClient,
   userId: string,
@@ -114,9 +123,19 @@ export async function computeMembership(
     .order('current_period_end', { ascending: false, nullsFirst: false })
     .limit(1)
     .maybeSingle());
+  // ⚠ COACHING INCLUDES THE MEMBERSHIP (owner, 2026-11-10). An active subscription to a coach (the
+  // member's own row; "clients read own subscriptions") pays for the paid features while it lasts.
+  // Read beside the others; used only when nothing else made them a member.
+  const coachRead = isAdmin ? null : Promise.resolve(client
+    .from('subscriptions')
+    .select('id')
+    .eq('client_id', userId)
+    .eq('status', 'active')
+    .limit(1));
   // Handled here so a failure is not reported as unhandled while the profile is read; it is
   // still thrown below, where it was always awaited, when the subscription decides.
   if (subRead) subRead.then(undefined, () => {});
+  if (coachRead) coachRead.then(undefined, () => {});
   const { data: profile, error: profileError } = await profileRead;
   if (profileError && opts.strict) throw profileError;
   const role = (profile?.role as string) || 'client';
@@ -132,11 +151,18 @@ export async function computeMembership(
 
   let isMember = isCoach || isAdmin;
   let platformStatus: string | null = null;
+  let includedWithCoach = false;
   if (!isMember && subRead) {
     const { data: sub, error: subError } = await subRead;
     if (subError && opts.strict) throw subError;
     platformStatus = sub ? String((sub as { status?: unknown }).status ?? '') || null : null;
     isMember = !!platformStatus && PLATFORM_PERK_STATUSES.has(platformStatus);
+  }
+  if (!isMember && coachRead) {
+    const { data: coached, error: coachError } = await coachRead;
+    if (coachError && opts.strict) throw coachError;
+    includedWithCoach = Array.isArray(coached) && coached.length > 0;
+    isMember = includedWithCoach;
   }
   const pastDue = !isMember && platformStatus === 'past_due';
   // Age is derived from the DATE first (see isMinorFromDob — `over_18` is a
@@ -155,7 +181,36 @@ export async function computeMembership(
     profile as { date_of_birth?: unknown; over_18?: unknown; created_at?: unknown } | null
   );
 
-  return { isMember, pastDue, platformStatus, isCoach, isAdmin, isKnownMinor };
+  return { isMember, pastDue, platformStatus, includedWithCoach, isCoach, isAdmin, isKnownMinor };
+}
+
+/** A stamp the gate gives a request for assistant Nora during an account's free week. */
+export const GATE_STAMP_NORA = 'nora';
+
+export type NoraPreview = { startedAt: string; endsAt: string; active: boolean };
+
+/**
+ * The account's free week of assistant Nora (supabase-migrations/2026-11-10-nora-free-week.sql: it
+ * starts by itself after a free account's third completed workout, once per account, with no card;
+ * owner, 2026-11-10). Read with the caller's own session (an account reads its own row) or the
+ * service role. null when there is none; `strict` throws a failed read, otherwise it reads as none.
+ */
+export async function readNoraPreview(
+  client: SupabaseClient,
+  userId: string,
+  opts: { now?: number; strict?: boolean } = {}
+): Promise<NoraPreview | null> {
+  const { data, error } = await client.from('nora_previews').select('started_at, ends_at').eq('user_id', userId).maybeSingle();
+  if (error) {
+    if (opts.strict) throw error;
+    return null;
+  }
+  if (!data) return null;
+  const row = data as { started_at?: unknown; ends_at?: unknown };
+  const endsAt = String(row.ends_at ?? '');
+  const ends = Date.parse(endsAt);
+  if (!Number.isFinite(ends)) return null;
+  return { startedAt: String(row.started_at ?? ''), endsAt, active: ends > (opts.now ?? Date.now()) };
 }
 
 /** The 402 a paid feature answers a signed-in adult who may not use it: past due, or not a member. */

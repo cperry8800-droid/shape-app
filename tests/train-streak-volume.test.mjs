@@ -36,7 +36,7 @@ async function load() {
     ['@/lib/time', time],
     ['@/lib/workout-days', days],
     ['@/lib/set-load', setLoad],
-    ['@/lib/require-membership', { requireMembership: async () => null, requireAccount: async () => null }],
+    ['@/lib/require-membership', { requireMembership: async () => null, requireAccount: async () => null, requireNora: async () => null }],
     ['@/lib/request-auth', { clientForRequest: async () => client, currentUser: async () => ({ id: 'u-1', email: 'm@shape.test' }) }],
     ['../../../../lib/coach-trajectory.mjs', trajectory],
   ]);

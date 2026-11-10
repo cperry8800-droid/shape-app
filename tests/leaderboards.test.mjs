@@ -12,7 +12,7 @@
 //      that the rules stay written.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createRequire } from 'node:module';
@@ -625,45 +625,48 @@ test('the coach board ranks the score the coach Score page shows', () => {
   assert.match(board, /s\.day <= v_today - 7/);
 });
 
-// ── Free accounts see the board and are not on it (owner, 2026-11-10) ───────────────────────
-test('member board: a free or past-due account sees the board, is not on it, and is told why', async () => {
-  for (const [membership, reason] of [[{ isMember: false, pastDue: false }, 'free_account'], [{ isMember: false, pastDue: true }, 'past_due']]) {
-    // Before the migration the database may still rank them; the route drops their row anyway.
-    const client = fakeClient({
-      rpc: { shape_member_board: { data: [boardRow({ rank: 1 }), boardRow({ rank: 2, user_id: UID, is_me: true }), boardRow({ rank: 3 })], error: null } },
-      tables: { user_goals: ownRows({}, { profileVisibility: 'Public' }) },
-    });
-    const body = await (await (await loadRoute('src/app/api/leaderboard/route.ts', client, { id: UID }, membership)).GET(req('/api/leaderboard'))).json();
-    assert.equal(body.participant, false, reason);
-    assert.equal(body.hidden, reason);
-    assert.equal(body.me, null, 'no rank of their own');
-    assert.equal(body.entries.some((e) => e.isMe), false, 'and no row on the board');
-    assert.deepEqual(body.entries.map((e) => e.rank), [1, 3], 'everyone else is still shown');
+// ── Every account is ranked; the full board is the membership (owner, 2026-11-10, after Strava) ──
+test('member board: a free or past-due account is ranked, sees the top 10 and its own points, and no movement', async () => {
+  const many = Array.from({ length: 14 }, (_, i) => boardRow({ rank: i + 1, total: 14, prev_rank: i + 2 }));
+  for (const [membership, locked] of [[{ isMember: false, pastDue: false }, 'free_account'], [{ isMember: false, pastDue: true }, 'past_due']]) {
+    // Outside the top 10: their points, no rank.
+    const outside = many.map((r) => (r.rank === 13 ? { ...r, user_id: UID, is_me: true } : r));
+    const client = fakeClient({ rpc: { shape_member_board: { data: outside, error: null } }, tables: { user_goals: ownRows({}, { profileVisibility: 'Public' }) } });
+    const body = await (await (await loadRoute('src/app/api/leaderboard/route.ts', client, { id: UID }, membership)).GET(req('/api/leaderboard?limit=50'))).json();
+    assert.equal(body.fullBoard, false, locked);
+    assert.equal(body.locked, locked);
+    assert.deepEqual(body.entries.map((e) => e.rank), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], 'the top 10 only, whatever the limit asked');
+    assert.ok(body.entries.every((e) => e.prevRank === null && e.moved === null), 'no movement: history is paid');
+    assert.equal(body.me.rank, null, 'no exact rank outside the top');
+    assert.equal(body.me.inTop, false);
+    assert.equal(body.me.points, outside[12].points, 'their own points');
+    assert.equal(body.me.prevRank, null);
+    assert.equal(body.total, 14);
+    assert.equal(body.hidden, null, 'they are ranked, so their privacy switches apply');
+    // Inside the top 10: their place is on the board.
+    const inside = many.map((r) => (r.rank === 4 ? { ...r, user_id: UID, is_me: true } : r));
+    const c2 = fakeClient({ rpc: { shape_member_board: { data: inside, error: null } }, tables: { user_goals: ownRows({}, { profileVisibility: 'Public' }) } });
+    const b2 = await (await (await loadRoute('src/app/api/leaderboard/route.ts', c2, { id: UID }, membership)).GET(req('/api/leaderboard'))).json();
+    assert.equal(b2.me.rank, 4);
+    assert.equal(b2.me.inTop, true);
+    assert.equal(b2.entries.find((e) => e.isMe).rank, 4);
   }
-  const paid = fakeClient({ rpc: { shape_member_board: { data: [boardRow({ rank: 1, user_id: UID, is_me: true, total: 1 })], error: null } }, tables: { user_goals: ownRows({}, { profileVisibility: 'Public' }) } });
-  const body = await (await (await loadRoute('src/app/api/leaderboard/route.ts', paid)).GET(req('/api/leaderboard'))).json();
-  assert.equal(body.participant, true);
-  assert.equal(body.me.rank, 1);
-  // A membership read that failed says nothing about the caller; the board still answers.
-  const unread = fakeClient({ rpc: { shape_member_board: { data: [boardRow({ rank: 1, user_id: UID, is_me: true, total: 1 })], error: null } }, tables: { user_goals: ownRows({}, { profileVisibility: 'Public' }) } });
+  // A member: the full board, the exact rank and the movement.
+  const member = many.map((r) => (r.rank === 13 ? { ...r, user_id: UID, is_me: true } : r));
+  const paid = fakeClient({ rpc: { shape_member_board: { data: member, error: null } }, tables: { user_goals: ownRows({}, { profileVisibility: 'Public' }) } });
+  const body = await (await (await loadRoute('src/app/api/leaderboard/route.ts', paid)).GET(req('/api/leaderboard?limit=50'))).json();
+  assert.equal(body.fullBoard, true);
+  assert.equal(body.locked, null);
+  assert.equal(body.entries.length, 14);
+  assert.equal(body.me.rank, 13);
+  assert.equal(body.entries[0].prevRank, 2);
+  // A membership read that failed is the free board: nothing paid on a guess.
+  const unread = fakeClient({ rpc: { shape_member_board: { data: member, error: null } }, tables: { user_goals: ownRows({}, { profileVisibility: 'Public' }) } });
   const u = await (await (await loadRoute('src/app/api/leaderboard/route.ts', unread, { id: UID }, new Error('down'))).GET(req('/api/leaderboard'))).json();
-  assert.equal(u.participant, null);
-  assert.equal(u.me.rank, 1);
+  assert.equal(u.fullBoard, false);
+  assert.equal(u.me.rank, null);
 });
 
-test('the 2026-11-10 migration ranks paid members only: an active newest plan or a coach role; nothing else in the board changes', () => {
-  const sql = read('supabase-migrations/2026-11-10-leaderboard-members-ranked.sql').replace(/^\s*--.*$/gm, '');
-  assert.match(sql, /^begin;$/m);
-  assert.match(sql, /^commit;\s*$/m);
-  assert.match(sql, /participants as \(\s+select e\.uid\s+from earners e/);
-  assert.match(sql, /where newest\.status = 'active'/);
-  assert.doesNotMatch(sql.slice(sql.indexOf('participants as'), sql.indexOf('eligible as')), /trialing|past_due/, 'a trial or a failed card is not ranked');
-  assert.match(sql, /eligible as \(\s+select e\.uid\s+from participants e/);
-  assert.match(sql, /grant execute on function public\.shape_member_board\(text, text, integer\) to authenticated, service_role;/);
-  // The rest of the function is the 2026-10-18 definition, untouched.
-  const fn = (text) => text.replace(/^\s*--.*$/gm, '').match(/create or replace function public\.shape_member_board[\s\S]*?\n\$\$;/)[0];
-  const before = fn(read('supabase-migrations/2026-10-18-coach-access-past-due.sql'));
-  const after = fn(sql);
-  const cut = (t) => t.replace(/\s+participants as \([\s\S]*?\n {2}\),\n/, '\n').replace('from participants e', 'from earners e').replace(/\s+/g, ' ');
-  assert.equal(cut(after), cut(before));
+test('the board ranks every account that earned points: no membership migration narrows it', () => {
+  assert.equal(existsSync(join(ROOT, 'supabase-migrations/2026-11-10-leaderboard-members-ranked.sql')), false, 'free accounts fill the boards (owner, 2026-11-10)');
 });

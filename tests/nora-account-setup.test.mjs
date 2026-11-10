@@ -715,7 +715,7 @@ async function loadChat({ user = { id: ME, email: 'm@x' }, role = 'client', isMe
     ['@/lib/supportRequests.mjs', await import(join(ROOT, 'src/lib/supportRequests.mjs'))],
     ['@/lib/ai/adminLookup.mjs', await import(join(ROOT, 'src/lib/ai/adminLookup.mjs'))],
     ['@/lib/supabase/admin', { createAdminClient: () => { throw new Error('no service role'); } }],
-    ['@/lib/membership-core', { computeMembership: async () => ({ isMember, isCoach: ['trainer', 'nutritionist'].includes(role), isAdmin: false, isKnownMinor: false }) }],
+    ['@/lib/membership-core', { readNoraPreview: async () => null, computeMembership: async () => ({ isMember, isCoach: ['trainer', 'nutritionist'].includes(role), isAdmin: false, isKnownMinor: false }) }],
     ['@/lib/food-search-server', { searchFoodsServer: async () => ({ results: [], unavailable: true }) }],
     ['@/lib/ai', {
       hasOpenAIKey: () => true,

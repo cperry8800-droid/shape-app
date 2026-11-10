@@ -46,7 +46,7 @@ async function calendarRoute() {
       ['@/lib/calendar-activities', activities],
       ['@/lib/workout-days', workoutDays],
       ['@/lib/member-menus', memberMenus],
-      ['@/lib/require-membership', { requireMembership: async () => null, requireAccount: async () => null }],
+      ['@/lib/require-membership', { requireMembership: async () => null, requireAccount: async () => null, requireNora: async () => null }],
       ['@/lib/request-auth', { clientForRequest: async () => client, currentUser: async () => ({ id: userId }) }],
       ['@supabase/supabase-js', {}],
     ]),

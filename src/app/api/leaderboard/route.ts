@@ -5,10 +5,10 @@
 //        entries: [{ userId, name, avatarUrl, points, rank, prevRank, moved, tier, streak,
 //                    trainingDays, mealDays, isMe }],
 //        me: entry | null,               the caller's own row, ranked or not in this window
-//        hidden: null | 'off' | 'private' | 'team_unasked' | 'team_off' | 'free_account' | 'past_due',
-//                                        why OTHER members do not see the caller here; the last two:
-//                                        the caller is not ranked at all (a paid feature)
-//        participant: boolean | null,    may the caller be ranked (null: unread)
+//        hidden: null | 'off' | 'private' | 'team_unasked' | 'team_off',
+//                                        why OTHER members do not see the caller here
+//        fullBoard: boolean,             the whole board, your exact rank and movement (paid)
+//        locked: null | 'free_account' | 'past_due',   why it is not the full board
 //        privacy: { leaderboard, teamBoard } | null,   the two switches (null: unread)
 //        hasCoach?: boolean | null,      team only
 //        following?: number | null }     following only
@@ -84,19 +84,20 @@ export async function GET(request: Request) {
     // null: unread. The board still answers; only the reason it gives the caller is unknown.
     computeMembership(supabase, user.id, user.email ?? null, { emailConfirmed: !!user.email_confirmed_at, strict: true }).catch(() => null),
   ]);
-  // ⚠ ONLY A PAID MEMBER IS RANKED (owner, 2026-11-10: free accounts "can see leaderboards but
-  // dont get to participate"). The board itself ranks paid members only
-  // (2026-11-10-leaderboard-members-ranked.sql); the caller is told why they are not on it.
-  const participant = membership ? membership.isMember : null;
-  const notRanked = participant === false ? (membership?.pastDue ? 'past_due' : 'free_account') : null;
+  // ⚠ EVERY ACCOUNT IS RANKED; THE FULL BOARD IS THE MEMBERSHIP (owner, 2026-11-10, after Strava:
+  // free accounts are what fill the boards, so they compete; the full board, your exact rank and
+  // how you moved are paid). A free or past-due caller gets the top FREE_TOP, their own points,
+  // their rank only when it is in that top, and no movement. A membership that could not be read
+  // is the free board: nothing paid is shown on a guess.
+  const fullBoard = membership ? membership.isMember : false;
+  const locked: 'free_account' | 'past_due' | null = fullBoard ? null : membership?.pastDue ? 'past_due' : 'free_account';
 
   if (board.error) {
-    if (isMissingRelation(board.error)) return legacyBoard(supabase, user.id, scope, period, limit, own, notRanked);
+    if (isMissingRelation(board.error)) return legacyBoard(supabase, user.id, scope, period, limit, own, locked);
     return unavailable();
   }
 
-  // A caller who may not be ranked has no row, even before the migration has run.
-  const rows = ((board.data ?? []) as Array<Record<string, unknown>>).filter((r) => !(notRanked && r.is_me === true));
+  const rows = (board.data ?? []) as Array<Record<string, unknown>>;
   const all = rows.map(memberEntry);
   const mine = all.find((e) => e.isMe) ?? null;
   const total = rows.length ? Number(rows[0].total) || 0 : 0;
@@ -111,10 +112,12 @@ export async function GET(request: Request) {
     scope,
     period,
     total,
-    entries,
-    me: mine && !notRanked ? { ...mine, total } : null,
-    hidden: notRanked ?? (own ? hiddenReason(scope, own.privacy, own.visibility) : null),
-    participant,
+    ...(fullBoard
+      ? { entries, me: mine ? { ...mine, total } : null }
+      : freeBoard(all, mine, total)),
+    hidden: own ? hiddenReason(scope, own.privacy, own.visibility) : null,
+    fullBoard,
+    locked,
     privacy: own ? own.privacy : null,
   };
   if (scope === 'team') body.hasCoach = hasCoach === null ? null : hasCoach > 0;
@@ -122,12 +125,30 @@ export async function GET(request: Request) {
   return NextResponse.json(body);
 }
 
+/** How many places a free account sees at the top of a board (owner, 2026-11-10, after Strava). */
+const FREE_TOP = 10;
+
+type BoardEntry = { rank: number | null; isMe?: boolean; prevRank?: number | null; moved?: number | null; [k: string]: unknown };
+/**
+ * The free board: the top FREE_TOP places, with no movement on anyone's row (history is paid), and
+ * the caller's own row with their points but a rank only when it is in that top.
+ */
+function freeBoard(all: BoardEntry[], mine: BoardEntry | null, total: number) {
+  const still = (e: BoardEntry) => ({ ...e, prevRank: null, moved: null });
+  const entries = all.filter((e) => e.rank !== null && e.rank <= FREE_TOP).map(still);
+  const inTop = !!mine && mine.rank !== null && mine.rank <= FREE_TOP;
+  return {
+    entries,
+    me: mine ? { ...still(mine), rank: inTop ? mine.rank : null, inTop, total } : null,
+  };
+}
+
 // A database the leaderboard migration has not reached: the old board, Everyone only, names
 // shortened here. Following and the team board need the new function, so they say so.
 async function legacyBoard(
   supabase: SupabaseClient, userId: string, scope: Scope, period: Period, limit: number,
   own: { privacy: Privacy; visibility: unknown } | null,
-  notRanked: 'free_account' | 'past_due' | null = null,
+  locked: 'free_account' | 'past_due' | null = null,
 ) {
   if (scope !== 'everyone') return NextResponse.json({ error: 'This leaderboard is not switched on yet.' }, { status: 503 });
   const [{ data: rows, error }, { data: meRows, error: meError }] = await Promise.all([
@@ -136,7 +157,7 @@ async function legacyBoard(
   ]);
   if (error || meError) return unavailable();
   // The old board never checked visibility, so another member's photo and id stay off it here.
-  const entries = ((rows ?? []) as Array<{ user_id: string; full_name: string; avatar_url: string | null; points: number; rank: number }>).filter((r) => !(notRanked && r.user_id === userId)).map((r, i) => ({
+  const entries = ((rows ?? []) as Array<{ user_id: string; full_name: string; avatar_url: string | null; points: number; rank: number }>).map((r, i) => ({
     userId: r.user_id === userId ? r.user_id : `row-${i}`,
     name: shortName(r.full_name),
     avatarUrl: r.user_id === userId ? r.avatar_url : null,
@@ -153,15 +174,17 @@ async function legacyBoard(
   const meRow = Array.isArray(meRows) ? meRows[0] : null;
   const total = meRow ? Number(meRow.total) : entries.length;
   const listed = entries.find((e) => e.isMe);
-  const me = meRow && !notRanked
+  const me = meRow
     ? { ...(listed ?? { userId, name: 'You', avatarUrl: null, prevRank: null, moved: null, tier: null, streak: null, trainingDays: null, mealDays: null, isMe: true }),
         points: Number(meRow.points), rank: Number(meRow.rank), total }
     : null;
   return NextResponse.json({
-    scope, period, total, entries, me,
+    scope, period, total,
+    ...(locked ? freeBoard(entries, me, total) : { entries, me }),
     // The old board filters on the board switch only, not on a private profile.
-    hidden: notRanked ?? (own && !own.privacy.leaderboard ? 'off' : null),
-    participant: notRanked ? false : null,
+    hidden: own && !own.privacy.leaderboard ? 'off' : null,
+    fullBoard: !locked,
+    locked,
     privacy: own ? own.privacy : null,
     legacy: true,
   });

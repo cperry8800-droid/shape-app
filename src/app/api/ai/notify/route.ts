@@ -24,13 +24,13 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { candidatesFor, coachRecordId, decideAndClaim, deliver, readUserGoal, readNotifyState, writeNotifyState, writeUserGoal, loadPrefs, loadHabitContext, loadCoachThresholds, loadCoachContext, loadPushedToday, memberCopy, notifyKind, rosterRole, Notify, type Snapshot, type HabitContext } from '@/lib/ai/notify-core';
 import { releasePushClaim } from '@/lib/push-cap';
 import { isCoachRole } from '@/lib/roles.mjs';
-import { requireMembership } from '@/lib/require-membership';
+import { requireNora } from '@/lib/require-membership';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export async function POST(request: Request) {
-  const denied = await requireMembership(request);
+  const denied = await requireNora(request);
   if (denied) return denied;
   const actor = await resolveActor(request);
   if (!actor) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });

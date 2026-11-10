@@ -289,7 +289,10 @@ test('5: the station runs the door beside Icecast, inside the machine; Icecast n
 test('5: Stripe\'s word that a membership stopped paying drops the account\'s streams; the migration keeps the account only while it listens', () => {
   const hook = stripComments(read('src/app/api/stripe/webhook/route.ts'));
   assert.match(hook, /if \(!platformError && status !== 'active'\) \{\n\s+for \(const row of/);
-  assert.match(hook, /await markAccount\(admin, \{ userId: row\.client_id, now: Date\.now\(\), reason: 'membership' \}\);/);
+  assert.match(hook, /if \(!stillPaid\) await markAccount\(admin, \{ userId: row\.client_id, now: Date\.now\(\), reason: 'membership' \}\);/);
+  // Still paid another way (coaching includes the membership; a coach by role): left listening.
+  assert.match(hook, /admin\.from\('subscriptions'\)\.select\('id'\)\.eq\('client_id', row\.client_id\)\.eq\('status', 'active'\)\.limit\(1\)/);
+  assert.match(hook, /const stillPaid = \(coached\.data\?\.length \?\? 0\) > 0 \|\| roles\.some\(\(r\) => r === 'trainer' \|\| r === 'nutritionist' \|\| r === 'dietitian'\);/);
   const sql = read('supabase-migrations/2026-11-10-radio-own-account.sql').replace(/^\s*--.*$/gm, '');
   assert.match(sql, /^begin;$/m);
   assert.match(sql, /^commit;\s*$/m);

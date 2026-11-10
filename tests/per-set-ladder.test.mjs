@@ -379,7 +379,7 @@ test('the member\'s plan route delivers the ladder, and only a ladder-shaped one
     registry: new Map([
       ['next/server', nextServer],
       ['@/lib/request-auth', { clientForRequest: async () => null, currentUser: async () => null }],
-      ['@/lib/require-membership', { requireMembership: async () => null, requireAccount: async () => null }],
+      ['@/lib/require-membership', { requireMembership: async () => null, requireAccount: async () => null, requireNora: async () => null }],
     ]),
   });
   const deliver = (perSet) => route.mapExercises({ exercises: [{ name: 'X', sets: 3, reps: '8/6/4', perSet }] })[0];

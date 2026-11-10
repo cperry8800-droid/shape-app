@@ -58,7 +58,7 @@ async function readout({ model = null } = {}) {
         hasOpenAIKey: () => !!model,
         callAI: async (req) => { calls.push(req); return { ok: true, data: { output_text: JSON.stringify(model) } }; },
       }],
-      ['@/lib/require-membership', { requireMembership: async () => null, requireAccount: async () => null }],
+      ['@/lib/require-membership', { requireMembership: async () => null, requireAccount: async () => null, requireNora: async () => null }],
       ['@/lib/correlations', { computeCorrelations: () => CORRELATIONS, SNAPSHOT_SELECT: '*' }],
       ['@/lib/weekly-readout.mjs', readoutLib],
       ['@/lib/supabase/admin', { createAdminClient: () => { throw new Error('no service key in tests'); } }],

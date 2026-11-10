@@ -6,13 +6,13 @@
 
 import { NextResponse } from 'next/server';
 import { resolveActor } from '@/lib/ai/server';
-import { requireMembership } from '@/lib/require-membership';
+import { requireNora } from '@/lib/require-membership';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: Request) {
-  const denied = await requireMembership(request);
+  const denied = await requireNora(request);
   if (denied) return denied;
   const actor = await resolveActor(request);
   if (!actor) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });

@@ -376,7 +376,7 @@ async function routes() {
     // The captcha passes unless a test turns it off (`captcha: false`), the website form's
     // case with no token once TURNSTILE_SECRET_KEY is set.
     ['@/lib/turnstile', { verifyTurnstile: async () => state.captcha !== false }],
-    ['@/lib/require-membership', { requireMembership: async () => null, requireAccount: async () => null }],
+    ['@/lib/require-membership', { requireMembership: async () => null, requireAccount: async () => null, requireNora: async () => null }],
     ['@/lib/coach-application-emails', emails],
     // What the member hears after a confirm or a complete (client-onboarding review, fix 3b);
     // tests/session-emails.test.mjs runs the real one.

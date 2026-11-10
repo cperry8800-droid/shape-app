@@ -58,7 +58,7 @@ function calls(...items) { return { output: [{ type: 'reasoning', id: 'rs_1', su
 // `isCoach`/`isAdmin` default the way membership-core derives them (from the
 // role), so a test can also model a DUAL-ROLE account: primary role 'client',
 // coach by roles[] — which is what the route must read membership for.
-async function loadRoute({ user = { id: U, email: 'm@x' }, role = 'client', roles = null, isMember = true, isCoach = ['trainer', 'nutritionist', 'dietitian'].includes(role), isAdmin = false, hasKey = true, answers = [say('ok')], tables = {}, rpcs = {}, fail = [], rate = null, turnstile = null, adminDb = null } = {}) {
+async function loadRoute({ user = { id: U, email: 'm@x' }, role = 'client', roles = null, isMember = true, isCoach = ['trainer', 'nutritionist', 'dietitian'].includes(role), isAdmin = false, noraWeek = null, hasKey = true, answers = [say('ok')], tables = {}, rpcs = {}, fail = [], rate = null, turnstile = null, adminDb = null } = {}) {
   const sb = fakeSupabase({ tables, rpcs, fail });
   const calls_ = { ai: [], proposals: [], rate: [], turnstile: [] };
   // Nora's limits run for real over a stubbed counter and bot check, so a test reads
@@ -97,7 +97,7 @@ async function loadRoute({ user = { id: U, email: 'm@x' }, role = 'client', role
     ['@/lib/ai/adminLookup.mjs', adminLookup],
     // The help desk's service-role client: the test's own (adminDb), else one that refuses.
     ['@/lib/supabase/admin', { createAdminClient: () => { if (!adminDb) throw new Error('no service role'); return adminDb; } }],
-    ['@/lib/membership-core', { computeMembership: async () => ({ isMember, isCoach, isAdmin, isKnownMinor: false }) }],
+    ['@/lib/membership-core', { readNoraPreview: async () => noraWeek, computeMembership: async () => ({ isMember, isCoach, isAdmin, isKnownMinor: false }) }],
     ['@/lib/food-search-server', { searchFoodsServer: async () => ({ results: [], unavailable: true }) }],
     ['@/lib/ai', {
       hasOpenAIKey: () => hasKey,
@@ -1487,4 +1487,20 @@ test('STREAM: no status for a round that answers, and a plain request is never h
   const json = await (await plain.mod.POST(post(ask('habits?')))).json();
   assert.equal(json.reply, 'None yet.');
   assert.equal(json.status, undefined);
+});
+
+test('the free week of Nora: a free account in its week gets her lookups and the member tier, and is told when it ends; after it, the help desk (owner, 2026-11-10)', async () => {
+  const week = await loadRoute({ isMember: false, noraWeek: { startedAt: '2026-11-08T10:00:00Z', endsAt: '2026-11-15T10:00:00Z', active: true } });
+  await week.mod.POST(post(ask('what is on today')));
+  const w = week.calls.ai[0];
+  for (const n of READ_NAMES) assert.ok(toolNames(w.body).includes(n), `${n} during the free week`);
+  assert.ok(!toolNames(w.body).includes('find_client'), 'a free week is not a coach');
+  const sys = String(w.body.input?.[0]?.content ?? JSON.stringify(w.body));
+  assert.match(sys, /NORA FREE WEEK: [^]*ends 2026-11-15/);
+  assert.doesNotMatch(sys, /FREE ACCOUNT:/);
+  const after = await loadRoute({ isMember: false, noraWeek: { startedAt: '2026-10-01T10:00:00Z', endsAt: '2026-10-08T10:00:00Z', active: false } });
+  await after.mod.POST(post(ask('what is on today')));
+  const a = after.calls.ai[0];
+  for (const n of READ_NAMES) assert.ok(!toolNames(a.body).includes(n), `${n} after the week`);
+  assert.match(String(a.body.input?.[0]?.content ?? JSON.stringify(a.body)), /FREE ACCOUNT:[^]*free week of you as their assistant/);
 });

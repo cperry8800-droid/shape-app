@@ -151,7 +151,7 @@ test('8 · the activities route reports the points the ledger holds, not the for
         ['next/server', require_('next/server')],
         ['@/lib/request-auth', { currentUser: async () => ({ id: 'u-1' }), clientForRequest: async () => client }],
         ['@/lib/request-utils', { readJson: async (req) => ({ ok: true, data: await req.json() }), dbError: () => new Response('err', { status: 500 }) }],
-        ['@/lib/require-membership', { requireMembership: async () => null, requireAccount: async () => null }],
+        ['@/lib/require-membership', { requireMembership: async () => null, requireAccount: async () => null, requireNora: async () => null }],
       ]),
     })
     const res = await route.POST(new Request('https://shape.test/api/client/activities', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ activityType: 'run', durationMin: 100 }) }))

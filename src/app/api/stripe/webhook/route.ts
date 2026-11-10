@@ -974,7 +974,17 @@ export async function POST(request: Request) {
         if (!platformError && status !== 'active') {
           for (const row of (platformRows ?? []) as Array<{ client_id?: string | null }>) {
             if (!row.client_id) continue;
-            try { await markAccount(admin, { userId: row.client_id, now: Date.now(), reason: 'membership' }); } catch (err) {
+            try {
+              // ⚠ STILL PAID FOR ANOTHER WAY, STILL LISTENING: coaching includes the membership, and
+              // a coach is a member by role (membership-core.ts). Their stream is left alone.
+              const [coached, profile] = await Promise.all([
+                admin.from('subscriptions').select('id').eq('client_id', row.client_id).eq('status', 'active').limit(1),
+                admin.from('profiles').select('role, roles').eq('id', row.client_id).maybeSingle(),
+              ]);
+              const roles = [String(profile.data?.role ?? ''), ...(Array.isArray(profile.data?.roles) ? (profile.data.roles as string[]) : [])];
+              const stillPaid = (coached.data?.length ?? 0) > 0 || roles.some((r) => r === 'trainer' || r === 'nutritionist' || r === 'dietitian');
+              if (!stillPaid) await markAccount(admin, { userId: row.client_id, now: Date.now(), reason: 'membership' });
+            } catch (err) {
               console.warn('[stripe webhook] radio streams not marked to drop', { subscription: sub.id, error: err instanceof Error ? err.message : String(err) });
             }
           }

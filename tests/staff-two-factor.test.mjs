@@ -140,7 +140,7 @@ async function proxy(path, { user = null, aal = 'aal1' } = {}) {
         }),
       }],
       ['@supabase/supabase-js', { createClient: () => ({}) }],
-      ['@/lib/membership-core', { computeMembership: async () => ({ isMember: true, isKnownMinor: false }), GATE_STAMP_HEADER: 'x-shape-gate', GATE_STAMP_VALUE: 'ok' }],
+      ['@/lib/membership-core', { readNoraPreview: async () => null, computeMembership: async () => ({ isMember: true, isKnownMinor: false }), GATE_STAMP_HEADER: 'x-shape-gate', GATE_STAMP_VALUE: 'ok' }],
       ['@/lib/rate-limit', { checkRateLimit: async () => ({ allowed: true, remaining: 99, resetSeconds: 60, limit: 100 }), jwtSub: () => null }],
       ['@/lib/supabase/cookie-options', { applyShapeCookieOptions: (o) => o }],
       ['@/lib/staff-two-factor.mjs', tf],
