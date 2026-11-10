@@ -437,6 +437,13 @@ test('the bubble carries the app\'s places, and files each post where the app do
   const peers = { kind: 'post', channel: 'TRAINER', body: 'coaches only', role: 'Trainer' };
   assert.ok(at(peers, 'role', 'trainer'), 'a trainer misses their own room');
   assert.ok(!at(peers, 'role', 'client') && !at(peers, 'community', 'client') && !at(peers, 'wall', 'client'), 'a client reaches the trainers\' room');
+  // No role (a signed-in member whose profile could not be read): no role room anywhere.
+  assert.deepEqual(S.scope(null), ['COMMUNITY', 'SHAPE'], 'an unknown role gets a role room');
+  for (const ch of ['CLIENT', 'TRAINER', 'NUTRI']) {
+    const room = { kind: 'post', channel: ch, buckets: ['post'], photo: 'x.jpg', body: 'room', role: 'Member' };
+    assert.ok(!S.inPlace(room, 'role', null, S.scope(null)), `the ${ch} room shows with no role`);
+    assert.ok(!S.inPlace(room, 'wall', null, S.scope(null)), `a ${ch}-room photo reaches the Wall with no role`);
+  }
   // An older post with no channel files by its author's role, as the app's does.
   assert.ok(at({ kind: 'post', channel: '', body: 'hi', role: 'Client' }, 'role'), 'a pre-channel client post left the Client place');
   // Wall: activities and media, the app's activityFeed.
@@ -476,7 +483,9 @@ test('the feed keeps up: re-read on a post, on return, and on a timer, keeping w
   // ⚠ Codex P1 on #2671: the role is the account's, read with it, never the cache's guess.
   // A trainer's post in the role place was filed under CLIENT on a first visit.
   assert.match(F, /const pr = await sdb\.getProfile\(u\.id\);/, 'the feed no longer reads the account\'s role');
-  assert.match(F, /const myRole = \(signedIn === true && acctRole\) \|\| cachedRole \|\| "client";/, 'a signed-in member\'s role is the cache\'s guess again');
+  assert.match(F, /const myRole = signedIn === true \? \(acctRole \|\| null\) : \(cachedRole \|\| "client"\);/, 'a signed-in member\'s role is the cache\'s guess again');
+  // ⚠ Codex P1 on #2671 (second): no role, no role room, for reading as well as posting.
+  assert.match(F, /if \(roleUnsure\) \{\n\s+return \(/, 'the role place reads a guessed room while the role is unknown');
   assert.match(F, /const roleUnsure = place === "role" && signedIn === true && !acctRole;/, 'the role place no longer waits for the role');
   assert.match(F, /disabled=\{signedIn !== true \|\| roleUnsure\}/, 'New post in the role place opens before the role is known');
   assert.match(F, /window\.dispatchEvent\(new Event\("shape:viewer-role"\)\)/, 'the bubble is not told the role');

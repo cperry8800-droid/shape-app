@@ -789,6 +789,9 @@ function cfChannelOf(p) {
   return CF_KNOWN_CHANNELS.indexOf(ch) >= 0 ? ch : cfKindOfRole(p && p.role);
 }
 function cfFeedScope(role) {
+  // ⚠ NO ROLE, NO ROLE ROOM (Codex P1 on #2671): a signed-in member whose role could not be read
+  // reaches the Wall and Community only, never a guessed role's peer room.
+  if (role == null || role === "") return ["COMMUNITY", "SHAPE"];
   const mine = role === "trainer" ? "TRAINER" : role === "nutritionist" ? "NUTRI" : "CLIENT";
   return ["COMMUNITY", mine, "SHAPE"];
 }
@@ -835,7 +838,7 @@ function cfIsWallCard(p) {
 function cfInPlace(p, place, role, scope) {
   const ch = cfChannelOf(p);
   if (place === "community") return ch === "SHAPE" && !!p.body;
-  if (place === "role") return ch === cfRoleChannel(role) && !!p.body;
+  if (place === "role") return !!role && ch === cfRoleChannel(role) && !!p.body;
   const explicit = cfExplicitChannel(p);
   // ⚠ NOT A REPOST (Codex P2 on #2671): a repost is never a Wall card, in the app or here, and the
   // web's old reposts carry COMMUNITY too.
@@ -1159,12 +1162,17 @@ function CommunityFeed({ place = "wall" } = {}) {
   // role place waits for it.
   const cachedRole = (typeof window !== "undefined" && window.shapeViewerRole)
     ? String(window.shapeViewerRole() || "").toLowerCase() : "";
-  const myRole = (signedIn === true && acctRole) || cachedRole || "client";
+  // ⚠ SIGNED IN, THE ROLE IS THE ACCOUNT'S OR NONE (Codex P1 on #2671, again): a profile read that
+  // failed left the cache's guess (the last account's, or "client") choosing which peer room the
+  // role place read. Until the account's role is read, the role place shows nothing and the scope
+  // holds no role room. The cache stands in only for a visitor, and only for the label.
+  const myRole = signedIn === true ? (acctRole || null) : (cachedRole || "client");
+  const labelRole = myRole || cachedRole || "client";
   const roleUnsure = place === "role" && signedIn === true && !acctRole;
   // This place, in the app's words: where a post made here is filed, and what it is called.
   const postChannel = cfPlaceChannel(place, myRole);
   const placeName = place === "community" ? "Community"
-    : place === "role" ? (myRole === "trainer" ? "Trainer" : myRole === "nutritionist" ? "Nutritionist" : "Client")
+    : place === "role" ? (labelRole === "trainer" ? "Trainer" : labelRole === "nutritionist" ? "Nutritionist" : "Client")
     : "Wall";
   const meRoleLabel = myRole === "trainer" ? "Trainer" : myRole === "nutritionist" ? "Nutritionist" : "Member";
 
@@ -2059,6 +2067,16 @@ function CommunityFeed({ place = "wall" } = {}) {
                   <div style={{ fontFamily: serif, fontSize: 19, color: INK }}>The feed didn’t load.</div>
                   <div style={{ marginTop: 6, fontSize: 13, color: "var(--sh-ink2, #a09b94)" }}>Check your connection, then try again.</div>
                   <button type="button" className="cf-btn" onClick={() => { setLoaded(false); refreshFeed(); }} style={{ marginTop: 14 }}>Try again</button>
+                </div>
+              );
+            }
+            // The role place before the account's role is known: nothing, and it says why.
+            if (roleUnsure) {
+              return (
+                <div role="status" style={{ padding: "34px 8px", textAlign: "center" }}>
+                  <div style={{ fontFamily: serif, fontSize: 19, color: INK }}>Checking your account…</div>
+                  <div style={{ marginTop: 6, fontSize: 13, color: "var(--sh-ink2, #a09b94)" }}>This place shows the posts between people in your role, once Shape knows it.</div>
+                  <button type="button" className="cf-btn" onClick={refreshFeed} style={{ marginTop: 14 }}>Try again</button>
                 </div>
               );
             }
