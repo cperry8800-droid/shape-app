@@ -29,6 +29,10 @@ export function bsNavPeek() { return _stack[_stack.length - 1] || null; }
 export function bsNavCanPop() { return _stack.length > 0; }
 export function bsNavSize() { return _stack.length; }
 export function bsNavClear() { _stack = []; _announced = new Map(); }
+// The stack alone, for a shell taking over from another (bsGuardOnFirstUse): what the live pages announced
+// stays, since the other shell's pages cleared theirs when they unmounted, and this shell's pages may have
+// announced already (Programs on Workouts) before its first push (Codex P1 on #2687).
+export function bsNavDropStack() { _stack = []; }
 export function bsNavReplaceTop(loc) {
   if (!loc || typeof loc !== 'object') return false;
   if (_stack.length) _stack[_stack.length - 1] = loc; else _stack.push(loc);

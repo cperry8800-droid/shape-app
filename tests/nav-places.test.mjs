@@ -11,7 +11,7 @@ import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { bsLibraryPlace, bsLibraryPlaceSub, bsChatPlaceLoc, bsChatPlaceOf, bsProfileLoc, bsGoalsSub, bsGoalsView } from '../mobile-app/src/services/navPlaces.mjs';
-import { bsNavAnnounce, bsNavCompose, bsNavPush, bsNavPop, bsNavClear, bsNavSize, bsGuardOnFirstUse, bsGuardAfterPush } from '../mobile-app/src/services/navHistory.mjs';
+import { bsNavAnnounce, bsNavCompose, bsNavPush, bsNavPop, bsNavClear, bsNavSize, bsGuardOnFirstUse, bsGuardAfterPush, bsNavDropStack } from '../mobile-app/src/services/navHistory.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const read = (rel) => readFileSync(join(ROOT, rel), 'utf8');
@@ -206,18 +206,23 @@ test('Home\'s check-in page and its session preview open again on a Back', () =>
 test('a shell drops a stack another shell left, and adopts that shell\'s guard entry', () => {
   bsNavClear();
   bsNavPush({ tab: 'home' }); // the member app's Settings push, before the switch
+  // The coach app's Programs, opened from the tab bar and moved to Workouts, announced before any push.
+  bsNavAnnounce({ libPlace: 'workouts' }, 'library');
   assert.equal(bsGuardOnFirstUse(bsNavSize()), 'adopt');
-  bsNavClear(); // the coach app's first touch
+  bsNavDropStack(); // the coach app's first touch
   // Adopted, so its first push (empty → non-empty) asks to arm, which the shell skips: already armed.
   const prev = bsNavSize();
-  bsNavPush({ tab: 'programs' });
+  bsNavPush(bsNavCompose({ tab: 'programs', libPlace: '' }));
   assert.equal(bsGuardAfterPush(prev, bsNavSize()), 'arm');
+  // And it records where Programs is: the takeover dropped the other app's stack, not this one's announce
+  // (Codex P1 on #2687).
+  assert.deepEqual(bsNavPop(), { tab: 'programs', libPlace: 'workouts' });
   assert.equal(bsGuardOnFirstUse(0), null, 'a shell that starts clean adopts nothing');
   bsNavClear();
 });
 
 test('every way into the history takes the shell\'s first touch first', () => {
-  assert.match(SHELL, /const own = React\.useCallback\(\(\) => \{\n\s+if \(owned\.current\) return;\n\s+owned\.current = true;\n\s+if \(bsGuardOnFirstUse\(bsNavSize\(\)\) === 'adopt'\) \{ bsNavClear\(\); armed\.current = true; \}\n\s+\}, \[\]\);/);
+  assert.match(SHELL, /const own = React\.useCallback\(\(\) => \{\n\s+if \(owned\.current\) return;\n\s+owned\.current = true;\n\s+if \(bsGuardOnFirstUse\(bsNavSize\(\)\) === 'adopt'\) \{ bsNavDropStack\(\); armed\.current = true; \}\n\s+\}, \[\]\);/);
   assert.match(SHELL, /const navPush = React\.useCallback\(\(\) => \{\n\s+own\(\);\n\s+const prev = bsNavSize\(\);/);
   assert.match(SHELL, /const navBack = React\.useCallback\(\(fromPopstate = false\) => \{\n\s+own\(\);\n\s+if \(!bsNavCanPop\(\)\) return false;/);
   assert.match(SHELL, /const onPop = \(\) => \{\n\s+own\(\);\n\s+if \(!armed\.current\) return;/);

@@ -14,7 +14,7 @@ import React from 'react';
 import {
   bsNavPush, bsNavPop, bsNavCanPop, bsNavSize, bsNavClear, bsNavAnnounce,
   bsNavCompose, bsGuardAfterPush, bsGuardAfterPop, bsGuardAfterInAppPop,
-  bsGuardAfterClear, bsGuardOnFirstUse,
+  bsGuardAfterClear, bsGuardOnFirstUse, bsNavDropStack,
 } from '../services/navHistory.mjs';
 
 export function useBSNavHistory({ navLoc, navResolve }) {
@@ -26,12 +26,13 @@ export function useBSNavHistory({ navLoc, navResolve }) {
   const armed = React.useRef(false);
   // This shell's first touch of the history: a stack another shell left is dropped, and its guard entry
   // adopted (bsGuardOnFirstUse). Every entry point calls it first, so this shell's own pushes, which all
-  // come after, are never the ones dropped.
+  // come after, are never the ones dropped. Only the stack: what this shell's pages announced before it
+  // stays, so the first push records them (Codex P1 on #2687).
   const owned = React.useRef(false);
   const own = React.useCallback(() => {
     if (owned.current) return;
     owned.current = true;
-    if (bsGuardOnFirstUse(bsNavSize()) === 'adopt') { bsNavClear(); armed.current = true; }
+    if (bsGuardOnFirstUse(bsNavSize()) === 'adopt') { bsNavDropStack(); armed.current = true; }
   }, []);
 
   const navPush = React.useCallback(() => {
