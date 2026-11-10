@@ -1,10 +1,14 @@
 // Shared chat data for logged-in client pages.
-// Tabs: Team (your coaches), Clients (training partners), Trainers (other trainers),
-//       Nutritionists (other nutritionists), Channels, Help.
+// Threads: Team (your coaches), Friends, Channels, Help (Nora).
 //
-// The FEED tab is not here — `chatWidget.jsx` owns it, because two different
-// files supply this widget's tabs and adding it to one would give half the site
-// a Feed tab and the other half none.
+// The bubble is the app's Chat page (owner, 2026-11-10: "just have it match the app,
+// referring to whats available on the chat page"): Wall · Community · your role ·
+// Team · Channels. The three FEEDS are not here: `chatWidget.jsx` owns them, because
+// two different files supply this widget's tabs and adding them to one would give
+// half the site the feeds and the other half none. Team shows Coaches and Friends as
+// its two halves, as the app's Team does. The web-only peer DM tabs (Clients /
+// Trainers / Nutri sample threads) went: the app's role place is a feed of posts
+// between that role, which the widget's role tab now is.
 const clientChatTabs = [
   {
     id: "circle",
@@ -22,58 +26,6 @@ const clientChatTabs = [
         { who: "Rae", t: "Post-run fueling template is live in your Nutri tab.", time: "Tue 6:14 PM", me: false },
         { who: "You", t: "Saw it — trying the rice bowl tomorrow.", time: "Tue 7:02 PM", me: true },
         { who: "Rae", t: "30g whey + 60g carbs within 45 min. Recovery window matters.", time: "14m", me: false },
-      ]},
-    ],
-  },
-  {
-    id: "clients",
-    label: "Clients",
-    eyebrow: "TRAINING PARTNERS",
-    title: "Fellow clients",
-    threads: [
-      { who: "Marcus J.", role: "Strength block 3 · NYC", last: "Still on for 6am tomorrow? Bringing coffee.", time: "31m", unread: 2, messages: [
-        { who: "Marcus", t: "Hey — how's block 3 treating you?", time: "Yesterday 9:12 PM", me: false },
-        { who: "You", t: "Brutal but I'm loving it. You?", time: "Yesterday 9:40 PM", me: true },
-        { who: "Marcus", t: "Still on for 6am tomorrow?", time: "31m", me: false },
-        { who: "Marcus", t: "Bringing coffee.", time: "31m", me: false },
-      ]},
-      { who: "Priya S.", role: "Hybrid · Austin", last: "That rice bowl recipe is elite.", time: "2h", unread: 0, messages: [
-        { who: "Priya", t: "Did you try Rae's rice bowl?", time: "Mon 7:40 PM", me: false },
-        { who: "You", t: "Yeah last night — macros were spot on.", time: "Mon 8:02 PM", me: true },
-        { who: "Priya", t: "That rice bowl recipe is elite.", time: "2h", me: false },
-      ]},
-      { who: "Tomás R.", role: "Powerlifting · Chicago", last: "Form check on my squat?", time: "Yesterday", unread: 1, messages: [
-        { who: "Tomás", t: "Form check on my squat?", time: "Yesterday 4:18 PM", me: false },
-      ]},
-    ],
-  },
-  {
-    id: "trainers",
-    label: "Trainers",
-    eyebrow: "OTHER TRAINERS",
-    title: "Trainers on Shape",
-    threads: [
-      { who: "Jordan Reyes", role: "Olympic lifting specialist", last: "Happy to do a consult on your clean technique.", time: "3h", unread: 0, messages: [
-        { who: "You", t: "Hi — Maya suggested I reach out. Working on clean form.", time: "Tue 11:02 AM", me: true },
-        { who: "Jordan", t: "Happy to do a consult on your clean technique. 30 min, no charge.", time: "3h", me: false },
-      ]},
-      { who: "Alex Chen", role: "Mobility + recovery", last: "Here's a hip flow for before squat days.", time: "Yesterday", unread: 1, messages: [
-        { who: "Alex", t: "Here's a hip flow for before squat days. 8 min.", time: "Yesterday 10:14 AM", me: false },
-      ]},
-    ],
-  },
-  {
-    id: "nutritionists",
-    label: "Nutri",
-    eyebrow: "OTHER NUTRITIONISTS",
-    title: "Nutritionists on Shape",
-    threads: [
-      { who: "Dr. Sam Huang", role: "Endurance fueling", last: "Pre-long-run intake should be ~80g carbs.", time: "5h", unread: 0, messages: [
-        { who: "You", t: "Question on long run fueling — Rae suggested I ask you.", time: "Tue 2:40 PM", me: true },
-        { who: "Sam", t: "Pre-long-run intake should be ~80g carbs, 90 min out.", time: "5h", me: false },
-      ]},
-      { who: "Lena Torres", role: "Plant-based performance", last: "Happy to share a template if useful.", time: "2d", unread: 0, messages: [
-        { who: "Lena", t: "Happy to share a template if useful. Ping me.", time: "Sun 6:10 PM", me: false },
       ]},
     ],
   },
@@ -166,9 +118,9 @@ const clientChatTabs = [
     ],
   },
 ];
-// Role-aware: keep Circle / Friends / Community / Help for everyone, but show
-// only the viewer's own peer tab (Clients / Trainers / Nutri). The filter +
-// resolved role live on window (set by globalChatButton.js); default = client.
+// Role-aware: the filter + resolved role live on window (set by globalChatButton.js);
+// with the peer DM tabs gone it has nothing left to drop here, and the role decides
+// which role FEED the widget shows instead.
 const _shapeRoleAwareTabs = (typeof window !== "undefined" && window.__shapeFilterChatTabs)
   ? window.__shapeFilterChatTabs(clientChatTabs, window.shapeViewerRole ? window.shapeViewerRole() : "")
   : clientChatTabs;

@@ -116,8 +116,8 @@ test('the Feed tab is gated on the module being present', () => {
   // page. Absent module → no tab is a missing feature; ungated is a broken site.
   assert.match(WIDGET, /typeof window\.CommunityFeed === "function"/,
     'the widget no longer checks that the feed module is loaded');
-  assert.match(WIDGET, /feedReady \? \[FEED_TAB\]\.concat/,
-    'the Feed tab is no longer gated on feedReady');
+  assert.match(WIDGET, /feedReady \? FEED_TABS\.concat/,
+    'the feed places are no longer gated on feedReady');
 });
 
 test('the thread pane is hidden, never unmounted, while the Feed tab is up', () => {
@@ -277,7 +277,9 @@ test('every web-originated feed write carries the channel, reposts included', ()
       const ids = [...expr.matchAll(/\b([A-Za-z_$][\w$]*)\b/g)].map((x) => x[1])
         .filter((n) => !['Object', 'keys', 'length', 'undefined', 'null'].includes(n));
       assert.ok(ids.length, 'the metrics expression named nothing — the read stopped matching');
-      const stamped = ids.some((n) => b.includes(`${n}.channel = CF_POST_CHANNEL`));
+      // The composer stamps the PLACE's channel (owner, 2026-11-10: match the app's places);
+      // `postChannel` is asserted below to be derived from the place and the role.
+      const stamped = ids.some((n) => b.includes(`${n}.channel = CF_POST_CHANNEL`) || b.includes(`${n}.channel = postChannel`));
       assert.ok(stamped,
         `the metrics payload (${expr.slice(0, 80)}) is never stamped with the channel`);
     }
@@ -344,10 +346,10 @@ test('an optimistic post carries the chip it was posted from', () => {
   const s = stripComments(FEED);
   const insert = /setFeed\(prev => \[\{ id: optimisticId[^\]]*\]\);/.exec(s);
   assert.ok(insert, 'the optimistic insert no longer has the shape this reads');
-  assert.match(insert[0], /channel: CF_POST_CHANNEL/, 'the optimistic row does not carry its channel');
+  assert.match(insert[0], /channel: postChannel/, 'the optimistic row does not carry its channel');
   // AFTER the `...post` spread, or a composer that ever grows a channel key
   // silently outranks it.
-  assert.ok(insert[0].indexOf('...post') < insert[0].indexOf('channel: CF_POST_CHANNEL'),
+  assert.ok(insert[0].indexOf('...post') < insert[0].indexOf('channel: postChannel'),
     'channel is spread before ...post, so it can be overridden');
 });
 
@@ -366,18 +368,107 @@ test('posting is gated on a MEASURED signed-in, and a refused post rolls back', 
     'a network failure no longer rolls the optimistic row back');
 });
 
-test('the pre-Feed persisted chat state is migrated, not discarded', () => {
-  // ⚠ P1, and it is silent DATA LOSS. `threadsByTab` / `activeByTab` are
-  // positional, and the hydrate accepted a saved record only on an exact length
-  // match — so prepending the Feed tab made every existing member's record fail,
-  // get dropped, and be overwritten with defaults on their next keystroke.
+test('the persisted chat state is read back by tab id, and a record saved before is migrated', () => {
+  // ⚠ P1, and it is silent DATA LOSS. `threadsByTab` / `activeByTab` were
+  // positional, so each change to the tab list (the Feed tab, then the app's
+  // places on 2026-11-10) either dropped a member's record or filed it under the
+  // wrong tabs: coach threads under a feed, channels under Friends.
   const s = stripComments(WIDGET);
   assert.doesNotMatch(s, /saved\.threadsByTab\.length === tabs\.length/,
-    'the hydrate is back to an exact-length match, which discards every pre-Feed record');
-  assert.match(s, /arr\.length === tabs\.length - 1/, 'the hydrate no longer accepts the pre-Feed shape');
-  assert.match(s, /\[empty\]\.concat\(arr\)/, 'the pre-Feed record is not realigned onto the Feed tab');
-  // The migration is keyed on the Feed tab existing, so it must re-run if the
+    'the hydrate is back to an exact-length match, which discards every older record');
+  assert.match(s, /tabIds: tabs\.map\(\(t\) => t\.id\)/, 'the saved record no longer names its tabs');
+  assert.match(s, /const at = ids\.indexOf\(t\.id\)/, 'the hydrate no longer reads a record back by tab id');
+  // A record saved before names nothing: its ids are read back from its length.
+  const legacy = {};
+  new Function('S', `${lift(WIDGET, 'cwLegacyTabIds')}\nS.ids = cwLegacyTabIds;`)(legacy);
+  const len = (n) => legacy.ids(Array.from({ length: n }, () => []));
+  assert.deepEqual(len(8), ['feed', 'circle', 'clients', 'trainers', 'nutritionists', 'friends', 'community', 'support'], 'a visitor\'s record with the Feed tab');
+  assert.deepEqual(len(7), ['circle', 'clients', 'trainers', 'nutritionists', 'friends', 'community', 'support'], "a visitor's record from before the Feed tab");
+  const six = len(6), five = len(5);
+  assert.deepEqual([six[0], six[1], six[3], six[4], six[5]], ['feed', 'circle', 'friends', 'community', 'support'], "a member's record with the Feed tab");
+  assert.deepEqual([five[0], five[2], five[3], five[4]], ['circle', 'friends', 'community', 'support'], "a member's record from before the Feed tab");
+  assert.equal(len(3), null, 'an unknown shape is not guessed at');
+  // The migration is keyed on the feed tabs existing, so it must re-run if the
   // module lands late — otherwise it is decided on a tabs.length it never saw.
   // (`authTry` re-runs it to read /api/me again after a read that did not complete; Codex, #2391.)
   assert.match(s, /\}, \[tabs\.length, feedReady, authTry\]\);/, 'the hydrate effect no longer re-runs when the Feed tab appears');
+});
+
+// ── owner, 2026-11-10: "just have it match the app, referring to whats available on the chat
+// page", then "make sure the feeds are showing the same. Updating correctly" ──────────────
+test('the bubble carries the app\'s places, and files each post where the app does', () => {
+  const W = stripComments(WIDGET);
+  const places = [...W.matchAll(/\{\s*id: "(\w+)", label: "(\w+)", place: "(\w+)"/g)].map((m) => [m[1], m[3]]);
+  assert.deepEqual(places, [['feed', 'wall'], ['members', 'community'], ['peers', 'role']], 'the three feed places, in the app\'s order');
+  assert.match(W, /React\.createElement\(window\.CommunityFeed, \{ place: currentTab\.place \|\| "wall" \}\)/, 'the feed is not told its place');
+  // The web-only peer DM tabs are gone: the app's role place is a feed.
+  const threads = read('clientChatThreads.jsx');
+  for (const id of ['clients', 'trainers', 'nutritionists']) assert.doesNotMatch(threads, new RegExp(`id: "${id}"`), `the ${id} DM tab came back`);
+  // Team is Coaches + Friends, as the app's Team is.
+  assert.match(W, /const TEAM_IDS = \["circle", "friends"\];/);
+
+  // The filing rule, driven.
+  const F = stripComments(FEED);
+  const known = /const CF_KNOWN_CHANNELS = (\[[^\]]*\]);/.exec(F);
+  const post = /const CF_POST_CHANNEL = ("\w+");/.exec(F);
+  const kinds = /const CF_WALL_KINDS = (\[[^\]]*\]);/.exec(F);
+  const S = {};
+  new Function('S', `
+    const CF_KNOWN_CHANNELS = ${known[1]}; const CF_POST_CHANNEL = ${post[1]}; const CF_WALL_KINDS = ${kinds[1]};
+    ${lift(FEED, 'cfKindOfRole')} ${lift(FEED, 'cfChannelOf')} ${lift(FEED, 'cfFeedScope')}
+    ${lift(FEED, 'cfExplicitChannel')} ${lift(FEED, 'cfRoleChannel')} ${lift(FEED, 'cfPlaceChannel')}
+    ${lift(FEED, 'cfIsWallCard')} ${lift(FEED, 'cfInPlace')}
+    S.inPlace = cfInPlace; S.scope = cfFeedScope; S.postTo = cfPlaceChannel;
+  `)(S);
+  const at = (p, place, role = 'client') => S.inPlace(p, place, role, S.scope(role));
+  // Where a post made in each place is filed: the app's chips.
+  assert.equal(S.postTo('wall', 'client'), 'COMMUNITY');
+  assert.equal(S.postTo('community', 'trainer'), 'SHAPE');
+  assert.equal(S.postTo('role', 'nutritionist'), 'NUTRI');
+  assert.equal(S.postTo('role', 'client'), 'CLIENT');
+  assert.match(F, /const postChannel = cfPlaceChannel\(place, myRole\);/, 'the composer does not post to its place');
+  // Community: the members' posts, everyone.
+  const talk = { kind: 'post', channel: 'SHAPE', body: 'any tips?', role: 'Member' };
+  assert.ok(at(talk, 'community') && !at(talk, 'wall') && !at(talk, 'role'), 'a Community post is in Community only');
+  // Role: the viewer's own peers only.
+  const peers = { kind: 'post', channel: 'TRAINER', body: 'coaches only', role: 'Trainer' };
+  assert.ok(at(peers, 'role', 'trainer'), 'a trainer misses their own room');
+  assert.ok(!at(peers, 'role', 'client') && !at(peers, 'community', 'client') && !at(peers, 'wall', 'client'), 'a client reaches the trainers\' room');
+  // An older post with no channel files by its author's role, as the app's does.
+  assert.ok(at({ kind: 'post', channel: '', body: 'hi', role: 'Client' }, 'role'), 'a pre-channel client post left the Client place');
+  // Wall: activities and media, the app's activityFeed.
+  const run = { kind: 'post', channel: '', buckets: ['run'], body: '', role: 'Trainer' };
+  assert.ok(at(run, 'wall', 'client'), "a trainer's auto-posted run is not on a client's Wall, as it is in the app");
+  const photo = { kind: 'post', channel: 'SHAPE', buckets: ['post'], photo: 'x.jpg', body: 'view', role: 'Member' };
+  assert.ok(at(photo, 'wall') && at(photo, 'community'), 'a captioned photo is on the Wall and in Community, as in the app');
+  assert.ok(!at({ ...photo, repost: true }, 'wall'), 'a repost is a Wall card');
+  assert.ok(!at({ kind: 'post', channel: 'TRAINER', buckets: ['post'], photo: 'x.jpg', body: '', role: 'Trainer' }, 'wall', 'client'),
+    "a photo posted into the trainers' room reached a client's Wall");
+  assert.ok(at({ kind: 'post', channel: 'COMMUNITY', buckets: ['post'], body: 'from the web', role: 'Member' }, 'wall'),
+    'a text post made on the web Wall vanished from it');
+});
+
+test('the feed keeps up: re-read on a post, on return, and on a timer, keeping what is on screen', () => {
+  const F = stripComments(FEED);
+  assert.match(F, /\}, \[feedMode, refreshNonce\]\);/, 'the feed is read once per open again');
+  assert.match(F, /setInterval\(\(\) => \{ if \(visible\(\)\) refreshFeed\(\); \}, 45000\)/, 'no poll while in view');
+  assert.match(F, /addEventListener\("visibilitychange", back\)/, 'no re-read on return');
+  assert.match(F, /if \(!ok && loadedRef\.current\) return;/, 'a failed re-read blanks the feed');
+  // A post of yours: the stand-in is held through a re-read, then replaced by the real one.
+  assert.match(F, /prev\.filter\(\(x\) => x && x\.pending\)\.concat/, 'a re-read drops a post still on its way');
+  assert.match(F, /\{ \.\.\.x, pending: false \}[^\n]*\n\s+refreshFeed\(\);/, 'a landed post is not read back');
+  // The like and the replies are the server's, so the app and the site agree.
+  assert.match(F, /likedByMe: !!\(uid && Array\.isArray\(p\.likes\) && p\.likes\.some/, 'your like is assumed, not read');
+  assert.match(F, /React\.useState\(!!p\.likedByMe\)/, 'the heart starts empty');
+  assert.match(F, /commentList: Array\.isArray\(p\.comments\)/, 'the replies are not read');
+  // Signed out with nothing live: the app's sample, labelled; never mixed into live posts.
+  assert.match(F, /const sample = !signedIn && live\.length === 0;/, 'the sample is mixed into live posts');
+  assert.match(F, /\{showingSample && \(/, 'the sample is not labelled');
+  // A re-read re-renders the cards, never remounts them: an open reply and its draft survive.
+  assert.match(F, /const CfFeedCard = cardTypeRef\.current \|\| \(cardTypeRef\.current = FeedItem\);/, 'the card type is made anew each render');
+  assert.match(F, /visible\.map\(\(p, i\) => <CfFeedCard /, 'the list renders the per-render FeedItem');
+  // A retry after a failed first read can still replace the error.
+  assert.match(F, /loadedRef\.current = ok \|\| !signedIn;/, 'a failed read counts as loaded, so a retry is ignored');
+  // The member is found on every page, not only where /supabase.js is loaded.
+  assert.match(F, /window\.shapeEnsureDb \? await window\.shapeEnsureDb\(\)/, 'the feed assumes the client is loaded');
 });
