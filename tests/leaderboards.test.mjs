@@ -143,7 +143,13 @@ function fakeClient({ rpc = {}, tables = {}, onUpsert, onInsert, onUpdate } = {}
   const calls = [];
   const client = {
     calls,
-    rpc: async (name, args) => { calls.push(['rpc', name, args]); const h = rpc[name]; return typeof h === 'function' ? h(args) : (h || { data: null, error: { message: 'unscripted ' + name } }); },
+    rpc: async (name, args) => {
+      calls.push(['rpc', name, args]);
+      // shape_member_board_for answers what shape_member_board does for that viewer, as the
+      // database does, unless a test scripts it.
+      const h = rpc[name] ?? (name === 'shape_member_board_for' ? rpc.shape_member_board : undefined);
+      return typeof h === 'function' ? h(args) : (h || { data: null, error: { message: 'unscripted ' + name } });
+    },
     from(table) {
       const ops = [];
       const settle = (single) => {
@@ -176,7 +182,8 @@ function fakeClient({ rpc = {}, tables = {}, onUpsert, onInsert, onUpdate } = {}
   return client;
 }
 // `membership`: what computeMembership answers the caller (a paid member unless a test says).
-function loadRoute(file, client, user = { id: UID }, membership = { isMember: true, pastDue: false }) {
+// `server`: what createAdminClient gives (the same fake unless a test says; an Error: no service key).
+function loadRoute(file, client, user = { id: UID }, membership = { isMember: true, pastDue: false }, server = client) {
   return loadRealModule(join(ROOT, file), {
     typescript: true,
     registry: new Map([
@@ -186,7 +193,7 @@ function loadRoute(file, client, user = { id: UID }, membership = { isMember: tr
       ['@/lib/owned-provider', ownedProvider],
       ['@/lib/request-utils', requestUtils],
       ['@/lib/leaderboard.mjs', LB],
-      ['@/lib/supabase/admin', { createAdminClient: () => client }],
+      ['@/lib/supabase/admin', { createAdminClient: () => { if (server instanceof Error) throw server; return server; } }],
     ]),
   });
 }
@@ -208,7 +215,7 @@ test('member board: the scope, window and limit reach the database, and the body
   const res = await route.GET(req('/api/leaderboard?scope=following&period=week&limit=2'));
   assert.equal(res.status, 200);
   const body = await res.json();
-  assert.deepEqual(client.calls.find((c) => c[0] === 'rpc').slice(1), ['shape_member_board', { p_scope: 'following', p_period: 'week', p_limit: 2 }]);
+  assert.deepEqual(client.calls.find((c) => c[0] === 'rpc').slice(1), ['shape_member_board_for', { p_viewer: UID, p_scope: 'following', p_period: 'week', p_limit: 2 }]);
   assert.equal(body.total, 3);
   assert.deepEqual(body.entries.map((e) => e.rank), [1, 2], 'the limit dropped a row it should keep, or kept one past it');
   assert.equal(body.me.rank, 2);
@@ -682,4 +689,63 @@ test('the boards\' clients: an unknown membership offers no Join, on the website
 
 test('the board ranks every account that earned points: no membership migration narrows it', () => {
   assert.equal(existsSync(join(ROOT, 'supabase-migrations/2026-11-10-leaderboard-members-ranked.sql')), false, 'free accounts fill the boards (owner, 2026-11-10)');
+});
+
+// ⚠ THE FULL BOARD IS THE SERVER'S TO HAND OUT (Codex P1 on #2675). While shape_member_board was
+// executable by any signed-in account, a free one could ask the database for p_limit 200 and skip
+// the route's top-10 cut. The route now reads the board with the service role, for the account the
+// auth server verified, and the migration closes the function to signed-in callers.
+test('member board: the server reads it for the verified account; the session path is only for a database before the migration (Codex P1 on #2675)', async () => {
+  const many = Array.from({ length: 14 }, (_, i) => boardRow({ rank: i + 1, total: 14 }));
+  const settings = { user_goals: ownRows({}, { profileVisibility: 'Public' }) };
+  // The service role asks the wrapper, for the caller; the caller's own session asks no board.
+  const session = fakeClient({ rpc: { shape_member_board: { data: null, error: { code: '42501', message: 'permission denied for function shape_member_board' } } }, tables: settings });
+  const server = fakeClient({ rpc: { shape_member_board_for: { data: many, error: null } } });
+  const res = await (await loadRoute('src/app/api/leaderboard/route.ts', session, { id: UID }, { isMember: false, pastDue: false }, server)).GET(req('/api/leaderboard?scope=everyone&period=month&limit=200'));
+  assert.equal(res.status, 200);
+  const body = await res.json();
+  assert.deepEqual(server.calls.filter((c) => c[0] === 'rpc').map((c) => c.slice(1)), [['shape_member_board_for', { p_viewer: UID, p_scope: 'everyone', p_period: 'month', p_limit: 200 }]]);
+  assert.equal(session.calls.filter((c) => c[0] === 'rpc').length, 0, 'the caller\'s session asked the database for a board');
+  assert.deepEqual(body.entries.map((e) => e.rank), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], 'a free account still gets the top 10 only');
+  // A database before the migration: the session board, as before.
+  const before = fakeClient({ rpc: { shape_member_board: { data: many, error: null } }, tables: settings });
+  const old = fakeClient({ rpc: { shape_member_board_for: { data: null, error: { code: 'PGRST202', message: 'Could not find the function public.shape_member_board_for in the schema cache' } } } });
+  const r2 = await (await loadRoute('src/app/api/leaderboard/route.ts', before, { id: UID }, { isMember: true, pastDue: false }, old)).GET(req('/api/leaderboard'));
+  assert.equal(r2.status, 200);
+  assert.equal((await r2.json()).entries.length, 14);
+  assert.deepEqual(before.calls.find((c) => c[0] === 'rpc').slice(1), ['shape_member_board', { p_scope: 'everyone', p_period: 'month', p_limit: 50 }]);
+  // The wrapper's own fault is the board's: a 502, and no try on the session path.
+  const faulty = fakeClient({ rpc: { shape_member_board_for: { data: null, error: { code: '57014', message: 'canceling statement due to statement timeout' } } } });
+  const watched = fakeClient({ rpc: { shape_member_board: { data: many, error: null } }, tables: settings });
+  assert.equal((await (await loadRoute('src/app/api/leaderboard/route.ts', watched, { id: UID }, { isMember: true, pastDue: false }, faulty)).GET(req('/api/leaderboard'))).status, 502);
+  assert.equal(watched.calls.filter((c) => c[0] === 'rpc').length, 0, 'a fault fell through to the session path');
+  // No service key (a local build): the session board.
+  const local = fakeClient({ rpc: { shape_member_board: { data: many, error: null } }, tables: settings });
+  assert.equal((await (await loadRoute('src/app/api/leaderboard/route.ts', local, { id: UID }, { isMember: true, pastDue: false }, new Error('no service key'))).GET(req('/api/leaderboard'))).status, 200);
+});
+
+test('the member board migration: the wrapper is the server\'s alone and reads as the viewer, and signed-in callers lose the function (Codex P1 on #2675)', () => {
+  const sql = stripComments(read('supabase-migrations/2026-11-10-leaderboard-server-only.sql'));
+  assert.match(sql, /^begin;\s*set local lock_timeout = '10s';/m);
+  assert.match(sql, /commit;\s*$/);
+  const at = sql.indexOf('create or replace function public.shape_member_board_for(');
+  assert.ok(at >= 0, 'the wrapper is not created');
+  const fn = sql.slice(at, sql.indexOf('$$;', sql.indexOf('$$', at) + 2));
+  assert.match(fn, /p_viewer uuid,/);
+  assert.match(fn, /security definer\s+set search_path = public, pg_temp/);
+  assert.match(fn, /if p_viewer is null then\s+raise exception/, 'a null viewer reads as nobody');
+  assert.match(fn, /perform set_config\('request\.jwt\.claim\.sub', p_viewer::text, true\);/);
+  assert.match(fn, /perform set_config\('request\.jwt\.claims', json_build_object\('sub', p_viewer::text, 'role', 'authenticated'\)::text, true\);/);
+  assert.match(fn, /return query select \* from public\.shape_member_board\(p_scope, p_period, p_limit\);/);
+  assert.match(fn, /perform set_config\('request\.jwt\.claims', coalesce\(v_claims, ''\), true\);/, 'the caller\'s own settings are put back');
+  // The same columns as the board, so the route reads one shape either way.
+  const cols = (src) => /returns table \(([\s\S]*?)\)\s*language/.exec(src)[1].replace(/\s+/g, ' ').trim();
+  assert.equal(cols(fn), cols(fnBody('shape_member_board')));
+  assert.match(sql, /revoke all on function public\.shape_member_board_for\(uuid, text, text, integer\) from public, anon, authenticated;\s*grant execute on function public\.shape_member_board_for\(uuid, text, text, integer\) to service_role;/);
+  assert.match(sql, /revoke execute on function public\.shape_member_board\(text, text, integer\) from public, anon, authenticated;\s*grant execute on function public\.shape_member_board\(text, text, integer\) to service_role;/);
+  assert.match(sql, /has_function_privilege\('authenticated', 'public\.shape_member_board\(text, text, integer\)', 'EXECUTE'\)/, 'the run checks the board is closed');
+  // The route asks the wrapper with the service role, for the verified caller.
+  const route = stripComments(read('src/app/api/leaderboard/route.ts'));
+  assert.match(route, /server\.rpc\('shape_member_board_for', \{ p_viewer: userId, p_scope: scope, p_period: period, p_limit: limit \}\)/);
+  assert.match(route, /readBoard\(supabase, user\.id, scope, period, limit\)/);
 });

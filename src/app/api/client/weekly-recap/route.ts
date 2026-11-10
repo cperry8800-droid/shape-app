@@ -52,12 +52,18 @@ export async function GET(request: Request) {
         .gte('created_at', new Date(Math.min(week.startMs, now - RECAP_HISTORY_DAYS * DAY_MS)).toISOString());
       return (after ? q.gt('id', after) : q).order('id', { ascending: true }).limit(ROW_PAGE);
     }),
-    supabase.from('score_ledger')
-      .select('delta, earned_at, source_kind')
-      .eq('user_id', user.id)
-      .gte('earned_at', new Date(week.startMs).toISOString())
-      .lt('earned_at', new Date(week.endMs).toISOString())
-      .limit(2000),
+    // ⚠ The week's points, every page too (Codex P2 on #2675): one capped read stopped at the
+    // API's 1,000 rows without saying so, and the recap published the points and meal days of
+    // the rows it happened to get.
+    // capped-read-ok: one page of a cursor walk over every row (readAllById), not a cap.
+    readAllById<{ id: unknown; delta: number; earned_at: string; source_kind: string | null }>((after) => {
+      const q = supabase.from('score_ledger')
+        .select('id, delta, earned_at, source_kind')
+        .eq('user_id', user.id)
+        .gte('earned_at', new Date(week.startMs).toISOString())
+        .lt('earned_at', new Date(week.endMs).toISOString());
+      return (after ? q.gt('id', after) : q).order('id', { ascending: true }).limit(ROW_PAGE);
+    }),
   ]);
   if (sessions.error || ledger.error) return unavailable();
   const recap = buildRecap({ sessions: sessions.data ?? [], ledger: ledger.data ?? [], week, zone, now });

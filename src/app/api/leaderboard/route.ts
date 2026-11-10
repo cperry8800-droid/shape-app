@@ -19,6 +19,15 @@
 // fields the app builds before this one read (userId, name, avatarUrl, points, rank, isMe), and
 // `me` keeps { points, rank, total }.
 //
+// ⚠ THE SERVER READS THE BOARD, FOR THE CALLER (Codex P1 on #2675). The full board is the
+// membership's, and only this route knows every way to be paid (computeMembership: the admin
+// allow-list too). While shape_member_board was executable by any signed-in account, a free one
+// could call it through the REST API with p_limit 200 and skip the cut below. Since
+// 2026-11-10-leaderboard-server-only.sql it is the server's alone: the route asks
+// shape_member_board_for with the service role, for the account getUser() verified, and the board
+// reads exactly as for that account. A database before that migration is read as before, under the
+// caller's own session.
+//
 // Auth: cookie session OR Bearer token (mobile bridges either).
 
 import { NextResponse } from 'next/server';
@@ -26,6 +35,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { computeMembership } from '@/lib/membership-core';
 import { isMissingRelation } from '@/lib/owned-provider';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { OPEN_SUB_STATUSES } from '../../../lib/coach-trajectory.mjs';
 import {
   hiddenReason, memberEntry, parseLimit, parsePeriod, parseScope, readPrivacy, shortName,
@@ -72,7 +82,7 @@ export async function GET(request: Request) {
   const limit = parseLimit(url.searchParams.get('limit'));
 
   const [board, own, hasCoach, following, membership] = await Promise.all([
-    supabase.rpc('shape_member_board', { p_scope: scope, p_period: period, p_limit: limit }),
+    readBoard(supabase, user.id, scope, period, limit),
     readOwnSettings(supabase, user.id),
     scope === 'team'
       ? countOrNull(supabase.from('subscriptions').select('id', { count: 'exact', head: true })
@@ -129,6 +139,22 @@ export async function GET(request: Request) {
 }
 
 type BoardLock = 'free_account' | 'past_due' | 'unknown' | null;
+
+/**
+ * The board as `userId` sees it, read by the server (see the header). The service role asks
+ * shape_member_board_for; only a database without it yet (or no service key) reads the old way,
+ * under the caller's session. Any other error is the board's error, never a reason to try the
+ * session path, which the migration closes.
+ */
+async function readBoard(supabase: SupabaseClient, userId: string, scope: Scope, period: Period, limit: number) {
+  let server: SupabaseClient | null = null;
+  try { server = createAdminClient(); } catch { server = null; }
+  if (server) {
+    const read = await server.rpc('shape_member_board_for', { p_viewer: userId, p_scope: scope, p_period: period, p_limit: limit });
+    if (!read.error || !isMissingRelation(read.error)) return read;
+  }
+  return supabase.rpc('shape_member_board', { p_scope: scope, p_period: period, p_limit: limit });
+}
 
 /** How many places a free account sees at the top of a board (owner, 2026-11-10, after Strava). */
 const FREE_TOP = 10;

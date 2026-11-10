@@ -76,14 +76,14 @@ test('2: the figures are the member\'s own, and honest about what is not known',
   assert.ok(RECAP_HISTORY_DAYS > STREAK_MAX_DAYS, 'the read reaches back past the longest streak a recap counts');
 });
 
-async function recapRoute({ denied = null, user = { id: 'u1' }, fail = [], zone = NY, zoneFails = false } = {}) {
+async function recapRoute({ denied = null, user = { id: 'u1' }, fail = [], zone = NY, zoneFails = false, rows = null } = {}) {
   const reads = [];
   const supabase = {
     from: (table) => {
-      const q = { table, filters: [] };
+      const q = { table, ops: [] };
       const chain = new Proxy(q, { get: (t, k) => (k === 'then'
-        ? (res, rej) => Promise.resolve(fail.includes(table) ? { data: null, error: { message: 'down' } } : { data: table === 'workout_sessions' ? [{ status: 'completed', started_at: '2026-11-03T12:00:00Z', ended_at: '2026-11-03T12:40:00Z' }] : [{ delta: 30, earned_at: '2026-11-03T12:41:00Z', source_kind: 'workout' }], error: null }).then(res, rej)
-        : (...args) => { reads.push([table, k, ...args]); return chain; }) });
+        ? (res, rej) => Promise.resolve(fail.includes(table) ? { data: null, error: { message: 'down' } } : rows ? rows(table, q.ops) : { data: table === 'workout_sessions' ? [{ status: 'completed', started_at: '2026-11-03T12:00:00Z', ended_at: '2026-11-03T12:40:00Z' }] : [{ delta: 30, earned_at: '2026-11-03T12:41:00Z', source_kind: 'workout' }], error: null }).then(res, rej)
+        : (...args) => { reads.push([table, k, ...args]); q.ops.push([k, ...args]); return chain; }) });
       return chain;
     },
   };
@@ -125,6 +125,26 @@ test('3: the recap is free for any account, its own rows only, private; a failed
   assert.equal(lost.reads.length, 0);
   // An account with no zone of its own is a real answer: its week is UTC's.
   assert.equal((await (await recapRoute({ zone: null })).route.GET(new Request('https://shape.test/api/client/weekly-recap'))).status, 200);
+});
+
+test('3b: the week\'s points are read to the last page, never one capped read (Codex P2 on #2675)', async () => {
+  // 1,005 point rows in the week: a full page of 1,000, then 5 after the last id.
+  const pages = (table, ops) => {
+    if (table !== 'score_ledger') return { data: [], error: null };
+    const from = ops.find((o) => o[0] === 'gte');
+    const at = new Date(Date.parse(from[2]) + 3600000).toISOString();
+    const after = ops.find((o) => o[0] === 'gt');
+    const n = after ? 5 : 1000;
+    const base = after ? 1000 : 0;
+    return { data: Array.from({ length: n }, (_, i) => ({ id: String(base + i).padStart(6, '0'), delta: 1, earned_at: at, source_kind: 'habit_toggle' })), error: null };
+  };
+  const { route, reads } = await recapRoute({ rows: pages });
+  const res = await route.GET(new Request('https://shape.test/api/client/weekly-recap'));
+  assert.equal(res.status, 200);
+  assert.equal((await res.json()).points, 1005, 'the points stopped at the first page');
+  assert.ok(reads.some((r) => r[0] === 'score_ledger' && r[1] === 'order' && r[2] === 'id'), 'the points are paged by id');
+  assert.ok(reads.some((r) => r[0] === 'score_ledger' && r[1] === 'gt' && r[2] === 'id' && r[3] === '000999'), 'the second page starts after the first page\'s last id');
+  assert.ok(!reads.some((r) => r[0] === 'score_ledger' && r[1] === 'limit' && r[2] > 1000), 'a read past the API\'s ceiling');
 });
 
 test('4: /api/membership/plans reads the month and the year from Stripe; a wrong interval or a missing price is none', async () => {
