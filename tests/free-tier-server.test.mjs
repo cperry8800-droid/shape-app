@@ -91,12 +91,12 @@ test('1: coaching includes the membership: an active coach subscription pays, pa
 });
 
 // ── 2 ──────────────────────────────────────────────────────────────────────────────────────
-async function gate(path, { user = { id: UID, email: 'm@example.invalid', email_confirmed_at: 'x' }, profile = ADULT, status = null, week = null, fail = [], missing = [] } = {}) {
+async function gate(path, { user = { id: UID, email: 'm@example.invalid', email_confirmed_at: 'x' }, profile = ADULT, status = null, week = null, fail = [], missing = [], coached = false } = {}) {
   const mw = await loadRealModule(join(ROOT, 'src/lib/supabase/middleware.ts'), {
     typescript: true,
     registry: new Map([
       ['next/server', nextServer],
-      ['@supabase/ssr', { createServerClient: () => ({ auth: { getUser: async () => ({ data: { user } }) }, ...client({ profile, status, week, fail, missing }) }) }],
+      ['@supabase/ssr', { createServerClient: () => ({ auth: { getUser: async () => ({ data: { user } }) }, ...client({ profile, status, week, fail, missing, coached }) }) }],
       ['@supabase/supabase-js', { createClient: () => ({}) }],
       ['@/lib/membership-core', core],
       ['@/lib/rate-limit', { checkRateLimit: async () => ({ allowed: true, remaining: 99, resetSeconds: 60, limit: 100 }), jwtSub: () => null }],
@@ -144,12 +144,12 @@ test('2: a member and a coach pass the paid paths, stamped as a member; signed o
 });
 
 // ── 3 ──────────────────────────────────────────────────────────────────────────────────────
-async function guards({ user = { id: UID, email: 'm@example.invalid', email_confirmed_at: 'x' }, profile = ADULT, status = null, week = null, fail = [], missing = [] } = {}) {
+async function guards({ user = { id: UID, email: 'm@example.invalid', email_confirmed_at: 'x' }, profile = ADULT, status = null, week = null, fail = [], missing = [], coached = false } = {}) {
   return loadRealModule(join(ROOT, 'src/lib/require-membership.ts'), {
     typescript: true,
     registry: new Map([
       ['next/server', nextServer],
-      ['@/lib/request-auth', { currentUser: async () => user, clientForRequest: async () => client({ profile, status, week, fail, missing }) }],
+      ['@/lib/request-auth', { currentUser: async () => user, clientForRequest: async () => client({ profile, status, week, fail, missing, coached }) }],
       ['@/lib/membership-core', core],
     ]),
   });
@@ -303,6 +303,31 @@ test('free week: a week that could not be read is no 402: the gate stamps nothin
   // The read itself: a failure throws, a missing table is none.
   await assert.rejects(core.readNoraPreview(client({ fail: ['nora_previews'] }), UID), (e) => /nora_previews/.test(e?.message));
   assert.equal(await core.readNoraPreview(client({ missing: ['nora_previews'] }), UID), null);
+});
+
+// ⚠ A FAILED READ OF WHAT PAYS IS A FAULT IN THE GUARDS, NEVER A CONFIRMED 402 (Codex P2 on #2675).
+// Supabase answers a failed read with { error }, not a throw, so the guards' fail-open catch never
+// ran and a coached or $5 member was refused for as long as the read failed. strictPaid throws it;
+// a failed profile read still refuses (the 18+ gate never opens on a fault).
+test('guards: a failed read of the plan or the coaching is no 402; a failed profile read still refuses', async () => {
+  // A member by coaching alone whose coaching read fails, and a $5 member whose plan read fails.
+  for (const who of [{ coached: true, fail: ['subscriptions'] }, { status: 'active', fail: ['platform_subscriptions'] }]) {
+    const fail = who.fail;
+    for (const p of [...PAID_PATHS, ...NORA_PATHS]) {
+      const r = await gate(p, who);
+      assert.equal(r.status, 200, `${p} with ${fail}: the gate refused a member it could not read`);
+      assert.equal(r.stamp, null, `${p}: an unread member is stamped as something`);
+    }
+    const g = await guards(who);
+    assert.equal(await g.requireMembership(stamped(null)), null, `requireMembership refused on ${fail}`);
+    assert.equal(await g.requireNora(stamped(null)), null, `requireNora refused on ${fail}`);
+  }
+  // Read, they decide as before: coaching pays, a free account is refused.
+  assert.equal((await gate(PAID_PATHS[0], { coached: true })).stamp, 'member');
+  assert.equal((await gate(PAID_PATHS[0])).code, 'membership_required');
+  // The age rule is not a fault path: a profile that could not be read is refused as a minor would be.
+  assert.equal((await gate(PAID_PATHS[0], { status: 'active', fail: ['profiles'] })).status, 403);
+  assert.equal((await (await guards({ status: 'active', fail: ['profiles'] })).requireMembership(stamped(null))).status, 403);
 });
 
 test('free week: /api/me/membership says whether Nora is on, and the week itself', async () => {

@@ -158,9 +158,16 @@ export async function kicksFor(db, { boot, now, mayListen }) {
     else await markAccount(db, { userId, now, reason: 'membership' });
   }
 
+  // ⚠ ONLY THE ONES DUE, OLDEST FIRST, BEFORE THE LIMIT (Codex P2 on #2675). The batch was the
+  // first KICK_BATCH marked rows in no order, filtered for the retry wait afterwards: with more
+  // marked than that, the same rows filled every batch while they waited, and the rest were never
+  // handed to the door before their records were given up. The wait is in the query now, and the
+  // batch is the longest-waiting drops.
   const retry = iso(now - KICK_RETRY_SEC * 1000);
   const { data: marked, error: markErr } = await db.from(CONNECTIONS).select('client, kicked_at')
-    .eq('boot', boot).not('kick_requested_at', 'is', null).limit(KICK_BATCH);
+    .eq('boot', boot).not('kick_requested_at', 'is', null)
+    .or(`kicked_at.is.null,kicked_at.lt."${retry}"`)
+    .order('kick_requested_at', { ascending: true }).limit(KICK_BATCH);
   if (markErr) return { ok: false, error: 'read_failed' };
   const clients = (marked ?? [])
     .filter((r) => !r.kicked_at || String(r.kicked_at) < retry)

@@ -98,7 +98,7 @@ export async function markApplicationInReview(formData: FormData): Promise<void>
 
   const { data: application, error: appError } = await admin
     .from('provider_applications')
-    .select('status, admin_review')
+    .select('status, admin_review, updated_at')
     .eq('id', applicationId)
     .single();
   if (appError) throw reviewWriteError(appError);
@@ -108,7 +108,16 @@ export async function markApplicationInReview(formData: FormData): Promise<void>
   // ⚠ REOPENING WITHDRAWS AN APPROVAL WAITING FOR ITS ACCOUNT'S CONFIRM. Left in place, the account
   // could still confirm an application the reviewer had taken back; Approve again sends a new one.
   const review = asRecord(application?.admin_review);
-  const { error } = await admin
+  // ⚠ NOT WHILE AN APPROVAL IS SETTING THE COACH UP, AND ONLY OVER THE VERSION READ (Codex P1 on
+  // #2675), as Reject. Reopening writes the review back without its waiting confirmation; an Approve
+  // or the applicant's Confirm that claimed the application after this read lost its claim to that
+  // write, and a reject could then pass under the provisioning. A live claim refuses the reopen,
+  // and the write is a compare-and-set on `updated_at`, so a claim written since matches nothing.
+  const claimAt = Date.parse(String(asRecord(review.approval_claim).at ?? ''));
+  if (Number.isFinite(claimAt) && Date.now() - claimAt < APPROVAL_CLAIM_MS) backToReview({ notice: 'reopen_approval_in_progress' });
+  const readAt = (application as { updated_at?: string | null } | null)?.updated_at;
+  if (!readAt) backToReview({ notice: 'already_decided' });
+  const { data: changed, error } = await admin
     .from('provider_applications')
     .update({
       status: 'in_review',
@@ -118,8 +127,11 @@ export async function markApplicationInReview(formData: FormData): Promise<void>
       ...(pendingConfirmation({ admin_review: review }) ? { admin_review: { ...review, pending_confirmation: null } } : {}),
     })
     .eq('id', applicationId)
-    .neq('status', 'approved');
+    .eq('updated_at', readAt)
+    .neq('status', 'approved')
+    .select('id');
   if (error) throw error;
+  if (!changed?.length) backToReview({ notice: 'already_decided' });
 
   revalidatePath(PAGE);
   backToReview({ updated: 'in_review' });

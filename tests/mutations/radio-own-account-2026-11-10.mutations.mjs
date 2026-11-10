@@ -128,6 +128,13 @@ export default {
     { name: "r8: a refused listener's connection stays", file: STREAMS,
       find: "    try { await db.from(CONNECTIONS).delete().eq('boot', boot).eq('client', client); } catch { /* the station's next start clears it */ }\n",
       replace: "" },
+    // Codex P2 on #2675: the batch is the drops due, longest-waiting first, before the limit.
+    { name: "r10: the batch is limited before the retry wait", file: STREAMS,
+      find: "    .or(`kicked_at.is.null,kicked_at.lt.\"${retry}\"`)\n",
+      replace: "" },
+    { name: "r10: the batch takes the drops in no order", file: STREAMS,
+      find: "    .order('kick_requested_at', { ascending: true }).limit(KICK_BATCH);",
+      replace: "    .limit(KICK_BATCH);" },
     { name: "the door has no admin password", file: COMPOSE,
       find: "      ICECAST_ADMIN_PASSWORD: ${ICECAST_ADMIN_PASSWORD:?set it in .env}\n      ICECAST_URL: http://icecast:8000",
       replace: "      ICECAST_URL: http://icecast:8000" },

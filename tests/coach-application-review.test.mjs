@@ -1297,3 +1297,39 @@ test('a decision email is recorded into the application as it is now, never over
   assert.ok(record.filters.includes('updated_at=touched-confirm'), record.filters.join(' '));
   assert.deepEqual(Object.keys(record.payload), ['admin_review']);
 });
+
+// ⚠ "MARK IN REVIEW" NEVER WRITES OVER A LIVE APPROVAL CLAIM (Codex P1 on #2675), as Reject: it
+// wrote back the review it had read, so an Approve or the applicant's Confirm that claimed the
+// application after that read lost its claim, and a reject could then pass under the provisioning.
+test('Mark in review: a live approval claim refuses the reopen, and a claim landing after the read keeps its claim', async () => {
+  const live = { ...CLEAR_REVIEW, approval_claim: { at: new Date(Date.now() - 20_000).toISOString(), by: ADMIN.id } };
+  const held = fakeAdmin({ tables: { provider_applications: [application({ admin_review: live })] } });
+  const h = await loadActions(held);
+  assert.equal((await h.run('markApplicationInReview', { application_id: APP_ID })).searchParams.get('notice'), 'reopen_approval_in_progress');
+  assert.deepEqual(held.tables.provider_applications[0].admin_review.approval_claim, live.approval_claim);
+  assert.equal(stmts(held.calls, 'provider_applications', 'update').length, 0, 'a reopen was written under a live claim');
+  // The applicant's Confirm claims the application between the reopen's read and its write.
+  const waiting = { ...CLEAR_REVIEW, pending_confirmation: { user_id: COACH_UID, email: 'dana@example.invalid', at: '2026-11-10T00:00:00Z', by: ADMIN.id } };
+  let raced = false;
+  const race = fakeAdmin({
+    tables: { provider_applications: [application({ status: 'in_review', admin_review: waiting })] },
+    afterRead: ({ table, tables }) => {
+      if (raced || table !== 'provider_applications') return;
+      raced = true;
+      const row = tables.provider_applications[0];
+      row.admin_review = { ...row.admin_review, approval_claim: { at: new Date().toISOString(), by: COACH_UID } };
+      row.updated_at = '2026-11-10T21:00:00.000001+00:00';
+    },
+  });
+  const r = await loadActions(race);
+  assert.equal((await r.run('markApplicationInReview', { application_id: APP_ID })).searchParams.get('notice'), 'already_decided');
+  assert.ok(race.tables.provider_applications[0].admin_review.approval_claim, 'the reopen wiped the live claim');
+  assert.ok(race.tables.provider_applications[0].admin_review.pending_confirmation, 'the reopen wrote over the version it did not read');
+  // With no claim, the reopen goes through as before and withdraws the waiting confirmation.
+  const plain = fakeAdmin({ tables: { provider_applications: [application({ admin_review: waiting })] } });
+  const p = await loadActions(plain);
+  assert.equal((await p.run('markApplicationInReview', { application_id: APP_ID })).searchParams.get('updated'), 'in_review');
+  assert.equal(plain.tables.provider_applications[0].status, 'in_review');
+  assert.equal(plain.tables.provider_applications[0].admin_review.pending_confirmation, null);
+  assert.match(read('src/app/dashboard/applications/page.tsx'), /reopen_approval_in_progress:/);
+});

@@ -42,7 +42,8 @@ export async function requireMembership(request: Request): Promise<NextResponse 
     // ⚠ THE ADDRESS'S CONFIRMATION GOES IN. Left out, an admin with no coach role read as a
     // non-member here whenever the proxy's stamp was missing (computeMembership grants an admin
     // only a CONFIRMED allow-listed address).
-    const membership = await computeMembership(client, user.id, user.email ?? null, { emailConfirmed: !!user.email_confirmed_at });
+    // strictPaid: a failed read of what pays is a fault (fail open below), never a confirmed 402.
+    const membership = await computeMembership(client, user.id, user.email ?? null, { emailConfirmed: !!user.email_confirmed_at, strictPaid: true });
     const { isMember, isKnownMinor } = membership;
     // Same 18+ refusal as the proxy — this is the per-endpoint half, so it must
     // hold on its own when the proxy stamp is absent.
@@ -100,7 +101,7 @@ export async function requireNora(request: Request): Promise<NextResponse | null
     const user = await currentUser(request);
     if (!user) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
     const client = await clientForRequest(request);
-    const membership = await computeMembership(client, user.id, user.email ?? null, { emailConfirmed: !!user.email_confirmed_at });
+    const membership = await computeMembership(client, user.id, user.email ?? null, { emailConfirmed: !!user.email_confirmed_at, strictPaid: true });
     if (membership.isKnownMinor) {
       return NextResponse.json({ error: 'Shape is for adults 18 and over.', code: 'age_restricted' }, { status: 403 });
     }

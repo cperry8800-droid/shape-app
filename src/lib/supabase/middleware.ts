@@ -283,7 +283,8 @@ export async function updateSession(request: NextRequest) {
         gateClient = bClient;
       }
       if (!gateUser) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
-      const membership = await computeMembership(gateClient, gateUser.id, gateUser.email ?? null, { emailConfirmed: !!gateUser.email_confirmed_at });
+      // strictPaid: a failed read of what pays is a fault, to the fail-open catch below, never a 402.
+      const membership = await computeMembership(gateClient, gateUser.id, gateUser.email ?? null, { emailConfirmed: !!gateUser.email_confirmed_at, strictPaid: true });
       const { isMember, isKnownMinor } = membership;
       // Shape is 18+, no exceptions. Age is derived from `date_of_birth` at READ
       // time (`isMinorFromDob`), with the trigger-written `over_18` only as the

@@ -79,6 +79,18 @@ function fakeDb({ fail = [] } = {}) {
       lt(c, v) { st.filters.push((r) => r[c] != null && (typeof v === 'number' ? Number(r[c]) < v : String(r[c]) < String(v))); return q; },
       gt(c, v) { st.filters.push((r) => r[c] != null && (typeof v === 'number' ? Number(r[c]) > v : String(r[c]) > String(v))); return q; },
       in(c, vs) { st.filters.push((r) => vs.includes(r[c])); return q; },
+      // PostgREST's `or` over the two forms streams.mjs uses: `col.is.null` and `col.lt."value"`.
+      or(expr) {
+        const parts = expr.split(',').map((p) => {
+          const m = /^(\w+)\.(is|lt)\.(?:"([^"]*)"|(.*))$/.exec(p);
+          assert.ok(m, 'an or() part the fake does not know: ' + p);
+          const [, c, op, quoted, bare] = m;
+          const v = quoted ?? bare;
+          return op === 'is' ? (r) => (r[c] ?? null) === null && v === 'null' : (r) => r[c] != null && String(r[c]) < v;
+        });
+        st.filters.push((r) => parts.some((f) => f(r)));
+        return q;
+      },
       order(c) { st.order = c; return q; },
       limit(n) { st.limit = n; return q; },
       maybeSingle() { st.single = true; return q; },
@@ -440,4 +452,24 @@ test('5: the players start a fresh stream each time: the address goes on any sto
   const web = stripComments(read('public/newdesign/radioInstrument.jsx'));
   const stopped = web.slice(web.indexOf('const stopped = (bad) => {'), web.indexOf('};', web.indexOf('const stopped = (bad) => {')));
   assert.ok(stopped.indexOf('audio.removeAttribute("src")') < stopped.indexOf('if (!bad) return;'), 'a pause drops the address too');
+});
+
+// ⚠ NO DROP WAITS FOREVER BEHIND A FULL BATCH (Codex P2 on #2675): the batch was the first 200 marked
+// rows in no order, filtered for the retry wait afterwards, so past 200 the same rows filled every
+// batch and the rest were never handed to the door.
+test('1: past a full batch, the drops not yet handed over go next; the ones handed over wait their turn', async () => {
+  const db = fakeDb();
+  // Written newest first, so a batch in table order is not the longest-waiting one.
+  for (let c = 250; c >= 1; c -= 1) {
+    db.tables.radio_connections.push({ boot: BOOT, client: c, stream_id: 's', user_id: ANA, connected_at: iso(NOW), checked_at: iso(NOW),
+      kick_requested_at: iso(NOW + c), kick_reason: 'newer_stream', kicked_at: null });
+  }
+  const first = await kicksFor(db, { boot: BOOT, now: NOW + 1000, mayListen: async () => true });
+  assert.equal(first.clients.length, 200);
+  assert.deepEqual(first.clients.slice(0, 3), [1, 2, 3], 'the longest-waiting drops go first');
+  // Within the retry wait, the next ask hands over the other 50, not the same 200 again.
+  const next = await kicksFor(db, { boot: BOOT, now: NOW + 2000, mayListen: async () => true });
+  assert.deepEqual(next.clients, Array.from({ length: 50 }, (_, i) => 201 + i), 'the rest waited behind the first batch');
+  assert.deepEqual((await kicksFor(db, { boot: BOOT, now: NOW + 3000, mayListen: async () => true })).clients, [], 'all handed over, none due again yet');
+  assert.match(read('src/lib/radio/streams.mjs'), /\.or\(`kicked_at\.is\.null,kicked_at\.lt\."\$\{retry\}"`\)\n\s+\.order\('kick_requested_at', \{ ascending: true \}\)\.limit\(KICK_BATCH\);/);
 });

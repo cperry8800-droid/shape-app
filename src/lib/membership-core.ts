@@ -103,7 +103,12 @@ export async function computeMembership(
   // where it calls this); a caller that sells something on the answer, or shows the app's
   // paywall on it, passes strict so a failed read is unknown, never a non-member (Codex on
   // #2353: an existing member could open a second $5 checkout on a failed read).
-  opts: { emailConfirmed?: boolean; strict?: boolean } = {}
+  // `strictPaid`: only the reads that decide what pays (the platform plan and a coach subscription)
+  // throw; a failed profile read keeps refusing as a minor would (the 18+ gate never opens on a
+  // fault). For the enforcement guards, whose documented fault path is to fail open: without it a
+  // failed read was a confirmed 402 for a paying member, coached or on the $5 plan (Codex P2 on
+  // #2675), because the error resolves and their catch never runs.
+  opts: { emailConfirmed?: boolean; strict?: boolean; strictPaid?: boolean } = {}
 ): Promise<Membership> {
   const isAdmin = !!email && opts.emailConfirmed === true && adminEmails().includes(email.toLowerCase());
   // ⚠ THE PROFILE AND THE SUBSCRIPTION ARE READ TOGETHER. Neither depends on the other, and
@@ -154,13 +159,13 @@ export async function computeMembership(
   let includedWithCoach = false;
   if (!isMember && subRead) {
     const { data: sub, error: subError } = await subRead;
-    if (subError && opts.strict) throw subError;
+    if (subError && (opts.strict || opts.strictPaid)) throw subError;
     platformStatus = sub ? String((sub as { status?: unknown }).status ?? '') || null : null;
     isMember = !!platformStatus && PLATFORM_PERK_STATUSES.has(platformStatus);
   }
   if (!isMember && coachRead) {
     const { data: coached, error: coachError } = await coachRead;
-    if (coachError && opts.strict) throw coachError;
+    if (coachError && (opts.strict || opts.strictPaid)) throw coachError;
     includedWithCoach = Array.isArray(coached) && coached.length > 0;
     isMember = includedWithCoach;
   }

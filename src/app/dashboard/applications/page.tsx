@@ -76,6 +76,8 @@ const NOTICES: Record<string, string> = {
   already_decided: 'This application was decided a moment ago by another review. Nothing was changed.',
   rejected_meanwhile:
     'This application was rejected while this Approve was still setting the coach up, so it stays rejected and no approval email was sent. The coach role and listing this Approve set up were logged for taking down.',
+  reopen_approval_in_progress:
+    'An Approve on this application is still setting up the coach, so it was not marked in review. Reload in a minute: it will show as approved, or, if that approval failed, you can mark it in review then.',
   reject_approval_in_progress:
     'An Approve on this application is still setting up the coach, so it was not rejected. Reload in a minute: an approved application cannot be rejected here; if that approval failed, you can reject it then.',
   approval_in_progress:

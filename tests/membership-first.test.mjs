@@ -891,7 +891,9 @@ test('a membership read that comes back with an error is unknown, never "not a m
   assert.equal(me.status, 503, 'the app must not show a paying member the paywall on a failed read');
   const core = read('src/lib/membership-core.ts');
   assert.match(core, /if \(profileError && opts\.strict\) throw profileError;/);
-  assert.match(core, /if \(subError && opts\.strict\) throw subError;/);
+  // strict throws it, and so does strictPaid, the guards' fault path (Codex P2 on #2675).
+  assert.match(core, /if \(subError && \(opts\.strict \|\| opts\.strictPaid\)\) throw subError;/);
+  assert.match(core, /if \(coachError && \(opts\.strict \|\| opts\.strictPaid\)\) throw coachError;/);
   for (const rel of ['src/app/api/me/membership/route.ts', 'src/app/api/stripe/platform-checkout/route.ts', 'src/app/api/stripe/checkout-session/route.ts', 'src/lib/membership-detour.ts']) {
     assert.match(read(rel), /computeMembership\([^)]*strict: true \}\)/, `${rel} reads strictly`);
   }

@@ -223,6 +223,13 @@ const ADDED = [
   { name: "r8: the email record overwrites a newer write", file: APPROVAL,
     find: "        .eq('id', applicationId)\n        .eq('updated_at', current.updated_at)\n",
     replace: "        .eq('id', applicationId)\n" },
+  // Codex P1 on #2675: Mark in review never writes over a live approval claim.
+  { name: "r10: Mark in review writes under a live claim", file: ACTIONS,
+    find: "  if (Number.isFinite(claimAt) && Date.now() - claimAt < APPROVAL_CLAIM_MS) backToReview({ notice: 'reopen_approval_in_progress' });\n",
+    replace: "" },
+  { name: "r10: Mark in review writes over a version it did not read", file: ACTIONS,
+    find: "    .eq('updated_at', readAt)\n    .neq('status', 'approved')\n    .select('id');",
+    replace: "    .neq('status', 'approved')\n    .select('id');" },
   { name: "confirm: the page sets the coach up on GET", file: CONFIRM_PAGE,
     find: "import { confirmCoachApproval } from './actions';",
     replace: "import { confirmCoachApproval } from './actions';\nimport { provisionApproval } from '@/lib/coach-approval';" },
