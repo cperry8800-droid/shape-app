@@ -103,3 +103,45 @@ test('the two sample channels the owner removed stay removed', () => {
     assert.doesNotMatch(s, /sample-block3|sample-macros|Macro Mondays|# strength-block-3/, `${f} still carries them`);
   }
 });
+
+// The app's read (listChannels), lifted and run on a fake client: the picture's address is built
+// from the stored path, Shape HQ reads as read-only, and only a system-owned channel is Shape's.
+function liftAppRead(rows, uid = 'u1') {
+  const src = read('mobile-app/src/services/shapeBackend.js');
+  const from = src.indexOf('async function listChannels()');
+  const to = src.indexOf('async function setChannelPicture(');
+  assert.ok(from > 0 && to > from, 'the app\'s channel read moved');
+  const q = (data) => {
+    const b = { select: () => b, order: () => b, in: () => b, then: (ok, ko) => Promise.resolve({ data, error: null }).then(ok, ko) };
+    return b;
+  };
+  const supabase = {
+    from: (t) => q(t === 'channels' ? rows : []),
+    storage: { from: (bucket) => ({ getPublicUrl: (p) => ({ data: { publicUrl: `https://cdn.test/${bucket}/${p}` } }) }) },
+  };
+  const state = { user: { id: uid } };
+  return new Function('supabase', 'state', `${src.slice(from, to)}\nreturn listChannels();`)(supabase, state);
+}
+
+test('the app reads a channel\'s picture, read-only and owner as the website does', async () => {
+  const res = await liftAppRead([
+    { id: 'hq', name: 'Shape HQ', created_by: null, visibility: 'public', read_only: true },
+    { id: 'mine', name: 'Shape HQ', created_by: 'u1', visibility: 'public', picture_path: 'mine/a.jpg' },
+    { id: 'old', name: 'run club', created_by: 'u2', visibility: 'public' },
+  ]);
+  const by = Object.fromEntries(res.data.map((r) => [r.id, r]));
+  assert.equal(by.hq.readOnly, true, 'Shape HQ is open to posts in the app');
+  assert.equal(by.hq.official, true, 'the system-owned Shape HQ is not Shape\'s');
+  assert.equal(by.mine.official, false, 'a member\'s channel named Shape HQ is taken for Shape\'s');
+  assert.equal(by.mine.readOnly, false);
+  assert.equal(by.mine.picture, 'https://cdn.test/channel-pictures/mine/a.jpg', 'the address is not built from the stored path');
+  assert.equal(by.old.picture, null, 'a channel with no picture (or before the migration) shows one');
+  assert.equal(by.old.readOnly, false, 'a channel read before the migration is closed to posts');
+});
+
+test('the app: Shape HQ has no composer, and only a member channel\'s host may change its picture', () => {
+  assert.match(CLIENT, /\{thread\.readOnly \? \(\n\s*\/\/ A channel only Shape posts in \(Shape HQ\): no composer, and it says why\.\n\s*<div data-channel-readonly=""[^\n]*\n\s*\{tr\('feed:channels\.readOnly'[^\n]*\n\s*<\/div>\n\s*\) : \(\n\s*<BSMessageComposer /, 'the read-only note does not replace the composer');
+  assert.match(CLIENT, /const canSetPicture = !!\(thread\.channelId && thread\.isHost && !thread\.official && !String\(thread\.channelId\)\.startsWith\('sample'\)/, 'the picture change is not for the host of a member channel alone');
+  assert.match(CLIENT, /\{canSetPicture && \(/, 'the camera button is not gated on canSetPicture');
+  assert.match(CLIENT, /if \(!file \|\| !canSetPicture\) return;/, 'the upload is not gated on canSetPicture');
+});
