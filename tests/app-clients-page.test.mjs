@@ -1,11 +1,13 @@
 // The coach app's Clients page (BSProClients.jsx), trainer and nutritionist.
 //
-// Owner, 2026-11-04, of three looks drawn for it: "C for clients", after "reduce the coloring and simplify
-// UI more" and "every client should have a message icon like the top person does in clients so they can
-// easily message". BSProRosterView works out the roster, the counts, the views, the search, the phase
-// filter and the groups, owns every door, and hands them to the page, which draws them: who needs you first,
-// the four views, the search with the phase picker beside it, and every client in one list with Message on
-// each. Mounted in jsdom from the shipping code (the harness is app-roster-details.test.mjs's).
+// Owner, 2026-11-09, of the options drawn for it: A for clients (list first), after "the layout/design and
+// look for clients and programs page on app for coaches needs to be reviewed and changed"; before it,
+// "every client should have a message icon like the top person does in clients so they can easily
+// message". BSProRosterView works out the roster, the counts, the views, the search, the phase filter and
+// the groups, owns every door, and hands them to the page, which draws them: the roster's two figures under
+// the title, the four views (the count on Needs you is the one place it says how many need the coach), the
+// search with the phase picker in one field, and every client as a row with its reason in full and Message.
+// Mounted in jsdom from the shipping code (the harness is app-roster-details.test.mjs's).
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -79,7 +81,7 @@ const tabs = (host) => [...host.querySelectorAll('[role="tab"]')];
 const click = (el) => React.act(async () => { el.click(); });
 const button = (host, re) => [...host.querySelectorAll('button')].find((b) => re.test(b.textContent));
 
-test('the four views with their counts, Needs you first, and who needs you at the top', async () => {
+test('the four views with their counts, Needs you first, and the list straight under them', async () => {
   const m = await mount(rows());
   try {
     assert.ok(m.host.querySelector('[data-pro-clients]'), 'the page');
@@ -87,20 +89,26 @@ test('the four views with their counts, Needs you first, and who needs you at th
     const labels = tabs(m.host).map((b) => b.textContent.replace(/\s+/g, ''));
     assert.deepEqual(labels, ['Needsyou1', 'Ontrack2', 'Past2', 'All3']);
     assert.equal(tabs(m.host)[0].getAttribute('aria-selected'), 'true');
-    assert.match(m.host.querySelector('[data-pc-summary-words]').textContent, /^1 client needs you$/);
-    // Their face, with the standing's dot (the facet avatar the client module draws).
-    assert.deepEqual([...m.host.querySelectorAll('[data-pc-summary] [data-facet]')].map((f) => f.getAttribute('data-facet')), ['Ben Tal']);
-    assert.match(m.host.querySelector('[data-roster-group="red"] h2').textContent, /^Reach out today\s*1$/);
+    // Nothing is said twice: no card repeats the Needs you count or the faces of the rows under it.
+    assert.ok(!m.host.querySelector('[data-pc-summary]'), 'no summary card');
+    assert.equal(m.host.querySelectorAll('[data-facet="Ben Tal"]').length, 1, 'their face once, on their row');
+    // The group head, and over the figures' column what they measure, said once.
+    assert.match(m.host.querySelector('[data-roster-group="red"] h2').textContent, /^Reach out today\s*1\s*Adherence$/);
+    assert.equal(m.host.querySelectorAll('[data-pc-caption]').length, 1);
     // The reason, and the payment mark, on the client to reach out to.
     const ben = button(m.host, /Ben Tal/);
     assert.equal(ben.querySelector('[data-pc-reason]').textContent, 'No logs in 5 days');
+    // A reason is never cut to one line: it wraps to a second before it loses a word.
+    const reason = ben.querySelector('[data-pc-reason]');
+    assert.notEqual(reason.style.whiteSpace, 'nowrap');
+    assert.equal(reason.style.webkitLineClamp || reason.style.WebkitLineClamp, '2');
     assert.ok(ben.querySelector('[data-pay-retry]'), 'Payment retrying');
-    // The summary opens Needs you; On track and All follow their tabs.
+    // On track and All follow their tabs, and Needs you comes back.
     await click(tabs(m.host)[1]);
     assert.ok(m.host.querySelector('[data-roster-group="track"]'), 'On track');
     await click(tabs(m.host)[3]);
     assert.ok(m.host.querySelector('[data-roster-group="all"]'), 'All');
-    await click(m.host.querySelector('[data-pc-summary]'));
+    await click(tabs(m.host)[0]);
     assert.equal(m.host.querySelector('[role="tablist"]').getAttribute('data-roster-view'), 'needs');
   } finally { await m.close(); }
 });
@@ -169,7 +177,6 @@ test('the past roster lists past clients, with Message, and no current counts on
 test('loading reads "—", an error offers Retry, an empty roster offers Grow your roster', async () => {
   const m = await mount([], { status: 'loading', totalCount: 0, activeCount: 0 });
   try {
-    assert.equal(m.host.querySelector('[data-pc-summary-words]').textContent, '—');
     assert.match(m.host.querySelector('[data-pc-figure="avg"]').textContent, /^— /);
     assert.match(m.host.querySelector('[data-pc-figure="active"]').textContent, /^— /);
     assert.match(m.host.querySelector('[data-pc-status]').textContent, /Loading clients/);

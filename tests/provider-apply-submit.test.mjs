@@ -309,6 +309,25 @@ test('the app signed in stands in for the token: a verified account, at most fiv
   });
 });
 
+test('the sender\'s account is stamped by the server alone: a signed-in send carries it, a client-sent one is dropped (Codex on #2667)', async () => {
+  // GET /api/me/application shows an application only to the account stamped here, so a value from
+  // the form would put an application in someone else's Settings.
+  const victim = '99999999-9999-4999-8999-999999999999';
+  const member = { id: '55555555-5555-4555-8555-555555555555', email: 'ada@example.invalid' };
+  await withTurnstile(async () => {
+    // Signed out, with a forged id: no account on the row.
+    const anon = fakeAdmin();
+    const a = await (await applyRoute(anon)).post({ token: 'good-token', details: { account_id: victim, user_id: victim } });
+    assert.equal(a.status, 200, JSON.stringify(a.body));
+    assert.equal('account_id' in inserts(anon)[0].payload.details, false, 'a client-sent account id is dropped');
+    // Signed in, with a forged id: the sender's own account, never the forged one.
+    const signed = fakeAdmin();
+    const b = await (await applyRoute(signed, { user: member })).post({ bearer: 'session-token', details: { account_id: victim } });
+    assert.equal(b.status, 200, JSON.stringify(b.body));
+    assert.equal(inserts(signed)[0].payload.details.account_id, member.id);
+  });
+});
+
 test('a failed upload leaves no row and removes the files already stored, so a retry starts clean', async () => {
   const admin = fakeAdmin({ failUploadAt: 1 });
   const r = await applyRoute(admin);

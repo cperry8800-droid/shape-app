@@ -63,7 +63,8 @@ test('a tapped coach opens the coach profile, its full listing one tap away and 
   const src = readFileSync(SRC, 'utf8');
   const branch = src.slice(src.indexOf('  if (open) {'), src.indexOf('  if (open) {') + 2600);
   assert.match(branch, /const isCoach = openRole === 'trainer' \|\| openRole === 'nutritionist';\n\s+if \(isCoach && !openListing && window\.BSPublicProfile\) \{/);
-  assert.match(branch, /<Profile person=\{bsmCoachPerson\(open, coachPhoto\(open\), nutri\)\} onBack=\{closeOpen\} onListing=\{\(\) => setOpenListing\(true\)\}/);
+  // A row's Book intro hands the profile `openAt: 'book'`, so it opens at its open times (the Coaches tab).
+  assert.match(branch, /<Profile person=\{\{ \.\.\.bsmCoachPerson\(open, coachPhoto\(open\), nutri\), \.\.\.\(openIntro \? \{ openAt: 'book' \} : null\) \}\} onBack=\{closeOpen\} onListing=\{\(\) => setOpenListing\(true\)\}/);
   assert.match(branch, /goChat\(\(pp && pp\.who\) \|\| open\.name, nutri \? 'Nutritionist' : 'Trainer'\)/, 'Message goes to the coach in their role');
   assert.match(branch, /onProfile=\{isCoach \? \(\) => setOpenListing\(false\) : null\} onBack=\{isCoach \? \(\) => setOpenListing\(false\) : closeOpen\}/);
   assert.match(src, /data-full-profile="" onClick=\{\(\) => \(onProfile \? onProfile\(\) : setShowProfile\(true\)\)\}/, 'the listing\'s leader goes back to the profile it came from');

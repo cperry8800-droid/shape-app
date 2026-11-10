@@ -791,6 +791,7 @@
   "sound.toPlans": "до планів",
   "sound.tracksCount": "{count} треків",
   "sound.usedBy": "використовують {count}",
+  "sound.notAssigned": "ще не призначено",
   "sound.yourAppleFooter": "Ваш Apple Music",
   "sound.yourSpotifyFooter": "Ваш Spotify",
   "sound.yourWord": "Ваш",

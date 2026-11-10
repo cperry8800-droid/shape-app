@@ -428,6 +428,16 @@ function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = fal
     const y = sc.scrollTop + el.getBoundingClientRect().top - sc.getBoundingClientRect().top - (pinnedTop + 52);
     try { sc.scrollTo({ top: Math.max(0, y), behavior: 'smooth' }); } catch (e) { sc.scrollTop = Math.max(0, y); }
   };
+  // A directory row's "Book intro" (the member's Coaches tab, 2026-11-09) opens the page at Book, its
+  // open times, once the week has been read: the page's own way to book an intro.
+  const bookOnOpen = React.useRef(person.openAt === 'book');
+  React.useEffect(() => {
+    if (!bookOnOpen.current || avail.kind === 'loading') return undefined;
+    bookOnOpen.current = false;
+    // Not cleared on a re-run: the scroll is the one-shot, and a page gone by then has no scroller.
+    setTimeout(() => toCamp('day'), 80);
+    return undefined;
+  }, [avail.kind]);
   const monthly = listed && Number(provider.price) > 0 ? Number(provider.price) : null;
   const offer = listed && provider.monthly_offer && typeof provider.monthly_offer === 'object' ? provider.monthly_offer : null;
   const commerce = !listed ? null : (person.commerce || {

@@ -624,5 +624,18 @@
   "notifyPrefs.prepHour": "Heure du rappel",
   "notifyPrefs.prepHourSub": "La veille au soir, à votre heure",
   "notifyPrefs.prepHourQuiet": "Pendant vos heures calmes : dans l’app, sans push",
-  "notifyPrefs.prepHourFailed": "L’heure du rappel n’a pas été enregistrée. Réessayez."
+  "notifyPrefs.prepHourFailed": "L’heure du rappel n’a pas été enregistrée. Réessayez.",
+  "coachApply.title": "Coach sur Shape",
+  "coachApply.sub": "Postuler comme coach sportif ou nutritionniste",
+  "coachApply.inReview": "En cours d’examen",
+  "coachApply.backgroundCheck": "Vérification des antécédents",
+  "coachApply.approved": "Acceptée",
+  "coachApply.notApproved": "Non acceptée",
+  "coachApply.trainerApp": "Candidature coach sportif",
+  "coachApply.nutritionistApp": "Candidature nutritionniste",
+  "coachApply.sent": "envoyée le {date}",
+  "coachApply.usually": "en général 2–3 jours ouvrés",
+  "coachApply.submitted": "Envoyée",
+  "coachApply.unavailable": "Impossible de vérifier votre candidature · touchez pour réessayer",
+  "coachApply.checking": "Vérification de votre candidature…"
 }

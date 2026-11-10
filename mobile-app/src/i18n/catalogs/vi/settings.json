@@ -624,5 +624,18 @@
   "notifyPrefs.prepHour": "Giờ nhắc",
   "notifyPrefs.prepHourSub": "Tối hôm trước, theo giờ của bạn",
   "notifyPrefs.prepHourQuiet": "Trong giờ yên lặng: chỉ trong ứng dụng, không đẩy thông báo",
-  "notifyPrefs.prepHourFailed": "Chưa lưu được giờ nhắc. Thử lại."
+  "notifyPrefs.prepHourFailed": "Chưa lưu được giờ nhắc. Thử lại.",
+  "coachApply.title": "Huấn luyện trên Shape",
+  "coachApply.sub": "Ứng tuyển làm huấn luyện viên hoặc chuyên gia dinh dưỡng",
+  "coachApply.inReview": "Đang xét duyệt",
+  "coachApply.backgroundCheck": "Kiểm tra lý lịch",
+  "coachApply.approved": "Đã duyệt",
+  "coachApply.notApproved": "Không được duyệt",
+  "coachApply.trainerApp": "Hồ sơ huấn luyện viên",
+  "coachApply.nutritionistApp": "Hồ sơ chuyên gia dinh dưỡng",
+  "coachApply.sent": "đã gửi {date}",
+  "coachApply.usually": "thường 2–3 ngày làm việc",
+  "coachApply.submitted": "Đã gửi",
+  "coachApply.unavailable": "Không thể kiểm tra đơn của bạn · chạm để thử lại",
+  "coachApply.checking": "Đang kiểm tra đơn của bạn…"
 }

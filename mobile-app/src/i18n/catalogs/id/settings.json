@@ -624,5 +624,18 @@
   "notifyPrefs.prepHour": "Waktu pengingat",
   "notifyPrefs.prepHourSub": "Malam sebelumnya, waktu setempatmu",
   "notifyPrefs.prepHourQuiet": "Di jam tenangmu: di aplikasi, tanpa push",
-  "notifyPrefs.prepHourFailed": "Waktu pengingat tidak tersimpan. Coba lagi."
+  "notifyPrefs.prepHourFailed": "Waktu pengingat tidak tersimpan. Coba lagi.",
+  "coachApply.title": "Pelatih di Shape",
+  "coachApply.sub": "Daftar sebagai pelatih atau ahli gizi",
+  "coachApply.inReview": "Sedang ditinjau",
+  "coachApply.backgroundCheck": "Pemeriksaan latar belakang",
+  "coachApply.approved": "Disetujui",
+  "coachApply.notApproved": "Tidak disetujui",
+  "coachApply.trainerApp": "Lamaran pelatih",
+  "coachApply.nutritionistApp": "Lamaran ahli gizi",
+  "coachApply.sent": "dikirim {date}",
+  "coachApply.usually": "biasanya 2–3 hari kerja",
+  "coachApply.submitted": "Terkirim",
+  "coachApply.unavailable": "Tidak dapat memeriksa lamaran Anda · ketuk untuk mencoba lagi",
+  "coachApply.checking": "Memeriksa lamaran Anda…"
 }

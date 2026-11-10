@@ -684,13 +684,17 @@ test('Codex on #2639: Up next finds its client by id, never the first of two wit
   assert.equal(T.dashFindRecord(clients, 'Sam R.', 'no-such-id'), null);
   assert.equal(T.dashFindRecord(clients, 'Sam R.'), null, 'a shared name picks nobody');
   assert.equal(T.dashFindRecord(cast, 'Sam R.').profile.id, sams[0].profile.id);
-  // The day's next row carries its client's id through to the card.
-  const at = new Date(Date.now() + 30 * 60000);
-  const rows = [{ at, end: new Date(+at + 3600000), time: '10:00', status: 'confirmed', clientId: uid(99), who: 'Sam R.', sub: '60 min' }];
-  assert.equal(T.dashNextToday(rows, null, Date.now(), null).clientId, uid(99));
+  // The day's next row carries its client's id through to the card. ⚠ ON A FIXED CLOCK: a row half an
+  // hour after the real now is tomorrow's after 23:30, and Up next only takes today's, so the test
+  // failed every night in that half hour. Noon in a named zone is mid-day whatever the hour or the host.
+  const zone = 'UTC';
+  const now = Date.UTC(2026, 10, 10, 12, 0);
+  const at = new Date(now + 30 * 60000);
+  const rows = [{ at, end: new Date(+at + 3600000), time: '12:30', status: 'confirmed', clientId: uid(99), who: 'Sam R.', sub: '60 min' }];
+  assert.equal(T.dashNextToday(rows, null, now, zone).clientId, uid(99));
   const next = { ...rows[0], done: false, live: false };
   const opened = [];
-  const m = await mount(React.createElement(T.DashUpNextCard, { rows, state: { now: Date.now(), items: [next], nextIdx: 0, next }, clients, role: 'trainer', unit: 'session', zone: null, single: true,
+  const m = await mount(React.createElement(T.DashUpNextCard, { rows, state: { now, items: [next], nextIdx: 0, next }, clients, role: 'trainer', unit: 'session', zone, single: true,
     peek: { can: () => true, open: (id) => opened.push(id) } }));
   try {
     const link = m.div.querySelector('[data-dash-peek-name]');

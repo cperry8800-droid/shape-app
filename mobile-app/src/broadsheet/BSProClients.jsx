@@ -1,23 +1,28 @@
 import React from 'react';
 import { BS_CLEAN_HEAD, BS_CLEAN_SANS, BSCleanType } from './bsCleanType.jsx';
-import { bsMpTile } from './BSMemberBento.jsx';
 // ─── COACH CLIENTS ───────────────────────────────────────────────────────────────────────────────
-// The coach app's Clients page, trainer and nutritionist (owner, 2026-11-04, of three looks drawn for it:
-// "C for clients"; of every redesign: "keep designs simple … modern, appealing, easy to navigate, not
-// overwhelming, not analog … really alive"; of the member profile: "this looks better", "make sure you have
-// the facet avatar"; and of the first cut: "reduce the coloring and simplify UI more"). Top to bottom:
-//   · "Clients." and ＋ Add, the page's one primary action;
-//   · who needs you first: one card with their faces and how many, the other two figures under a hairline;
-//     it opens Needs you;
-//   · the four views (Needs you · On track · Past · All) as words with a thin bar under the picked one;
-//   · the search, with the phase (ALL · CUT · BUILD · PEAK) as one small picker beside it;
-//   · every client in one compact list: each group a small head inside it, each row the facet avatar, the
-//     name, the reason (or the phase and facts), the week's figure and a quiet Message.
-// The cards are the paper's own colour with soft depth (the profile's tile, lifted by a soft shadow). Colour
-// is only a signal: the dot on a client's facet avatar (coral today, amber this week, green for new, teal on
-// track), the week's figure, the picked view, and ＋ Add. Motion is a fade on arrival, a press that gives,
-// the picked view's bar sliding, and a faint light breathing behind today's faces; none of it runs under
-// reduced motion.
+// The coach app's Clients page, trainer and nutritionist: a list a coach can act on from the first screen
+// (owner, 2026-11-09: "the layout/design and look for clients and programs page on app for coaches needs to
+// be reviewed and changed"; before it, "keep designs simple … modern, appealing, easy to navigate, not
+// overwhelming", "reduce the coloring and simplify UI more", "make sure you have the facet avatar"). Top to
+// bottom:
+//   · "Clients." and ＋ Add, the page's one primary action, with the roster's two figures on one line under
+//     the title (how many are active, the week's average);
+//   · the four views (Needs you · On track · Past · All) as words with a thin bar under the picked one: the
+//     count on Needs you is the only place the page says how many need the coach;
+//   · the search and the phase filter as one slim field;
+//   · every client as a row on the page itself, under a small head per group: the facet avatar, the name,
+//     the reason in full (it wraps, it is never cut), the week's figure under a caption that names it once,
+//     and a quiet Message.
+// ⚠ NOTHING IS SAID TWICE. The page used to open on a card repeating the Needs you count and the faces of
+// the rows under it, which pushed the first client 59% of the way down a phone and left three clients in
+// view. A figure, a face or a count belongs to one place.
+// ⚠ A REASON IS NEVER CUT. It is what the coach acts on; the row grows to a second line before it loses a
+// word (`tests/app-clients-page.test.mjs`).
+// Colour is only a signal: the dot on a client's facet avatar (coral today, amber this week, green for new,
+// teal on track), the week's figure, the count on Needs you, and ＋ Add. Motion is a fade on arrival, a press
+// that gives, the picked view's bar sliding, and a faint light breathing behind today's faces; none of it
+// runs under reduced motion.
 // ⚠ EVERY CLIENT HAS A MESSAGE ICON (owner, 2026-11-04: "every client should have a message icon like the
 // top person does in clients so they can easily message"): a quiet round icon in a 44px target on every
 // row; the rest of the row opens the client's file.
@@ -74,6 +79,9 @@ const tealText = (t) => (t.isLight ? '#07706a' : '#34d6c5');
 // Words for a screen reader only (the week's measure after its figure).
 const srOnly = { position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)', whiteSpace: 'nowrap' };
 
+// A reason reads in full: two lines before it is cut.
+const clamp2 = { display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', overflowWrap: 'anywhere' };
+
 const MAST_TOP = () => (typeof window !== 'undefined' && window.BS_MAST_TOP_CSS) || 'max(44px, calc(env(safe-area-inset-top, 0px) + 12px), var(--bs-notch-floor, 0px))';
 
 // The motion, in one sheet. Every element's resting style is its finished state, so the page reads the
@@ -91,19 +99,6 @@ const PC_CSS = `
 }
 `;
 const stagger = (i, step = 40, cap = 8) => `${Math.min(i, cap) * step}ms`;
-
-// A card: the profile's quiet rounded tile (bsMpTile) in the paper's own colour, lifted off the page by a
-// soft layered shadow and a lit top edge. No colour of its own.
-function pcCard(t, { radius = 22 } = {}) {
-  const tile = bsMpTile(t, t.INK);
-  return {
-    ...tile, position: 'relative', overflow: 'hidden', borderRadius: radius,
-    background: t.isLight ? `linear-gradient(180deg, rgba(255,255,255,0.95), rgba(255,255,255,0.74)), ${t.PAPER}` : `linear-gradient(180deg, ${inkA(t, 0.075)}, ${inkA(t, 0.04)}), ${t.PAPER}`,
-    boxShadow: t.isLight
-      ? 'inset 0 1px 0 rgba(255,255,255,1), 0 1px 2px rgba(20,18,15,0.05), 0 14px 28px -20px rgba(20,18,15,0.38)'
-      : 'inset 0 1px 0 rgba(255,255,255,0.07), 0 2px 4px rgba(0,0,0,0.25), 0 16px 32px -20px rgba(0,0,0,0.9)',
-  };
-}
 
 // ── Pieces ───────────────────────────────────────────────────────────────────────────────────────
 
@@ -176,16 +171,19 @@ const ChatIcon = () => (
 const SearchIcon = ({ color }) => (
   <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.2" strokeLinecap="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5" /><path d="M16 16l4.5 4.5" /></svg>
 );
+const FilterIcon = ({ color }) => (
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.2" strokeLinecap="round" aria-hidden="true" style={{ flex: 'none' }}><path d="M4 7h16M7.5 12h9M10.5 17h3" /></svg>
+);
 const Chevron = ({ color, down = false }) => (
   <svg width={down ? 12 : 8} height={down ? 8 : 14} viewBox={down ? '0 0 12 8' : '0 0 8 14'} fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ flex: 'none' }}><path d={down ? 'M1.5 1.5l4.5 4.5 4.5-4.5' : 'M1.5 1.5l5 5.5-5 5.5'} /></svg>
 );
 
-// The Message door, quiet: an outlined round icon in a 44px target ("Message Priya Singh" to a reader).
+// The Message door, quiet: a soft round icon in a 44px target ("Message Priya Singh" to a reader).
 function PcMessage({ t, tr, c, model }) {
   return (
     <button type="button" data-pc-message="" data-pc-lift="" onClick={() => model.messageClient(c)} aria-label={tr('coach:roster.messageAria', { defaultValue: 'Message {name}', name: c.n })}
-      style={{ flex: 'none', width: 44, height: 44, padding: 0, border: 0, background: 'transparent', cursor: 'pointer', display: 'grid', placeItems: 'center', color: t.INK }}>
-      <span style={{ width: 38, height: 38, borderRadius: 99, display: 'grid', placeItems: 'center', boxSizing: 'border-box', border: `1px solid ${inkA(t, 0.14)}`, background: t.isLight ? 'rgba(255,255,255,0.9)' : inkA(t, 0.06), boxShadow: t.isLight ? '0 4px 10px -6px rgba(20,18,15,0.3)' : '0 4px 12px -6px rgba(0,0,0,0.8)' }}><ChatIcon /></span>
+      style={{ flex: 'none', width: 44, height: 44, padding: 0, border: 0, background: 'transparent', cursor: 'pointer', display: 'grid', placeItems: 'center', color: t.INK70 }}>
+      <span style={{ width: 34, height: 34, borderRadius: 99, display: 'grid', placeItems: 'center', background: inkA(t, t.isLight ? 0.055 : 0.08) }}><ChatIcon /></span>
     </button>
   );
 }
@@ -196,8 +194,8 @@ function PcAdd({ t, tr, model }) {
   return (
     <button type="button" onClick={model.goGrowRoster} data-pc-lift="" aria-label={tr('coach:addClient.aria', { defaultValue: 'Add a client' })}
       style={{ flex: 'none', minWidth: 44, minHeight: 44, padding: 0, border: 0, background: 'transparent', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
-      <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, height: 36, padding: '0 16px', borderRadius: 99, boxSizing: 'border-box', background: f.bg, color: f.fg, fontFamily: BS_CLEAN_SANS, fontSize: 13, fontWeight: 650, whiteSpace: 'nowrap', boxShadow: t.isLight ? '0 8px 16px -10px rgba(10,122,114,0.7)' : '0 6px 18px -8px rgba(52,214,197,0.55)' }}>
-        <span aria-hidden="true" style={{ fontSize: 16, lineHeight: 1 }}>＋</span>{tr('coach:head.add', { defaultValue: 'Add' })}
+      <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 5, height: 32, padding: '0 14px', borderRadius: 99, boxSizing: 'border-box', background: f.bg, color: f.fg, fontFamily: BS_CLEAN_SANS, fontSize: 13, fontWeight: 650, whiteSpace: 'nowrap' }}>
+        <span aria-hidden="true" style={{ fontSize: 14, lineHeight: 1 }}>＋</span>{tr('coach:head.add', { defaultValue: 'Add' })}
       </span>
     </button>
   );
@@ -260,12 +258,12 @@ function PcTabs({ t, tr, model, style = null }) {
   ];
   return (
     <div role="tablist" aria-label={tr('coach:roster.viewAria', { defaultValue: 'Roster view' })} data-roster-view={model.activeView}
-      style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, auto))', justifyContent: 'start', columnGap: 4, borderBottom: `1px solid ${inkA(t, 0.1)}`, ...(style || {}) }}>
-      {tabs.map((tb) => {
+      style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, auto))', justifyContent: 'start', columnGap: 4, boxShadow: `inset 0 -1px 0 ${inkA(t, 0.1)}`, ...(style || {}) }}>
+      {tabs.map((tb, i) => {
         const on = model.activeView === tb.key;
         return (
           <button key={tb.key} type="button" role="tab" aria-selected={on} onClick={tb.onPick}
-            style={{ position: 'relative', minWidth: 44, minHeight: 46, padding: '0 8px', border: 0, background: 'transparent', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 5,
+            style={{ position: 'relative', minWidth: 44, minHeight: 44, padding: '0 8px', marginLeft: i ? 0 : -8, border: 0, background: 'transparent', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 5,
               fontFamily: BS_CLEAN_SANS, fontSize: 13.5, fontWeight: on ? 650 : 500, letterSpacing: '-0.01em', color: on ? t.INK : t.INK70, whiteSpace: 'nowrap' }}>
             <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>{tb.label}</span>
             {tb.count != null ? <span style={{ fontSize: 12.5, fontWeight: 650, color: tb.key === 'needs' && tb.count > 0 ? red.text : t.INK50, fontVariantNumeric: 'tabular-nums' }}>{tb.count}</span> : null}
@@ -277,28 +275,29 @@ function PcTabs({ t, tr, model, style = null }) {
   );
 }
 
-// The search and the phase filter in one row: a rounded field, and the phase as one small picker beside it
-// (ALL · CUT · BUILD · PEAK), lit in the role's colour when it narrows the list. Clear filters under it when
-// anything does. Both are set at 16px: iOS zooms the page into a smaller field on focus.
+// The search and the phase filter as one slim field: the search, a hairline, then the phase as a small
+// picker (ALL · CUT · BUILD · PEAK) under a filter mark, lit in the role's colour when it narrows the list.
+// Clear filters under it when anything does. Both are set at 16px: iOS zooms the page into a smaller field
+// on focus.
 function PcFind({ t, tr, model, style = null }) {
-  const field = { boxSizing: 'border-box', minHeight: 46, borderRadius: 99, background: t.isLight ? 'rgba(255,255,255,0.8)' : inkA(t, 0.055), border: `1px solid ${inkA(t, t.isLight ? 0.1 : 0.12)}`, boxShadow: t.isLight ? 'inset 0 1px 2px rgba(20,18,15,0.05)' : 'inset 0 1px 3px rgba(0,0,0,0.4)' };
   const narrowed = model.filter !== 'all';
   return (
     <div style={style || undefined}>
-      <div style={{ display: 'flex', alignItems: 'stretch', gap: 8 }}>
-        <label data-pc-search="" style={{ ...field, flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 10, padding: '0 16px', cursor: 'text' }}>
+      <div style={{ display: 'flex', alignItems: 'stretch', boxSizing: 'border-box', minHeight: 44, borderRadius: 14, background: inkA(t, t.isLight ? 0.045 : 0.07) }}>
+        <label data-pc-search="" style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 9, padding: '0 6px 0 13px', cursor: 'text' }}>
           <SearchIcon color={t.INK50} />
           <input value={model.query} onChange={(e) => model.setQuery(e.target.value)} aria-label={tr('coach:roster.searchAria', { defaultValue: 'Search clients' })}
             placeholder={tr('coach:roster.searchPlaceholder', { defaultValue: 'Search {count} clients', count: model.totalCount })}
-            style={{ flex: 1, minWidth: 0, border: 0, background: 'transparent', outline: 'none', color: t.INK, fontFamily: BS_CLEAN_SANS, fontSize: 16, fontWeight: 500 }} />
+            style={{ flex: 1, minWidth: 0, minHeight: 44, border: 0, background: 'transparent', outline: 'none', color: t.INK, fontFamily: BS_CLEAN_SANS, fontSize: 16, fontWeight: 500, textOverflow: 'ellipsis' }} />
         </label>
-        <span data-pc-phase={model.filter} style={{ ...field, position: 'relative', flex: 'none', display: 'inline-flex', alignItems: 'center',
-          ...(narrowed ? { border: `1px solid ${hexA(model.heat, 0.7)}`, background: hexA(model.heat, t.isLight ? 0.1 : 0.16) } : null) }}>
+        <span aria-hidden="true" style={{ flex: 'none', width: 1, margin: '10px 0', background: inkA(t, 0.12) }} />
+        <span data-pc-phase={model.filter} style={{ position: 'relative', flex: 'none', display: 'inline-flex', alignItems: 'center', borderRadius: '0 14px 14px 0', ...(narrowed ? { background: hexA(model.heat, t.isLight ? 0.12 : 0.2) } : null) }}>
+          <span style={{ position: 'absolute', left: 12, top: '50%', marginTop: -7.5, pointerEvents: 'none', display: 'flex' }}><FilterIcon color={narrowed ? t.INK : t.INK70} /></span>
           <select value={model.filter} onChange={(e) => model.setFilter(e.target.value)} aria-label={tr('coach:roster.phaseAria', { defaultValue: 'Filter by phase' })}
-            style={{ appearance: 'none', WebkitAppearance: 'none', minHeight: 44, minWidth: 44, height: '100%', padding: '0 32px 0 16px', border: 0, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: BS_CLEAN_SANS, fontSize: 16, fontWeight: 650, letterSpacing: '0.02em', outline: 'none' }}>
+            style={{ appearance: 'none', WebkitAppearance: 'none', minHeight: 44, minWidth: 44, height: '100%', padding: '0 28px 0 34px', border: 0, background: 'transparent', color: narrowed ? t.INK : t.INK70, cursor: 'pointer', fontFamily: BS_CLEAN_SANS, fontSize: 16, fontWeight: 600, letterSpacing: '0.01em', outline: 'none' }}>
             {model.filters.map((f) => <option key={f.k} value={f.k}>{f.label}</option>)}
           </select>
-          <span style={{ position: 'absolute', right: 13, top: '50%', marginTop: -4, pointerEvents: 'none', display: 'flex' }}><Chevron color={t.INK70} down /></span>
+          <span style={{ position: 'absolute', right: 11, top: '50%', marginTop: -4, pointerEvents: 'none', display: 'flex' }}><Chevron color={t.INK50} down /></span>
         </span>
       </div>
       {model.filtered ? (
@@ -339,59 +338,49 @@ export function BSProClients({ t, model, kit }) {
   const { BSPage, BSFooter } = window;
   const AddSheet = kit.AddSheet;
   const plan = pcSections(model, tr);
-  const { ready, need, avg, active } = model.deck;
-  const pool = (model.needPool || []).slice(0, 5);
-  const live = ready && need > 0;
-  const words = !ready ? '—' : need > 0 ? tr('coach:roster.clientsNeedYou', { defaultValue: '{count, plural, one {# client needs you} other {# clients need you}}', count: need }) : tr('coach:roster.nobodyNeeds', { defaultValue: 'Nobody needs you right now.' });
+  const { ready, avg, active } = model.deck;
+  // The roster's two figures, on one line under the title. How many need the coach is the count on the
+  // Needs you view, said there once.
   const figures = [
-    { k: 'avg', v: ready && avg != null ? `${avg}%` : '—', l: model.role === 'nutritionist' ? tr('coach:roster.kpiAvgLogged', { defaultValue: 'Avg logged · 7d' }) : tr('coach:roster.kpiAvgAdherence', { defaultValue: 'Avg adherence' }) },
     { k: 'active', v: ready ? String(active) : '—', l: tr('coach:ticker.active', { defaultValue: 'ACTIVE' }) },
+    { k: 'avg', v: ready && avg != null ? `${avg}%` : '—', l: model.role === 'nutritionist' ? tr('coach:roster.kpiAvgLogged', { defaultValue: 'Avg logged · 7d' }) : tr('coach:roster.kpiAvgAdherence', { defaultValue: 'Avg adherence' }) },
   ];
 
   // A row: the face, the name and the reason (a client who needs the coach) or the phase and facts (anyone
   // else: "On plan — nothing needed" would say less than their program and streak), the week's figure, and
-  // Message. The rest of the row opens the client's file.
+  // Message. The reason wraps to a second line before it loses a word. The rest of the row opens the
+  // client's file.
   const row = (r, i, section) => {
     const { c, sig } = r;
     const pct = model.rowAdh(c);
     const reason = ['red', 'amber', 'new'].includes(sig.sev) ? sig.directive : null;
     return (
-      <div key={`${section.key}-${c.n}-${i}`} data-roster-sev={sig.sev} style={{ display: 'flex', alignItems: 'center', gap: 2, animation: `bspc-in 360ms ease-out ${stagger(i, 30)} both` }}>
-        <button type="button" onClick={() => model.onOpen(c)} style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 12, minHeight: 60, padding: '8px 4px 8px 16px', border: 0, background: 'transparent', cursor: 'pointer', textAlign: 'left', color: t.INK }}>
-          <PcFace t={t} c={c} sig={sig} />
+      <div key={`${section.key}-${c.n}-${i}`} data-roster-sev={sig.sev} style={{ display: 'flex', alignItems: 'center', borderTop: i ? `1px solid ${inkA(t, 0.07)}` : 0, animation: `bspc-in 360ms ease-out ${stagger(i, 30)} both` }}>
+        <button type="button" data-pc-lift="" onClick={() => model.onOpen(c)} style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 12, minHeight: 60, padding: '9px 6px 9px 0', border: 0, background: 'transparent', cursor: 'pointer', textAlign: 'left', color: t.INK }}>
+          <PcFace t={t} c={c} sig={sig} size={38} />
           <span style={{ flex: 1, minWidth: 0 }}>
-            <PcName t={t} c={c} model={model} />
+            {/* The name and the week's figure share a line, so the reason under them has the row's width. */}
+            <span style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
+              <span style={{ flex: 1, minWidth: 0 }}><PcName t={t} c={c} model={model} /></span>
+              {pct != null ? <span data-roster-week="" style={{ position: 'relative', flex: 'none', fontFamily: BS_CLEAN_HEAD, fontSize: 14, fontWeight: 650, lineHeight: 1.25, color: figTone(t, pct).text, fontVariantNumeric: 'tabular-nums' }}>{pct}%<span style={srOnly}> {model.weekLabel(c)}</span></span> : null}
+            </span>
             {reason ? (
               <>
-                <span data-pc-reason="" style={{ display: 'block', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: BS_CLEAN_SANS, fontSize: 12.5, fontWeight: 500, lineHeight: 1.4, color: t.INK70 }}>{reason}</span>
+                <span data-pc-reason="" style={{ ...clamp2, marginTop: 2, fontFamily: BS_CLEAN_SANS, fontSize: 12.5, fontWeight: 500, lineHeight: 1.35, color: t.INK70, textWrap: 'pretty' }}>{reason}</span>
                 <PcSmall t={t} c={c} model={model} kit={kit} tr={tr} marksOnly />
               </>
             ) : <PcSmall t={t} c={c} model={model} kit={kit} tr={tr} />}
           </span>
-          {pct != null ? <span data-roster-week="" style={{ position: 'relative', flex: 'none', minWidth: 40, textAlign: 'right', fontFamily: BS_CLEAN_HEAD, fontSize: 14, fontWeight: 650, color: figTone(t, pct).text, fontVariantNumeric: 'tabular-nums' }}>{pct}%<span style={srOnly}> {model.weekLabel(c)}</span></span> : null}
         </button>
-        <span style={{ flex: 'none', paddingRight: 6 }}><PcMessage t={t} tr={tr} c={c} model={model} /></span>
+        <span style={{ flex: 'none', marginRight: -5 }}><PcMessage t={t} tr={tr} c={c} model={model} /></span>
       </div>
     );
   };
 
-  const summaryInner = (
-    <>
-      <span style={{ display: 'flex', alignItems: 'center', gap: 6, minHeight: 36 }}>
-        {pool.map((r, i) => <span key={`${r.c.n}-${i}`} style={{ animation: `bspc-in 380ms ease-out ${stagger(i, 60)} both` }}><PcFace t={t} c={r.c} sig={r.sig} size={34} /></span>)}
-        <span style={{ flex: 1 }} />
-        {live ? <Chevron color={inkA(t, 0.45)} /> : null}
-      </span>
-      <span data-pc-summary-words="" style={{ display: 'block', marginTop: pool.length ? 14 : 4, fontFamily: BS_CLEAN_HEAD, fontSize: 22, fontWeight: 700, letterSpacing: '-0.03em', lineHeight: 1.15, color: t.INK, textAlign: 'left' }}>{words}</span>
-      <span style={{ display: 'flex', flexWrap: 'wrap', columnGap: 14, rowGap: 2, marginTop: 10, paddingTop: 10, borderTop: `1px solid ${inkA(t, 0.08)}`, fontFamily: BS_CLEAN_SANS, fontSize: 12.5, fontWeight: 500, color: t.INK70, textAlign: 'left' }}>
-        {figures.map((f) => (
-          <span key={f.k} data-pc-figure={f.k}><b style={{ fontFamily: BS_CLEAN_HEAD, fontWeight: 700, color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{f.v}</b> <span style={{ textTransform: 'lowercase' }}>{f.l}</span></span>
-        ))}
-      </span>
-    </>
-  );
-  const summaryStyle = { ...pcCard(t), display: 'block', width: '100%', boxSizing: 'border-box', marginTop: 18, padding: '16px 18px 14px', textAlign: 'left', color: t.INK, animation: 'bspc-in 420ms ease-out both' };
   const withItems = plan.sections.filter((s) => s.items.length);
+  // What the figure at the end of a row measures, named once over the column (the first row that has one).
+  const measured = withItems.flatMap((s) => s.items).find((r) => model.rowAdh(r.c) != null);
+  const caption = measured ? model.weekLabel(measured.c) : null;
 
   const body = (
     <>
@@ -400,33 +389,37 @@ export function BSProClients({ t, model, kit }) {
       <BSCleanType t={t}>
         <div data-pro-clients="" style={{ padding: `0 ${t.padX}px 32px` }}>
           {/* The title (the onboarding tour points at it, hero-clients) with the role's full stop, and ＋ Add. */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginTop: 14 }}>
-            <h1 data-tour="hero-clients" style={{ margin: 0, minWidth: 0, fontFamily: BS_CLEAN_HEAD, fontSize: 34, fontWeight: 700, letterSpacing: '-0.04em', lineHeight: 1.02, color: t.INK, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginTop: 12 }}>
+            <h1 data-tour="hero-clients" style={{ margin: 0, minWidth: 0, fontFamily: BS_CLEAN_HEAD, fontSize: 28, fontWeight: 700, letterSpacing: '-0.035em', lineHeight: 1.05, color: t.INK, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {tr('coach:nav.clients', { defaultValue: 'Clients' })}<span aria-hidden="true" style={{ color: model.heat }}>.</span>
             </h1>
             <PcAdd t={t} tr={tr} model={model} />
           </div>
-
-          {/* Who needs you, first: their faces, how many (the NEED YOU figure, as a sentence), and the other two
-              figures under a hairline. It opens Needs you when anyone does. */}
-          {live
-            ? <button type="button" data-pc-summary="" data-pc-figure="need" data-pc-lift="" onClick={model.pickTab.needs} style={{ ...summaryStyle, cursor: 'pointer' }}>{summaryInner}</button>
-            : <div data-pc-summary="" data-pc-figure="need" style={summaryStyle}>{summaryInner}</div>}
+          {/* The roster in two figures: how many are active, and the week's average. */}
+          <p data-pc-figures="" style={{ margin: '2px 0 0', display: 'flex', flexWrap: 'wrap', columnGap: 6, rowGap: 2, fontFamily: BS_CLEAN_SANS, fontSize: 13, fontWeight: 500, lineHeight: 1.4, color: t.INK70, animation: 'bspc-in 420ms ease-out both' }}>
+            {figures.map((f, i) => (
+              <span key={f.k} style={{ whiteSpace: 'nowrap' }}>
+                {i ? <span aria-hidden="true" style={{ marginRight: 6, color: t.INK50 }}>·</span> : null}
+                <span data-pc-figure={f.k}><b style={{ fontFamily: BS_CLEAN_HEAD, fontWeight: 700, color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{f.v}</b> <span style={{ textTransform: 'lowercase' }}>{f.l}</span></span>
+              </span>
+            ))}
+          </p>
           <PcStatus t={t} tr={tr} model={model} />
-          <PcTabs t={t} tr={tr} model={model} style={{ marginTop: 16 }} />
-          <PcFind t={t} tr={tr} model={model} style={{ marginTop: 14 }} />
+          <PcTabs t={t} tr={tr} model={model} style={{ marginTop: 8 }} />
+          <PcFind t={t} tr={tr} model={model} style={{ marginTop: 12 }} />
 
-          {/* Everyone in one card: each group a small head inside it, then its rows. */}
+          {/* Everyone as rows on the page: each group a small head, then its rows. */}
           {withItems.length ? (
-            <div data-pc-list="" style={{ ...pcCard(t), marginTop: 18, paddingBottom: 6 }}>
+            <div data-pc-list="" style={{ marginTop: 6 }}>
               {withItems.map((s, n) => {
                 const tone = s.sev && s.sev !== 'past' ? toneOf(t, s.sev) : null;
                 return (
-                  <section key={s.key} data-roster-group={s.key} style={{ borderTop: n ? `1px solid ${inkA(t, 0.07)}` : 0 }}>
-                    <h2 style={{ margin: 0, padding: '14px 16px 4px', display: 'flex', alignItems: 'center', gap: 8, fontFamily: BS_CLEAN_SANS, fontSize: 11.5, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: t.INK50 }}>
+                  <section key={s.key} data-roster-group={s.key}>
+                    <h2 style={{ margin: 0, padding: `${n ? 18 : 12}px 0 2px`, display: 'flex', alignItems: 'center', gap: 7, fontFamily: BS_CLEAN_SANS, fontSize: 11.5, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: t.INK50 }}>
                       {tone ? <span aria-hidden="true" style={{ flex: 'none', width: 7, height: 7, borderRadius: 99, background: tone.hue }} /> : null}
                       <span style={{ minWidth: 0 }}>{s.label}</span>
                       {s.count ? <span style={{ fontVariantNumeric: 'tabular-nums' }}>{s.count}</span> : null}
+                      {!n && caption ? <span aria-hidden="true" data-pc-caption="" style={{ marginLeft: 'auto', paddingRight: 45, fontWeight: 600, letterSpacing: '0.04em', whiteSpace: 'nowrap' }}>{caption}</span> : null}
                     </h2>
                     {s.items.map((r, i) => row(r, i, s))}
                   </section>
@@ -437,9 +430,9 @@ export function BSProClients({ t, model, kit }) {
           {/* An empty view's line, and "8 more on track · Show ›" under a list cut at eight. */}
           {plan.sections.map((s) => ((s.empty || s.more) ? (
             <div key={`${s.key}-after`} data-roster-group={s.items.length ? undefined : s.key} style={{ marginTop: 14 }}>
-              {s.empty ? <p style={{ margin: 0, padding: '16px', borderRadius: 16, background: inkA(t, t.isLight ? 0.04 : 0.05), textAlign: 'center', fontFamily: BS_CLEAN_SANS, fontSize: 13, fontWeight: 600, color: t.INK70 }}>{s.empty}</p> : null}
+              {s.empty ? <p style={{ margin: 0, padding: '16px', borderRadius: 14, background: inkA(t, t.isLight ? 0.04 : 0.05), textAlign: 'center', fontFamily: BS_CLEAN_SANS, fontSize: 13, fontWeight: 600, color: t.INK70 }}>{s.empty}</p> : null}
               {s.more ? (
-                <button type="button" onClick={model.expandTrack} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, width: '100%', minHeight: 44, borderRadius: 999, border: `1px solid ${inkA(t, 0.12)}`, background: 'transparent', cursor: 'pointer', fontFamily: BS_CLEAN_SANS, fontSize: 12.5, fontWeight: 650, letterSpacing: '0.03em', color: t.INK70 }}>
+                <button type="button" onClick={model.expandTrack} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, width: '100%', minHeight: 44, borderRadius: 14, border: `1px solid ${inkA(t, 0.12)}`, background: 'transparent', cursor: 'pointer', fontFamily: BS_CLEAN_SANS, fontSize: 12.5, fontWeight: 650, letterSpacing: '0.03em', color: t.INK70 }}>
                   {tr('coach:roster.moreOnTrack', { defaultValue: '{count} MORE ON TRACK', count: s.more })}<span style={{ color: t.INK }}>{tr('coach:roster.show', { defaultValue: 'SHOW ›' })}</span>
                 </button>
               ) : null}

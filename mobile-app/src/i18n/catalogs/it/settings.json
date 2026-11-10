@@ -624,5 +624,18 @@
   "notifyPrefs.prepHour": "Orario del promemoria",
   "notifyPrefs.prepHourSub": "La sera prima, all’ora locale",
   "notifyPrefs.prepHourQuiet": "Nelle ore di silenzio: nell’app, senza push",
-  "notifyPrefs.prepHourFailed": "L’orario del promemoria non è stato salvato. Riprova."
+  "notifyPrefs.prepHourFailed": "L’orario del promemoria non è stato salvato. Riprova.",
+  "coachApply.title": "Coach su Shape",
+  "coachApply.sub": "Candidati come trainer o nutrizionista",
+  "coachApply.inReview": "In revisione",
+  "coachApply.backgroundCheck": "Verifica dei precedenti",
+  "coachApply.approved": "Approvata",
+  "coachApply.notApproved": "Non approvata",
+  "coachApply.trainerApp": "Candidatura trainer",
+  "coachApply.nutritionistApp": "Candidatura nutrizionista",
+  "coachApply.sent": "inviata il {date}",
+  "coachApply.usually": "di solito 2–3 giorni lavorativi",
+  "coachApply.submitted": "Inviata",
+  "coachApply.unavailable": "Impossibile controllare la tua candidatura · tocca per riprovare",
+  "coachApply.checking": "Controllo della tua candidatura…"
 }

@@ -1,9 +1,9 @@
 // tests/coach-programs-calm.test.mjs
 //
-// The coach's Programs / Plans page is the owner's B (2026-11-04, of three looks: "B for programs just reduce
-// size of this button"), after "reduce the coloring and simplify UI more": tiles in the paper's own colour,
-// colour only as a signal. These hold that at the source of BSProCatalog.jsx, and hold the old page and its
-// preview switch gone, so the two looks cannot drift back side by side.
+// The coach's Programs / Plans page is the owner's A (2026-11-09: "for programs and plans do A"), after
+// "reduce the coloring and simplify UI more": one list on the page, colour only as a signal. These hold that
+// at the source of BSProCatalog.jsx, and hold the old pages and the preview switch gone, so two looks cannot
+// drift back side by side.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
@@ -14,24 +14,25 @@ const PROS = readFileSync(join(ROOT, 'mobile-app/src/broadsheet/iosAppBroadsheet
 const CAT = readFileSync(join(ROOT, 'mobile-app/src/broadsheet/BSProCatalog.jsx'), 'utf8');
 const fn = (src, head) => { const at = src.indexOf(head); assert.ok(at >= 0, head); return src.slice(at, src.indexOf('\n}\n', at)); };
 
-test('colour is a signal: teal fills only the page\'s one primary action and the empty list\'s build; the role\'s colour only the full stop, the picked icon and the ★', () => {
-  assert.equal((CAT.match(/background: tealOf\(t\)/g) || []).length, 2, 'the compact primary pill and the empty list\'s Build from scratch');
+test('colour is a signal: teal fills only ＋ From scratch, the empty list\'s build and the sample\'s lone Edit; the role\'s colour only the full stop and the ★', () => {
+  assert.equal((CAT.match(/background: tealOf\(t\)/g) || []).length, 2, 'the compact primary pill (a top pick the list does not hold) and the empty list\'s Build from scratch');
+  assert.match(fn(CAT, 'export function BSProCatalog('), /const scratch = t\.isLight \? \{ bg: '#0a7a72', fg: '#ffffff' \} : \{ bg: '#34d6c5', fg: '#06201d' \};/, '＋ From scratch, lit as Clients\' ＋ Add');
   const heatUses = CAT.match(/heatOf\(t, [^)]*\)/g) || [];
-  assert.deepEqual(heatUses, ['heatOf(t, m.role)', 'heatOf(t, role)', 'heatOf(t, m.role)'], 'the picked icon, the ★, the title\'s full stop');
+  assert.deepEqual(heatUses, ['heatOf(t, role)', 'heatOf(t, role)', 'heatOf(t, m.role)'], 'the ★ on a lone top pick, the ★ on a row, the title\'s full stop');
   assert.doesNotMatch(CAT, /filter: 'blur\(|radial-gradient|data-pc-halo/, 'a coloured glow or wash is back');
   assert.doesNotMatch(CAT, /linear-gradient\([^)]*(heat|teal)/i, 'a coloured gradient is back');
-  // The picked sort and the picked chip are ink.
-  assert.match(fn(CAT, 'function PcSort('), /\.\.\.\(on \? pcOn\(t\) : \{ color: t\.INK70 \}\)/);
-  assert.match(CAT, /const pcOn = \(t\) => \(\{ background: t\.INK, color: t\.PAPER, border: `1px solid \$\{t\.INK\}` \}\);/);
+  // The picked kind is ink: a bar under the word, as on Clients.
+  assert.match(fn(CAT, 'function PcTabs('), /data-pc-tab-bar="" style=\{\{[^}]*background: t\.INK,/);
 });
 
-test('one filled action a page: the most popular plan\'s Assign (or the sample\'s Edit); every other plan\'s Assign is the quiet pill', () => {
-  const featured = fn(CAT, 'function PcFeatured(');
-  assert.equal((featured.match(/kind="primary"/g) || []).length, 1);
-  assert.match(featured, /kind=\{i === 0 \? 'primary' : 'bare'\}/, 'the sample\'s Edit, then Duplicate and Share as words');
+test('one filled action a page: ＋ From scratch; every plan\'s Assign is the quiet pill and Copy a quiet icon', () => {
   const row = fn(CAT, 'function PcRow(');
   assert.doesNotMatch(row, /kind="primary"|kind=\{/, 'a row\'s Assign is quiet');
-  assert.match(row, /kind="bare" tag="copy"/, 'Copy is the words alone');
+  assert.match(row, /data-pc-action="copy"[^>]*aria-label=\{tr\('coach:workoutEditor\.copyName'/, 'Copy is an icon with its name for a reader');
+  // The most popular plan is a row of the list, not a card of its own; Enrolled is gone.
+  assert.doesNotMatch(CAT, /function PcFeatured\(|function PcEnrolled\(|data-pc-enrolled/);
+  const lead = fn(CAT, 'function PcLead(');
+  assert.match(lead, /kind=\{i === 0 \? 'primary' : 'bare'\}/, 'a top pick the list does not hold keeps Edit, then Duplicate and Share as words');
 });
 
 test('the old page, its primitives and the preview switch are gone', () => {
@@ -53,5 +54,5 @@ test('the old page, its primitives and the preview switch are gone', () => {
 test('the page keeps the coach rules: window globals at call time, no import back into the pros or client module', () => {
   assert.doesNotMatch(CAT, /^import .*iosAppBroadsheet/m);
   assert.doesNotMatch(CAT, /^const \{[^}]*\} = window;/m, 'a window global read at module top');
-  assert.match(fn(CAT, 'function PcFace('), /const Facet = typeof window !== 'undefined' \? window\.BSFacetAvatar : null;/, 'members as facet avatars, read at render');
+  assert.doesNotMatch(CAT, /function PcFace\(|BSFacetAvatar/, 'the page draws no member faces since Enrolled went');
 });

@@ -114,7 +114,7 @@ test('no page draws its own Back: every one goes through the shared row', () => 
   const ENDS = [
     ['iosAppBroadsheetClient.jsx', "store:checkout.backToStore", 'an empty cart\'s Back to store'],
     ['iosAppBroadsheetPros.jsx', "coach:schedule.runDone", 'Done, once a scheduled run is in'],
-    ['iosAppBroadsheetProviderApply.jsx', 'Back to marketplace →', 'the application\'s sent screen'],
+    ['iosAppBroadsheetProviderApply.jsx', "onboarding:apply.status.done", 'Done, on the application\'s sent screen'],
     ['BSLiveWorkoutWatch.jsx', "coach:live.stopWatching", 'Stop watching, at the foot of the live view'],
     ['BSProfileCustomizer.jsx', "profile:editor.live.back", 'Back to editing, on the live preview\'s bar'],
   ];

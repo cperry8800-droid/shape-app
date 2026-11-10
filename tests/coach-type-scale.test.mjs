@@ -13,7 +13,7 @@ import { readFileSync } from 'node:fs';
 const PROS = readFileSync(new URL('../mobile-app/src/broadsheet/iosAppBroadsheetPros.jsx', import.meta.url), 'utf8');
 const LIB = readFileSync(new URL('../mobile-app/src/broadsheet/BSGroceryLibrary.jsx', import.meta.url), 'utf8');
 const CLIENT = readFileSync(new URL('../mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx', import.meta.url), 'utf8');
-// The Clients page (owner, 2026-11-04: "C for clients") is drawn by its own module.
+// The Clients page (owner, 2026-11-09: A for clients, list first) is drawn by its own module.
 const CLIENTS = readFileSync(new URL('../mobile-app/src/broadsheet/BSProClients.jsx', import.meta.url), 'utf8');
 
 // A function's body, from its declaration to the next top-level declaration.
@@ -54,7 +54,7 @@ test('Today, Clients and Plans set no line under a row at 14, no 19px head and n
   assert.match(parts.Today, /marginTop: 2, fontFamily: t\.DISPLAY, fontSize: 12\.5, lineHeight: 1\.35, color: t\.INK70 \}\}>\{w\.directive\}/);
   // Clients: a row's name at 15, the reason under it at 12.5, the facts at 12, the views and ＋ Add at 13-13.5.
   assert.match(CLIENTS, /fontFamily: BS_CLEAN_HEAD, fontSize: 15, fontWeight: 650/);
-  assert.match(CLIENTS, /fontSize: 12\.5, fontWeight: 500, lineHeight: 1\.4, color: t\.INK70 \}\}>\{reason\}/);
+  assert.match(CLIENTS, /fontSize: 12\.5, fontWeight: 500, lineHeight: 1\.35, color: t\.INK70[^}]*\}\}>\{reason\}/);
   assert.match(CLIENTS, /fontFamily: BS_CLEAN_SANS, fontSize: 12, fontWeight: 500, color: t\.INK50/);
   // Inputs keep 16: iOS zooms the page when a focused box is under it (the search, and the phase picker).
   assert.match(CLIENTS, /placeholder=\{[^}]*Search[^]*?fontFamily: BS_CLEAN_SANS, fontSize: 16/);

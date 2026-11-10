@@ -6,9 +6,10 @@ import { createPortal } from 'react-dom';
 // "The Personals" / classifieds-meets-features. Browse trainers + nutritionists.
 //
 // Provides:
-//   • BSMarketplaceScreen — the directory's state and rules (search, role, filters, sort, the live
-//     or demo coaches, the deep link, the plans rail), drawn by BSMarketDirectory.jsx, and the
-//     coach it opens.
+//   • BSMarketplaceScreen — the member's Coaches tab (owner, 2026-11-09: a sixth tab between Eat and
+//     Chat, "place-1", in the "Browse list" look, "look-B"): Your team first, then the directory's
+//     state and rules (search, role, filters, sort, the live or example coaches, the deep link, the
+//     plans rail), drawn by BSMarketDirectory.jsx, and the coach it opens.
 //   • BSCoachDetail        — opened when a coach card is tapped (sheet-style).
 
 const { useState: useStateBSM2, useMemo: useMemoBSM2, useEffect: useEffectBSM2 } = React;
@@ -19,7 +20,9 @@ const { BSPage, BSPageHeader, BSAvatar, BSEyebrow, BSSection, BSSlab, BSCell, BS
 const BS_MAST_TOP_CSS = (typeof window !== 'undefined' && window.BS_MAST_TOP_CSS) || 'max(44px, calc(env(safe-area-inset-top, 0px) + 12px), var(--bs-notch-floor, 0px))';
 
 import { bsProjectAvailability, bsSlotsByDay, bsIsZone } from '../services/coachAvailability.mjs';
-import { viewerZone, partsInZone } from '../services/shapeZone.mjs';
+import { viewerZone, partsInZone, dayKey, formatTime, formatDate } from '../services/shapeZone.mjs';
+// The member's coaches, off the plan read, as Home's Team reads them (the Coaches tab's Your team).
+import { bsHomeCoachesOf } from '../services/homeWeek.mjs';
 import { bsPlanPreview } from '../services/planPreview.mjs';
 import { bsNormalizeListingMedia } from '../services/listingMedia.mjs';
 // The directory ("Find your coach.") draws in its own module; this one keeps every rule it reads.
@@ -53,18 +56,51 @@ function bsmRoleWord(tr, isNutri) {
 // ═══════════════════════════════════════════════════════════
 // Data
 // ═══════════════════════════════════════════════════════════
-const BSM_MARKETPLACE_CATEGORIES = {
-  Trainer: ['All Categories', 'Strength & Resistance', 'Cardio & Endurance', 'Pure Running', 'Hyrox', 'Mobility, Recovery & Rehab', 'Functional & Hybrid', 'Bodybuilding', 'HIIT', 'Fat Burn', 'At Home', 'Just for Women'],
-  Nutritionist: ['All Categories', 'Sports Performance & Hydration', 'Performance Nutrition', 'Medical & Condition-Specific', 'Muscle Gain / Bulking', 'Gut Health & Functional Nutrition', 'Longevity & Healthspan', 'Weight Mgmt', 'Plant-Based', 'Prenatal', 'Meal Prep'],
+// ── THE COACHES TAB'S FILTERS AND SORTS (owner, 2026-11-09; the website's, public/newdesign/marketplace.jsx) ──
+// The goals a member trains for, each found in a coach's own words (their category, specialties and
+// tags) by the website's patterns (MK_GOALS / MK_GOAL_RX there), so the two surfaces file a coach under
+// the same goals. Every goal is here (owner, of the website's matcher: "make sure all goals are here
+// and this actually works"): the six `card` goals always show in the sheet, the rest once a coach of
+// the role is filed under one. `nu` goals are a nutritionist's only, `tr` goals a trainer's only; a
+// coach none of them matches is General fitness.
+const BSM_GOALS = [
+  { id: 'strength', card: true }, { id: 'fatloss', card: true }, { id: 'endurance', card: true },
+  { id: 'mobility', card: true }, { id: 'nutrition', card: true, nu: true }, { id: 'general', card: true },
+  { id: 'running', tr: true }, { id: 'hyrox', tr: true }, { id: 'hiit', tr: true }, { id: 'bodybuilding', tr: true },
+  { id: 'functional', tr: true }, { id: 'home', tr: true }, { id: 'women', tr: true },
+  { id: 'weight', nu: true }, { id: 'muscle', nu: true }, { id: 'gut', nu: true }, { id: 'plant', nu: true },
+  { id: 'prenatal', nu: true }, { id: 'mealprep', nu: true }, { id: 'medical', nu: true }, { id: 'longevity', nu: true },
+];
+const BSM_GOAL_RX = {
+  strength: /strength|hypertroph|powerlift|bodybuild|barbell|olympic|weightlift|kettlebell|calisthen|physique|muscle|bulk|recomp|crossfit/i,
+  fatloss: /fat|weight ?(loss|mgmt|management)|weightloss|lean|\bcut|hiit|metcon|keto|fasting|low-carb|conditioning/i,
+  endurance: /endur|cardio|\brun|running|marathon|triathlon|cycling|vo2|hyrox|trail|ultra|track|obstacle|swim|5k|tempo|erg/i,
+  mobility: /mobil|rehab|recover|yoga|pilates|post-op|physio|physical therap|senior|balance|posture|pelvic|postpartum|breath|flexib|return/i,
+  nutrition: /sport|performance|athlete|hydration|fuel|supplement|contest/i,
+  general: /home|functional|family|general|habit|meal prep|dance|boxing|combat|beginner|women|prenatal|wellness|longevity|healthspan|plant|gut|clinical|medical|cultural|budget|vegan|full body|fullbody|kids/i,
+  running: /\brun\b|running|runner|marathon|\b5k\b|\b10k\b|trail|ultra|track/i,
+  hyrox: /hyrox/i,
+  hiit: /hiit|metcon|interval|tabata/i,
+  bodybuilding: /bodybuild|physique|hypertroph/i,
+  functional: /functional|hybrid|crossfit|calisthen/i,
+  home: /at home|\bhome\b|no equipment/i,
+  women: /women|female|postpartum|pelvic/i,
+  weight: /weight|fat loss|\blean/i,
+  muscle: /muscle|bulk|mass gain/i,
+  gut: /\bgut\b|\bibs\b|digest|microbiome|functional nutrition/i,
+  plant: /plant|vegan|vegetarian/i,
+  prenatal: /prenatal|postnatal|pregnan|fertility/i,
+  mealprep: /meal prep|batch cook/i,
+  medical: /medical|clinical|condition|diabet|pcos|renal|cardiac|kidney/i,
+  longevity: /longevity|healthspan|\bag(e|)ing\b/i,
 };
-
-const BSM_MARKETPLACE_LOCATIONS = {
-  Trainer: ['Anywhere', 'Remote-friendly', 'Brooklyn, NY', 'Los Angeles', 'Austin, TX', 'Miami', 'Chicago', 'Denver', 'San Francisco', 'Las Vegas', 'Atlanta', 'Portland, OR', 'Boulder, CO', 'Eugene, OR', 'Toronto', 'London', 'Berlin', 'Lisbon', 'Madrid', 'Stockholm', 'Tokyo', 'Mumbai', 'Dubai', 'Girona', 'Chamonix'],
-  Nutritionist: ['Anywhere', 'Remote only', 'London', 'Toronto', 'Stockholm', 'Copenhagen', 'Madrid', 'Milan', 'Sydney', 'Osaka', 'Lagos'],
-};
-
-const BSM_MARKETPLACE_FORMATS = ['All formats', 'In-person', 'Remote', 'Hybrid'];
-const BSM_MARKETPLACE_SORTS = ['Most Popular', 'Highest Rated', 'Lowest Price', 'Most Experience'];
+// Whether a role's coaches can be filed under a goal ('Both' holds every goal).
+const bsmGoalFits = (g, role) => !((g.nu && role === 'Trainers') || (g.tr && role === 'Nutritionists'));
+// The sorts, in the picker's order. Best match is the goal's fit, then an open intro, then the rating;
+// nothing paid ranks a coach higher.
+const BSM_SORTS = ['best', 'rated', 'price', 'years'];
+// What the filters start as: Both roles, no goal, anywhere, any budget, either way of meeting.
+const BSM_FILTERS0 = { goals: [], city: 'Anywhere', maxSession: null, maxMonth: null, meet: 'either', openWeek: false };
 const BSM_MARKETPLACE_CERTIFICATIONS = {
   Trainer: ['NASM-CPT', 'CSCS', 'ACSM-CPT', 'NSCA-CPT', 'ACE-CPT', 'USATF', 'UESCA', 'HYROX-C'],
   Nutritionist: ['RD', 'RDN', 'CSSD', 'CNS', 'CDCES', 'MSc Nutrition'],
@@ -115,8 +151,9 @@ function formatCoachRating10(coachOrRating, tr) {
 // sample from `specialty` and `rating10`.
 function bsmCoachPerson(c, photo = null, nutri = false) {
   return {
+    // No place is claimed for a listing that states none (it used to read Remote).
     who: c.name, kind: nutri ? 'NUTRI' : 'TRAINER', userId: c.provider_user_id || null, providerId: c.provider_id || null,
-    city: c.loc || c.city || 'Remote', bio: c.bio || '', init: c.init || (c.name ? c.name[0] : '?'),
+    city: c.loc || c.city || '', bio: c.bio || '', init: c.init || (c.name ? c.name[0] : '?'),
     // The standing the cards print (from the coach's Shape Score), and the category they file under.
     photo: photo || null, tier: c.tier || mktCoachTier(c).name || null, category: c.category || '',
     specialty: [c.category, ...(Array.isArray(c.spec) ? c.spec : [])].filter(Boolean).join(' '),
@@ -130,9 +167,10 @@ function bsmRankRating(c) {
   return r == null ? 0 : r / 2;
 }
 
+// A listing's years, or null when it states none (it used to read 1, a year nobody claimed).
 function parseProviderYears(value) {
   const parsed = Number(String(value || '').match(/\d+/)?.[0] || 0);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
 }
 
 function providerInitials(name) {
@@ -149,6 +187,14 @@ function formatProviderCategory(value) {
 // Map a live provider's free-text specialty/tags → the closest marketplace
 // FILTER category, so every real coach is filterable (not just demo coaches).
 // Ordered most-specific → general; falls back to the role's base category.
+// The categories a listing is filed under, each role's: bsmFilterCategory's table below
+// (BSM_CAT_KEYWORDS) names exactly these. The website's goal matcher reads this list to prove every
+// category has a goal of its own (tests/marketplace-page.test.mjs), and tests/app-coaches-tab.test.mjs
+// holds it equal to the table.
+const BSM_MARKETPLACE_CATEGORIES = {
+  Trainer: ['Strength & Resistance', 'Cardio & Endurance', 'Pure Running', 'Hyrox', 'Mobility, Recovery & Rehab', 'Functional & Hybrid', 'Bodybuilding', 'HIIT', 'Fat Burn', 'At Home', 'Just for Women'],
+  Nutritionist: ['Sports Performance & Hydration', 'Performance Nutrition', 'Medical & Condition-Specific', 'Muscle Gain / Bulking', 'Gut Health & Functional Nutrition', 'Longevity & Healthspan', 'Weight Mgmt', 'Plant-Based', 'Prenatal', 'Meal Prep'],
+};
 const BSM_CAT_KEYWORDS = {
   Trainer: [
     ['Hyrox', ['hyrox']],
@@ -183,15 +229,17 @@ function bsmFilterCategory(role, rawText, fallback) {
   }
   return fallback;
 }
-function bsmNormalizeFormat(raw, location) {
-  const f = String(raw || '').toLowerCase();
-  if (/in.?person|studio|gym/.test(f)) return 'In-person';
-  if (/remote|online|virtual/.test(f)) return 'Remote';
-  if (/hybrid/.test(f)) return 'Hybrid';
-  if (!location || /remote|online|anywhere/i.test(String(location))) return 'Remote';
-  return 'Hybrid';
-}
-
+// ⚠ A LISTING SAYS ONLY WHAT IT STATES (the website's honesty rules, marketplace.jsx's head, brought to the
+// app on 2026-11-09). The row read here used to print three things nobody stated: a 9.6/10 rating from
+// the `rating || 4.8` fallback on every seeded listing, a session count and a match percentage made up
+// from the years, and "Remote" for every live coach (the read selects no location or format). Now:
+//   · every listing is rated by its reviews (`ratingLive`), merged in after the read, or reads New;
+//   · no session count, no match; clients only for a listing with an account (a seeded listing's
+//     subscriber count is not a count of anyone); years only when the listing states them;
+//   · no place and no format, so no city or way of meeting is claimed for it;
+//   · the price the directory prints is the one the listing names, with its unit: a trainer's session
+//     price per session, else the monthly price per month (every nutritionist). `rate` stays the
+//     one-time price THE LISTING's "Book now" charges, as before.
 function mapSupabaseProvider(row, role) {
   const isNutritionist = role === 'Nutritionist';
   const specialty = row.specialty || row.specialty_type || formatProviderCategory(row.category);
@@ -202,13 +250,13 @@ function mapSupabaseProvider(row, role) {
   const basePrice = isNutritionist
     ? (row.meal_plan_price || row.price)
     : (row.session_price || row.price);
-  const rate = Math.max(1, Math.round(Number(basePrice || 0)));
+  const rate = Number(basePrice) > 0 ? Math.round(Number(basePrice)) : null;
+  const session = !isNutritionist ? Number(row.session_price) : NaN;
+  const monthly = Number(row.price);
+  const pricePer = session > 0 ? 'session' : (monthly > 0 ? 'month' : null);
+  const priceAmount = pricePer === 'session' ? Math.round(session) : (pricePer === 'month' ? Math.round(monthly) : null);
   const subscribers = Number(row.subscribers || 0);
   const dbId = Number(row.id);
-  // A coach with an account is rated by its reviews only (merged in after the load,
-  // see bsmMergeReviewSummaries); a row without one keeps the demo fallback.
-  const ratingLive = !!row.owner_id;
-  const rating = ratingLive ? null : Number(row.rating || 4.8);
 
   return {
     id: `${isNutritionist ? 'n' : 't'}${dbId}`,
@@ -217,25 +265,25 @@ function mapSupabaseProvider(row, role) {
     provider_user_id: row.owner_id || null,
     provider_role: isNutritionist ? 'nutritionist' : 'trainer',
     name: row.name || (isNutritionist ? 'Shape Nutritionist' : 'Shape Trainer'),
-    loc: row.location || 'Remote',
+    loc: null,
+    specialty: specialty || '',
     category: bsmFilterCategory(role, [specialty, formatProviderCategory(row.category), ...specs].filter(Boolean).join(' '), isNutritionist ? 'Performance Nutrition' : 'Strength & Resistance'),
-    format: bsmNormalizeFormat(row.format, row.location),
-    cred: `${row.credential || 'Certified'} - ${row.experience || `${years} yrs`}`,
+    format: null,
+    cred: row.credential ? (row.experience ? `${row.credential} - ${row.experience}` : String(row.credential)) : '',
     certifications: row.credential ? [row.credential] : [],
     spec: specs.length ? specs.slice(0, 5) : [specialty || (isNutritionist ? 'Nutrition' : 'Training')],
     rate,
+    priceAmount,
+    pricePer,
     sessions: isNutritionist ? '30-min - 1:1' : '45-min - 1:1',
     years,
-    sessionCount: subscribers || Math.max(120, years * 55),
-    match: Math.max(72, Math.min(98, Math.round(78 + (rating == null ? 0 : rating) * 3 + (row.featured ? 5 : 0)))),
-    rating,
-    ratingLive,
+    // Rated by its reviews (bsmMergeReviewSummaries); a listing with no account has none.
+    rating: null,
+    ratingLive: true,
     reviewCount: 0,
-    // A live coach's client count is its real subscriber count (0 hides it); the
-    // estimate is for demo and seeded rows only.
-    clients: ratingLive ? subscribers : Math.max(8, Math.round((subscribers || 320) / 45)),
+    clients: row.owner_id ? subscribers : 0,
     init: providerInitials(row.name),
-    bio: row.bio || `${specialty || role} support on Shape.`,
+    bio: row.bio || '',
     tag: row.featured || row.trainer_of_month || row.nutritionist_of_month ? 'FEATURED' : undefined,
     stripe_product_id: row.stripe_product_id,
     stripe_price_id: row.stripe_price_id,
@@ -664,6 +712,266 @@ function MktStudioStrip({ gallery, role }) {
   );
 }
 
+// ── THE COACHES TAB'S READINGS ───────────────────────────────────────────────────────────────────
+// One function each, as the website keeps tier, rating and price in one place each (mkPriceOf,
+// mkRating10, mkOpenTimes there): the price and its unit, the goals, the city, the open intro times,
+// the filters' test and the sorts. The view (BSMarketDirectory.jsx) prints what these answer.
+
+// The price the directory prints, with its unit: { amount, per: 'session' | 'month' }, or null. A live
+// listing's is the one it names (mapSupabaseProvider: a trainer's session price per session, else the
+// monthly price per month); an example coach's authored rate is a trainer's per session and a
+// nutritionist's per month (the website's sample coaches are priced the same way).
+function bsmPriceOf(c) {
+  if (!c) return null;
+  if (!bsmIsDemoCoach(c)) {
+    const a = Number(c.priceAmount);
+    return (c.pricePer === 'session' || c.pricePer === 'month') && a > 0 ? { amount: Math.round(a), per: c.pricePer } : null;
+  }
+  const a = Number(c.rate);
+  return a > 0 ? { amount: Math.round(a), per: getPublicProfileKind(c) === 'nutritionist' ? 'month' : 'session' } : null;
+}
+
+// The goals a coach is filed under, from their own words (the website's mkGoalsOf).
+function bsmGoalsOf(c) {
+  const text = [c && c.specialty, c && c.category, ...((c && Array.isArray(c.spec)) ? c.spec : [])].filter(Boolean).join(' · ');
+  const nutri = getPublicProfileKind(c) === 'nutritionist';
+  const out = new Set();
+  for (const g of BSM_GOALS) {
+    if ((g.nu && !nutri) || (g.tr && nutri)) continue;
+    if (BSM_GOAL_RX[g.id].test(text)) out.add(g.id);
+  }
+  if (!out.size) out.add('general');
+  return out;
+}
+
+// The city a coach works in, or null: a live listing states none, and "Remote" is a way to meet, not a city.
+function bsmCityOf(c) {
+  const s = mktShortLoc(c && c.loc);
+  return s && !/^(remote|online|anywhere)/i.test(s) ? s : null;
+}
+
+// Role · what they do, in their own words: a live listing's specialty and tags, an example's category
+// and specialties; two at most, each said once.
+function bsmSpecLine(c) {
+  const parts = [c.specialty, c.category, ...(Array.isArray(c.spec) ? c.spec : [])].map((x) => String(x || '').trim()).filter(Boolean);
+  const seen = new Set();
+  const out = [];
+  for (const p of parts) {
+    const k = p.toLowerCase();
+    if (seen.has(k)) continue;
+    seen.add(k);
+    out.push(p);
+    if (out.length === 2) break;
+  }
+  return out;
+}
+
+// ── Open intro times ──
+// An example coach's are example times, laid out from their name (the website's mkOpenTimes for a
+// sample); a coach with an account has the times their own Shape calendar offers (GET
+// /api/availability, laid out by the projection their profile books from); a listing with no account
+// has none here. ⚠ An account's times are read once per ten minutes for the whole directory, six at a
+// time, and a read that failed is no times, never invented ones.
+const BSM_EX_TIMES = [[7, 0], [9, 0], [11, 30], [12, 0], [17, 30], [18, 0], [19, 0]];
+function bsmHash(s) {
+  let h = 2166136261;
+  const str = String(s || '');
+  for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return h >>> 0;
+}
+function bsmExampleTimes(c, now = Date.now()) {
+  const h = bsmHash(c && c.name);
+  const d0 = new Date(now);
+  const out = [];
+  for (let i = 0; i < 4; i++) {
+    const d = new Date(d0.getFullYear(), d0.getMonth(), d0.getDate() + ((h >>> (i * 3)) % 3) + i * 2 + 1);
+    const [hh, mm] = BSM_EX_TIMES[(h >>> (i * 2 + 5)) % BSM_EX_TIMES.length];
+    d.setHours(hh, mm, 0, 0);
+    out.push(d.getTime());
+  }
+  return out.sort((a, b) => a - b);
+}
+const _MKT_OPEN = new Map();        // "role:providerId" -> { open: [ms], shut, at }
+const _MKT_OPEN_WAIT = new Set();   // keys being read
+const _MKT_OPEN_SUBS = new Set();   // mounted directories, told when a read lands
+const BSM_OPEN_TTL = 10 * 60 * 1000;
+function bsmOpenKey(c) {
+  const pid = c && (c.provider_id || c.db_id);
+  return c && c.provider_user_id && pid ? `${getPublicProfileKind(c)}:${pid}` : null;
+}
+// One /api/availability answer as the intro times it offers (the profile's rule, BSTrainerProfile's
+// week()): a coach who is full with intros at capacity off is shut; a week with no readable zone is none.
+function bsmReadOpen(d) {
+  if (!d || !Array.isArray(d.slots)) return null;
+  const introsAtCap = !!(d.rules && d.rules.introsAtCapacity === true);
+  if (d.atCapacity === true && !introsAtCap) return { open: [], shut: true, at: Date.now() };
+  const len = Number(d.rules && d.rules.consultMin);
+  const introMin = Number.isInteger(len) && len >= 5 && len <= 240 ? len : 15;
+  if (d.slots.length && !bsIsZone(d.timezone)) return { open: [], shut: false, at: Date.now() };
+  const open = bsProjectAvailability({ slots: d.slots, booked: d.booked || [], weeks: 2, zone: d.timezone, busy: d.busy || [], rules: d.rules || null, sessionMin: introMin });
+  return { open: open.map((s) => s.at).filter(Number.isFinite), shut: false, at: Date.now() };
+}
+function bsmFetchOpen(keys) {
+  const get = window.ShapeCoachAvailability && window.ShapeCoachAvailability.get;
+  if (typeof get !== 'function') return;
+  const fresh = (k) => { const e = _MKT_OPEN.get(k); return e && Date.now() - e.at < BSM_OPEN_TTL; };
+  const want = keys.filter((k) => !fresh(k) && !_MKT_OPEN_WAIT.has(k));
+  if (!want.length) return;
+  want.forEach((k) => _MKT_OPEN_WAIT.add(k));
+  let next = 0;
+  const worker = async () => {
+    while (next < want.length) {
+      const k = want[next++];
+      const i = k.indexOf(':');
+      try {
+        const read = bsmReadOpen(await get(k.slice(0, i), k.slice(i + 1)));
+        if (read) _MKT_OPEN.set(k, read);
+      } catch (e) { /* no times, never invented ones */ }
+      _MKT_OPEN_WAIT.delete(k);
+      _MKT_OPEN_SUBS.forEach((f) => { try { f(); } catch (e2) { /* unmounted */ } });
+    }
+  };
+  for (let n = 0; n < Math.min(6, want.length); n++) worker();
+}
+function useMktOpenTimes(coaches) {
+  const [, bump] = useStateBSM2(0);
+  useEffectBSM2(() => {
+    const f = () => bump((n) => n + 1);
+    _MKT_OPEN_SUBS.add(f);
+    return () => { _MKT_OPEN_SUBS.delete(f); };
+  }, []);
+  const keys = Array.from(new Set((coaches || []).map(bsmOpenKey).filter(Boolean)));
+  const key = keys.join(',');
+  useEffectBSM2(() => { bsmFetchOpen(keys); }, [key]);   // eslint-disable-line react-hooks/exhaustive-deps
+}
+// A coach's open intro times from now: [ms] (empty when none, or shut), or null when unknown.
+function bsmOpenTimes(c, now = Date.now()) {
+  if (bsmIsDemoCoach(c)) return mktRowAtCapacity(c) ? [] : bsmExampleTimes(c, now);
+  const k = bsmOpenKey(c);
+  const e = k ? _MKT_OPEN.get(k) : null;
+  if (!e) return null;
+  return e.shut ? [] : e.open.filter((ms) => ms > now);
+}
+function bsmWithinWeek(c, now = Date.now()) {
+  const t = bsmOpenTimes(c, now);
+  return !!(t && t.length && t[0] - now < 7 * 86400000);
+}
+// "Today 5:30 PM", "Tomorrow 7:00 AM", "Thu 6:00 PM", on the viewer's own clock (P9).
+function bsmSlotText(ms, tr) {
+  const zone = viewerZone();
+  const locale = bsmLocale();
+  const time = formatTime(ms, { zone, locale });
+  const key = dayKey(ms, zone);
+  const p = partsInZone(Date.now(), zone);
+  const tomorrow = p ? new Date(Date.UTC(p.y, p.mo - 1, p.d + 1)).toISOString().slice(0, 10) : '';
+  if (key && key === dayKey(Date.now(), zone)) return tr('marketplace:dir.todayAt', { defaultValue: 'Today {time}', time });
+  if (key && key === tomorrow) return tr('marketplace:dir.tomorrowAt', { defaultValue: 'Tomorrow {time}', time });
+  return tr('marketplace:dir.dayAt', { defaultValue: '{day} {time}', day: formatDate(ms, { zone, locale, weekday: 'short' }), time });
+}
+
+// ── The filters ──
+// Whether a coach passes the role, the filters and the search (a filter's counts pass it a copy of the
+// filters with that choice made, so each count is what the choice would leave). The website's mkPass: a city keeps the coaches there and, unless the member asked to meet in person, those who work
+// remotely; a coach whose listing does not say how they meet shows under Either only; a coach with no
+// price passes any budget, and the budget for a unit leaves the other unit's prices alone.
+function bsmPass(c, f, role, q, now) {
+  const nutri = getPublicProfileKind(c) === 'nutritionist';
+  if ((role === 'Trainers' && nutri) || (role === 'Nutritionists' && !nutri)) return false;
+  if (f.goals.length) { const g = bsmGoalsOf(c); if (!f.goals.some((x) => g.has(x))) return false; }
+  const p = bsmPriceOf(c);
+  if (p) {
+    if (p.per === 'session' && f.maxSession != null && p.amount > f.maxSession) return false;
+    if (p.per === 'month' && f.maxMonth != null && p.amount > f.maxMonth) return false;
+  }
+  const inPerson = c.format === 'In-person' || c.format === 'Hybrid';
+  const remote = c.format === 'Remote' || c.format === 'Hybrid';
+  if ((f.meet === 'inperson' && !inPerson) || (f.meet === 'remote' && !remote)) return false;
+  if (f.city !== 'Anywhere' && bsmCityOf(c) !== f.city && !(f.meet !== 'inperson' && remote)) return false;
+  if (f.openWeek && !bsmWithinWeek(c, now)) return false;
+  if (q) {
+    const hay = [c.name, c.specialty, c.category, ...(c.spec || []), c.cred, ...getCoachCertifications(c), bsmCityOf(c)].filter(Boolean).join(' ').toLowerCase();
+    if (!q.split(/\s+/).filter(Boolean).every((w) => hay.includes(w))) return false;
+  }
+  return true;
+}
+// The filters `f` as the role `role` can hold them: another role's goals off, a city none of the role's
+// coaches is in back to Anywhere, a unit's budget the role is not priced in cleared. ⚠ EVERY ROLE CHANGE
+// GOES THROUGH THIS (Codex on #2667): the role picker and a jump that lands on the open tab with a role
+// (Goals, Train's "Find a trainer"); kept, a filter the role can't hold hid every coach the member asked for.
+function bsmFiltersForRole(f, role, everyone, now) {
+  const pool = (everyone || []).filter((c) => bsmPass(c, BSM_FILTERS0, role, '', now));
+  const cities = new Set(pool.map(bsmCityOf).filter(Boolean));
+  // A way of meeting no listing states can't be chosen (the sheet hides it), so it can't stay on.
+  const meetKnown = pool.some((c) => c.format === 'In-person' || c.format === 'Remote' || c.format === 'Hybrid');
+  return {
+    ...f,
+    goals: f.goals.filter((id) => bsmGoalFits(BSM_GOALS.find((g) => g.id === id) || {}, role)),
+    city: f.city === 'Anywhere' || cities.has(f.city) ? f.city : 'Anywhere',
+    meet: meetKnown ? f.meet : 'either',
+    maxSession: role === 'Nutritionists' ? null : f.maxSession,
+    maxMonth: role === 'Trainers' ? null : f.maxMonth,
+  };
+}
+// The same filters, or `f` itself when nothing changes (so a check that finds nothing re-renders nothing).
+function bsmSameFilters(a, b) {
+  return a.city === b.city && a.meet === b.meet && a.maxSession === b.maxSession && a.maxMonth === b.maxMonth
+    && a.goals.length === b.goals.length && a.goals.every((g, i) => g === b.goals[i]);
+}
+// The sorts: Best match is the goal's fit, then an open intro, then the rating and how many reviews
+// it rests on (the website's mkScore); price compares per session before per month.
+function bsmSort(list, sort, f, now) {
+  const arr = [...list];
+  const r10 = (c) => getCoachRating10(c) || 0;
+  const reviews = (c) => Number(c.reviewCount) || 0;
+  if (sort === 'price') {
+    const by = (c) => { const p = bsmPriceOf(c); return p ? (p.per === 'session' ? p.amount : 10000 + p.amount) : 1e9; };
+    arr.sort((a, b) => by(a) - by(b));
+  } else if (sort === 'rated') arr.sort((a, b) => r10(b) - r10(a) || reviews(b) - reviews(a));
+  else if (sort === 'years') arr.sort((a, b) => (b.years || 0) - (a.years || 0));
+  else {
+    const score = new Map(arr.map((c) => {
+      const g = bsmGoalsOf(c);
+      const fit = f.goals.length ? f.goals.filter((x) => g.has(x)).length : 0;
+      const t = bsmOpenTimes(c, now);
+      return [c, fit * 100 + (t && t.length ? 20 : 0) + r10(c) + Math.min(5, reviews(c) / 60)];
+    }));
+    arr.sort((a, b) => score.get(b) - score.get(a));
+  }
+  return arr;
+}
+
+// ── Your team ──
+// The coaches the member pays, off the plan read Home's Team reads (bsHomeCoachesOf), each with
+// Message; the signed-out preview shows the sample's two, the ones its Home names. A member with no
+// coach, or a read that failed, has no team block.
+const BSM_FACES = `${import.meta.env.BASE_URL}faces/`;
+const BSM_SAMPLE_TEAM = [
+  { role: 'trainer', name: 'Jordan Chen', conversationId: null, providerId: 'sample-trainer', photo: `${BSM_FACES}coach-jordan.jpg` },
+  { role: 'nutritionist', name: 'Dr. Maya Patel', conversationId: null, providerId: 'sample-nutritionist', photo: `${BSM_FACES}coach-maya.jpg` },
+];
+function useMktTeam() {
+  const signedIn = bsmSignedIn();
+  const [paid, setPaid] = useStateBSM2(null);
+  useEffectBSM2(() => {
+    if (!signedIn || !window.ShapePlan?.get) return undefined;
+    let on = true;
+    window.ShapePlan.get().then((p) => { if (on && p) setPaid(bsHomeCoachesOf(p)); }).catch(() => {});
+    return () => { on = false; };
+  }, [signedIn]);
+  const team = signedIn ? (paid || []) : BSM_SAMPLE_TEAM;
+  // Each thread's unread count, from the app's one unread manager (as Home's Team reads it).
+  const ids = team.map((c) => c.conversationId).filter(Boolean).join(',');
+  const [unread, setUnread] = useStateBSM2(() => ({ ...(window.ShapeUnread?.all?.() || {}) }));
+  useEffectBSM2(() => {
+    if (!ids) return undefined;
+    try { window.ShapeUnread?.start?.(); } catch (e) { /* counts stay as read */ }
+    const off = window.ShapeUnread?.onChange?.((m) => setUnread({ ...(m || {}) }));
+    setUnread({ ...(window.ShapeUnread?.all?.() || {}) });
+    return () => { try { if (typeof off === 'function') off(); } catch (e) { /* gone */ } };
+  }, [ids]);
+  return team.map((c) => ({ ...c, unread: (c.conversationId && unread && unread[`dm:${c.conversationId}`]) || 0 }));
+}
+
 // Sample plans for preview / before any coach has published priced plans, so the
 // "What's hot" rail always demonstrates the feature (tagged demo → not buyable).
 const BSM_DEMO_PLANS = [
@@ -677,20 +985,37 @@ const BSM_DEMO_PLANS = [
   { id: 'demo-m2', tab: 'meal', name: 'Plant-Based Performance', coachName: 'Owen Halverson', coachId: 'n2', providerRole: 'nutritionist', price: '$95', demo: true },
   { id: 'demo-m3', tab: 'meal', name: 'Gut-Health Reset Plan', coachName: 'Priya Iyer', coachId: 'n3', providerRole: 'nutritionist', price: '$130', demo: true },
 ];
-function BSMarketplaceScreen({ onBack, onProfile, initialRole, goChat, initialCoach = null, onCoachConsumed = null }) {
+// The member's Coaches tab (owner, 2026-11-09: a sixth tab, between Eat and Chat): Your team, then the
+// marketplace in the "Browse list" look. `initialRole` ('trainer' | 'nutritionist' | null) picks the
+// role it opens on (Train's "Find a trainer" opens on Trainers, Eat's on Nutritionists, the tab itself
+// on Both); `onBack` is a pushed page's ← Back, and the tab, a root, has none.
+function BSMarketplaceScreen({ onBack = null, onProfile, initialRole, goChat, initialCoach = null, onCoachConsumed = null }) {
   const t = useBS();
   const tr = useShapeTr();
-  const [pill, setPill] = useStateBSM2(initialRole === 'nutritionist' ? 'Nutritionists' : 'All');
-  const [cat, setCat] = useStateBSM2('All Categories');
-  const [format, setFormat] = useStateBSM2('All formats');
-  const [loc, setLoc] = useStateBSM2('Anywhere');
-  const [sort, setSort] = useStateBSM2('Most Popular');
+  const roleOf = (r) => (r === 'nutritionist' ? 'Nutritionists' : r === 'trainer' ? 'Trainers' : 'Both');
+  const [pill, setPill] = useStateBSM2(roleOf(initialRole));
+  // A deep link that lands while the tab is open (a waitlist notification, Train's bar) picks its role.
+  // Its filters go through the same rule as the role picker's (bsmFiltersForRole), over the coaches
+  // this render read (everyoneRef, set below).
+  const roleSeen = React.useRef(initialRole);
+  const everyoneRef = React.useRef([]);
+  const [f, setF] = useStateBSM2(BSM_FILTERS0);
+  useEffectBSM2(() => {
+    if (roleSeen.current === initialRole) return;
+    roleSeen.current = initialRole;
+    const r = roleOf(initialRole);
+    setPill(r);
+    setF((prev) => bsmFiltersForRole(prev, r, everyoneRef.current, Date.now()));
+  }, [initialRole]);
+  const [sort, setSort] = useStateBSM2('best');
   const [query, setQuery] = useStateBSM2('');
-  const [forceList, setForceList] = useStateBSM2(false);
+  const [filtersOpen, setFiltersOpen] = useStateBSM2(false);
   const [open, setOpen] = useStateBSM2(null);
-  // The tapped coach's 1-based position in the numbered listings (LISTING Nº) —
-  // null from the feature/featured/plan-rail doors, which aren't numbered rows.
+  // The tapped coach's 1-based position in the list (LISTING Nº) — null from the
+  // picks and the plan rail, which aren't numbered rows.
   const [openNo, setOpenNo] = useStateBSM2(null);
+  // A row's "Book intro": the coach's page opens at its open times.
+  const [openIntro, setOpenIntro] = useStateBSM2(false);
   // A trainer opens on their profile; this is their full listing, opened from it.
   const [openListing, setOpenListing] = useStateBSM2(false);
   const [applyRole, setApplyRole] = useStateBSM2(null);
@@ -700,21 +1025,11 @@ function BSMarketplaceScreen({ onBack, onProfile, initialRole, goChat, initialCo
   // Live marketplace plans (published, priced coach_plans across all coaches).
   const [marketPlans, setMarketPlans] = useStateBSM2(null);
   const [planTab, setPlanTab] = useStateBSM2('program');
-  const [buyingId, setBuyingId] = useStateBSM2(null);
   useEffectBSM2(() => {
     let on = true;
     if (window.ShapeMarketPlans?.list) window.ShapeMarketPlans.list().then((r) => { if (on) setMarketPlans(Array.isArray(r) ? r : []); }).catch(() => { if (on) setMarketPlans([]); });
     return () => { on = false; };
   }, []);
-  const buyPlan = async (pl) => {
-    if (buyingId) return;
-    setBuyingId(pl.id);
-    try {
-      const url = await window.ShapeMarketPlans.buy({ plan: { id: pl.id, name: pl.name, price: pl.price }, providerRole: pl.providerRole, providerId: pl.providerId });
-      if (url) { try { window.open(url, '_blank', 'noopener,noreferrer'); } catch (e) { window.location.href = url; } }
-    } catch (e) { window.__bsToast?.(e?.message || 'Sign in to buy this plan.', 'err'); }
-    finally { setBuyingId(null); }
-  };
 
   useEffectBSM2(() => {
     let active = true;
@@ -743,13 +1058,14 @@ function BSMarketplaceScreen({ onBack, onProfile, initialRole, goChat, initialCo
     if (!initialCoach || !remoteCoaches) return;
     const pool = initialCoach.role === 'nutritionist' ? (remoteCoaches.Nutritionist || []) : (remoteCoaches.Trainer || []);
     const hit = pool.find((c) => Number(c.provider_id) === Number(initialCoach.providerId));
-    if (hit) { setOpen(hit); setOpenNo(null); setDeepMiss(false); } else setDeepMiss(true);
+    if (hit) { setOpen(hit); setOpenNo(null); setOpenIntro(false); setDeepMiss(false); } else setDeepMiss(true);
     if (onCoachConsumed) onCoachConsumed();
   }, [initialCoach, remoteCoaches]);
 
   // Demo fallback: the "YOUR COACH"/"YOUR NUTRITIONIST" relationship badges are
   // honest only in the signed-out preview — strip them for a signed-in account
-  // (they have no such coach) so the fallback can't imply a relationship.
+  // (they have no such coach) so the fallback can't imply a relationship. Every
+  // example coach is labelled Example on the page, signed in or out.
   const _bsmSignedIn = !!(typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id);
   const _bsmStripTag = (c) => ((c.tag === 'YOUR COACH' || c.tag === 'YOUR NUTRITIONIST') ? { ...c, tag: undefined } : c);
   const marketplaceCoaches = remoteCoaches || (_bsmSignedIn
@@ -761,6 +1077,16 @@ function BSMarketplaceScreen({ onBack, onProfile, initialRole, goChat, initialCo
   // Resolve every REAL coach's Shape Score points in one batch so their rung is
   // their own standing, not a derived guess (demo coaches read BSM_DEMO_POINTS).
   useMktCoachPoints(everyone);
+  // And every account's open intro times, for the rows' next open time and "Open intro this week".
+  useMktOpenTimes(everyone);
+  everyoneRef.current = everyone;
+  // ⚠ THE COACHES CHANGE UNDER THE FILTERS (Codex on #2667): the example roster shows while the live
+  // directory is read, and a city or a way of meeting chosen from it may name nothing the live listings
+  // state; when the coaches change, the filters are held to what they carry, as a role change holds them.
+  useEffectBSM2(() => {
+    setF((prev) => { const next = bsmFiltersForRole(prev, pill, everyone, Date.now()); return bsmSameFilters(prev, next) ? prev : next; });
+  }, [everyone]);   // eslint-disable-line react-hooks/exhaustive-deps
+  const team = useMktTeam();
 
   // Real profile photos for live coaches (those with an account) — shown in the
   // facet avatar; demo coaches fall back to initials.
@@ -777,73 +1103,110 @@ function BSMarketplaceScreen({ onBack, onProfile, initialRole, goChat, initialCo
   // fetched account avatar → initials (the face's own fallback, MktPortrait's on the listing).
   const coachPhoto = (c) => (c && ((c.listing_media && c.listing_media.portrait) || c.photo || c.avatar || (c.provider_user_id ? avatarByUser[c.provider_user_id] : null))) || undefined;
 
-  // Filter tab STATE values stay English (the logic branches on them); the directory
-  // view (BSMarketDirectory.jsx) maps each to its displayed, localized word.
-  const list = useMemoBSM2(() => {
-    let out = everyone;
-    if (pill === 'Trainers') out = trainers;
-    else if (pill === 'Nutritionists') out = nutritionists;
-    if (cat && cat !== 'All Categories') {
-      out = out.filter((c) => {
-        const hay = [c.category, ...(c.spec || []), c.role].filter(Boolean).map((v) => String(v).toLowerCase());
-        const needle = String(cat).toLowerCase();
-        return hay.some((v) => v === needle || v.includes(needle) || needle.includes(v));
-      });
-    }
-    if (format && format !== 'All formats') {
-      out = out.filter((c) => String(c.format || '').toLowerCase() === format.toLowerCase());
-    }
-    if (loc && loc !== 'Anywhere') {
-      if (/remote/i.test(loc)) out = out.filter((c) => /remote|hybrid/i.test(String(c.format || '')) || /remote/i.test(String(c.loc || '')));
-      else out = out.filter((c) => String(c.loc || '').toLowerCase().includes(loc.toLowerCase()));
-    }
-    const q = query.trim().toLowerCase();
-    if (q) {
-      out = out.filter((c) =>
-        [c.name, c.loc, c.cred, c.category, c.format, ...(c.spec || []), ...getCoachCertifications(c)]
-          .filter(Boolean)
-          .some((v) => String(v).toLowerCase().includes(q)),
-      );
-    }
-    const num = (v) => Number(String(v).replace(/[^0-9.]/g, '')) || 0;
-    const sorted = [...out];
-    if (sort === 'Highest Rated') sorted.sort((a, b) => bsmRankRating(b) - bsmRankRating(a));
-    else if (sort === 'Lowest Price') sorted.sort((a, b) => num(a.rate) - num(b.rate));
-    else if (sort === 'Most Experience') sorted.sort((a, b) => (b.years || 0) - (a.years || 0));
-    else sorted.sort((a, b) => ((b.match || 0) + bsmRankRating(b) * 5) - ((a.match || 0) + bsmRankRating(a) * 5)); // Most Popular
-    return sorted;
-  }, [pill, cat, format, loc, sort, query, everyone, trainers, nutritionists]);
-
-  const browsing = forceList || pill !== 'All' || query.trim().length > 0;
-
-  const ranked = useMemoBSM2(
-    () => [...everyone].sort((a, b) => ((b.match || 0) + bsmRankRating(b) * 5) - ((a.match || 0) + bsmRankRating(a) * 5)),
-    [everyone],
-  );
-  const cotw = ranked.find((c) => c.tag) || ranked[0];
-  const cotwProfile = cotw ? buildPublicProfile(cotw) : null;
-  const featuredWeek = ranked.filter((c) => !cotw || c.id !== cotw.id).slice(0, 4);
-  const pickPill = (p) => { setPill(p); setForceList(false); setCat('All Categories'); setFormat('All formats'); setLoc('Anywhere'); };
-  const roleKey = pill === 'Trainers' ? 'Trainer' : pill === 'Nutritionists' ? 'Nutritionist' : null;
-  const catList = roleKey ? BSM_MARKETPLACE_CATEGORIES[roleKey] : null;
-  const locList = roleKey ? BSM_MARKETPLACE_LOCATIONS[roleKey] : null;
+  // ── The list: the role, the filters and the search, in the sort picked ──
+  // The role and filter values stay English tokens (the rules branch on them); the view
+  // (BSMarketDirectory.jsx) maps each to its displayed, localized word.
+  const now = Date.now();
+  const q = query.trim().toLowerCase();
+  const list = bsmSort(everyone.filter((c) => bsmPass(c, f, pill, q, now)), sort, f, now);
+  // What the role's coaches carry, for the filter sheet's choices: only cities, ways of meeting and
+  // prices some listing states, so no filter offers a match nobody has.
+  const rolePool = everyone.filter((c) => bsmPass(c, BSM_FILTERS0, pill, '', now));
+  const cities = Array.from(new Set(rolePool.map(bsmCityOf).filter(Boolean))).sort((a, b) => a.localeCompare(b));
+  const meetKnown = rolePool.some((c) => c.format === 'In-person' || c.format === 'Remote' || c.format === 'Hybrid');
+  const priceRange = (per) => {
+    const xs = rolePool.map(bsmPriceOf).filter((p) => p && p.per === per).map((p) => p.amount);
+    if (!xs.length) return null;
+    const min = Math.max(0, Math.floor(Math.min(...xs) / 10) * 10);
+    const max = Math.ceil(Math.max(...xs) / 10) * 10;
+    return max > min ? { min, max, step: 5 } : null;
+  };
+  const count = (ff, r = pill) => everyone.filter((c) => bsmPass(c, ff, r, q, now)).length;
+  const goalWord = (g) => ({
+    strength: tr('marketplace:goal.strength', { defaultValue: 'Strength' }),
+    fatloss: tr('marketplace:goal.fatloss', { defaultValue: 'Fat loss' }),
+    endurance: tr('marketplace:goal.endurance', { defaultValue: 'Endurance' }),
+    mobility: tr('marketplace:goal.mobility', { defaultValue: 'Mobility & rehab' }),
+    nutrition: tr('marketplace:goal.nutrition', { defaultValue: 'Sports nutrition' }),
+    general: tr('marketplace:goal.general', { defaultValue: 'General fitness' }),
+    running: tr('marketplace:goal.running', { defaultValue: 'Running' }),
+    hyrox: tr('marketplace:goal.hyrox', { defaultValue: 'Hyrox' }),
+    hiit: tr('marketplace:goal.hiit', { defaultValue: 'HIIT' }),
+    bodybuilding: tr('marketplace:goal.bodybuilding', { defaultValue: 'Bodybuilding' }),
+    functional: tr('marketplace:goal.functional', { defaultValue: 'Functional & hybrid' }),
+    home: tr('marketplace:goal.home', { defaultValue: 'At home' }),
+    women: tr('marketplace:goal.women', { defaultValue: 'Just for women' }),
+    weight: tr('marketplace:goal.weight', { defaultValue: 'Weight management' }),
+    muscle: tr('marketplace:goal.muscle', { defaultValue: 'Muscle gain' }),
+    gut: tr('marketplace:goal.gut', { defaultValue: 'Gut health' }),
+    plant: tr('marketplace:goal.plant', { defaultValue: 'Plant-based' }),
+    prenatal: tr('marketplace:goal.prenatal', { defaultValue: 'Prenatal & postnatal' }),
+    mealprep: tr('marketplace:goal.mealprep', { defaultValue: 'Meal prep' }),
+    medical: tr('marketplace:goal.medical', { defaultValue: 'Medical & conditions' }),
+    longevity: tr('marketplace:goal.longevity', { defaultValue: 'Longevity' }),
+  }[g] || g);
+  const meetWord = (m) => (m === 'inperson' ? tr('marketplace:meet.inPerson', { defaultValue: 'In person' }) : m === 'remote' ? tr('marketplace:meet.remote', { defaultValue: 'Remote' }) : tr('marketplace:meet.either', { defaultValue: 'Either' }));
+  const set = (patch) => setF((prev) => ({ ...prev, ...patch }));
+  // The sheet's goals: the role's own (a nutritionist's drop off on Trainers, a trainer's on
+  // Nutritionists); the six card goals always, any other once a coach is filed under it or it is on.
+  const goalKeys = BSM_GOALS
+    .filter((g) => bsmGoalFits(g, pill) && (g.card || f.goals.includes(g.id) || count({ ...f, goals: [g.id] }) > 0))
+    .map((g) => g.id);
+  const sessionRange = pill !== 'Nutritionists' ? priceRange('session') : null;
+  const monthRange = pill !== 'Trainers' ? priceRange('month') : null;
+  // Each filter that is on, as a chip that takes it off (the Filters button's count is how many).
+  const applied = [
+    ...f.goals.map((g) => ({ key: `goal:${g}`, label: goalWord(g), onRemove: () => set({ goals: f.goals.filter((x) => x !== g) }) })),
+    f.openWeek ? { key: 'openWeek', label: tr('marketplace:filters.openWeek', { defaultValue: 'Open intro this week' }), onRemove: () => set({ openWeek: false }) } : null,
+    f.city !== 'Anywhere' ? { key: 'city', label: f.city, onRemove: () => set({ city: 'Anywhere' }) } : null,
+    f.maxSession != null ? { key: 'maxSession', label: tr('marketplace:filters.upToSession', { defaultValue: 'Up to ${amount}/session', amount: f.maxSession }), onRemove: () => set({ maxSession: null }) } : null,
+    f.maxMonth != null ? { key: 'maxMonth', label: tr('marketplace:filters.upToMonth', { defaultValue: 'Up to ${amount}/month', amount: f.maxMonth }), onRemove: () => set({ maxMonth: null }) } : null,
+    f.meet !== 'either' ? { key: 'meet', label: meetWord(f.meet), onRemove: () => set({ meet: 'either' }) } : null,
+  ].filter(Boolean);
+  // A role leaves behind the filters it can't hold (bsmFiltersForRole): another role's goals, a city none
+  // of its coaches is in, a unit's budget the role is not priced in.
+  const pickRole = (r) => {
+    setPill(r);
+    setF((prev) => bsmFiltersForRole(prev, r, everyone, now));
+  };
+  const filters = {
+    role: pill,
+    roles: ['Both', 'Trainers', 'Nutritionists'].map((r) => ({ key: r, count: count(f, r) })),
+    onRole: pickRole,
+    applied,
+    open: filtersOpen,
+    onOpen: () => setFiltersOpen(true),
+    onClose: () => setFiltersOpen(false),
+    onClear: () => setF(BSM_FILTERS0),
+    total: list.length,
+    goals: goalKeys.map((g) => ({ key: g, label: goalWord(g), count: count({ ...f, goals: [g] }), on: f.goals.includes(g),
+      onToggle: () => set({ goals: f.goals.includes(g) ? f.goals.filter((x) => x !== g) : [...f.goals, g] }) })),
+    // null: no listing of the role states a city (the sheet says "Not listed yet").
+    city: cities.length ? { value: f.city, options: ['Anywhere', ...cities], onChange: (v) => set({ city: v }) } : null,
+    budget: {
+      session: sessionRange ? { ...sessionRange, value: f.maxSession, onChange: (v) => set({ maxSession: v }) } : null,
+      month: monthRange ? { ...monthRange, value: f.maxMonth, onChange: (v) => set({ maxMonth: v }) } : null,
+    },
+    meet: meetKnown ? { value: f.meet, onChange: (v) => set({ meet: v }) } : null,
+    openWeek: { on: f.openWeek, count: count({ ...f, openWeek: true }), onToggle: () => set({ openWeek: !f.openWeek }) },
+  };
 
   if (applyRole && window.BSProviderApplicationScreen) {
     return <window.BSProviderApplicationScreen initialRole={applyRole} onBack={() => setApplyRole(null)} />;
   }
   if (open) {
-    const closeOpen = () => { setOpen(null); setOpenNo(null); setOpenListing(false); };
+    const closeOpen = () => { setOpen(null); setOpenNo(null); setOpenIntro(false); setOpenListing(false); };
     // Tapping a coach opens the coach profile (owner, 2026-10-28, for trainers; nutritionists
     // since they got it too), drawn from this listing: read fresh by the coach's account, or by the
     // listing's id when it has none (Shape's seeded listings, which show sample content there). Its
     // Work-with sheet opens THE LISTING below for plans, prices and codes, and the listing's THE
-    // FULL PROFILE leader comes back here.
+    // FULL PROFILE leader comes back here. A row's Book intro opens it at its open times (openAt).
     const openRole = open.provider_role || getPublicProfileKind(open);
     const isCoach = openRole === 'trainer' || openRole === 'nutritionist';
     if (isCoach && !openListing && window.BSPublicProfile) {
       const Profile = window.BSPublicProfile;
       const nutri = openRole === 'nutritionist';
-      return <Profile person={bsmCoachPerson(open, coachPhoto(open), nutri)} onBack={closeOpen} onListing={() => setOpenListing(true)}
+      return <Profile person={{ ...bsmCoachPerson(open, coachPhoto(open), nutri), ...(openIntro ? { openAt: 'book' } : null) }} onBack={closeOpen} onListing={() => setOpenListing(true)}
         onMessage={(pp) => { if (goChat) goChat((pp && pp.who) || open.name, nutri ? 'Nutritionist' : 'Trainer'); }} />;
     }
     // A coach's full listing: THE LISTING (the marketplace conversion page, spec 2026-07-09).
@@ -852,32 +1215,33 @@ function BSMarketplaceScreen({ onBack, onProfile, initialRole, goChat, initialCo
   }
 
   // ONE COACH AS THE DIRECTORY DRAWS THEM (BSMarketDirectory.jsx): every rule is read here, so the
-  // view only draws. The rating is a live coach's reviews or New (formatCoachRating10), the standing
-  // their Shape Score or nothing (mktCoachTier), the face the portrait ladder (coachPhoto) checked
-  // as a real address, the cover their listing's own. `n` is the place in the numbered list (LISTING
-  // Nº on the listing it opens), null from the feature and the tiles, which aren't numbered.
+  // view only draws. The rating is a live coach's reviews or New (getCoachRating10: null), the price
+  // its listing's with its unit (bsmPriceOf), the next open time a real one from the coach's own
+  // calendar or an example's (labelled Example), the face the portrait ladder checked as a real
+  // address. `n` is the place in the list (LISTING Nº on the listing it opens), null from the picks.
   const mktDirCard = (c, n = null) => {
-    const nutri = getPublicProfileKind(c) === 'nutritionist';
-    const standing = mktCoachTier(c);
+    const times = bsmOpenTimes(c, now);
+    const atCapacity = mktRowAtCapacity(c);
     return {
-      key: c.id, n, name: c.name, nutri,
-      // The standing's name and its colour (the list's cards light it; none when there is no name).
-      cred: getPrimaryCredential(c), loc: mktShortLoc(c.loc), tier: standing.name || null, tierColor: standing.name ? standing.color : null,
-      // The rating as words ("★ 9.6/10", or New) and as the figure behind them (null for New).
-      rating: formatCoachRating10(c, tr), score: getCoachRating10(c), rate: c.rate, verified: !!c.verified,
-      // At capacity by their own listing, so a member sees it before they tap (owner, 2026-11-04).
-      atCapacity: mktRowAtCapacity(c),
-      photo: mktValidPhoto(coachPhoto(c)), cover: mktListingMedia(c).cover,
-      onOpen: () => { setOpenNo(n); setOpen(c); },
+      key: c.id, n, name: c.name, nutri: getPublicProfileKind(c) === 'nutritionist',
+      verified: !!c.verified, example: bsmIsDemoCoach(c), spec: bsmSpecLine(c),
+      // The rating on the ten-point scale, or null for New (a live coach nobody has reviewed).
+      score: getCoachRating10(c) || null,
+      price: bsmPriceOf(c),
+      // The next open intro, or At capacity when the coach is full and takes no intros.
+      next: times && times.length ? { text: bsmSlotText(times[0], tr), full: false } : atCapacity ? { text: tr('marketplace:listing.atCapacity', { defaultValue: 'At capacity' }), full: true } : null,
+      atCapacity,
+      photo: mktValidPhoto(coachPhoto(c)),
+      onOpen: () => { setOpenNo(n); setOpenIntro(false); setOpen(c); },
+      onIntro: () => { setOpenNo(n); setOpenIntro(true); setOpen(c); },
     };
   };
-  // The coach of the week: their card with their own words, their clients and years, and the top
-  // three offers of their rate card (buildPublicProfile, as THE LISTING prices them).
-  const feature = cotw && cotwProfile ? {
-    ...mktDirCard(cotw),
-    quote: cotw.bio || '', clients: Number(cotw.clients) || 0, years: Number(cotw.years) || 0,
-    offers: cotwProfile.packages.slice(0, 3).map((p) => ({ key: p.name, name: p.name, monthly: p.unit === '/ month', perks: p.perks.length, price: p.price })),
-  } : null;
+  // Editors' picks: the listings Shape features (an example roster's best rated, labelled Example),
+  // in the role picked. Nothing paid puts a coach here.
+  const inRole = (c) => bsmPass(c, BSM_FILTERS0, pill, '', now);
+  const picks = (remoteCoaches
+    ? everyone.filter((c) => c.tag === 'FEATURED')
+    : bsmSort(everyone, 'rated', BSM_FILTERS0, now)).filter(inRole).slice(0, 6);
   // What's hot — real published plans across coaches, tabbed by kind. Live published plans when
   // present; else sample plans so the rail is populated in preview / before any coach has published.
   const livePlans = Array.isArray(marketPlans) ? marketPlans : [];
@@ -887,7 +1251,7 @@ function BSMarketplaceScreen({ onBack, onProfile, initialRole, goChat, initialCo
   // rule). With no live plans they get the honest empty state.
   const allPlans = livePlans.length ? livePlans : (_bsmSignedIn ? [] : BSM_DEMO_PLANS);
   const tabPlans = allPlans.filter((p) => p.tab === planTab).slice(0, 8).map((pl) => ({
-    key: pl.id, title: pl.name, nutri: pl.providerRole === 'nutritionist', coach: pl.coachName, price: pl.price || null,
+    key: pl.id, title: pl.name, nutri: pl.providerRole === 'nutritionist', coach: pl.coachName, price: pl.price || null, example: !!pl.demo,
     // Tap a hot plan → open that coach's page (their storefront, where
     // the plan + Buy live). Real coaches resolve to their live account;
     // sample plans open the demo coach's derived detail page — every
@@ -906,29 +1270,38 @@ function BSMarketplaceScreen({ onBack, onProfile, initialRole, goChat, initialCo
     // The sample plans name real directory coaches for exactly
     // this reason — a rail advertising coaches who don't exist
     // in the directory opened a page with no identity at all.
-    onOpen: () => setOpen({ name: pl.coachName, id: (pl.demo && pl.coachId) || undefined, provider_id: (!pl.demo && pl.providerId) || undefined, provider_user_id: (!pl.demo && pl.ownerId) || undefined, provider_role: pl.providerRole, init: String(pl.coachName || '?').trim()[0] || '?', loc: 'Remote' }),
+    // No place is claimed for the coach (it used to read Remote).
+    onOpen: () => { setOpenIntro(false); setOpen({ name: pl.coachName, id: (pl.demo && pl.coachId) || undefined, provider_id: (!pl.demo && pl.providerId) || undefined, provider_user_id: (!pl.demo && pl.ownerId) || undefined, provider_role: pl.providerRole, init: String(pl.coachName || '?').trim()[0] || '?', loc: null }); },
+  }));
+  // Your team: Message opens the coach's thread, or the chat tab on them when there is none yet.
+  // The signed-out preview's two are the sample's, labelled Example like every example coach.
+  const teamExample = !_bsmSignedIn;
+  const teamRows = team.map((c) => ({
+    key: `${c.role}:${c.providerId ?? c.name}`, name: c.name, nutri: c.role === 'nutritionist', photo: c.photo || null, unread: c.unread || 0, example: teamExample,
+    onMessage: () => {
+      if (c.conversationId) {
+        try { window.dispatchEvent(new window.CustomEvent('shape:openConversation', { detail: { conversationId: c.conversationId, name: c.name || undefined } })); return; } catch (e) { /* the chat tab below */ }
+      }
+      if (goChat) goChat(c.name || null, c.role === 'nutritionist' ? 'Nutritionist' : 'Trainer');
+    },
   }));
 
   return (
     <BSMarketDirectory
       onBack={onBack} corner={bsMktCorner(t.INK)}
+      team={teamRows}
       query={query} onQuery={setQuery}
-      pill={pill} forceList={forceList} onPill={pickPill}
-      filters={catList ? {
-        cat, cats: catList, onCat: setCat,
-        // Format is a trainer's filter; a nutritionist's listing carries none.
-        format: pill === 'Trainers' ? format : null, formats: BSM_MARKETPLACE_FORMATS, onFormat: setFormat,
-        loc, locs: locList || ['Anywhere'], onLoc: setLoc,
-        sort, sorts: BSM_MARKETPLACE_SORTS, onSort: setSort,
-        onClear: () => { setCat('All Categories'); setFormat('All formats'); setLoc('Anywhere'); },
-      } : null}
+      filters={filters}
       loading={providersLoading} error={providersError}
       deepMiss={deepMiss} onDeepMissDismiss={() => setDeepMiss(false)}
-      browsing={browsing} category={cat}
+      picks={picks.map((c) => mktDirCard(c))}
       list={list.map((c, i) => mktDirCard(c, i + 1))}
-      feature={feature} roster={featuredWeek.map((c) => mktDirCard(c))} onSeeAll={() => setForceList(true)}
+      // How the head counts them: example coaches can't be booked, nor a listing with no account.
+      listKind={list.length && list.every(bsmIsDemoCoach) ? 'example' : list.every((c) => !!c.provider_user_id) ? 'bookable' : 'listed'}
+      sort={sort} sorts={BSM_SORTS} onSort={setSort}
       planTab={planTab} onPlanTab={setPlanTab} plans={tabPlans}
-      onApply={setApplyRole} />
+      // The application door, on the role picked (a trainer's on Both).
+      onApply={() => setApplyRole(pill === 'Nutritionists' ? 'nutritionist' : 'trainer')} />
   );
 }
 
@@ -1011,7 +1384,7 @@ function buildPublicProfile(coach) {
   return {
     kind,
     role: isNutritionist ? 'Nutritionist' : 'Trainer',
-    eyebrow: `${isNutritionist ? 'Nutritionist' : 'Trainer'} - ${coach.loc} - ${getPrimaryCredential(coach)}`,
+    eyebrow: [isNutritionist ? 'Nutritionist' : 'Trainer', coach.loc, getPrimaryCredential(coach)].filter(Boolean).join(' - '),
     first,
     headline: isNutritionist
       ? `${coach.category || 'Performance nutrition'} for training, recovery, and real life.`
@@ -2213,7 +2586,7 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
       // The marketplace's coach person: with no account, the profile reads this listing by its id.
       ...bsmCoachPerson(coach, photo, isNutriDetail),
       who: coach.name, kind: isNutriDetail ? 'NUTRI' : 'TRAINER',
-      userId: coach.provider_user_id || null, city: coach.loc || coach.city || 'Remote',
+      userId: coach.provider_user_id || null, city: coach.loc || coach.city || '',
       bio: coach.bio || '', init: coach.init || (coach.name ? coach.name[0] : '?'),
       tier: coach.tier || null, public: true,
       // "Book intro" on the profile opens this listing's own calendar: an intro is booked

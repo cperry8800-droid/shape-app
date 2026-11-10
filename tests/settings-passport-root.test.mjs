@@ -545,8 +545,9 @@ test('the root, its own Back and the doors are hidden while editing', () => {
   assert.ok(el.includes('onBack={onBack}'), 'the root does not carry the shell’s Back');
   assert.ok(!s.includes('<BSBackRow onBack={onBack}'), 'BSSettings draws the shell’s Back itself again');
   assert.equal(ROOT_SRC.split("<BSSettingsHead title={tr('settings:head.title', { defaultValue: 'Settings' })} onBack={onBack} />").length - 1, 1, 'the root does not hand the shell\'s Back to the Settings head');
-  // The doors open their panes; the picks and Sign out go to their writers.
-  assert.ok(el.includes('tiles={passportTiles}') && el.includes('also={alsoRows}') && el.includes('onOpen={(d) => setDetail(d)}'), 'the doors do not open their panes');
+  // The doors open their panes (Coach on Shape opens the application screen over Settings, 2026-11-09);
+  // the picks and Sign out go to their writers.
+  assert.ok(el.includes('tiles={passportTiles}') && el.includes('also={alsoRows}') && /onOpen=\{\(d\) => \{\n\s+if \(d === 'coachapply'\) \{[\s\S]*?return;\n\s+\}\n\s+setDetail\(d\);\n\s+\}\}/.test(el), 'the doors do not open their panes');
   assert.ok(el.includes("onPickRole={(key) => setTweak('role', key)}"), 'Preview as / Profile mode no longer switch the role');
   assert.ok(el.includes('onEdit={startEdit}') && el.includes('onPublicProfile={() => setShowPublicProfile(true)}'), 'the profile plate lost its actions');
   assert.ok(el.includes('onLogout={onLogout}'), 'Sign out lost its handler');

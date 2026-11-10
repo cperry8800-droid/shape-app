@@ -624,5 +624,18 @@
   "notifyPrefs.prepHour": "Hatırlatma saati",
   "notifyPrefs.prepHourSub": "Önceki akşam, senin saatinle",
   "notifyPrefs.prepHourQuiet": "Sessiz saatlerinde: uygulamada, bildirim yok",
-  "notifyPrefs.prepHourFailed": "Hatırlatma saati kaydedilmedi. Tekrar dene."
+  "notifyPrefs.prepHourFailed": "Hatırlatma saati kaydedilmedi. Tekrar dene.",
+  "coachApply.title": "Shape’te koçluk",
+  "coachApply.sub": "Antrenör veya diyetisyen olarak başvur",
+  "coachApply.inReview": "İnceleniyor",
+  "coachApply.backgroundCheck": "Geçmiş kontrolü",
+  "coachApply.approved": "Onaylandı",
+  "coachApply.notApproved": "Onaylanmadı",
+  "coachApply.trainerApp": "Antrenör başvurusu",
+  "coachApply.nutritionistApp": "Diyetisyen başvurusu",
+  "coachApply.sent": "{date} gönderildi",
+  "coachApply.usually": "genelde 2–3 iş günü",
+  "coachApply.submitted": "Gönderildi",
+  "coachApply.unavailable": "Başvurun kontrol edilemedi · tekrar denemek için dokun",
+  "coachApply.checking": "Başvurun kontrol ediliyor…"
 }

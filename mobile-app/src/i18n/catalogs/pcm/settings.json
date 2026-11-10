@@ -624,5 +624,18 @@
   "notifyPrefs.prepHour": "Reminder time",
   "notifyPrefs.prepHourSub": "The evening before, your own time",
   "notifyPrefs.prepHourQuiet": "For your quiet hours: inside the app, no push",
-  "notifyPrefs.prepHourFailed": "The reminder time no save. Try again."
+  "notifyPrefs.prepHourFailed": "The reminder time no save. Try again.",
+  "coachApply.title": "Coach for Shape",
+  "coachApply.sub": "Apply as trainer or nutritionist",
+  "coachApply.inReview": "Dem dey check am",
+  "coachApply.backgroundCheck": "Background check",
+  "coachApply.approved": "Dem approve am",
+  "coachApply.notApproved": "Dem no approve am",
+  "coachApply.trainerApp": "Trainer application",
+  "coachApply.nutritionistApp": "Nutritionist application",
+  "coachApply.sent": "you send am {date}",
+  "coachApply.usually": "e dey take 2–3 work days",
+  "coachApply.submitted": "Don send",
+  "coachApply.unavailable": "We no fit check your application · tap make we try again",
+  "coachApply.checking": "We dey check your application…"
 }

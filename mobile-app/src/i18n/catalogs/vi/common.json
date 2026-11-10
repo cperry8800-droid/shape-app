@@ -98,5 +98,10 @@
   "age.h": "{n} giờ",
   "age.d": "{n} ngày",
   "age.w": "{n} tuần",
-  "age.now": "bây giờ"
+  "age.now": "bây giờ",
+  "nav.coaches": "Huấn luyện viên",
+  "findCoach.trainer": "Tìm huấn luyện viên",
+  "findCoach.nutritionist": "Tìm chuyên gia dinh dưỡng",
+  "findCoach.vettedCoaches": "Huấn luyện viên đã thẩm định",
+  "findCoach.vettedRDs": "Chuyên gia dinh dưỡng đã thẩm định"
 }

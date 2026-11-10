@@ -624,5 +624,18 @@
   "notifyPrefs.prepHour": "Reminder time",
   "notifyPrefs.prepHourSub": "The evening before, your time",
   "notifyPrefs.prepHourQuiet": "In your quiet hours: in the app, no push",
-  "notifyPrefs.prepHourFailed": "The reminder time was not saved. Try again."
+  "notifyPrefs.prepHourFailed": "The reminder time was not saved. Try again.",
+  "coachApply.title": "Coach on Shape",
+  "coachApply.sub": "Apply as a trainer or nutritionist",
+  "coachApply.inReview": "In review",
+  "coachApply.backgroundCheck": "Background check",
+  "coachApply.approved": "Approved",
+  "coachApply.notApproved": "Not approved",
+  "coachApply.trainerApp": "Trainer application",
+  "coachApply.nutritionistApp": "Nutritionist application",
+  "coachApply.sent": "sent {date}",
+  "coachApply.usually": "usually 2–3 business days",
+  "coachApply.submitted": "Submitted",
+  "coachApply.unavailable": "Couldn’t check your application · tap to try again",
+  "coachApply.checking": "Checking your application…"
 }

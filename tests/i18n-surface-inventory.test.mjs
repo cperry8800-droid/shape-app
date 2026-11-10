@@ -341,7 +341,7 @@ const UNCOVERED = new Set([
   'Client::BSCodeOfConductPage',
   'Client::BSConsumerHealthPage', 'Client::BSContactPage', 'Client::BSCrossoverCard',
   'Client::BSDataCompliancePage', 'Client::BSDayBriefPreview',
-  'Client::BSFindCoachBar', 'Client::BSFollowSuggestions',
+  'Client::BSFollowSuggestions',
   'Client::BSHelpPage',
   'Client::BSKitchenCard', 'Client::BSLegalActions',
   'Client::BSLogActivity',
@@ -377,11 +377,7 @@ const UNCOVERED = new Set([
   'Main::BSTweaksPanel',
   'Pros::BSCoachPlaylistStudio',
   'Pros::BSProMonthlyOfferSheet',
-  'ProviderApply::BSProviderApplicationScreen', 'Widgets::BSWidgetPicker',
-  // The application screen's document pickers (2026-10-12), split out of it as their own
-  // component: three strings of the screen's, which has no translator and is translated whole
-  // or not at all.
-  'ProviderApply::BSApplyDocuments',
+  'Widgets::BSWidgetPicker',
   'Widgets::BSWidgetSlot', 'Widgets::WAdherence', 'Widgets::WBody', 'Widgets::WCalories',
   'Widgets::WFocus', 'Widgets::WHRV', 'Widgets::WLoad', 'Widgets::WMacros',
   'Widgets::WMeasurements', 'Widgets::WMicros', 'Widgets::WMood', 'Widgets::WPR',
@@ -984,7 +980,15 @@ test('MEASUREMENT — the numbers the record has to carry', () => {
   // "Help center", "Contact", "Memory", "Coaching", "Reconcile" and the rest), and each two-line title
   // became one string. The legal summaries' date and warning ride `meta` and `note`, props this walk
   // reads, so no copy left the count by moving: 558 -> 534.
-  assert.equal(noneStrings, 534, 'the untranslated surfaces changed how much they hardcode — update the number AND say so in the PR');
+  // The coach application (BSProviderApplicationScreen and its document pickers, BSApplyDocuments) was
+  // rebuilt as seven short steps and translated whole (owner, 2026-11-09: "Option A: short steps"), every
+  // string keyed under onboarding:apply.* in all 13 locales, its option values kept English for the route
+  // and only their labels translated. Both lines left UNCOVERED, with the screen's 109 strings and the
+  // pickers' 3: 534 -> 422.
+  // Train's and Eat's "Find a trainer" / "Find a nutritionist" bars (BSFindCoachBar) are translated, with
+  // their "Vetted coaches" / "Vetted RDs", under common:findCoach.* in all 13 locales (the Coaches tab,
+  // 2026-11-09). Its line left UNCOVERED with its 4 strings: 422 -> 418.
+  assert.equal(noneStrings, 418, 'the untranslated surfaces changed how much they hardcode — update the number AND say so in the PR');
   // 33 -> 32: BSScoreStandingChart left with the Score page's ladder (see partStrings above).
   // BSTerrainProfile is fully translated now (2026-10-31): 32 -> 31.
   // MktComboCard and MktRow went with the directory's redesign (2026-11-04, see partStrings): 31 -> 29.
@@ -994,7 +998,9 @@ test('MEASUREMENT — the numbers the record has to carry', () => {
   // BSProfileIdentityHead was deleted with the member profile's old head (2026-10-31): 79 -> 78.
   // Nora's profile moved to BSNoraProfile.jsx, fully covered (2026-11-01): 78 -> 77.
   // BSMealLogged left for PARTIAL (2026-11-04): 77 -> 76.
-  assert.equal(none.length, 76, 'untranslated-surface count moved — regenerate UNCOVERED and the record');
+  // The coach application and its document pickers are translated whole (2026-11-09): 76 -> 74.
+  // The Find a coach bars (BSFindCoachBar) are translated (the Coaches tab, 2026-11-09): 74 -> 73.
+  assert.equal(none.length, 73, 'untranslated-surface count moved — regenerate UNCOVERED and the record');
   // Floors, not equalities: a new component with a translator and no copy of its
   // own moves both of these without changing anything this file is about.
   // ⚠ The JSX floor dropped 358 → 357 when BSCosmicWordmark — an orphaned

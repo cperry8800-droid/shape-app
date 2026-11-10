@@ -791,6 +791,7 @@
   "sound.toPlans": "planlara",
   "sound.tracksCount": "{count} parça",
   "sound.usedBy": "{count} kişi kullanıyor",
+  "sound.notAssigned": "henüz atanmadı",
   "sound.yourAppleFooter": "Apple Music'in",
   "sound.yourSpotifyFooter": "Spotify'ın",
   "sound.yourWord": "Senin",

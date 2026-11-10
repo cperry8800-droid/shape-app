@@ -6037,14 +6037,6 @@ function BSTrainerPrograms({ initialTab = 'programs', openPlanRequest = null, on
     { n: 'PPL · 6-day split', meta: '6 days/wk · intermediate' },
     { n: 'Bro split · 5-day', meta: '5 days/wk · hypertrophy' },
   ];
-  // Clients enrolled per paid plan (shown under the Plans sub-tab) — demo facepiles
-  // carry fabricated "N on it" counts, so signed-OUT preview only (§5 CodeRabbit).
-  const enrolled = signedIn ? [] : [
-    { prog: 'Push / Pull / Legs', n: 48, who: [['A', t.RUST], ['J', '#3b7de0'], ['C', t.AMBER]] },
-    { prog: 'Starting Strength', n: 31, who: [['R', t.AMBER], ['P', '#3b7de0']] },
-    { prog: 'Fat Loss 101', n: 22, who: [['P', '#8a5cf6'], ['D', t.RUST]] },
-    { prog: 'Hypertrophy Block', n: 19, who: [['S', '#2f7d4f']] },
-  ];
   const libBuild = ({ plans: 'plan', workouts: 'workout', programs: 'program' })[libTab] || 'plan';
 
   // ── Assign a catalogue plan to a linked client ──
@@ -6251,8 +6243,6 @@ function BSTrainerPrograms({ initialTab = 'programs', openPlanRequest = null, on
       items: shownPrograms.filter((p) => p !== topProgram).map((p) => item(p, openProgram(p), p.id ? () => duplicate(p) : undefined)),
       miss: programs.length && !shownPrograms.length ? missText : null,
       empty: programs.length || serverPlans === null ? null : { label: tr('coach:plans.noPublishedPlans', { defaultValue: 'NO PUBLISHED PLANS' }), build: { label: tr('coach:plans.buildFromScratch', { defaultValue: '＋ Build from scratch' }), onClick: () => openDraft('plan', true) }, nora: askNora } },
-    { kind: 'enrolled', head: tr('coach:head.enrolled', { defaultValue: 'Enrolled' }), empty: { label: tr('coach:plans.noEnrolled', { defaultValue: 'NO ENROLLED CLIENTS' }) },
-      rows: enrolled.map((e) => ({ key: e.prog, name: e.prog, faces: e.who.map((w) => w[0]), demo: !signedIn, label: tr('coach:plans.onIt', { defaultValue: '{count} ON IT', count: e.n }), aria: tr('coach:plans.enrolledAria', { defaultValue: '{prog}, {count} clients enrolled', prog: e.prog, count: e.n }), onClick: () => flash(tr('coach:plans.enrolledFlash', { defaultValue: '{count} clients on {prog}', count: e.n, prog: e.prog })) })) },
   ];
   const sortWord = sort === 'Price' ? tr('coach:head.sortPrice', { defaultValue: 'Price' }) : sort === 'Rating' ? tr('coach:head.sortRating', { defaultValue: 'Rating' }) : tr('coach:head.sortPopular', { defaultValue: 'Popular' });
   const model = {
@@ -7161,14 +7151,6 @@ function BSNutriPlans({ openPlanRequest = null, onOpenConsumed = () => {} } = {}
     { n: 'Chicken + rice lunch', meta: '620 kcal · 48P · lunch' },
     { n: 'Recovery smoothie', meta: '310 kcal · 30P · snack' },
   ];
-  // Clients enrolled per paid plan (shown under the Plans sub-tab) — demo facepiles
-  // carry fabricated "N on it" counts, so signed-OUT preview only (§5 CodeRabbit).
-  const enrolled = signedIn ? [] : [
-    { prog: 'Lean Cut', n: 12, who: [['A', t.RUST], ['J', '#3b7de0']] },
-    { prog: 'Performance', n: 8, who: [['R', t.AMBER]] },
-    { prog: 'Vegetarian Base', n: 6, who: [['S', '#2f7d4f'], ['P', '#8a5cf6']] },
-    { prog: 'Maintenance', n: 14, who: [['C', t.AMBER], ['D', t.RUST]] },
-  ];
 
   // Open the plan a confirmed Nora draft just saved ("Open in builder" on her card). ⚠ IT WAITS FOR
   // THE LIBRARY, and reads it once more if the plan is not in it yet: the save landed a moment ago.
@@ -7346,8 +7328,6 @@ function BSNutriPlans({ openPlanRequest = null, onOpenConsumed = () => {} } = {}
       miss: plans.length && !shownPlans.length ? missText : null,
       empty: plans.length ? null : { label: tr('coach:plans.noPublishedPlans', { defaultValue: 'NO PUBLISHED PLANS' }), build: { label: tr('coach:plans.buildFromScratch', { defaultValue: '＋ Build from scratch' }), onClick: () => openDraft('mealplan', true) },
         nora: <BSProAskNora t={t} label={tr('feed:support.ask.draftMealPlanLink', { defaultValue: 'Ask Nora to draft one' })} draft={tr('feed:support.ask.draftMealPlan', { defaultValue: 'Draft a meal plan for me: ' })} /> } },
-    { kind: 'enrolled', head: tr('coach:head.enrolled', { defaultValue: 'Enrolled' }), empty: { label: tr('coach:plans.noEnrolled', { defaultValue: 'NO ENROLLED CLIENTS' }) },
-      rows: enrolled.map((e) => ({ key: e.prog, name: e.prog, faces: e.who.map((w) => w[0]), demo: !signedIn, label: tr('coach:plans.onIt', { defaultValue: '{count} ON IT', count: e.n }), aria: tr('coach:plans.enrolledAria', { defaultValue: '{prog}, {count} clients enrolled', prog: e.prog, count: e.n }), onClick: () => flash(tr('coach:plans.enrolledFlash', { defaultValue: '{count} clients on {prog}', count: e.n, prog: e.prog })) })) },
   ];
   const model = {
     role: 'nutritionist', title: tr('coach:shortcut.plans', { defaultValue: 'Plans' }), published: publishedLead, publishedRest,
@@ -7465,6 +7445,9 @@ function BSProSoundtracks({ role = 'trainer', onBack, embedded = false }) {
   const [iUrl, setIUrl] = useStateBSP('');
   // Spotify "pick from your library" importer
   const [spotConnected, setSpotConnected] = useStateBSP(null); // null = checking
+  // How many of the two music sources this coach has connected, read with Spotify's (null while
+  // checking or unread: the tile reads "—"). The tile used to print a typed-in 2.
+  const [sourcesConnected, setSourcesConnected] = useStateBSP(null);
   const [spotPlaylists, setSpotPlaylists] = useStateBSP(null);
   const [spotBusy, setSpotBusy] = useStateBSP(false);
   const [spotErr, setSpotErr] = useStateBSP('');
@@ -7491,7 +7474,12 @@ function BSProSoundtracks({ role = 'trainer', onBack, embedded = false }) {
     let alive = true;
     if (!window.ShapeIntegrations?.getStatus) { setSpotConnected(false); return undefined; }
     window.ShapeIntegrations.getStatus()
-      .then(s => { if (alive) setSpotConnected(!!(s?.providers || []).find(p => p.id === 'spotify')?.connected); })
+      .then(s => {
+        if (!alive) return;
+        const providers = s?.providers || [];
+        setSpotConnected(!!providers.find(p => p.id === 'spotify')?.connected);
+        setSourcesConnected(['spotify', 'apple_music'].filter((id) => !!providers.find(p => p.id === id)?.connected).length);
+      })
       .catch(() => { if (alive) setSpotConnected(false); });
     return () => { alive = false; };
   }, []);
@@ -7547,7 +7535,11 @@ function BSProSoundtracks({ role = 'trainer', onBack, embedded = false }) {
   const shown = all
     .filter(p => filter === 'all' ? true : p.provider === filter)
     .filter(p => { const q = query.trim().toLowerCase(); return !q || p.name.toLowerCase().includes(q) || (p.tag || '').toLowerCase().includes(q); });
-  const totalAttached = all.reduce((s, p) => s + (p.used || 0) + assignedCount(p), 0);
+  // ⚠ THE SAMPLE PLAYLISTS' "used by" COUNTS ARE MADE UP. They seed the list, and a signed-out preview
+  // may show them; a signed-in coach's Attached and a row's line count only what is real.
+  const stSignedIn = !!window.ShapeAuth?.getCachedState?.()?.user?.id;
+  const usedOf = (p) => (stSignedIn && !isServerRow(p) && BS_SOUNDTRACKS_DEMO.includes(p) ? 0 : (p.used || 0));
+  const totalAttached = all.reduce((s, p) => s + usedOf(p) + assignedCount(p), 0);
 
   const saveImport = async () => {
     const name = iName.trim();
@@ -7805,7 +7797,7 @@ function BSProSoundtracks({ role = 'trainer', onBack, embedded = false }) {
         <div style={{ marginTop: 14, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
           {stat(tr('coach:sound.statPlaylists', { defaultValue: 'PLAYLISTS' }), String(all.length), '', gold)}
           {stat(tr('coach:sound.statAttached', { defaultValue: 'ATTACHED' }), String(totalAttached), tr('coach:sound.toPlans', { defaultValue: 'to plans' }), teal)}
-          {stat(tr('coach:sound.statSources', { defaultValue: 'SOURCES' }), '2', tr('coach:sound.connected', { defaultValue: 'connected' }), purple)}
+          {stat(tr('coach:sound.statSources', { defaultValue: 'SOURCES' }), sourcesConnected == null ? '—' : String(sourcesConnected), tr('coach:sound.connected', { defaultValue: 'connected' }), purple)}
         </div>
 
         {/* Search */}
@@ -7841,7 +7833,7 @@ function BSProSoundtracks({ role = 'trainer', onBack, embedded = false }) {
                     {providerLabel(p.provider)} · {(p.tag || '').toUpperCase()}
                   </div>
                   <div style={{ marginTop: 3, fontFamily: t.DISPLAY, fontSize: 18, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em', lineHeight: 1.1 }}>{p.name}</div>
-                  <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 9, color: t.INK50, letterSpacing: '0.02em', lineHeight: 1.4 }}>{tr('coach:sound.tracksCount', { defaultValue: '{count} tracks', count: p.tracks })} · {p.dur} · {p.bpm} BPM · {att > 0 ? tr('coach:sound.assignedCount', { defaultValue: 'assigned {count}', count: att }) : tr('coach:sound.usedBy', { defaultValue: 'used by {count}', count: p.used })}</div>
+                  <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 9, color: t.INK50, letterSpacing: '0.02em', lineHeight: 1.4 }}>{tr('coach:sound.tracksCount', { defaultValue: '{count} tracks', count: p.tracks })} · {p.dur} · {p.bpm} BPM · {att > 0 ? tr('coach:sound.assignedCount', { defaultValue: 'assigned {count}', count: att }) : usedOf(p) > 0 ? tr('coach:sound.usedBy', { defaultValue: 'used by {count}', count: usedOf(p) }) : tr('coach:sound.notAssigned', { defaultValue: 'not assigned yet' })}</div>
                 </div>
                 <button onClick={() => setAssignFor(p.id)} style={{ alignSelf: 'stretch', minWidth: 64, borderRadius: 12, border: `1px solid ${att > 0 ? gold : `${gold}77`}`, background: att > 0 ? `${gold}1c` : 'transparent', color: gold, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', cursor: 'pointer', padding: '0 10px' }}>{tr('coach:plans.assign', { defaultValue: 'ASSIGN' })}</button>
               </div>

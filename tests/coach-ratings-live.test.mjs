@@ -323,7 +323,12 @@ test('the app: a live coach is its reviews, on the ten-point scale, never double
   assert.equal(c2[0].rating, null)
 
   const code = stripComments(src)
-  assert.match(code, /const ratingLive = !!row\.owner_id;\n\s+const rating = ratingLive \? null : Number\(row\.rating \|\| 4\.8\);/)
+  // Every listing, with an account or without (Shape's seeded rows), is rated by its reviews or reads New
+  // (2026-11-09, the website's rule): the `rating` column's `row.rating || 4.8` put 9.6/10 on every seeded
+  // listing, and nothing writes that column.
+  const map = fn(code, 'mapSupabaseProvider')
+  assert.match(map, /rating: null,\n\s+ratingLive: true,/)
+  assert.doesNotMatch(map, /row\.rating|4\.8/, 'no column fallback is read')
   assert.match(code, /\{!coach\.ratingLive && p\.reviews\.map/, 'the house quotes stay off a live coach')
   assert.match(code, /\{!ownListing && <div/, 'a coach cannot review their own listing')
   assert.match(code, /const coachKind = getPublicProfileKind\(coach\);/, 'the review is filed under the listing\'s role, not its tag (Codex P1)')

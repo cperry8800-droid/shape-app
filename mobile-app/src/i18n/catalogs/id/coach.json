@@ -791,6 +791,7 @@
   "sound.toPlans": "ke rencana",
   "sound.tracksCount": "{count} lagu",
   "sound.usedBy": "digunakan oleh {count}",
+  "sound.notAssigned": "belum ditetapkan",
   "sound.yourAppleFooter": "Apple Music-mu",
   "sound.yourSpotifyFooter": "Spotify-mu",
   "sound.yourWord": "Milikmu",

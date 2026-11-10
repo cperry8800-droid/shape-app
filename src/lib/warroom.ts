@@ -317,6 +317,7 @@ const RAW_ROUTES: ReadonlyArray<readonly [string, string]> = [
   ['/api/marketplace-stats', 'GET'],
   ['/api/me/account-action', 'POST'],
   ['/api/me/age-public', 'GET,PUT'],
+  ['/api/me/application', 'GET'],
   ['/api/me/leaderboard-privacy', 'GET,PUT'],
   ['/api/me/date-of-birth', 'GET,POST'],
   ['/api/me/membership', 'GET'],
@@ -624,13 +625,34 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
 
   return [
     {
+      section: 'App: coach Clients and Programs A, the Coaches tab, the coach application in short steps (#2667). No migration',
+      items: [
+        { label: 'Owner, 2026-11-09: "the layout/design and look for clients and programs page on app for coaches needs to be reviewed and changed"; a plan for "where to put marketplace on the app and the look"; "improve the application process on the app and where that can be accessed"; picks: Clients A, Programs and Plans A ("but do this for playlists"), Coaches as its own tab (option 1), Browse list look (B) with filters option 1, application A "but also have Nora as an option", all three doors; "make sure to fix any bugs that were found during review"', status: 'done' },
+        { label: '#2667 coach Clients A: no summary card, the two figures on one line, reasons in full, the week\'s figure by the name, Message on every row; the first client at ~297px, four on a screen at 320/390/430', status: 'done' },
+        { label: '#2667 coach Programs and Plans A on every tab: words for tabs, search and sort in one field, a row a plan, the most popular as the first row; Enrolled gone; Music kept as it was, its Sources tile a real count of connected services and samples\' "used by" out of a signed-in coach\'s figures', status: 'done' },
+        { label: '#2667 the member\'s Coaches tab (market, BS_MEMBER_TABS, between Eat and Chat): Your team, search with Filters and one chip row, one Filters sheet, Editors\' picks, compact rows with rating or New, price per session or per month, next open intro, Book intro; the website\'s 21 goals, ids and patterns held equal by tests/app-coaches-tab.test.mjs', status: 'done' },
+        { label: '#2667 listings say only what they state: no 9.6 fallback rating, no /mo on a session price, no Remote, session count, match, 1 year, Certified or bio claimed; sample coaches and plans read Example signed in or out', status: 'done' },
+        { label: '#2667 the coach application in seven checked steps, a draft (signed in: on the device under the account, 30 days; signed out: this session only), Nora to fill it in, a status screen, 13 locales; the sign-in card, Settings\' Coach on Shape row with its status, and one line in the marketplace', status: 'done' },
+        { label: '#2667 GET /api/me/application: the caller\'s own application, stage and dates only, a failed read 503; an approved dietitian offered the coach app in Profile mode; a coach sign-up opens the application instead of a member account', status: 'done' },
+        { label: 'Review: Codex\'s fifteen findings fixed (Settings\' status row waits while it reads and retries a failed read; a signed-out draft is this session\'s only; any coach role hides Coach on Shape; any role change drops the filters it can\'t hold, and a swipe into Coaches opens on Both; a sent application stands at Submitted, a duplicate at its own stage; open applications read past the newest ten; filters held to the live listings once they replace the examples; an application under way is status only; a dietitian\'s is named as one; an application shows only to the account /api/apply stamped from the signed-in sender, never by the form\'s address or id); mutation round 22/22; CI green on the final head', status: 'done' },
+        { label: 'Nora is told the application\'s step as one of her four (noraForms.mjs), not the screen\'s seven names: one line in bsNoraContext and a noraForms.mjs change, kept out for older builds', status: 'pending' },
+        { label: 'Live listings state no city or way of meeting (the directory read selects neither), so the Coaches tab\'s City and How you meet read Not listed yet', status: 'pending' },
+        { label: 'A seeded listing reads New in the Coaches list while its profile shows its labelled sample rating', status: 'pending' },
+        { label: 'Settings shows an application only to the signed-in account that sent it (details.account_id, stamped by /api/apply): one sent signed out, from the sign-in screen or the website, shows nowhere in Settings; its applicant hears by email', status: 'pending' },
+        { label: 'OWNER: decide how approval binds to an account. The application\'s address is the form\'s, unverified, yet approval provisions the coach role to the account found by it, and the one-open-application rule keys on it (older than #2667, Codex P1 on #2667): bind approval to the stamped account, or confirm the address by an email link first', status: 'manual' },
+        { label: 'The app\'s application requires the certification tick; the website\'s does not', status: 'pending' },
+        { label: 'Unused since #2667: the old marketplace catalog keys and MktCoachCard', status: 'pending' },
+        { label: 'OWNER: a native speaker reads the new Hausa and Pidgin strings (the application, the Coaches tab, Settings\' Coach on Shape)', status: 'manual' },
+      ],
+    },
+    {
       section: 'App launch: the invite opens on its pitch, at once (#2666). No migration',
       items: [
         { label: 'Owner, 2026-11-09, over the signed-out invite (paywall → Preview the app first): "also make sure this is wired properly. and remove that one line" (To: You · Invitation)', status: 'done' },
         { label: '#2666 the address line gone from BSSplash\'s invite edition, and launch.toYou from all 13 onboarding catalogs', status: 'done' },
         { label: '#2666 wiring: a visitor with no session waited 3.3s on "Putting today together…" (three digest retries meant for a restoring member); the shell now passes signedOut={previewMode && authReady && !authUserId} and the pitch shows in 5 ms. Step inside, a tap anywhere and Enter each enter the app; a preview writes no shape.dailySeen. tests/launch-invite.test.mjs holds it', status: 'done' },
         { label: 'Review: Codex clean on 57e4b4e; CI green on 57e4b4e (shard 4 on its one re-run, after midnight UTC: the flake below)', status: 'done' },
-        { label: 'tests/clients-peek-5a.test.mjs "Up next finds its client by id" fails from 23:30 to midnight on the runner\'s clock (UTC): its row is Date.now() + 30 min and dashNextToday keeps only today\'s. Red on main too. Fix: a fixed now for the row and the call', status: 'pending' },
+        { label: 'tests/clients-peek-5a.test.mjs "Up next finds its client by id" failed from 23:30 to midnight on the runner\'s clock (UTC): its row was Date.now() + 30 min and dashNextToday keeps only today\'s. Fixed in #2667: the test runs on a fixed noon', status: 'done' },
       ],
     },
     {

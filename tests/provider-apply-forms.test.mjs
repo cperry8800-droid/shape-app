@@ -13,10 +13,12 @@
 //     · files over 4 MB in total, or the platform's plain-text 413, read as the size sentence
 //
 //   app (mobile-app/src/broadsheet/iosAppBroadsheetProviderApply.jsx), mounted in jsdom:
-//     · only the route's own yes shows "Submitted"; a failed send keeps the form and says so
-//     · the nutritionist fields the website collects are there (professional type, CDR number,
-//       state licenses, insurance)
+//     · only the route's own yes shows "Application sent"; a failed send keeps the form and says so
+//     · the agreements and the nutrition attestations are checked on Review, under each box
+//     · the nutritionist fields the website collects are there (professional type, now on the first
+//       step, CDR number, state licenses, insurance)
 //     · the experience rule is the website's (the shared src/lib/provider-experience.mjs)
+//     · a file the rules refuse is said on the Documents step, on its category
 //
 //   The legacy /mobile sign-up pages were retired on 2026-10-12 (tests/legacy-signup-retired).
 import test from 'node:test';
@@ -315,160 +317,227 @@ test('website: a file the rules refuse is said before anything is sent, and a fa
 });
 
 // ── The app ───────────────────────────────────────────────────────────────────────────────
+// Seven short steps (owner, 2026-11-09: "Option A: short steps"): Role · You · Credentials · Documents ·
+// Specialty · Rates · Review. Each step is checked before Continue, and Send checks them all again.
+// The seven steps themselves, the draft and Nora's door are driven in tests/app-apply-steps.test.mjs.
 
-const THEME = new Proxy({ MONO: 'mono', DISPLAY: 'display' }, { get: (t, k) => (k in t ? t[k] : '#000') });
+const { IntlMessageFormat } = require('intl-messageformat');
+const ONBOARDING = JSON.parse(read('mobile-app/src/i18n/catalogs/en/onboarding.json'));
+const THEME = { MONO: 'mono', DISPLAY: 'display', BODY: 'body', PAPER: '#0f0e0c', PAPER2: '#181612', INK: '#f5f0e6', INK70: 'rgba(245,240,230,0.7)', INK50: 'rgba(245,240,230,0.5)', inkRGB: '245,240,230', isLight: false, padX: 22 };
 
 async function mountApp(initialRole) {
   const env = useDom('https://shape.test/m/');
   env.w.useBS = () => THEME;
   env.w.ShapeAuth = { getCachedState: () => ({}) };
-  const mod = await loadRealModule(join(ROOT, 'mobile-app/src/broadsheet/iosAppBroadsheetProviderApply.jsx'), { registry: new Map([['react', React]]) });
-  void mod;
+  // The app's words, from the en catalog, through the same ICU the app formats with.
+  env.w.ShapeI18n = { t: (key, opts = {}) => { const m = ONBOARDING[key.replace(/^onboarding:/, '')]; return m == null ? undefined : new IntlMessageFormat(m, 'en').format(opts); }, intlLocale: () => 'en' };
+  await loadRealModule(join(ROOT, 'mobile-app/src/broadsheet/iosAppBroadsheetProviderApply.jsx'), { registry: new Map([['react', React], ['react-dom', { createPortal: (n) => n }]]) });
   const Screen = env.w.BSProviderApplicationScreen;
   const root = ReactDOMClient.createRoot(env.doc.getElementById('root'));
   await act(() => root.render(React.createElement(Screen, { initialRole, onBack: () => {} })));
   const click = (el) => act(() => el.click());
   const button = (re) => byText(env.doc, 'button', re);
+  const at = () => env.doc.querySelector('[data-provider-apply]').getAttribute('data-apply-step');
   return {
-    ...env, click, button,
+    ...env, click, button, at,
     fill: (patch) => act(() => env.w.shapeNoraForm.fill(patch)),
-    next: () => click(button(/^Continue/)),
+    next: () => click(env.doc.querySelector('[data-apply-continue]')),
+    edit: (section) => click(env.doc.querySelector(`[data-review-edit="${section}"]`)),
+    field: (key) => env.doc.querySelector(`[data-apply-field="${key}"]`),
+    send: async () => { await click(env.doc.querySelector('[data-apply-continue]')); await act(tick); },
     text: () => env.doc.body.textContent,
     async unmount() { try { await act(() => root.unmount()); } finally { env.restore(); } },
   };
 }
 
-async function walkApp(p, extra = {}) {
+const AGREEMENTS = [/I agree to the/, /code of conduct/, /I consent to a required background check/];
+const ATTESTATIONS = [/independent contractor/, /maintain valid licensure/, /malpractice/, /general wellness guidance and individualized/];
+
+/** Nora's card fills the fields; Continue on the first step then goes to Review; Credentials' tick and
+ *  the agreements are theirs, by tap. */
+async function walkApp(p, extra = {}, { nutritionist = true } = {}) {
   await p.fill({ firstName: 'Ada', lastName: 'Lovelace', email: 'ada@example.invalid', dob: '1990-04-02', cert: 'RD 123', years: '7-10 years', ...extra });
   await p.next();
+  assert.equal(p.at(), 'review', 'what Nora filled is reviewed first');
+  await p.edit('credentials');
   await p.click(p.button(/credentials may be verified/));
   await p.next();
-  await p.next();
-  for (const re of [/I agree to the/, /code of conduct/, /I consent to a required background check/, /independent contractor/, /maintain valid licensure/, /malpractice/, /general wellness guidance and individualized/]) {
-    await p.click(p.button(re));
-  }
+  assert.equal(p.at(), 'review', 'Continue from an edited step goes back to Review');
+  for (const re of [...AGREEMENTS, ...(nutritionist ? ATTESTATIONS : [])]) await p.click(p.button(re));
 }
 
-test('app: only the route\'s own yes shows "Submitted"; a failed send keeps the form and says so', async () => {
+test('app: only the route\'s own yes shows "Application sent"; a failed send keeps the form and says so', async () => {
   const p = await mountApp('nutritionist');
   try {
     await walkApp(p);
     const calls = [];
     let answer = async () => { throw Object.assign(new Error(config.PROVIDER_APPLICATION_SEND_FAILED), { retryable: true }); };
     p.w.ShapeApplications = { submitProviderApplication: async (arg) => { calls.push(arg); return answer(); } };
-    const transmit = () => p.click(p.button(/Transmit · Submit/));
 
-    await transmit(); await act(tick);
-    assert.match(p.text(), /We couldn't send your application\. Check your connection and try again\./);
-    assert.doesNotMatch(p.text(), /Submitted|Saved locally/);
-    assert.ok(p.button(/Transmit · Submit/), 'the form is still there to try again');
+    await p.send();
+    assert.match(p.doc.querySelector('[data-apply-send-error]').textContent, /We couldn't send your application\. Check your connection and try again\./);
+    assert.doesNotMatch(p.text(), /Application sent|Saved locally/);
+    assert.equal(p.at(), 'review', 'the form is still there to try again');
 
     answer = async () => ({ stored: 'local', data: { id: 'local-1' } });
-    await transmit(); await act(tick);
-    assert.doesNotMatch(p.text(), /Submitted|Saved locally/, 'anything but the route\'s yes is not a submission');
+    await p.send();
+    assert.doesNotMatch(p.text(), /Application sent|Saved locally/, 'anything but the route\'s yes is not a submission');
     assert.match(p.text(), /We couldn't send your application/);
 
+    // The route's own words for a refusal show as they came.
+    answer = async () => { throw new Error('All nutrition compliance attestations are required.'); };
+    await p.send();
+    assert.match(p.doc.querySelector('[data-apply-send-error]').textContent, /All nutrition compliance attestations are required\./);
+
     answer = async () => ({ stored: 'api', duplicate: false, data: { id: 'app-9' } });
-    await transmit(); await act(tick);
-    assert.match(p.text(), /Filed ✓ · Submitted/);
+    await p.send();
+    assert.match(p.text(), /Application sent\./);
+    assert.equal(p.at(), 'sent');
     assert.doesNotMatch(p.text(), /Saved locally|provider application API|Supabase configuration/);
 
-    assert.equal(calls.length, 3);
-    assert.deepEqual(calls[2].files, [], 'no files attached, none sent');
-    assert.equal(calls[2].values.nutrition_role, 'nutritionist');
-    assert.equal('documents' in calls[2].values, false, 'nothing is pre-uploaded');
+    assert.equal(calls.length, 4);
+    assert.deepEqual(calls[3].files, [], 'no files attached, none sent');
+    assert.equal(calls[3].role, 'nutritionist');
+    assert.equal(calls[3].values.nutrition_role, 'nutritionist');
+    assert.equal(calls[3].values.primary, 'Weight management', 'the shown primary specialty is sent');
+    assert.deepEqual([calls[3].values.tos, calls[3].values.conduct, calls[3].values.bgcheck, calls[3].values.verify], [true, true, true, true]);
+    assert.deepEqual(calls[3].values.attest, { independent_contractor: true, maintains_licensure: true, maintains_insurance: true, scope_understood: true });
+    assert.equal('documents' in calls[3].values, false, 'nothing is pre-uploaded');
   } finally { await p.unmount(); }
   const src = read('mobile-app/src/broadsheet/iosAppBroadsheetProviderApply.jsx');
   assert.doesNotMatch(src, /uploadProviderApplicationFile|Saved locally|stored === 'local'/);
 });
 
-test('app: a nutritionist says what they are, and adds a CDR number, state licenses and insurance', async () => {
+test('app: the attestations and the agreements are checked on Review, each under its own box', async () => {
   const p = await mountApp('nutritionist');
   try {
     await walkApp(p);
-    await p.click(p.button(/^Back$/)); await p.click(p.button(/^Back$/));
+    // Untick one attestation and one agreement: Send stays on Review and says it under each.
+    await p.click(p.button(/malpractice/));
+    await p.click(p.button(/code of conduct/));
+    const calls = [];
+    p.w.ShapeApplications = { submitProviderApplication: async (arg) => { calls.push(arg); return { stored: 'api', data: { id: 'n' } }; } };
+    await p.send();
+    assert.equal(calls.length, 0, 'the route refuses a nutritionist application without all four, so the screen does too');
+    assert.equal(p.at(), 'review');
+    assert.match(p.field('attest.maintains_insurance').textContent, /Tick this box to send your application\./);
+    assert.match(p.field('conduct').textContent, /Tick this box to send your application\./);
+    assert.doesNotMatch(p.field('tos').textContent, /Tick this box/);
+    await p.click(p.button(/malpractice/));
+    await p.click(p.button(/code of conduct/));
+    await p.send();
+    assert.equal(calls.length, 1);
+  } finally { await p.unmount(); }
+});
+
+test('app: a nutritionist says what they are on the first step, and adds a CDR number, state licenses and insurance', async () => {
+  const p = await mountApp('nutritionist');
+  try {
     assert.match(p.text(), /Professional type/);
-    assert.doesNotMatch(p.text(), /CDR registration number/, 'a nutritionist is not asked for a CDR number');
-    const typeSelect = [...p.doc.querySelectorAll('select')].find((s) => [...s.options].some((o) => o.value === 'Dietitian (RD / RDN)'));
-    await act(() => typeInto(p.w, typeSelect, 'Dietitian (RD / RDN)'));
-    assert.match(p.text(), /CDR registration number/);
-    assert.match(p.text(), /nutritionist application · RD\/RDN/);
-    const field = (label) => byText(p.doc, 'label', new RegExp(`^${label}`)).querySelector('input');
-    await act(() => typeInto(p.w, field('CDR registration number'), '1234567'));
+    await p.fill({ firstName: 'Ada', lastName: 'Lovelace', email: 'ada@example.invalid', dob: '1990-04-02', cert: 'RD 123', years: '7-10 years' });
+    // On the first step: the role can change, and a nutritionist says whether they are a dietitian.
+    assert.equal(p.doc.querySelector('[role="radio"][aria-checked="true"]').textContent.includes('Nutritionist'), true);
+    await p.click([...p.doc.querySelectorAll('[data-apply-field="nutritionType"] [role="radio"]')].find((b) => /Dietitian/.test(b.textContent)));
+    assert.match(p.text(), /Dietitian application \(RD\/RDN\)/);
+    await p.next();
+    await p.edit('credentials');
+    const input = (key) => p.field(key).querySelector('input');
+    await act(() => typeInto(p.w, input('cdrId'), '1234567'));
     await act(() => typeInto(p.w, p.doc.querySelector('input[aria-label="State"]'), 'ny'));
     await act(() => typeInto(p.w, p.doc.querySelector('input[aria-label="License number"]'), 'NY-55'));
     await p.click(p.button(/Add another state/));
     assert.equal(p.doc.querySelectorAll('input[aria-label="State"]').length, 2);
-    await act(() => typeInto(p.w, field('Insurance carrier'), 'HPSO'));
-    await act(() => typeInto(p.w, field('Policy number'), 'P-9'));
-    await p.next(); await p.next();
+    await act(() => typeInto(p.w, input('insCarrier'), 'HPSO'));
+    await act(() => typeInto(p.w, input('insPolicy'), 'P-9'));
+    await p.click(p.button(/credentials may be verified/));
+    await p.next();
+    for (const re of [...AGREEMENTS, ...ATTESTATIONS]) await p.click(p.button(re));
     const calls = [];
     p.w.ShapeApplications = { submitProviderApplication: async (arg) => { calls.push(arg); return { stored: 'api', data: { id: 'n-1' } }; } };
-    await p.click(p.button(/Transmit · Submit/)); await act(tick);
+    await p.send();
     assert.equal(calls.length, 1, p.text().slice(-300));
     const v = calls[0].values;
     assert.equal(v.nutrition_role, 'dietitian');
+    assert.equal(v.nutritionType, 'Dietitian (RD / RDN)', 'the English value is sent, whatever the label says');
     assert.equal(v.cdrId, '1234567');
     assert.equal(v.rdCredential, 'rd');
     assert.deepEqual(v.licenses, [{ state: 'NY', number: 'NY-55', expires: '' }, { state: '', number: '', expires: '' }]);
     assert.deepEqual([v.insCarrier, v.insPolicy], ['HPSO', 'P-9']);
   } finally { await p.unmount(); }
+  // A trainer is not asked for a CDR number; switching the role on the first step changes the application.
+  const q = await mountApp('trainer');
+  try {
+    await q.fill({ firstName: 'Ada', lastName: 'Lovelace', email: 'ada@example.invalid', dob: '1990-04-02', cert: 'NASM', years: '7-10 years' });
+    await q.next();
+    await q.edit('credentials');
+    assert.doesNotMatch(q.text(), /CDR registration number/);
+    assert.equal(q.w.shapeNoraForm.kind, 'app_apply_trainer');
+  } finally { await q.unmount(); }
 });
 
-test('app: documents by category, several per section; the screen says a refused file and hands the rest to the sender', async () => {
+test('app: documents by category, several per section; the step says a refused file and hands the rest to the sender', async () => {
   const p = await mountApp('trainer');
   try {
-    await p.fill({ firstName: 'Ada', lastName: 'Lovelace', email: 'ada@example.invalid', dob: '1990-04-02', cert: 'NASM', years: '10-15 years' });
-    await p.next();
+    await walkApp(p, { cert: 'NASM', years: '10-15 years' }, { nutritionist: false });
+    await p.edit('documents');
     assert.match(p.text(), /Up to 10 MB a file and 75 MB in all\./);
+    assert.match(p.text(), /Files are not saved with your draft/);
     assert.doesNotMatch(p.text(), /4 MB/);
     const picker = (label) => p.doc.querySelector(`input[type=file][aria-label="Add ${label}"]`);
     for (const label of ['Resume / CV', 'Other CV materials', 'Certifications and certificates', 'Designations and supporting paperwork', 'Insurance']) assert.ok(picker(label), label);
     await act(() => attachFiles(p.w, picker('Certifications and certificates'), [pdf('nasm.pdf'), pdf('cpr.pdf')]));
     await act(() => attachFiles(p.w, picker('Designations and supporting paperwork'), [pdf('big-scan.pdf', 11 * MB)]));
-    await p.click(p.button(/credentials may be verified/));
-    await p.next(); await p.next();
-    for (const re of [/I agree to the/, /code of conduct/, /I consent to a required background check/]) await p.click(p.button(re));
-    const calls = [];
-    p.w.ShapeApplications = { submitProviderApplication: async (arg) => { calls.push(arg); return { stored: 'api', data: { id: 'x' } }; } };
-    await p.click(p.button(/Transmit · Submit/)); await act(tick);
-    assert.equal(calls.length, 0);
-    assert.match(p.text(), /big-scan\.pdf is 11\.0 MB; each file can be up to 10 MB\./);
-    await p.click(p.button(/^Back$/)); await p.click(p.button(/^Back$/));
+    await p.next();
+    assert.equal(p.at(), 'documents', 'Continue refuses a file the server would refuse');
+    assert.match(p.field('docs.designation').textContent, /big-scan\.pdf is 11\.0 MB; each file can be up to 10 MB\./, 'said on the category that holds it');
     await p.click(p.doc.querySelector('button[aria-label="Remove big-scan.pdf"]'));
     await act(() => attachFiles(p.w, picker('Resume / CV'), [pdf('cv.pdf')]));
-    await p.next(); await p.next();
-    await p.click(p.button(/Transmit · Submit/)); await act(tick);
+    await p.next();
+    assert.equal(p.at(), 'review');
+    assert.match(p.doc.querySelector('[data-review-row="documents"]').textContent, /3 files/);
+    const calls = [];
+    p.w.ShapeApplications = { submitProviderApplication: async (arg) => { calls.push(arg); return { stored: 'api', data: { id: 'x' } }; } };
+    await p.send();
     assert.equal(calls.length, 1, p.text().slice(-300));
     assert.deepEqual(calls[0].files.map((f) => [f.kind, f.file.name]), [['resume', 'cv.pdf'], ['credential', 'nasm.pdf'], ['credential', 'cpr.pdf']]);
+    assert.match(p.text(), /We have your application and documents\./);
   } finally { await p.unmount(); }
 });
 
 test('app: the years have no default, and under the standard the same two questions are asked, never a refusal', async () => {
   const p = await mountApp('nutritionist');
   try {
-    await walkApp(p, { years: '' });
+    await p.fill({ firstName: 'Ada', lastName: 'Lovelace', email: 'ada@example.invalid', dob: '1990-04-02', cert: 'RD 123' });
+    await p.next();
+    assert.equal(p.at(), 'review');
+    // The years unanswered and the verification box unticked: two missing on Credentials.
+    assert.match(p.doc.querySelector('[data-review-row="credentials"]').textContent, /2 missing/);
+    for (const re of [...AGREEMENTS, ...ATTESTATIONS]) await p.click(p.button(re));
     const calls = [];
     p.w.ShapeApplications = { submitProviderApplication: async (arg) => { calls.push(arg); return { stored: 'api', data: { id: 'n-2' } }; } };
-    await p.click(p.button(/Transmit · Submit/)); await act(tick);
+    await p.send();
     assert.equal(calls.length, 0);
-    assert.match(p.text(), /Choose your years of professional experience\./);
+    assert.equal(p.at(), 'credentials', 'Send goes to the step that fails');
+    assert.match(p.field('years').textContent, /Choose your years of professional experience\./);
+    assert.match(p.field('verify').textContent, /Tick this box to continue\./);
+    await p.click(p.button(/credentials may be verified/));
+    const years = p.field('years').querySelector('select');
+    assert.equal(years.value, '');
+    assert.deepEqual([...years.options].map((o) => o.value), ['', ...experience.PROVIDER_EXPERIENCE_OPTIONS], 'the shared list, in order, its values English');
 
-    await p.fill({ years: '3-4 years' });
-    await p.click(p.button(/Transmit · Submit/)); await act(tick);
-    assert.equal(calls.length, 0, 'not without where they have worked and what kind');
-    assert.match(p.text(), /With under 5 years, tell us where you've worked/);
+    await act(() => typeInto(p.w, years, '3-4 years'));
+    await p.next();
+    assert.equal(p.at(), 'credentials', 'not without where they have worked and what kind');
+    assert.match(p.field('experienceHistory').textContent, /With under 5 years, tell us where you've worked/);
+    assert.match(p.field('experienceType').textContent, /With under 5 years, tell us where you've worked/);
     assert.doesNotMatch(p.text(), /requires at least/);
-
-    await p.click(p.button(/^Back$/)); await p.click(p.button(/^Back$/));
-    const years = [...p.doc.querySelectorAll('select')].find((el) => [...el.options].some((o) => o.value === '15+ years'));
-    assert.deepEqual([...years.options].map((o) => o.value), ['', ...experience.PROVIDER_EXPERIENCE_OPTIONS]);
     assert.match(p.text(), /Shape's standard is 5 years/);
-    const area = (label) => byText(p.doc, 'label', new RegExp(`^${label}`)).querySelector('textarea');
-    await act(() => typeInto(p.w, area("Where you've worked"), 'Clinic A, dietetic intern, 1 year'));
-    await act(() => typeInto(p.w, area('Type of experience'), 'Clinical practice'));
-    await p.next(); await p.next();
-    await p.click(p.button(/Transmit · Submit/)); await act(tick);
+    const area = (key) => p.field(key).querySelector('textarea');
+    await act(() => typeInto(p.w, area('experienceHistory'), 'Clinic A, dietetic intern, 1 year'));
+    await act(() => typeInto(p.w, area('experienceType'), 'Clinical practice'));
+    await p.next();
+    assert.equal(p.at(), 'review');
+    await p.send();
     assert.equal(calls.length, 1, p.text().slice(-300));
     assert.deepEqual([calls[0].values.years, calls[0].values.experienceHistory, calls[0].values.experienceType], ['3-4 years', 'Clinic A, dietetic intern, 1 year', 'Clinical practice']);
   } finally { await p.unmount(); }

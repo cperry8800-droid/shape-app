@@ -592,12 +592,12 @@ export function BSGoalsContract({ overall, data, heat, view, onOpenView, onBack,
           // value is a coach-authored cadence string, not our copy.
           ? <BSOLCredit spine={D.mark.coral} ink={D.text.coral} title={trainPlan.t} credit={tr('goal:station.creditTrainer', { defaultValue: 'TRAINER · {detail}', detail: String(trainPlan.sub || '') })} t={t} />
           : signedIn
-            ? <><BSTRedact INK={t.INK} label={tr('goal:station.noTrainingPlan', { defaultValue: 'No training plan yet' })} /><BSOLAct heat={heat} label={tr('goal:station.findCoach', { defaultValue: 'Find a coach →' })} onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:openMarket', { detail: 'trainer' })); } catch (e) {} }} t={t} /></>
+            ? <><BSTRedact INK={t.INK} label={tr('goal:station.noTrainingPlan', { defaultValue: 'No training plan yet' })} /><BSOLAct heat={heat} label={tr('goal:station.findCoach', { defaultValue: 'Find a coach →' })} onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:openMarket', { detail: { role: 'trainer' } })); } catch (e) {} }} t={t} /></>
             : <BSOLCredit spine={D.mark.coral} ink={D.text.coral} title="12-wk lean strength" credit="TRAINER · JORDAN · 4×/WK" t={t} />)}
         {kind === 'nutrition' && (nutrPlan
           ? <BSOLCredit spine={D.mark.amber} ink={D.text.amber} title={nutrPlan.t} credit={tr('goal:station.creditNutritionist', { defaultValue: 'NUTRITIONIST · {detail}', detail: String(nutrPlan.sub || '') })} t={t} />
           : signedIn
-            ? <><BSTRedact INK={t.INK} label={tr('goal:station.noNutritionPlan', { defaultValue: 'No nutrition plan yet' })} /><BSOLAct heat={heat} label={tr('goal:station.findCoach', { defaultValue: 'Find a coach →' })} onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:openMarket', { detail: 'nutritionist' })); } catch (e) {} }} t={t} /></>
+            ? <><BSTRedact INK={t.INK} label={tr('goal:station.noNutritionPlan', { defaultValue: 'No nutrition plan yet' })} /><BSOLAct heat={heat} label={tr('goal:station.findCoach', { defaultValue: 'Find a coach →' })} onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:openMarket', { detail: { role: 'nutritionist' } })); } catch (e) {} }} t={t} /></>
             : <BSOLCredit spine={D.mark.amber} ink={D.text.amber} title="Protein-led cut" credit="NUTRITIONIST · DR. MAYA · 1,890 KCAL" t={t} />)}
         <BSDashCard as="section" data-goal-targets={kind} style={{ marginTop: 12, padding: '14px 16px 4px' }}>
           {tgtEyebrow(c)}
