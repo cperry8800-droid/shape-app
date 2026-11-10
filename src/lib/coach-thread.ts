@@ -191,7 +191,7 @@ export function membershipWelcomeEmail(args: { firstName?: string; site?: string
   const html = `
     ${WRAP_OPEN}
       <h2 style="margin:0 0 16px;font-size:22px;font-weight:500;">Welcome to Shape${first ? `, ${escapeHtml(first)}` : ''}.</h2>
-      <p style="margin:0 0 16px;line-height:1.55;">Your membership is active. Your plan, your log and the community are all open to you now.</p>
+      <p style="margin:0 0 16px;line-height:1.55;">Your membership is active. Nora as your assistant, Shape Radio and the AI helpers are yours now.</p>
       ${button(home, 'Open Shape')}
       <p style="margin:0 0 16px;line-height:1.55;">Looking for a coach? <a href="${escapeHtml(coaches)}" style="color:#0ac5a8;">Browse trainers and nutritionists</a>; when you hire one, your thread with them opens on its own.</p>
       <p style="margin:0 0 16px;line-height:1.55;">Questions? Just reply to this email.</p>
@@ -201,7 +201,7 @@ export function membershipWelcomeEmail(args: { firstName?: string; site?: string
   const text = [
     `Welcome to Shape${first ? `, ${first}` : ''}.`,
     '',
-    'Your membership is active. Your plan, your log and the community are all open to you now.',
+    'Your membership is active. Nora as your assistant, Shape Radio and the AI helpers are yours now.',
     '',
     `Open Shape: ${home}`,
     '',
@@ -402,7 +402,7 @@ export async function welcomeMember(admin: SupabaseClient, clientId: string): Pr
       userId: clientId,
       type: 'membership_welcome',
       title: 'Welcome to Shape',
-      body: 'Your membership is active. Your plan, your log and the community are open to you now.',
+      body: 'Your membership is active. Nora as your assistant, Shape Radio and the AI helpers are yours now.',
       route: 'home',
       data: { dedupe: 'membership-welcome' },
     }, { title: np('welcome.title'), body: np('welcome.body') });
