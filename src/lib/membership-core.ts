@@ -202,6 +202,10 @@ export async function readNoraPreview(
 ): Promise<NoraPreview | null> {
   const { data, error } = await client.from('nora_previews').select('started_at, ends_at').eq('user_id', userId).maybeSingle();
   if (error) {
+    // Before 2026-11-10-nora-free-week.sql has run there is no table, and so no week: an answer.
+    // Any other failure is unknown, which a strict read throws (Codex P2 on #2675).
+    const code = String((error as { code?: unknown }).code ?? '');
+    if (code === 'PGRST205' || code === '42P01') return null;
     if (opts.strict) throw error;
     return null;
   }

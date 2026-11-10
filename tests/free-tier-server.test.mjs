@@ -32,7 +32,7 @@ const ADULT = { role: 'client', roles: ['client'], over_18: true, date_of_birth:
 const MINOR = { ...ADULT, over_18: false, date_of_birth: '2014-04-02' };
 
 /** A Supabase-shaped client answering the profile and the newest platform subscription. */
-function client({ profile = ADULT, status = null, fail = [], coached = false, week = null } = {}) {
+function client({ profile = ADULT, status = null, fail = [], coached = false, week = null, missing = [] } = {}) {
   return {
     from: (table) => {
       const q = {
@@ -43,6 +43,7 @@ function client({ profile = ADULT, status = null, fail = [], coached = false, we
           : undefined,
         maybeSingle: async () => {
           if (fail.includes(table)) return { data: null, error: { message: `fake failure on ${table}` } };
+          if (missing.includes(table)) return { data: null, error: { code: 'PGRST205', message: `Could not find the table 'public.${table}' in the schema cache` } };
           if (table === 'profiles') return { data: profile, error: null };
           if (table === 'platform_subscriptions') return { data: status ? { status } : null, error: null };
           if (table === 'nora_previews') return { data: week, error: null };
@@ -295,7 +296,8 @@ test('free week: /api/me/membership says whether Nora is on, and the week itself
         ['@/lib/membership-core', core],
       ]),
     });
-    return (await route.GET(new Request('https://shape.test/api/me/membership'))).json();
+    const res = await route.GET(new Request('https://shape.test/api/me/membership'));
+    return o.raw ? res : res.json();
   };
   const week = await run({ week: WEEK });
   assert.equal(week.member, false);
@@ -310,6 +312,13 @@ test('free week: /api/me/membership says whether Nora is on, and the week itself
   const coached = await run({ coached: true });
   assert.equal(coached.member, true);
   assert.equal(coached.includedWithCoach, true);
+  // ⚠ The week's read failing is no answer: a 503, so the app keeps an active week (Codex P2 on #2675).
+  const lost = await run({ week: WEEK, fail: ['nora_previews'], raw: true });
+  assert.equal(lost.status, 503);
+  // Before the migration there is no table, and so no week: an answer.
+  const before = await run({ missing: ['nora_previews'] });
+  assert.equal(before.nora, false);
+  assert.equal(before.noraPreview, null);
 });
 
 test('free week: the migration starts it after the third completed workout, once, for an unpaid account only; an account reads its own row and writes none', () => {

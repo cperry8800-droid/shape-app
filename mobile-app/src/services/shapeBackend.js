@@ -3085,6 +3085,13 @@ async function saveStructuredWorkoutSession({
   const { data, error } = await supabase.rpc('save_workout_session', { p_session: sessionPayload, p_sets: normalizedSetLogs, p_samples: samples });
   if (error) throw error;
   if (!data?.session?.id) throw new Error('The workout save was not confirmed. Retry from your saved draft.');
+  // ⚠ THE WORKOUT THAT STARTS A FREE WEEK OF NORA OPENS HER AT ONCE (Codex P2 on #2675). The database
+  // starts the week as this session is saved (shape_start_nora_preview, on a third completed workout);
+  // with no fresh membership answer the shell kept her locked until the app went to the background,
+  // spending the week. An account that has her already asks nothing.
+  if (typeof window !== 'undefined' && window.ShapeNora !== true) {
+    try { window.dispatchEvent(new Event('shape:membership-recheck')); } catch (e) { /* the next return to the front asks */ }
+  }
   return { stored: 'supabase', data: { ...data.session, set_logs: data.set_logs || [], sensor_samples: data.sensor_samples || [] } };
 
 }

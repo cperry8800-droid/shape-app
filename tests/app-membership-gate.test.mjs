@@ -78,6 +78,13 @@ test('the shell uses those rules, asks /api/me/membership, and re-checks when it
   // Until a lookup answers on this account, Nora and past due are unknown, not false: a failed
   // lookup on a cold launch neither locks a free week nor sends a past-due account to Join.
   assert.match(main, /let heard = false;/);
+  // A saved workout that may have started the free week asks again at once, for an account that has
+  // no Nora yet (Codex P2 on #2675); the shell's recheck listener runs the lookup.
+  const backend = read('mobile-app/src/services/shapeBackend.js');
+  const save = backend.slice(backend.indexOf("supabase.rpc('save_workout_session'"), backend.indexOf('async function listWorkoutSessions()'));
+  assert.match(save, /if \(typeof window !== 'undefined' && window\.ShapeNora !== true\) \{\n\s+try \{ window\.dispatchEvent\(new Event\('shape:membership-recheck'\)\); \}/);
+  assert.ok(save.indexOf("throw new Error('The workout save was not confirmed.") < save.indexOf("shape:membership-recheck"), 'only after a confirmed save');
+  assert.match(main, /window\.addEventListener\('shape:membership-recheck', onRecheck\);/);
   assert.match(main, /if \(d\) \{\n\s+heard = true;/);
   assert.match(main, /: \{ loading: false, active, ageRestricted, pastDue: undefined, nora: active \? true : undefined, noraPreview: null, includedWithCoach: false \}\);/);
   assert.match(main, /window\.ShapeCanChat = paidFlags\.canChat;\n\s+window\.ShapePaid = paidFlags\.paid;\n\s+window\.ShapePastDue = paidFlags\.pastDue;\n\s+window\.ShapeNora = paidFlags\.nora;\n\s+window\.ShapeNoraPreview = paidFlags\.noraPreview;\n\s+window\.ShapeIncludedWithCoach = includedWithCoach;\n\s+window\.dispatchEvent\(new Event\('shape:canchat'\)\);\n\s+window\.dispatchEvent\(new Event\('shape:paid'\)\);/);
