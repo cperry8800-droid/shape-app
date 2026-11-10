@@ -625,6 +625,26 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
 
   return [
     {
+      section: 'App: coach Clients and Programs A, the Coaches tab, the coach application in short steps (#2667). No migration',
+      items: [
+        { label: 'Owner, 2026-11-09: "the layout/design and look for clients and programs page on app for coaches needs to be reviewed and changed"; a plan for "where to put marketplace on the app and the look"; "improve the application process on the app and where that can be accessed"; picks: Clients A, Programs and Plans A ("but do this for playlists"), Coaches as its own tab (option 1), Browse list look (B) with filters option 1, application A "but also have Nora as an option", all three doors; "make sure to fix any bugs that were found during review"', status: 'done' },
+        { label: '#2667 coach Clients A: no summary card, the two figures on one line, reasons in full, the week\'s figure by the name, Message on every row; the first client at ~297px, four on a screen at 320/390/430', status: 'done' },
+        { label: '#2667 coach Programs and Plans A on every tab: words for tabs, search and sort in one field, a row a plan, the most popular as the first row; Enrolled gone; Music kept as it was, its Sources tile a real count of connected services and samples\' "used by" out of a signed-in coach\'s figures', status: 'done' },
+        { label: '#2667 the member\'s Coaches tab (market, BS_MEMBER_TABS, between Eat and Chat): Your team, search with Filters and one chip row, one Filters sheet, Editors\' picks, compact rows with rating or New, price per session or per month, next open intro, Book intro; the website\'s 21 goals, ids and patterns held equal by tests/app-coaches-tab.test.mjs', status: 'done' },
+        { label: '#2667 listings say only what they state: no 9.6 fallback rating, no /mo on a session price, no Remote, session count, match, 1 year, Certified or bio claimed; sample coaches and plans read Example signed in or out', status: 'done' },
+        { label: '#2667 the coach application in seven checked steps, a draft (signed in: on the device under the account, 30 days; signed out: this session only), Nora to fill it in, a status screen, 13 locales; the sign-in card, Settings\' Coach on Shape row with its status, and one line in the marketplace', status: 'done' },
+        { label: '#2667 GET /api/me/application: the caller\'s own application, stage and dates only, a failed read 503; an approved dietitian offered the coach app in Profile mode; a coach sign-up opens the application instead of a member account', status: 'done' },
+        { label: 'Review: Codex\'s four findings fixed (a failed status read retries, a role switch drops a city it can\'t hold, a signed-out draft is this session\'s only, any coach role hides Coach on Shape); mutation round 18/18; CI green on the final head', status: 'done' },
+        { label: 'Nora is told the application\'s step as one of her four (noraForms.mjs), not the screen\'s seven names: one line in bsNoraContext and a noraForms.mjs change, kept out for older builds', status: 'pending' },
+        { label: 'Live listings state no city or way of meeting (the directory read selects neither), so the Coaches tab\'s City and How you meet read Not listed yet', status: 'pending' },
+        { label: 'A seeded listing reads New in the Coaches list while its profile shows its labelled sample rating', status: 'pending' },
+        { label: 'Approval matches an application to an account by address: a second account under another address does not see its own application in Settings', status: 'pending' },
+        { label: 'The app\'s application requires the certification tick; the website\'s does not', status: 'pending' },
+        { label: 'Unused since #2667: the old marketplace catalog keys and MktCoachCard', status: 'pending' },
+        { label: 'OWNER: a native speaker reads the new Hausa and Pidgin strings (the application, the Coaches tab, Settings\' Coach on Shape)', status: 'manual' },
+      ],
+    },
+    {
       section: 'Website: zoomed-out moments, a solid Kitchen bar, smaller headings, no app page figures, every coach goal (#2665). No migration',
       items: [
         { label: 'Owner, 2026-11-09: "show more zoomed out screenshots here" (then "Top three-quarters"), "nav bar on kitchen page needs to not look like this", "looks faded", "reduce the size of the heading on community, pricing, rewards pages", "also remove this on app page", and of the Coaches matcher "make sure all goals are here and this actually works"', status: 'done' },
