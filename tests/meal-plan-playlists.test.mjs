@@ -466,3 +466,94 @@ test('the member\'s dashboard and nutrition page hand the card the plan\'s playl
   assert.match(nutri, /playlist: m\.playlist && m\.playlist\.name \? m\.playlist : null,/);
   assert.match(nutri, /playlist=\{pickedDay && pickedDay\.playlist && pickedDay\.playlist\.name \? pickedDay\.playlist : null\}/);
 });
+
+// ── The chip opens the playlist (owner, 2026-11-10: "make the playlist chip open the playlist") ──
+// The member's plan carries the link the coach saved (/api/client/plan, tests/plan-playlist-links.test.mjs);
+// the coach's Client preview looks it up in the playlists the builder read, so it opens what the member's opens.
+const LINKED = [
+  { id: 'st-1', name: 'Sunday prep', tracks: 12, role: 'nutritionist', provider: 'spotify', url: 'https://open.spotify.com/playlist/sunday' },
+  { id: 'st-3', name: 'Batch cook', tracks: 1, role: null, provider: 'apple', url: 'https://music.apple.com/us/playlist/batch/pl.1' },
+  { id: 'st-4', name: 'Quiet lunch', tracks: 0, url: 'javascript:alert(1)' },
+];
+
+test('the meals card opens a playlist with a safe link in a new tab, and says one without as a name', async () => {
+  const RDS = require_('react-dom/server');
+  const { DashMealLedgerCard } = await loadRealModule(ND('dashClient.jsx'), { registry: new Map([['react', React]]), appendExports: 'export { DashMealLedgerCard };' });
+  const meals = [
+    { id: 'm1', slot: 'Breakfast', title: 'Oats', kcal: 450, p: 30, c: 50, f: 10, alts: [], playlist: { id: 'st-3', name: 'Batch cook', meta: '1 track', url: 'https://music.apple.com/us/playlist/batch/pl.1' } },
+    { id: 'm2', slot: 'Lunch', title: 'Bowl', kcal: 600, p: 45, c: 60, f: 18, alts: [], playlist: { id: 'st-9', name: 'Odd link', meta: '', url: 'http://open.spotify.com/playlist/plain' } },
+    { id: 'm3', slot: 'Dinner', title: 'Soup', kcal: 300, p: 20, c: 30, f: 8, alts: [], playlist: { id: 'st-8', name: 'Lookalike', meta: '', url: 'https://open.spotify.com.evil.test/x' } },
+  ];
+  const html = RDS.renderToStaticMarkup(React.createElement(DashMealLedgerCard, {
+    meals, targets: { kcal: 2000, p: 150, c: 200, f: 60 }, ledger: { kcal: 0, p: 0, c: 0, f: 0 }, interactive: false,
+    playlist: { ...SUNDAY_PREP, url: 'https://open.spotify.com/playlist/sunday' },
+  }));
+  assert.match(html, /<a data-meal-card-playlist="day" href="https:\/\/open\.spotify\.com\/playlist\/sunday" target="_blank" rel="noopener noreferrer" aria-label="Open Sunday prep in Spotify" data-playlist-open=""[^>]*>♪ Sunday prep · 12 tracks ↗<\/a>/);
+  assert.match(html, /<a data-meal-card-playlist="m1" href="https:\/\/music\.apple\.com\/us\/playlist\/batch\/pl\.1"[^>]*aria-label="Open Batch cook in Apple Music"[^>]*>♪ Batch cook · 1 track ↗<\/a>/);
+  // ⚠ ONLY AN HTTPS SPOTIFY OR APPLE MUSIC LINK OPENS: plain http and a lookalike host are names.
+  assert.match(html, /<span data-meal-card-playlist="m2"[^>]*>♪ Odd link<\/span>/);
+  assert.match(html, /<span data-meal-card-playlist="m3"[^>]*>♪ Lookalike<\/span>/);
+  assert.equal((html.match(/data-playlist-open/g) || []).length, 2);
+});
+
+test('the workout card opens its playlist where the coach saved a link; without one it keeps to the member\'s Playlists page', async () => {
+  const RDS = require_('react-dom/server');
+  Object.assign(globalThis, { ShapeVideoPlayer: () => null, serif: 'serif' });
+  const { DashWorkoutCard } = await loadRealModule(ND('dashClient.jsx'), { registry: new Map([['react', React]]), appendExports: 'export { DashWorkoutCard };' });
+  const card = (playlist, interactive = true) => RDS.renderToStaticMarkup(React.createElement(DashWorkoutCard, { workout: { title: 'Upper Pull', coach: 'Sam', exercises: [], playlist }, interactive }));
+  const linked = card({ id: 'st-1', name: 'Pull heavy', meta: '14 tracks', url: 'https://open.spotify.com/playlist/pull' });
+  assert.match(linked, /<a href="https:\/\/open\.spotify\.com\/playlist\/pull" target="_blank" rel="noopener noreferrer" aria-label="Open Pull heavy in Spotify" data-playlist-open=""[^>]*>♪ Pull heavy · 14 tracks ↗<\/a>/);
+  assert.match(card({ id: 'st-1', name: 'Pull heavy', meta: '', url: 'https://open.spotify.com/playlist/pull' }, false), /href="https:\/\/open\.spotify\.com\/playlist\/pull"/, 'the builder\'s preview opens it too');
+  const bare = card({ id: 'st-1', name: 'Pull heavy', meta: '' });
+  assert.match(bare, /<a href="ClientPlaylists\.html"[^>]*>♪ Pull heavy<\/a>/, 'without a link: the member\'s Playlists page, as before');
+  assert.doesNotMatch(bare, /target="_blank"|↗/);
+  assert.doesNotMatch(card({ name: 'Pull heavy', meta: '' }, false), /href=/, 'a preview without a link goes nowhere, as before');
+});
+
+test('a coach\'s preview finds the link in their saved playlists: by id, or by a name only one has; never the plan\'s own', async () => {
+  const { dclWithPlaylistLink } = await loadRealModule(ND('dashClient.jsx'), { registry: new Map([['react', React]]), appendExports: 'export { dclWithPlaylistLink };' });
+  const saved = dmbPlaylistChoices(LINKED);
+  assert.deepEqual(saved[0], { id: 'st-1', name: 'Sunday prep', meta: '12 tracks', url: 'https://open.spotify.com/playlist/sunday' }, 'the builder\'s list carries the saved link');
+  assert.deepEqual(dmbPlaylistChoices(SOUNDTRACKS)[0], { id: 'st-1', name: 'Sunday prep', meta: '12 tracks' }, 'a playlist saved without a link carries none');
+  assert.deepEqual(dclWithPlaylistLink(SUNDAY_PREP, saved), { ...SUNDAY_PREP, url: 'https://open.spotify.com/playlist/sunday' });
+  assert.deepEqual(dclWithPlaylistLink({ name: 'Batch cook', meta: '' }, saved), { name: 'Batch cook', meta: '', url: 'https://music.apple.com/us/playlist/batch/pl.1' }, 'one saved before ids, by its name');
+  assert.deepEqual(dclWithPlaylistLink({ id: 'st-gone', name: 'Batch cook', meta: '' }, saved), { id: 'st-gone', name: 'Batch cook', meta: '' }, 'an id the list lacks opens no namesake');
+  assert.deepEqual(dclWithPlaylistLink({ name: 'Twin', meta: '' }, [{ id: 'a', name: 'Twin', url: 'https://open.spotify.com/a' }, { id: 'b', name: 'twin ', url: 'https://open.spotify.com/b' }]), { name: 'Twin', meta: '' }, 'a name two playlists share opens neither');
+  assert.deepEqual(dclWithPlaylistLink({ id: 'st-4', name: 'Quiet lunch', meta: '' }, saved), { id: 'st-4', name: 'Quiet lunch', meta: '' }, 'an unsafe saved link opens nothing');
+  assert.deepEqual(dclWithPlaylistLink({ id: 'st-x', name: 'Planted', meta: '', url: 'https://open.spotify.com/planted' }, saved), { id: 'st-x', name: 'Planted', meta: '' }, 'a link the plan carries is never the preview\'s');
+  assert.equal(dclWithPlaylistLink(null, saved), null);
+});
+
+test('the Client preview hands the meals card each playlist with the link the coach saved', async () => {
+  stubFetch({ soundtracks: LINKED });
+  const { dclWithPlaylistLink } = await loadRealModule(ND('dashClient.jsx'), { registry: new Map([['react', React]]), appendExports: 'export { dclWithPlaylistLink };' });
+  const doc = weekDoc();
+  doc.days[6].playlist = clone(SUNDAY_PREP);
+  doc.days[6].slots[1].playlist = clone(BATCH);
+  const seen = [];
+  const was = globalThis.DashMealLedgerCard;
+  globalThis.DashMealLedgerCard = (p) => { seen.push(p); return null; };
+  globalThis.dclWithPlaylistLink = dclWithPlaylistLink;
+  try {
+    await mount(builder({ template: TEMPLATE(doc) }));
+    await settle();
+    await click(document.querySelector('.dmb-dayhead[data-day="Sunday"]'));
+    const box = [...document.querySelectorAll('label')].find((l) => /Client preview/.test(l.textContent)).querySelector('input');
+    await click(box);
+    const last = seen[seen.length - 1];
+    assert.deepEqual(last.playlist, { ...SUNDAY_PREP, url: 'https://open.spotify.com/playlist/sunday' });
+    assert.deepEqual(last.meals.find((m) => m.title === 'Sun soup').playlist, { ...BATCH, url: 'https://music.apple.com/us/playlist/batch/pl.1' });
+    // The preview links a copy: the day still holds id, name and meta.
+    assert.deepEqual(doc.days[6].playlist, SUNDAY_PREP);
+  } finally { globalThis.DashMealLedgerCard = was; delete globalThis.dclWithPlaylistLink; }
+});
+
+test('the program builder\'s Client view opens the day\'s playlist from the coach\'s saved ones; the day stores no link', () => {
+  const src = readFileSync(ND('dashBuilder.jsx'), 'utf8');
+  assert.match(src, /const previewCard = previewBase && previewBase\.playlist && typeof dclWithPlaylistLink === "function" \? \{ \.\.\.previewBase, playlist: dclWithPlaylistLink\(previewBase\.playlist, playlists\) \} : previewBase;/);
+  assert.match(src, /<DashWorkoutCard workout=\{previewCard\} interactive=\{false\} maxRows=\{99\} \/>/);
+  const choice = new Function(src.slice(src.indexOf('function dbuPlaylistChoice('), src.indexOf('\n}\n', src.indexOf('function dbuPlaylistChoice(')) + 2) + '\nreturn dbuPlaylistChoice;')();
+  assert.deepEqual(choice({ id: 'st-1', name: 'Pull', tracks: 3, url: ' https://open.spotify.com/p ' }), { id: 'st-1', name: 'Pull', meta: '3 tracks', url: 'https://open.spotify.com/p' });
+  // DbuDayChips writes id, name and meta, never the choice's link.
+  assert.match(src, /onChange\(\{ \.\.\.day, playlist: p \? \{ \.\.\.\(p\.id != null && p\.id !== "" \? \{ id: p\.id \} : \{\}\), name: p\.name, meta: p\.meta \|\| "" \} : null \}\);/);
+});

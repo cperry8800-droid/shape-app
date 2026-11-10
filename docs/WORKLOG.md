@@ -1,9 +1,8 @@
 # Shape — working notes
 
-The current rules, the code map and what waits on the owner. Every session loads this file,
-so it stays short: when a rule changes, replace its line. **No changelog**: the PR
-description records what shipped. `tests/worklog-rules.test.mjs` fails on a dated entry
-or past 12 KB.
+The rules, the code map and what waits on the owner. Every session loads it: when a
+rule changes, replace its line. **No changelog**: the PR description is the record.
+`tests/worklog-rules.test.mjs` fails on a dated entry or past 12 KB.
 
 ## How we work
 
@@ -16,9 +15,10 @@ or past 12 KB.
 - ⚠ **A stacked PR gets no CI** (`ci.yml` runs only on PRs into `main`; a base change starts
   no run). Stack only on a base that merges first, and run `workflow_dispatch` once it does.
 - **The PR description is the record:** what changed and why, each review finding and its
-  answer, what was verified, what is left open. What is left open goes to the War Room
-  (`src/lib/warroom.ts`), and below if it waits on the owner. The War Room update is the
-  last commit of the last PR in flight, once its CI and review are done (owner, 2026-10-16).
+  answer, what was verified, what is left open. What is left open goes to the War Room,
+  and below if it waits on the owner. ⚠ **The War Room entry goes in the PR's first push,
+  with the code**; a review fix edits it with the fix. No War-Room-only commit
+  (owner, 2026-11-10).
 - **Review.**
   - Read your own diff, and a helper's whole diff, adversarially before pushing (owner,
     2026-11-06): unread vs empty, partial loads, sample data, old keys, zones, nested buttons.
@@ -32,8 +32,7 @@ or past 12 KB.
   - A head no reviewer covered merges only on the owner's word. Docs-only diffs merge on
     green CI without a review round.
   - ⚠ **Codex never reviews a War Room PR** (owner, 2026-10-16), and it can't skip a PR by
-    its files: the War Room update rides in the PR it records, pushed after that PR opens.
-    Never open a War-Room-only PR.
+    its files: the War Room entry rides in the PR it records. Never open a War-Room-only PR.
 - **Pre-commit hook:** `.githooks/pre-commit` → `scripts/verify-staged.sh` (`git config
   core.hooksPath .githooks`). Commit with `SKIP_VERIFY=1`; the PR lists what ran.
 - **One test and mutation round per PR, before it opens** (owner, 2026-11-09); a rebase or a
@@ -149,6 +148,7 @@ Known gaps live in the War Room (`src/lib/warroom.ts`), as each section's pendin
 - Decide night-before prep's open calls (#2563's War Room section): a second push for a meal
   planned after tonight's reminder, and a planned-day total on Eat beside Fuel left.
 - A trademark search on "Club Shape", its domain and handles, before the rename ships (#2568's War Room).
+- Runway (#2682): drop the "runaway" connector; decide a paid plan and an admin page.
 - Set up the radio station (`services/station`).
 - Add the `localhost` hostname to the Turnstile widget.
 - A native speaker reads the PAR-Q, Nora hint, sample coach and Friends translations
@@ -160,7 +160,7 @@ Known gaps live in the War Room (`src/lib/warroom.ts`), as each section's pendin
 
 ## History
 
-- Changelog entries up to 2026-10-16: [`WORKLOG-ARCHIVE-2026-10.md`](WORKLOG-ARCHIVE-2026-10.md),
+- Changelog entries up to 2026-10-16: [`-2026-10`](WORKLOG-ARCHIVE-2026-10.md),
   [`-2026-09`](WORKLOG-ARCHIVE-2026-09.md), [`-2026-08`](WORKLOG-ARCHIVE-2026-08.md),
   [`-2026-06-07`](WORKLOG-ARCHIVE-2026-06-07.md),
   [`-2026-06-cycles-2-5`](WORKLOG-ARCHIVE-2026-06-cycles-2-5.md).

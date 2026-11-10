@@ -18,6 +18,7 @@ import { bumpSignOutGen } from '../services/signOutGen.mjs';
 import { preferenceTypeFor } from '../../../public/newdesign/notificationSurfaces.mjs';
 import { heldCoachRoles, coachPlanSwitch, holdCoachPlan } from '../services/coachPlanRoute.mjs';
 import { mayLeave } from '../services/leaveGuard.mjs';
+import { BS_CLEAN_SANS } from './bsCleanType.jsx';
 import { copyIndex } from '../../../src/lib/click-capture.mjs';
 
 // Every call to Shape's server goes through the backend's ShapeApi.fetch: the API base in
@@ -1464,19 +1465,22 @@ function BSPushAsk({ coach = false }) {
 
 // Persistent "you're previewing" banner shown over the app for non-members who
 // chose to look around — keeps the Join CTA present without blocking the view.
+// Compact (owner, 2026-11-10: "make this pop-up box smaller"): the words in Home's own face
+// (Inter Tight, bsCleanType) at 11.5px, not Saira 13 semibold, with tighter padding, a smaller
+// Join pill and a lighter shadow. Three lines in English where it took four: 99px tall to 71.
 function BSPreviewBanner({ t, onJoin }) {
   const { tr } = useTr('onboarding');
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   const [dismissed, setDismissed] = useStateBSM(false);
   if (dismissed) return null;
   return (
-    <div style={{ position: 'absolute', left: 12, right: 12, bottom: 78, zIndex: 150, display: 'flex', alignItems: 'center', gap: 8, padding: '10px 10px 10px 14px', borderRadius: 14, background: t.INK, color: t.PAPER, boxShadow: '0 10px 30px rgba(0,0,0,0.4)' }}>
+    <div data-bs-preview-banner="" style={{ position: 'absolute', left: 12, right: 12, bottom: 78, zIndex: 150, display: 'flex', alignItems: 'center', gap: 6, padding: '7px 4px 7px 12px', borderRadius: 12, background: t.INK, color: t.PAPER, boxShadow: '0 6px 18px rgba(0,0,0,0.3)' }}>
       <div style={{ minWidth: 0, flex: 1 }}>
-        <div style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: teal }}>{tr('preview.title')}</div>
-        <div style={{ fontFamily: t.DISPLAY, fontSize: 13, fontWeight: 600, marginTop: 1, lineHeight: 1.3 }}>{tr('preview.body')}</div>
+        <div style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: teal }}>{tr('preview.title')}</div>
+        <div style={{ fontFamily: BS_CLEAN_SANS, fontSize: 11.5, fontWeight: 500, marginTop: 2, lineHeight: 1.3 }}>{tr('preview.body')}</div>
       </div>
-      <button onClick={onJoin} style={{ flexShrink: 0, padding: '9px 14px', borderRadius: 999, border: 0, background: t.PAPER, color: t.INK, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}>{tr('preview.join', { price: BS_PRICE })}</button>
-      <button onClick={() => setDismissed(true)} aria-label={tr('preview.dismiss')} style={{ flexShrink: 0, width: 26, height: 26, borderRadius: 999, border: 0, background: 'transparent', color: t.PAPER, opacity: 0.7, cursor: 'pointer', fontFamily: t.MONO, fontSize: 13, fontWeight: 800, lineHeight: 1 }}>✕</button>
+      <button onClick={onJoin} style={{ flexShrink: 0, padding: '7px 11px', borderRadius: 999, border: 0, background: t.PAPER, color: t.INK, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}>{tr('preview.join', { price: BS_PRICE })}</button>
+      <button onClick={() => setDismissed(true)} aria-label={tr('preview.dismiss')} style={{ flexShrink: 0, width: 26, height: 26, borderRadius: 999, border: 0, background: 'transparent', color: t.PAPER, opacity: 0.7, cursor: 'pointer', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, lineHeight: 1 }}>✕</button>
     </div>
   );
 }

@@ -1,7 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "mcp__Higgsfield"
+      "mcp__Higgsfield",
+      "mcp__Runaway"
     ]
   },
   "hooks": {

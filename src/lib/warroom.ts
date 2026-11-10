@@ -625,6 +625,56 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
 
   return [
     {
+      section: 'Chat: the website bubble has the app\'s places and feeds (#2671); the real channels on the website, a real read-only Shape HQ, Shape\'s own channels by a flag only Shape sets, the circle\'s mark and hosts\' pictures (#2676). Two migrations, run and checked live',
+      items: [
+        { label: 'Owner, 2026-11-10, over the website\'s Ask Nora and "Your community" panels: "upgrade look and design, and need to include the community feed on website. Which is everyone on Shape", "just have it match the app, referring to whats available on the chat page", "make sure the feeds are showing the same. Updating correctly"; then "yes wire up the real channels next", "yes create a real shape HQ", and of the channel icons: "have creators of channels upload custom pictures", "you can leave them circle", "also make them a little smaller", "yes make shape hq one be the triangles", "make the # smaller", and "Just remove those 2 channels i selected" (Macro Mondays, strength-block-3)', status: 'done' },
+        { label: '#2671 the bubble\'s places are the app\'s: Wall, Community (everyone on Shape), the viewer\'s role feed, Team (Coaches and Friends) and Channels, filed from one read of /api/community/feed by the app\'s rule (cfInPlace); the role is the account\'s, read with it, and the role place waits for it; read again on a post, on return to the window and every 45s; likes and replies from the server; saved threads keyed by tab id', status: 'done' },
+        { label: '#2671 the look: Nora\'s masthead and quiet bubbles, full-row suggestions, one composer; places as pills, avatars on rows and heads, the feed\'s toolbar and authors\' photos; checked on the dark site and the light paper', status: 'done' },
+        { label: '#2676 the website\'s Channels are the real ones, as the app reads them: list (memberships a page at a time), newest 200 messages then only newer, join, post, create (create_channel), pin (set_channel_pinned, joined or not; a refusal puts the row back); a failed inbox read no longer keeps the sample channels', status: 'done' },
+        { label: '#2676 Shape HQ is real: Shape\'s own and read-only (members read it, Shape posts with the service role), opened without joining in both apps, with Shape\'s welcome; posting respects read_only; its unread badge counts for everyone from their account\'s start, and the reader\'s row is made on first open (2026-11-10-shape-hq-unread.sql)', status: 'done' },
+        { label: '#2676 Shape\'s own is channels.official, set once on the PR Wall and Shape HQ, one per name; a trigger refuses a member setting official or read_only or changing a channel\'s owner (created_by is ON DELETE SET NULL, and a host could clear it); both apps read the flag, the app\'s HQ and PR Wall pins included', status: 'done' },
+        { label: '#2676 a channel\'s circle (channelMark.mjs, both apps): the host\'s picture, Shape\'s triangles on Shape HQ, a trophy on the PR Wall, else initials on the name\'s colour; 40px in the app\'s head (BS_CHAT_SIZES.headMark), 30px in the website list; the "#" about 60% of the name; hosts set the picture (channel-pictures bucket, the channel\'s own folder, a path never an address)', status: 'done' },
+        { label: 'Review: #2671, Codex\'s three findings fixed (the account\'s role; reposts off the Wall; the role feed hidden until the role resolves), Codex clean on a96f2fd; #2676, thirteen Codex findings over seven rounds fixed (memberships paged and never passed off as whole; a failed picture per address; channels read whatever the inbox does; the typed-in merge drops the samples and takes a saved channel\'s live fields; search and deep links open the full channel; HQ opens without joining and badges; pins stored joined or not and rolled back; the account\'s own read cursor and name; a failed unread read keeps the counts). CI green on the final head', status: 'done' },
+        { label: 'Both migrations run by the owner, 2026-11-10, and checked live: the PR Wall and Shape HQ official, HQ read-only with one welcome, the guard trigger, the read-only and picture checks, the one-official-per-name index, the bucket and its four policies, the read-only post policy, and channel_unread/mark_channel_read with Shape HQ', status: 'done' },
+        { label: 'post_my_pr_to_wall still finds the PR Wall as the ownerless "PR Wall" (created_by is null limit 1); a deleted member\'s channel of that name could match. It can read official now', status: 'pending' },
+        { label: 'In the app, a host\'s picture is set from the channel header only; the create sheet does not offer one', status: 'pending' },
+        { label: 'The two filing differences #2671 kept from the app: a photo posted into another role\'s peer room stays there (the app\'s Wall shows it), and the website\'s text Wall posts stay on the Wall (the app\'s hides them)', status: 'pending' },
+        { label: 'OWNER: signed in on the live site and the app: Shape HQ shows its welcome as unread, opens without Join, and has no composer; as a channel\'s host, set its picture; pin a channel you are not in and reload (#2676)', status: 'pending' },
+      ],
+    },
+    {
+      section: 'App: a smaller "Preview · demo data" banner (#2681). No migration',
+      items: [
+        { label: 'Owner, 2026-11-10, with a screenshot of the banner over Home: "also make this pop-up box smaller"', status: 'done' },
+        { label: '#2681 BSPreviewBanner (iosAppBroadsheetMain.jsx): the words in Home\'s face (Inter Tight) at 11.5px, not Saira 13 semibold; tighter padding, a smaller Join pill and ×, a lighter shadow; the same words in all 13 locales. 99px tall to 71 at iPhone 13 width, three lines of English where it took four', status: 'done' },
+        { label: 'Review: Codex clean on 242b154. npm test 10,699, 0 failing; the shell\'s and the i18n inventory\'s tests on the rebased head, 508 of 508. CI green on the final head', status: 'done' },
+        { label: 'OWNER: a shorter banner line would bring it to two lines (about 52px); that is new wording in 13 languages', status: 'pending' },
+      ],
+    },
+    {
+      section: 'Runway: the Runaway connector\'s tools run without a prompt, as Higgsfield\'s do (#2682). No migration',
+      items: [
+        { label: 'Owner, 2026-11-10: "i just want to make sure this integration is live on my repo" … "like higgsfield is" … "add the runaway rule"', status: 'done' },
+        { label: '#2682 .claude/settings.json allows mcp__Runaway beside mcp__Higgsfield. Runaway is the claude.ai connector to Runway (runway.com), connected the same day: images, video, music, speech, sound effects and workflows from chat, on the workspace picked at sign-in ("Chris", personal)', status: 'done' },
+        { label: '#2682 review: Codex clean on 9e9911f (no findings); CodeRabbit not asked. npm test 10,708 (10,701 pass, 0 fail, 7 skipped). CI green on 9e9911f', status: 'done' },
+        { label: 'OWNER — the Runway workspace is on the free plan (500 credits on 2026-11-10): images and background removal only. Video, video editing, music, speech, sound effects and upscaling need a paid plan', status: 'manual' },
+        { label: 'OWNER — an older custom connector, "runaway" (lowercase), still waits to be reconnected; it duplicates Runaway, so remove it in claude.ai', status: 'manual' },
+        { label: 'OWNER DECISION — a Runway page in the admin console (gen4.5 text-to-video through the developer API with @runwayml/sdk, admin only). The developer API is its own account with its own credits (Developer Portal: 0 credits on 2026-11-10; gen4.5 is 12 credits a second at $0.01 a credit, so 5 s is $0.60). Its key is saved on the Claude cloud environment, not in Vercel', status: 'pending' },
+        { label: 'Left by #2682: the Runway Dev plugin (runway-api@claude-plugins-official: Runway API docs and Dev account tools) is not on in claude.ai, and its tools (mcp__plugin_runway-api_runway-dev) are not in the allow list', status: 'pending' },
+      ],
+    },
+    {
+      section: 'Website playlist chips open the playlist: the plan read sets each one\'s link from its coach\'s saved playlists (#2679). No migration',
+      items: [
+        { label: 'Owner, 2026-11-10, after #2673: "make the playlist chip open the playlist"', status: 'done' },
+        { label: '#2679 /api/client/plan sets `url` on each session\'s, plan day\'s and meal\'s playlist from the saved playlists (coach_soundtracks) of the coach who wrote it: by id, or a name only one of theirs has (src/lib/plan-playlist-links.mjs); https Spotify or Apple Music only; a url stored in the payload dropped. Service-role read held to the owners of the coaches behind the member\'s own published plan, only when it carries a playlist; a failed read leaves names', status: 'done' },
+        { label: '#2679 a playlist on the member\'s plan now opens even when the coach never sent it (attached); the coach\'s Playlists page already counts a program day\'s clients as who hears it', status: 'done' },
+        { label: '#2679 dashClient.jsx: the workout and meals chips open the link in a new tab ("↗", "Open … in Spotify"); without one the workout chip keeps to the member\'s Playlists page. The program builder\'s Client view and the meal builder\'s Client preview look it up in the playlists they read (dclWithPlaylistLink); a day or meal still stores id, name and meta only', status: 'done' },
+        { label: 'Review: Codex P2 (the read capped every owner row at 1,000) fixed: read by the ids the plan names, a legacy name pages its coach list; Codex clean on 0c83fbd; mutation round 19 of 19 killed; CI green on the final head', status: 'done' },
+        { label: 'The app\'s Train and Eat still draw a playlist the coach never sent as a bare card; the plan read now carries its url, which they don\'t read yet', status: 'pending' },
+      ],
+    },
+    {
       section: 'Set up with Nora, checked end to end: the coach dashboard opens Nora, not Chat; one card a reply; a drafted card is kept; a refused Undo says why; the app\'s card reads a fresh token (#2678). No migration',
       items: [
         { label: 'Owner, 2026-11-10: "Make sure this set up with Nora feature is fully functioning. Check that after." … "Just making sure Nora has those capabilities." Traced from every entry point and driven in a browser: the action itself (#2566) was sound; the path to it had one break and four ways to lose the card or its reason', status: 'done' },
@@ -659,7 +709,7 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: '#2673 DashMealLedgerCard (dashClient.jsx): the day\'s playlist under the kcal line and each meal\'s under its macros, "♪ name · meta" as the workout card says it; a swapped meal keeps its own; a plan without one reads as before', status: 'done' },
         { label: '#2673 the meal builder\'s Client preview (DmbClientPreview), the member\'s dashboard and nutrition page (dnuDayMeals) hand the card the plan day\'s and each meal\'s playlist, which buildMealAssignment already sends', status: 'done' },
         { label: 'Review: Codex clean on 0638bf5; CI green on the final head', status: 'done' },
-        { label: 'The website\'s meals and workout cards name a playlist but don\'t open it: the plan carries the soundtrack\'s id, name and meta, not its URL', status: 'pending' },
+        { label: 'The website\'s meals and workout cards name a playlist but don\'t open it: the plan carries the soundtrack\'s id, name and meta, not its URL: done in #2679 (the plan read sets the link; the chip opens it)', status: 'done' },
       ],
     },
     {
@@ -680,7 +730,7 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'Owner, 2026-11-10: "add a playlist picker to the coach app\'s meal editor too - nutritionists should be able to add playlists to meal plans"; #2670 the coach app\'s meal-plan editor (BSMealBuilderEditor.jsx) sets the day\'s and each meal\'s playlist as the website does (mealBuilderEdit.mjs), and a swap keeps the meal\'s', status: 'done' },
         { label: '#2670 Eat\'s Playlists: "For Sun · Batch prep", matched by soundtrack id then name to the days and meals as the menu shows them; an unsent playlist is a bare card, as on Train', status: 'done' },
         { label: 'Review: Codex\'s five findings fixed (playlist labels after a swap; the kcal line from the meals shown, against the target; Coming up before the plan read; a day past Sunday opening last week; the day strip on a filled open day); the coach app\'s meal editor picker reviewed clean; Codex clean on f79d607; CI green on the final head', status: 'done' },
-        { label: 'A playlist the nutritionist linked but never sent to the member has no link on Eat (a bare card): the plan carries the soundtrack id and name, not its URL or service', status: 'pending' },
+        { label: 'A playlist the nutritionist linked but never sent to the member has no link on Eat (a bare card); since #2679 the plan read carries its url, which Eat doesn\'t read yet', status: 'pending' },
         { label: 'The meal plan sheet shows this week, or next week for a Coming up day past Sunday; a plan\'s later weeks have no view', status: 'pending' },
         { label: 'The coach app\'s workout editor (BSWorkoutDocumentEditor.jsx) has no playlist picker for a trainer\'s session; it keeps one set on the website: done in #2672', status: 'done' },
         { label: 'BS_COACH_PLAYLISTS\' attached text (iosAppBroadsheetRadio.jsx) has no reader since #2669 and #2670', status: 'pending' },
@@ -695,7 +745,7 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: '#2669 Train: On deck previews each next day (Tomorrow, time, length, first three moves with swaps, playlist) and opens the full plan on it; Full plan (BSTrainPlan.jsx) is a sheet of the week, every move with its cue and the member\'s swaps, today framed, Month view at its foot', status: 'done' },
         { label: '#2669 the full plan is a modal: focus stays in it (Tab and Shift+Tab wrap, bsDialogFocus.mjs) and goes back to what opened it', status: 'done' },
         { label: 'Review: five of Codex\'s six findings fixed (two playlists of one name, also with an unsent one; an Apple Music playlist drawn as Spotify\'s; On deck without the swaps; focus leaving the sheet); one declined (Sunday\'s sheet marking last Monday Tomorrow: the sheet prints this week\'s dates); Codex clean on e7fb41b; CI green on the final head', status: 'done' },
-        { label: 'A workout\'s playlist the coach never sent to the member has no link: the plan carries its soundtrack id and name, not its URL or service (a server read of coach_soundtracks by id would carry them)', status: 'pending' },
+        { label: 'A workout\'s playlist the coach never sent to the member has no link on Train (a bare card); since #2679 the plan read carries its url (a server read of coach_soundtracks by id), which Train doesn\'t read yet', status: 'pending' },
         { label: 'The full plan shows this week, which is what the plan read slots; a program\'s later weeks have no view', status: 'pending' },
         { label: 'Unused since #2669: session:train.musicFrom, session:train.music, session:train.forToday', status: 'pending' },
       ],
