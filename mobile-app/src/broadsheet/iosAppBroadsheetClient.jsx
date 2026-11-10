@@ -22423,6 +22423,17 @@ function BSWallYourBest({ loggedIn, onLogActivity, onPostedRecord }) {
 
 
 
+// One size for a face and a name wherever Chat shows a person (owner, 2026-11-10: "make the name and avatars
+// smaller on the coaches and friends page … the sizes on the chats need to remain consistent and the same
+// across all"). A list row is Coaches', Friends' and a channel's alike (it was a 44px face and a 20px name);
+// a message's sender and the typing row are one size in every thread, a coach's, a friend's or a channel's;
+// the open thread's head is one size. Every site reads this table, so no list or thread drifts on its own.
+const BS_CHAT_SIZES = Object.freeze({
+  rowFace: 36, rowName: 16,
+  senderFace: 24, senderName: 8.5,
+  headFace: 48, headName: 25,
+});
+
 function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   const t = useBS();
   const tr = useShapeTr();
@@ -23424,10 +23435,10 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
             // last line in the body face, an unread count as a bare teal number, a hairline between rows.
             return (
               <button key={i} onClick={() => { window.ShapeUnread?.markConversationRead?.(f.conversation_id); setOpenChat(f); }} style={{ display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 12, alignItems: 'center', padding: '12px 0', background: 'transparent', border: 0, borderBottom: isLast ? 0 : `1px solid ${t.HAIR}`, color: cardInk, textAlign: 'left', cursor: 'pointer', width: '100%' }}>
-                <BSFacetAvatar flat size={44} c={t.INK} initial={bsInitials(f.n) || f.i} photo={f.conversation_id ? undefined : bsDemoFace(f.n)} showRank={false} online={online} dotC={magAccent} BG={t.PAPER} />
+                <BSFacetAvatar flat size={BS_CHAT_SIZES.rowFace} c={t.INK} initial={bsInitials(f.n) || f.i} photo={f.conversation_id ? undefined : bsDemoFace(f.n)} showRank={false} online={online} dotC={magAccent} BG={t.PAPER} />
                 <span style={{ minWidth: 0, display: 'block' }}>
                   {f.s && <span style={{ display: 'block', fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.14em', textTransform: 'uppercase', color: muted, fontWeight: 800, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{f.s}</span>}
-                  <span style={{ display: 'block', marginTop: f.s ? 3 : 0, fontFamily: bsWsHead(t), fontWeight: 500, fontSize: 20, lineHeight: 1.05, color: t.INK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{f.n}</span>
+                  <span style={{ display: 'block', marginTop: f.s ? 3 : 0, fontFamily: bsWsHead(t), fontWeight: 500, fontSize: BS_CHAT_SIZES.rowName, lineHeight: 1.1, color: t.INK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{f.n}</span>
                   {last && <span style={{ display: 'block', fontFamily: t.BODY, fontSize: 13, color: count > 0 ? t.INK : muted, marginTop: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{last}</span>}
                 </span>
                 <span style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 7, alignSelf: 'flex-start', marginTop: 2 }}>
@@ -23520,7 +23531,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
               <div key={ch.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 2px', borderTop: i ? `1px solid ${hair}66` : 0, ...(chReduced ? null : { animation: 'bsSdFadeUp 300ms ease both', animationDelay: `${Math.min(i, 10) * 26}ms` }) }}>
                 <button onClick={openOrJoin} style={{ flex: 1, minWidth: 0, background: 'transparent', border: 0, textAlign: 'left', cursor: 'pointer', color: cardInk, padding: 0 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-                    <span style={{ fontFamily: bsWsHead(t), fontWeight: 500, fontSize: 20, lineHeight: 1.05, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>#{ch.name}</span>
+                    <span style={{ fontFamily: bsWsHead(t), fontWeight: 500, fontSize: BS_CHAT_SIZES.rowName, lineHeight: 1.1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>#{ch.name}</span>
                     {ch.live && (
                       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
                         <span aria-hidden style={{ width: 5, height: 5, borderRadius: 999, background: tealSig }} />
@@ -25738,15 +25749,15 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSen
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginTop: 6 }}>
           <button onClick={() => !thread.group && openP(thread.who)} style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 13, minWidth: 0, background: 'transparent', border: 0, padding: 0, textAlign: 'left', cursor: thread.group ? 'default' : 'pointer', color: 'inherit' }}>
             {thread.group ? (
-              <span aria-hidden style={{ flex: 'none', width: 48, height: 48, borderRadius: '50%', display: 'grid', placeItems: 'center', background: bsTHexA(deskTeal, 0.16), color: deskTeal, boxShadow: `0 0 0 2px ${DESK}, 0 0 0 3.5px ${deskTeal}`, fontFamily: t.MONO, fontSize: 20, fontWeight: 800 }}>#</span>
+              <span aria-hidden style={{ flex: 'none', width: BS_CHAT_SIZES.headFace, height: BS_CHAT_SIZES.headFace, borderRadius: '50%', display: 'grid', placeItems: 'center', background: bsTHexA(deskTeal, 0.16), color: deskTeal, boxShadow: `0 0 0 2px ${DESK}, 0 0 0 3.5px ${deskTeal}`, fontFamily: t.MONO, fontSize: 20, fontWeight: 800 }}>#</span>
             ) : (
               <span style={{ position: 'relative', flex: 'none' }}>
-                {roundFace(48, headPhoto, bsInitials(thread.who) || (thread.who.match(/[A-Z]/) || ['?'])[0], `0 0 0 2px ${DESK}, 0 0 0 3.5px ${deskTeal}`)}
+                {roundFace(BS_CHAT_SIZES.headFace, headPhoto, bsInitials(thread.who) || (thread.who.match(/[A-Z]/) || ['?'])[0], `0 0 0 2px ${DESK}, 0 0 0 3.5px ${deskTeal}`)}
                 {headOnline && <span aria-hidden style={{ position: 'absolute', right: -2, bottom: -2, width: 13, height: 13, borderRadius: '50%', background: deskTeal, border: `2.5px solid ${DESK}`, boxSizing: 'border-box' }} />}
               </span>
             )}
             <span style={{ minWidth: 0 }}>
-              <span data-thread-name="" style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 25, fontWeight: 600, lineHeight: 1, letterSpacing: '-0.01em', color: DESK_INK, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{thread.who}</span>
+              <span data-thread-name="" style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: BS_CHAT_SIZES.headName, fontWeight: 600, lineHeight: 1, letterSpacing: '-0.01em', color: DESK_INK, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{thread.who}</span>
               <span style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: deskMuted, whiteSpace: 'nowrap', overflow: 'hidden' }}>
                 <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{thread.role}</span>
                 {headOnline && <><span aria-hidden>·</span><span style={{ color: deskTeal }}>{tr('profile:trainer.online', { defaultValue: 'Online now' })}</span></>}
@@ -25884,11 +25895,11 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSen
               {!sameRun && (
                 <button onClick={() => openP(senderName, m.userId)} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', minHeight: 28, marginBottom: 6, padding: 0, border: 0, background: 'transparent', cursor: 'pointer', textAlign: 'left' }}>
                   <span style={{ position: 'relative', display: 'inline-flex' }}>
-                    {roundFace(24, senderPhoto, bsInitials(senderName) || '?')}
+                    {roundFace(BS_CHAT_SIZES.senderFace, senderPhoto, bsInitials(senderName) || '?')}
                     {/* Online, or mid-workout / at the stove (amber), as the facet faces' dot was. */}
                     {(senderActivity || bsIsUserOnline(m.userId)) && <span aria-hidden style={{ position: 'absolute', right: -2, bottom: -2, width: 9, height: 9, borderRadius: '50%', background: senderActivity === 'cooking' ? '#d8a23a' : teal, border: `2px solid ${t.PAPER}`, boxSizing: 'border-box' }} />}
                   </span>
-                  <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: teal }}>{senderName}</span>
+                  <span style={{ fontFamily: t.MONO, fontSize: BS_CHAT_SIZES.senderName, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: teal }}>{senderName}</span>
                   {thread.group && <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{String(senderTierLabel).toUpperCase()}</span>}
                   {thread.group && roleLabel && <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: senderRole === 'nutritionist' ? '#a07a2e' : t.RUST }}>{roleLabel}</span>}
                 </button>
@@ -25953,7 +25964,7 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSen
             (a channel). The dots hold still under reduced motion (index.html). */}
         {typers.length > 0 && (
           <div data-thread-typing="" aria-hidden style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 18, minHeight: 28, minWidth: 0 }}>
-            {!thread.group && roundFace(24, headPhoto, bsInitials(thread.who) || '?')}
+            {!thread.group && roundFace(BS_CHAT_SIZES.senderFace, headPhoto, bsInitials(thread.who) || '?')}
             <span style={{ flex: 'none', display: 'inline-flex', alignItems: 'center', gap: 4, padding: '9px 12px', borderRadius: 16, background: bsTHexA(t.INK, 0.06) }}>
               {[0, 1, 2].map((k) => <span key={k} className="bs-typing-dot" style={{ width: 6, height: 6, borderRadius: '50%', background: teal, animation: `bsTypingDot 1.2s ease-in-out ${k * 0.16}s infinite` }} />)}
             </span>
