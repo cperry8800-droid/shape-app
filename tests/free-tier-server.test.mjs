@@ -336,3 +336,30 @@ test('annual: the checkout takes the yearly price when asked, and refuses a year
   assert.match(plans, /price\.recurring\?\.interval !== want/, 'a monthly price set as the yearly one is no plan');
   assert.match(plans, /planOf\(process\.env\.STRIPE_PLATFORM_ANNUAL_PRICE_ID, 'year'\)/);
 });
+
+// ⚠ CHANNELS ARE FREE (owner, 2026-11-10: "also make channels free"). The community channels (the
+// member-made group chats, Shape HQ, the PR Wall) are read and written straight through Supabase by
+// any signed-in account, so what keeps them free is that nothing adds a paid condition: no channel
+// policy or RPC reads a subscription or the membership, no community route sits behind the paid
+// gate, and Nora tells a member they come with the account.
+test('channels: every signed-in account browses, joins, starts and posts in channels; nothing makes them paid', async () => {
+  const dir = join(ROOT, 'supabase-migrations');
+  const channelSql = readdirSync(dir).filter((f) => f.endsWith('.sql')).map((f) => [f, read('supabase-migrations/' + f)])
+    .filter(([, sql]) => /\bon public\.channel(s|_members|_messages)\b|function public\.(create_channel|is_channel_member|is_public_channel|is_channel_host)\b/.test(sql));
+  assert.ok(channelSql.length >= 2, 'the channel migrations are found');
+  for (const [f, sql] of channelSql) {
+    const blocks = stripComments(sql).split(/;\s*\n/).filter((b) => /policy[\s\S]*on public\.channel(s|_members|_messages)\b|function public\.(create_channel|is_channel_member|is_public_channel|is_channel_host)\b/.test(b));
+    for (const b of blocks) assert.doesNotMatch(b, /platform_subscriptions|shape_viewer_is_member|\bsubscriptions\b|nora_previews/, `${f}: a channel policy or function reads a membership`);
+  }
+  const { isPaidApiPath } = await loadRealModule(join(ROOT, 'src/lib/supabase/middleware.ts'), {
+    typescript: true,
+    registry: new Map([['next/server', nextServer], ['@supabase/ssr', {}], ['@supabase/supabase-js', {}], ['@/lib/membership-core', core], ['@/lib/rate-limit', {}], ['@/lib/supabase/cookie-options', {}], ['@/lib/staff-two-factor.mjs', {}]]),
+  });
+  for (const p of ['/api/community/feed', '/api/community/pr-wall', '/api/messages', '/api/conversations']) {
+    assert.equal(isPaidApiPath(p), false, `${p} is not paid`);
+  }
+  const kb = (await import(pathToFileURL(join(ROOT, 'src/lib/ai/shapeKnowledge.mjs')).href));
+  const entries = kb.SHAPE_KNOWLEDGE || Object.values(kb).find(Array.isArray);
+  const membership = entries.find((e) => e.id === 'membership');
+  assert.match(membership.body.split('The membership is')[0], /the community and its channels/, 'Nora lists channels with the free account');
+});

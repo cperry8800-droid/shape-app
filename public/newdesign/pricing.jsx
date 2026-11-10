@@ -40,6 +40,7 @@ const FREE_FEATURES = [
   "Community forum access",
   "Browse, book and hire any trainer or nutritionist",
   "Direct messaging with your pros, and their reviews",
+  "Community channels: join, start and post in them",
   "Nora's help with the app",
 ];
 const NORA_WEEK_LINE = "Try Nora free for a week after your first three workouts — no card.";

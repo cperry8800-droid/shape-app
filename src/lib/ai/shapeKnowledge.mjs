@@ -17,15 +17,15 @@ export const SHAPE_KNOWLEDGE = Object.freeze([
   {
     id: 'membership',
     title: 'What a Shape membership costs and includes',
-    tags: ['price', 'cost', 'membership', 'platform fee', '$5', 'five dollars', 'month', 'year', 'annual', '$48', 'include', 'subscription', 'join', 'sign up', 'free', 'free account', 'trial', 'free trial', 'free week', 'paid', 'locked'],
-    body: 'A Shape account is free and covers most of the app, with or without a coach: logging workouts and meals, programs, Shape Kitchen recipes, progress and a weekly recap to share, Score points and the top 10 of the leaderboards, the community, and browsing, booking, hiring and messaging coaches. The membership is $5 a month or $48 a year — the Shape platform fee — and adds Nora as your assistant (looking up your plan and numbers, logging for you, voice, the weekly readout), Shape Radio, the AI helpers, Cook Mode’s voice, the full leaderboards with your exact rank, and spending points in the Store. It is included while you pay a coach on Shape. There is no free trial, but after your first three workouts Nora is your assistant free for a week, no card. Anything bought from a coach is separate and goes to that coach.',
+    tags: ['price', 'cost', 'membership', 'platform fee', '$5', 'five dollars', 'month', 'year', 'annual', '$48', 'include', 'subscription', 'join', 'sign up', 'free', 'free account', 'trial', 'free trial', 'free week', 'paid', 'locked', 'channels', 'community'],
+    body: 'A Shape account is free and covers most of the app, with or without a coach: logging workouts and meals, programs, Shape Kitchen recipes, progress and a weekly recap to share, Score points and the top 10 of the leaderboards, the community and its channels, and browsing, booking, hiring and messaging coaches. The membership is $5 a month or $48 a year — the Shape platform fee — and adds Nora as your assistant (looking up your plan and numbers, logging for you, voice, the weekly readout), Shape Radio, the AI helpers, Cook Mode’s voice, the full leaderboards with your exact rank, and spending points in the Store. It is included while you pay a coach on Shape. There is no free trial, but after your first three workouts Nora is your assistant free for a week, no card. Anything bought from a coach is separate and goes to that coach.',
     source: 'Pricing page FAQ',
   },
   {
     id: 'coach-optional',
     title: 'Do I have to subscribe to a coach?',
     tags: ['coach', 'subscribe', 'required', 'have to', 'without a coach', 'self', 'own workouts', 'platform level'],
-    body: 'No. With a free account you can browse coaches, book intro calls, buy one-off plans, build your own workouts right in the app, and use the community. Some members stay there, training on self-built weeks or à-la-carte plans; others subscribe to one or more coaches for ongoing programming.',
+    body: 'No. With a free account you can browse coaches, book intro calls, buy one-off plans, build your own workouts right in the app, and use the community and its channels. Some members stay there, training on self-built weeks or à-la-carte plans; others subscribe to one or more coaches for ongoing programming.',
     source: 'Pricing page FAQ',
   },
   {

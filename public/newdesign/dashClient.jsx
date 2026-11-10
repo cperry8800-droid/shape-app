@@ -1049,7 +1049,7 @@ const DCL_JOIN_PERKS = [
   "Spend your Shape Score points in the Store",
   "The full leaderboard and your exact rank",
 ];
-const DCL_FREE_WITH_ACCOUNT = "Free with your account, membership or not: logging workouts and meals, your dashboard, the programs you build, the leaderboards' top 10, hiring and messaging coaches, their reviews, and Nora's help with the app.";
+const DCL_FREE_WITH_ACCOUNT = "Free with your account, membership or not: logging workouts and meals, your dashboard, the programs you build, the leaderboards' top 10, hiring and messaging coaches, their reviews, community channels, and Nora's help with the app.";
 const DCL_NORA_WEEK_LINE = "Try Nora free for a week after your first three workouts — no card.";
 
 // Whether /api/me/membership's answer has the paid features: the membership, an approved coach's
