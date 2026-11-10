@@ -798,7 +798,8 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
       setShowSoundtracks(false); setShowSettings(false); setSettingsStart('');
       setShowCalendar(false); setShowReviews(false); setShowHabits(false);
       setQueueView(null); setLiveWatch(null); setShowSearch(false);
-      setOpenClientReq({ clientId: clientId || null, clientName, nonce: Date.now() }); setTab('clients');
+      // `back: 'nav'`: this jump pushed where the coach was, so the client page's ← steps back there.
+      setOpenClientReq({ clientId: clientId || null, clientName, back: 'nav', nonce: Date.now() }); setTab('clients');
     };
     window.addEventListener('shape:openClient', open);
     // The membership welcome ("home") on an account that is a coach now: their Today.
@@ -913,6 +914,8 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
     if (loc.tab === 'programs') setProgramInitialTab(loc.sub || 'programs');
     // A Back to Chat's list carries no thread, and drops any older one (the client shell's rule).
     if (loc.tab === 'chat') setChatRequest(loc.detail ? { ...loc.detail, nonce: Date.now() } : null);
+    // Clients comes back on the client whose page was open (the Clients screen announces it), or its list.
+    if (loc.tab === 'clients' && loc.detail && (loc.detail.clientId || loc.detail.clientName)) setOpenClientReq({ clientId: loc.detail.clientId || null, clientName: loc.detail.clientName || '', back: loc.detail.back, nonce: Date.now() });
     if (loc.tab) setTab(loc.tab);
   };
   const { navPush, navBack } = useBSNavHistory({ navLoc, navResolve });
@@ -2580,6 +2583,7 @@ function BSTrainerClients({ openRequest = null, onOpenConsumed = () => {} } = {}
   const tr = useShapeTr();
   const [previewClient, setPreviewClient] = useStateBSP(null);
   const [fullClient, setFullClient] = useStateBSP(null);
+  const [fullViaNav, setFullViaNav] = useStateBSP(false);
   const [roster, setRoster] = useStateBSP('active'); // 'active' | 'past'
   const [cQuery, setCQuery] = useStateBSP('');
   const [cFilter, setCFilter] = useStateBSP('all');
@@ -2590,9 +2594,25 @@ function BSTrainerClients({ openRequest = null, onOpenConsumed = () => {} } = {}
   useEffectBSP(() => {
     if (!openRequest || !(openRequest.clientId || openRequest.clientName) || rosterStatus === 'loading') return;
     const hit = openRequest.clientId ? COACH_CLIENTS.find((c) => c.userId === openRequest.clientId) : bsProRosterByName(COACH_CLIENTS, openRequest.clientName);
-    if (hit) { setPreviewClient(null); setFullClient(hit); }
+    if (hit) { setPreviewClient(null); setFullClient(hit); setFullViaNav(openRequest.back === 'nav'); }
     onOpenConsumed();
   }, [openRequest, rosterStatus, COACH_CLIENTS]);
+  // Where the client page's ← goes (owner, 2026-11-10: "Make sure back buttons are going back to previous
+  // page and location user was on"). Opened by a jump (Today's client, a notification: `back: 'nav'`), it
+  // steps the nav history back there; opened from this list, it closes to the list. The open client is
+  // announced, so a jump from their page (MESSAGE → the thread) comes back to it.
+  // By account, or (a sample client, who has none) by name, as a notification finds one.
+  const fullAnnounce = fullClient && (fullClient.userId || fullClient.n)
+    ? { ...(fullClient.userId ? { clientId: fullClient.userId } : { clientName: fullClient.n }), ...(fullViaNav ? { back: 'nav' } : null) } : null;
+  useEffectBSP(() => {
+    window.ShapeNav?.announce?.(fullAnnounce ? { detail: fullAnnounce } : null);
+    return () => window.ShapeNav?.announce?.(null);
+  }, [JSON.stringify(fullAnnounce)]); // eslint-disable-line react-hooks/exhaustive-deps
+  const closeFull = () => {
+    const viaNav = fullViaNav;
+    setFullClient(null); setFullViaNav(false);
+    if (viaNav && window.ShapeNav?.canPop?.()) window.ShapeNav.back();
+  };
   const shownClients = COACH_CLIENTS
     .filter(c => roster === 'active' ? c.active : !c.active)
     .filter(c => bsClientMatchesFilter(c, cFilter, 'trainer'))
@@ -2601,7 +2621,7 @@ function BSTrainerClients({ openRequest = null, onOpenConsumed = () => {} } = {}
   const activeCount = COACH_CLIENTS.filter(c => c.active).length;
   const pastCount = COACH_CLIENTS.length - activeCount;
   if (fullClient) {
-    return <BSProClientFullProfilePage client={fullClient} onBack={() => setFullClient(null)} />;
+    return <BSProClientFullProfilePage client={fullClient} onBack={closeFull} />;
   }
   if (previewClient) {
     return (
@@ -6640,7 +6660,8 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
       setShowSoundtracks(false); setShowSettings(false); setSettingsStart('');
       setShowCalendar(false); setShowReviews(false); setShowHabits(false);
       setQueueView(null); setShowSearch(false);
-      setOpenClientReq({ clientId: clientId || null, clientName, nonce: Date.now() }); setTab('clients');
+      // `back: 'nav'`: this jump pushed where the coach was, so the client page's ← steps back there.
+      setOpenClientReq({ clientId: clientId || null, clientName, back: 'nav', nonce: Date.now() }); setTab('clients');
     };
     window.addEventListener('shape:openClient', open);
     // The membership welcome ("home") on an account that is a coach now: their Today.
@@ -6742,6 +6763,8 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
     if (loc.tab === 'store') setStoreView(loc.sub === 'score' ? 'score' : 'store');
     // A Back to Chat's list carries no thread, and drops any older one (the client shell's rule).
     if (loc.tab === 'chat') setChatRequest(loc.detail ? { ...loc.detail, nonce: Date.now() } : null);
+    // Clients comes back on the client whose page was open (the Clients screen announces it), or its list.
+    if (loc.tab === 'clients' && loc.detail && (loc.detail.clientId || loc.detail.clientName)) setOpenClientReq({ clientId: loc.detail.clientId || null, clientName: loc.detail.clientName || '', back: loc.detail.back, nonce: Date.now() });
     if (loc.tab) setTab(loc.tab);
   };
   const { navPush, navBack } = useBSNavHistory({ navLoc, navResolve });
@@ -6943,6 +6966,7 @@ function BSNutriClients({ openRequest = null, onOpenConsumed = () => {} } = {}) 
   const t = useBS();
   const [previewClient, setPreviewClient] = useStateBSP(null);
   const [fullClient, setFullClient] = useStateBSP(null);
+  const [fullViaNav, setFullViaNav] = useStateBSP(false);
   const [roster, setRoster] = useStateBSP('active'); // 'active' | 'past'
   const [cQuery, setCQuery] = useStateBSP('');
   const [cFilter, setCFilter] = useStateBSP('all');
@@ -6953,9 +6977,25 @@ function BSNutriClients({ openRequest = null, onOpenConsumed = () => {} } = {}) 
   useEffectBSP(() => {
     if (!openRequest || !(openRequest.clientId || openRequest.clientName) || rosterStatus === 'loading') return;
     const hit = openRequest.clientId ? NUTRI_CLIENTS.find((c) => c.userId === openRequest.clientId) : bsProRosterByName(NUTRI_CLIENTS, openRequest.clientName);
-    if (hit) { setPreviewClient(null); setFullClient(hit); }
+    if (hit) { setPreviewClient(null); setFullClient(hit); setFullViaNav(openRequest.back === 'nav'); }
     onOpenConsumed();
   }, [openRequest, rosterStatus, NUTRI_CLIENTS]);
+  // Where the client page's ← goes (owner, 2026-11-10: "Make sure back buttons are going back to previous
+  // page and location user was on"). Opened by a jump (Today's client, a notification: `back: 'nav'`), it
+  // steps the nav history back there; opened from this list, it closes to the list. The open client is
+  // announced, so a jump from their page (MESSAGE → the thread) comes back to it.
+  // By account, or (a sample client, who has none) by name, as a notification finds one.
+  const fullAnnounce = fullClient && (fullClient.userId || fullClient.n)
+    ? { ...(fullClient.userId ? { clientId: fullClient.userId } : { clientName: fullClient.n }), ...(fullViaNav ? { back: 'nav' } : null) } : null;
+  useEffectBSP(() => {
+    window.ShapeNav?.announce?.(fullAnnounce ? { detail: fullAnnounce } : null);
+    return () => window.ShapeNav?.announce?.(null);
+  }, [JSON.stringify(fullAnnounce)]); // eslint-disable-line react-hooks/exhaustive-deps
+  const closeFull = () => {
+    const viaNav = fullViaNav;
+    setFullClient(null); setFullViaNav(false);
+    if (viaNav && window.ShapeNav?.canPop?.()) window.ShapeNav.back();
+  };
   const shownClients = NUTRI_CLIENTS
     .filter(c => roster === 'active' ? c.active : !c.active)
     .filter(c => bsClientMatchesFilter(c, cFilter, 'nutritionist'))
@@ -6964,7 +7004,7 @@ function BSNutriClients({ openRequest = null, onOpenConsumed = () => {} } = {}) 
   const activeCount = NUTRI_CLIENTS.filter(c => c.active).length;
   const pastCount = NUTRI_CLIENTS.length - activeCount;
   if (fullClient) {
-    return <BSProClientFullProfilePage client={fullClient} onBack={() => setFullClient(null)} role="nutritionist" />;
+    return <BSProClientFullProfilePage client={fullClient} onBack={closeFull} role="nutritionist" />;
   }
   if (previewClient) {
     return (

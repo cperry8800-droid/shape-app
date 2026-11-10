@@ -136,7 +136,7 @@ test('a Settings page opened straight from elsewhere goes back there; reached in
     assert.match(settings, new RegExp(`onBack=\\{backFrom\\('${page}', `), page);
   }
   // Every page it can open on is announced, with whether it was landed on.
-  assert.match(settings, /const navSub = editing \? 'edit-profile' : showIntegrations \? 'integrations' : showPricing \? 'pricing'\n\s+: showNotifications \? 'notifications' : showSessions \? 'sessions' : showHabits \? 'habits'\n\s+: showBusiness \? 'business' : detail === 'practice' \? 'practice' : '';/);
+  assert.match(settings, /const navSub = editing \? 'edit-profile' : showIntegrations \? 'integrations' : showPricing \? 'pricing'\n\s+: showNotifications \? 'notifications' : showSessions \? 'sessions' : showHabits \? 'habits'\n\s+: showBusiness \? 'business' : detail === 'practice' \? 'practice'\n[^\n]*\n\s+: showLibrary \? 'library' : showHours \? 'hours' : '';/);
   assert.match(settings, /window\.ShapeNav\?\.announce\?\.\(navLanded \? \{ sub: navSub, landed: true \} : \{ sub: navSub \}\);/);
   // The shells: a jump onto a page lands; the gear and a Back to Settings' own page do not.
   assert.match(CLIENT, /const goSettings = \(\) => \{ if \(!showSettings\) navPush\(\); setSettingsStart\(''\); setSettingsLanded\(false\); setShowSettings\(true\); \};/);
@@ -159,4 +159,61 @@ test('a coach opened straight from a chat card or a notification goes back there
   assert.match(mk, /const closeOpen = \(\) => \{\n\s+const viaNav = openViaNav;\n\s+setOpen\(null\); setOpenNo\(null\); setOpenIntro\(false\); setOpenListing\(false\); setOpenViaNav\(false\);\n\s+if \(viaNav && window\.ShapeNav\?\.canPop\?\.\(\)\) window\.ShapeNav\.back\(\);\n\s+\};/);
   // A Back to it keeps the way back.
   assert.match(mk, /\.\.\.\(openViaNav \? \{ back: 'nav' \} : null\) \} : null;/);
+});
+
+// The audit's rest (2026-11-10, the second PR): a coach's client page, the cook and workout screens a jump
+// opens, Home's own pages, and Settings' Library and Your hours.
+test('a coach\'s client page opened by a jump goes back there, and a Back from its thread reopens it', () => {
+  assert.equal((PROS.match(/setOpenClientReq\(\{ clientId: clientId \|\| null, clientName, back: 'nav', nonce: Date\.now\(\) \}\); setTab\('clients'\);/g) || []).length, 2, 'both coach apps');
+  assert.equal((PROS.match(/if \(loc\.tab === 'clients' && loc\.detail && \(loc\.detail\.clientId \|\| loc\.detail\.clientName\)\) setOpenClientReq\(\{ clientId: loc\.detail\.clientId \|\| null, clientName: loc\.detail\.clientName \|\| '', back: loc\.detail\.back, nonce: Date\.now\(\) \}\);/g) || []).length, 2);
+  for (const name of ['function BSTrainerClients(', 'function BSNutriClients(']) {
+    const screen = between(PROS, name, '\n}\n');
+    assert.match(screen, /if \(hit\) \{ setPreviewClient\(null\); setFullClient\(hit\); setFullViaNav\(openRequest\.back === 'nav'\); \}/, name);
+    // By account, or a sample client (none) by name, as a notification finds one.
+    assert.match(screen, /const fullAnnounce = fullClient && \(fullClient\.userId \|\| fullClient\.n\)\n\s+\? \{ \.\.\.\(fullClient\.userId \? \{ clientId: fullClient\.userId \} : \{ clientName: fullClient\.n \}\), \.\.\.\(fullViaNav \? \{ back: 'nav' \} : null\) \} : null;/, name);
+    assert.match(screen, /window\.ShapeNav\?\.announce\?\.\(fullAnnounce \? \{ detail: fullAnnounce \} : null\);/, name);
+    assert.match(screen, /const closeFull = \(\) => \{\n\s+const viaNav = fullViaNav;\n\s+setFullClient\(null\); setFullViaNav\(false\);\n\s+if \(viaNav && window\.ShapeNav\?\.canPop\?\.\(\)\) window\.ShapeNav\.back\(\);\n\s+\};/, name);
+    assert.match(screen, /<BSProClientFullProfilePage client=\{fullClient\} onBack=\{closeFull\}/, name);
+    assert.ok(screen.indexOf('const closeFull') < screen.indexOf('if (fullClient) {'), `${name}: the announce sits above the early returns`);
+  }
+});
+
+test('a cook or workout screen another page opened goes back there when it closes', () => {
+  const train = between(CLIENT, 'function BSClientTrain({', '\n}\n');
+  assert.match(train, /setSession\(true\); setSessionViaNav\(true\); onAutoStartConsumed\(\);/, 'an auto-start (Calendar, Home, Search) is a jump\'s');
+  assert.match(train, /const leaveSession = \(\) => \{\n\s+const viaNav = sessionViaNav;[\s\S]{0,260}setSessionViaNav\(false\);\n\s+if \(viaNav && window\.ShapeNav\?\.canPop\?\.\(\)\) window\.ShapeNav\.back\(\);\n\s+\};/);
+  const eat = between(CLIENT, 'function BSClientEat({', '\n}\n');
+  assert.match(eat, /const openPrep = React\.useCallback\(\(s = null\) => \{ setPrepSeed\(s\); setPrepOpen\(true\); setPrepViaNav\(false\); \}, \[\]\);/, 'Eat\'s own door closes to Eat');
+  assert.match(eat, /openPrep\(\{ cookable: cookWith\.cookable, mine: !!cookWith\.mine \}\);\n\s+setPrepViaNav\(true\);/, 'cook-with from Home');
+  assert.match(eat, /setPrepCook\(\{ slug: prepTonight\.slug, group: null \}\);\n\s+setCookViaNav\(true\);/, 'a prep reminder');
+  assert.match(eat, /onClose=\{\(\) => \{ const v = cookViaNav; setPrepCook\(null\); setCookViaNav\(false\); leaveViaNav\(v\); \}\}/);
+  assert.match(eat, /onClose=\{\(\) => \{ const v = prepViaNav; setPrepOpen\(false\); setPrepSeed\(null\); setPrepViaNav\(false\); leaveViaNav\(v\); \}\}/);
+  assert.match(eat, /onStart=\{g\.catalog === false \? null : \(\) => \{ setPrepCook\(\{ slug: g\.slug, group: g \}\); setCookViaNav\(false\); \}\}/, 'tonight\'s card closes to Eat');
+  assert.match(eat, /const leaveViaNav = \(viaNav\) => \{ if \(viaNav && window\.ShapeNav\?\.canPop\?\.\(\)\) window\.ShapeNav\.back\(\); \};/);
+});
+
+test('Home\'s own pages are announced and reopen on a Back; a reminder\'s Your mornings goes back where it came from', () => {
+  const home = between(CLIENT, 'function BSClientHome({', '\n}\n');
+  assert.match(CLIENT, /function BSClientHome\(\{.*initialPage = '', onStartConsumed = \(\) => \{\} \}\) \{/);
+  for (const [state, page] of [['habitsPage', 'habits'], ['goalsPage', 'goals'], ['morningsPage', 'mornings'], ['homeProgressPage', 'progress']]) {
+    assert.match(home, new RegExp(`const \\[${state}, set[A-Za-z]+\\] = useStateBSC\\(initialPage === '${page}'\\);`), state);
+  }
+  assert.match(home, /const homeSub = goalsPage \? 'goals' : morningsPage \? 'mornings' : habitsPage \? 'habits' : homeProgressPage \? 'progress' : '';\n\s+React\.useEffect\(\(\) => \{\n\s+window\.ShapeNav\?\.announce\?\.\(\{ sub: homeSub \}\);/);
+  assert.ok(home.indexOf('const homeSub') < home.indexOf('  if (habitsPage) {'), 'the announce sits above the early returns');
+  assert.match(home, /setMorningsPage\(true\);\n\s+setMorningsViaNav\(true\);/);
+  assert.match(home, /<BSYourMornings onBack=\{\(\) => \{ const v = morningsViaNav; setMorningsPage\(false\); setMorningsViaNav\(false\); if \(v && window\.ShapeNav\?\.canPop\?\.\(\)\) window\.ShapeNav\.back\(\); \}\}/);
+  assert.match(CLIENT, /if \(loc\.tab === 'home'\) setHomeStart\(loc\.sub \|\| ''\);/);
+  assert.match(CLIENT, /initialPage=\{homeStart\} onStartConsumed=\{\(\) => setHomeStart\(''\)\} \/>,/);
+});
+
+test('Settings\' Library and Your hours come back to themselves after their jumps', () => {
+  const settings = between(CLIENT, 'function BSSettings({', '\n}\n');
+  assert.match(settings, /const \[showHours, setShowHours\] = useStateBSC\(initialPage === 'hours'\);/);
+  assert.match(settings, /const \[showLibrary, setShowLibrary\] = useStateBSC\(initialPage === 'library'\);/);
+  assert.match(settings, /: showLibrary \? 'library' : showHours \? 'hours' : '';/);
+  // Each reopens over the pane it sits in, so its ← lands there: Library in More, Your hours in Your practice.
+  assert.match(settings, /useStateBSC\(initialPage === 'practice' \|\| initialPage === 'hours' \? 'practice' : initialPage === 'library' \? 'more' : ''\);/);
+  // Their jumps push first, so the announced page is what comes back.
+  assert.match(CLIENT, /navJumpRef\.current\.navPush\(\); setShowSettings\(false\); setSettingsStart\(''\); setShowSearch\(false\);\n\s+setMarketRole\(/, 'Browse coaches (shape:openMarket)');
+  assert.equal((PROS.match(/const onAvail = \(\) => \{ navJumpRef\.current\.navPush\(\); setShowSettings\(false\); setShowCalendar\(true\); \};/g) || []).length, 2, 'Open calendar (shape:proAvailability)');
 });
