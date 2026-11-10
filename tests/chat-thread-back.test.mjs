@@ -183,12 +183,13 @@ test('a cook or workout screen another page opened goes back there when it close
   assert.match(train, /setSession\(true\); setSessionViaNav\(true\); onAutoStartConsumed\(\);/, 'an auto-start (Calendar, Home, Search) is a jump\'s');
   assert.match(train, /const leaveSession = \(\) => \{\n\s+const viaNav = sessionViaNav;[\s\S]{0,260}setSessionViaNav\(false\);\n\s+if \(viaNav && window\.ShapeNav\?\.canPop\?\.\(\)\) window\.ShapeNav\.back\(\);\n\s+\};/);
   const eat = between(CLIENT, 'function BSClientEat({', '\n}\n');
-  assert.match(eat, /const openPrep = React\.useCallback\(\(s = null\) => \{ setPrepSeed\(s\); setPrepOpen\(true\); setPrepViaNav\(false\); \}, \[\]\);/, 'Eat\'s own door closes to Eat');
+  assert.match(eat, /const openPrep = React\.useCallback\(\(s = null\) => \{ setPrepSeed\(s\); setPrepOpen\(true\); \}, \[\]\);/, 'Eat\'s own door leaves the flag, which every close resets');
   assert.match(eat, /openPrep\(\{ cookable: cookWith\.cookable, mine: !!cookWith\.mine \}\);\n\s+setPrepViaNav\(true\);/, 'cook-with from Home');
   assert.match(eat, /setPrepCook\(\{ slug: prepTonight\.slug, group: null \}\);\n\s+setCookViaNav\(true\);/, 'a prep reminder');
   assert.match(eat, /onClose=\{\(\) => \{ const v = cookViaNav; setPrepCook\(null\); setCookViaNav\(false\); leaveViaNav\(v\); \}\}/);
   assert.match(eat, /onClose=\{\(\) => \{ const v = prepViaNav; setPrepOpen\(false\); setPrepSeed\(null\); setPrepViaNav\(false\); leaveViaNav\(v\); \}\}/);
-  assert.match(eat, /onStart=\{g\.catalog === false \? null : \(\) => \{ setPrepCook\(\{ slug: g\.slug, group: g \}\); setCookViaNav\(false\); \}\}/, 'tonight\'s card closes to Eat');
+  // Tonight's card and Eat's own doors leave the flags alone: each close resets them, so they are false then.
+  assert.match(eat, /onStart=\{g\.catalog === false \? null : \(\) => setPrepCook\(\{ slug: g\.slug, group: g \}\)\}/);
   assert.match(eat, /const leaveViaNav = \(viaNav\) => \{ if \(viaNav && window\.ShapeNav\?\.canPop\?\.\(\)\) window\.ShapeNav\.back\(\); \};/);
 });
 

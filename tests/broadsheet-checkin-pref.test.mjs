@@ -655,7 +655,7 @@ test('Home routes the reminder: the shell hands Home a nonce, Home clears its pa
   // The request waits for the account's Check-ins setting (Codex on #2405). Off: there is no card and
   // nothing to answer, so Your mornings opens (part 2), and the request is dropped rather than open
   // the walkthrough whenever Check-ins is next switched on. On: the card takes it.
-  assert.match(home, /React\.useEffect\(\(\) => \{\n    if \(!checkinOpenReq \|\| !checkinPrefSettled \|\| checkinPrefOn\) return;\n    setCheckinOpenReq\(null\);\n    setMorningsPage\(true\);\n  \}, \[checkinOpenReq, checkinPrefSettled, checkinPrefOn\]\);/, 'with Check-ins off the reminder opened nothing, or the request waited for Check-ins to come back on');
+  assert.match(home, /React\.useEffect\(\(\) => \{\n    if \(!checkinOpenReq \|\| !checkinPrefSettled \|\| checkinPrefOn\) return;\n    setCheckinOpenReq\(null\);\n    setMorningsPage\(true\);\n    setMorningsViaNav\(true\);\n  \}, \[checkinOpenReq, checkinPrefSettled, checkinPrefOn\]\);/, 'with Check-ins off the reminder opened nothing, or the request waited for Check-ins to come back on');
   assert.match(src, /<BSTodayNudge onOpen=\{\(\) => setMorningsPage\(true\)\} variant="bulletin" openRequest=\{checkinPrefSettled \? checkinOpenReq : null\} onOpenRequestConsumed=\{\(\) => setCheckinOpenReq\(null\)\} \/>/, 'Home keeps a used request, or hands it over before the account has answered');
   // The reminder itself: a kind of its own, opening the card, in the app's and the website's lists.
   const cron = readFileSync(join(ROOT, 'src/app/api/cron/reminders/route.ts'), 'utf8');
@@ -683,9 +683,10 @@ test("Home's doors open Your mornings, the water lead brings Home's water line, 
   assert.match(src, /^import \{ BSYourMornings, BSMorningsDoor \} from '\.\/BSYourMornings\.jsx';$/m);
   assert.match(src, /^import \{ BSWaterLine, bsWaterLineFocus \} from '\.\/BSWaterLine\.jsx';$/m);
   // The page's state is declared with the other pages', above the early returns (Rules of Hooks).
-  const state = home.indexOf('const [morningsPage, setMorningsPage] = useStateBSC(false);');
+  const state = home.indexOf("const [morningsPage, setMorningsPage] = useStateBSC(initialPage === 'mornings');");
   assert.ok(state > 0 && state < home.indexOf('  if (previewMeal) {'), 'the page state is not above the early returns');
-  assert.match(home, /  if \(morningsPage\) \{\n    return <BSYourMornings onBack=\{\(\) => setMorningsPage\(false\)\} cycleChip=\{<BSCycleTodayChip \/>\} checkinsOn=\{checkinPrefOn\} \/>;\n  \}/,
+  // Its Back closes it, or (opened by a reminder) steps back where the member was (2026-11-10).
+  assert.match(home, /  if \(morningsPage\) \{\n    return <BSYourMornings onBack=\{\(\) => \{ const v = morningsViaNav; setMorningsPage\(false\); setMorningsViaNav\(false\); if \(v && window\.ShapeNav\?\.canPop\?\.\(\)\) window\.ShapeNav\.back\(\); \}\} cycleChip=\{<BSCycleTodayChip \/>\} checkinsOn=\{checkinPrefOn\} \/>;\n  \}/,
     'Your mornings is not one of Home\'s pages, or it lost the cycle chip or the Check-ins setting');
   // The energy lead opens the week behind it; the water lead has no page to open (§3.7).
   assert.match(home, /energy: +\{ head: tr\('home:lead\.energy\.head'[^\n]*\(\) => setMorningsPage\(true\)\], c: t\.BLUE \},/, 'the energy lead does not open Your mornings');

@@ -11263,9 +11263,10 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
   // seed left by an earlier "Cook with something else". Opening the week's ritual
   // and finding last night's dish already ticked is the kind of stale state that
   // reads as the app having its own plans for you.
-  const openPrep = React.useCallback((s = null) => { setPrepSeed(s); setPrepOpen(true); setPrepViaNav(false); }, []);
+  const openPrep = React.useCallback((s = null) => { setPrepSeed(s); setPrepOpen(true); }, []);
   // A cook screen another page opened (Home's cook-with, a prep reminder: the shell pushed where the
-  // member was) goes back there when it closes (2026-11-10); one opened here returns to Eat.
+  // member was) goes back there when it closes (2026-11-10); one opened here returns to Eat. Each flag is
+  // false whenever no such screen is up (its close resets it), so Eat's own doors leave it alone.
   const [prepViaNav, setPrepViaNav] = useStateBSC(false);
   const [cookViaNav, setCookViaNav] = useStateBSC(false);
   const leaveViaNav = (viaNav) => { if (viaNav && window.ShapeNav?.canPop?.()) window.ShapeNav.back(); };
@@ -13169,7 +13170,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
           the nutritionist ticked has no catalog method to walk, so it has no Start (Phase 2). */}
       {prepTonightGroups.map((g) => (
         <div key={g.slug} style={{ padding: `18px ${t.padX}px 0` }}>
-          <BSPrepTonightCard group={g} onStart={g.catalog === false ? null : () => { setPrepCook({ slug: g.slug, group: g }); setCookViaNav(false); }} onDone={() => markPrepped(g)} />
+          <BSPrepTonightCard group={g} onStart={g.catalog === false ? null : () => setPrepCook({ slug: g.slug, group: g })} onDone={() => markPrepped(g)} />
         </div>
       ))}
 
