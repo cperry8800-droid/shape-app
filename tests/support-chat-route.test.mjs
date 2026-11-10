@@ -739,6 +739,12 @@ test('GET answers the greeting for the account the server sees, never the page\'
   const plain = await (await trainer.mod.GET(get('?plain=1'))).json();
   assert.ok(full.quick.some((q) => /^Draft/.test(q)));
   assert.ok(!plain.quick.some((q) => /^Draft/.test(q)), 'a panel that cannot confirm is offered no draft');
+  // A plan that could not be read is the visitor's greeting, never "no membership on it yet".
+  const lost = await loadRoute({ isMember: false, membershipFails: true });
+  const unread = await (await lost.mod.GET(get())).json();
+  assert.equal(unread.kind, 'visitor', 'an unread plan promises the least');
+  assert.doesNotMatch(unread.text, /no membership/);
+  assert.equal(lost.calls.membershipOpts?.strictPaid, true, 'the greeting reads what pays with strictPaid');
 });
 
 // ── Where they are (the Ask Nora plan, step 4) ───────────────────────────────────

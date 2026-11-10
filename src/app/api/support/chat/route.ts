@@ -1780,14 +1780,18 @@ export async function POST(request: Request) {
 // Decided from the session and membership, never from the page; ?plain=1 is a panel that
 // cannot show a confirm card, which gets suggestions that need none. Fails to the
 // visitor's greeting, which promises the least.
+// ⚠ AN UNREAD PLAN IS THE VISITOR'S GREETING, NOT THE FREE ACCOUNT'S. strictPaid throws on a
+// failed read of what pays (as the chat's own read does), and a null membership greets as a
+// visitor: the account greeting says "there's no membership on it yet", which a paying member
+// whose plan could not be read must not be told.
 export async function GET(request: Request) {
   const plain = new URL(request.url).searchParams.get('plain') === '1';
   let kind = 'visitor';
   try {
     const actor = await resolveActor(request).catch(() => null);
     if (actor) {
-      const m = await computeMembership(actor.supabase, actor.user.id, actor.user.email ?? null, { emailConfirmed: !!actor.user.email_confirmed_at }).catch(() => null);
-      kind = greetingKind(true, m, [actor.role, ...(actor.roles || [])]);
+      const m = await computeMembership(actor.supabase, actor.user.id, actor.user.email ?? null, { emailConfirmed: !!actor.user.email_confirmed_at, strictPaid: true }).catch(() => null);
+      kind = m ? greetingKind(true, m, [actor.role, ...(actor.roles || [])]) : 'visitor';
     }
   } catch {
     kind = 'visitor';

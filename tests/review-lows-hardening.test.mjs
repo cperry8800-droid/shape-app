@@ -665,7 +665,7 @@ test('L14: the applications inbox is not an admin, and an admin\'s email has to 
       // The gate also asks a failed read of what pays to throw, to its fail-open path (strictPaid, Codex P2 on #2675).
       assert.match(read(f), /computeMembership\([^\n]*, \{ emailConfirmed: !!\w+\.email_confirmed_at(?:, strictPaid: true)? \}\)/, `${f} passes the confirmation`);
     }
-    assert.equal((read('src/app/api/support/chat/route.ts').match(/computeMembership\(actor\.supabase, actor\.user\.id, actor\.user\.email \?\? null, \{ emailConfirmed: !!actor\.user\.email_confirmed_at \}\)/g) ?? []).length, 2, 'both chat call sites');
+    assert.equal((read('src/app/api/support/chat/route.ts').match(/computeMembership\(actor\.supabase, actor\.user\.id, actor\.user\.email \?\? null, \{ emailConfirmed: !!actor\.user\.email_confirmed_at(?:, strictPaid: true)? \}\)/g) ?? []).length, 2, 'both chat call sites');
     assert.match(read('src/lib/ai/adminLookup.mjs'), /opts\.computeMembership\(db, u\.id, q, \{ emailConfirmed: !!u\.email_confirmed_at \}\)/);
   } finally {
     for (const [k, v] of [['ADMIN_EMAILS', saved.a], ['APPLICATIONS_EMAIL', saved.b]]) { if (v === undefined) delete process.env[k]; else process.env[k] = v; }
