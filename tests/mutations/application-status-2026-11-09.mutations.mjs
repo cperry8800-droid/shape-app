@@ -10,7 +10,7 @@ const APPLY = 'src/app/api/apply/route.ts';
 const BACKEND = 'mobile-app/src/services/shapeBackend.js';
 const CLIENT = 'mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx';
 
-export default {
+const spec = {
   test: 'node --test tests/application-status-route.test.mjs tests/app-coaches-tab.test.mjs tests/provider-apply-submit.test.mjs',
   timeoutMs: 180_000,
   mutations: [
@@ -45,3 +45,17 @@ export default {
     { name: 'a coach is offered the application', file: CLIENT, find: "  const coachAppRow = (isCoachRole || accountIsCoach) ? null", replace: '  const coachAppRow = false ? null' },
   ],
 };
+
+// ── 2026-11-10: /api/apply writes account_source 'session' beside the stamped account_id ──
+const RETARGET = {
+  "the apply route keeps a client-sent account id": { file: APPLY, find: "  'account_id',\n  // Written beside it", replace: "  // Written beside it" },
+  "the apply route does not stamp the sender": { file: APPLY, find: "  if (senderId) details = { ...details, account_id: senderId, account_source: 'session' };", replace: "" },
+};
+const DROP = [];
+const ADDED = [
+  { name: "the apply route keeps a client-sent session marker", file: APPLY,
+    find: "  'account_source',\n  'documents',",
+    replace: "  'documents'," },
+];
+spec.mutations = [...spec.mutations.filter((m) => !DROP.includes(m.name)).map((m) => (RETARGET[m.name] ? { ...m, ...RETARGET[m.name] } : m)), ...ADDED];
+export default spec;

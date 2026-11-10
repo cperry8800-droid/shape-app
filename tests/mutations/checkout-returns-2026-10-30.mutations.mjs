@@ -8,7 +8,7 @@ const SUBSCRIBE = 'src/app/subscribe/actions.ts';
 const DETOUR = 'src/lib/membership-detour.ts';
 const SHELL = 'public/newdesign/pageShell.jsx';
 
-export default {
+const spec = {
   test: 'node --test tests/checkout-notice.test.mjs tests/membership-first.test.mjs',
   timeoutMs: 300_000,
   mutations: [
@@ -41,3 +41,15 @@ export default {
       replace: '' },
   ],
 };
+
+// ── 2026-11-10: hiring a coach no longer detours through the $5 checkout (owner: an account is free), so the detour has no Cancel of its own; the two mutations on it go, and one holds that it never comes back ──
+const RETARGET = {
+};
+const DROP = ["the detour's Cancel comes back with no code", "the detour's Cancel comes back with a code nothing reads"];
+const ADDED = [
+  { name: "the detour opens the $5 checkout again", file: DETOUR,
+    find: "  if (membership.isKnownMinor) return `${backHref}&error=age_restricted`;\n  return null;",
+    replace: "  if (membership.isKnownMinor) return `${backHref}&error=age_restricted`;\n  if (!membership.isMember) return `${backHref}&error=membership_required`;\n  return null;" },
+];
+spec.mutations = [...spec.mutations.filter((m) => !DROP.includes(m.name)).map((m) => (RETARGET[m.name] ? { ...m, ...RETARGET[m.name] } : m)), ...ADDED];
+export default spec;

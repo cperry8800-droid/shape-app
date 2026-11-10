@@ -10,7 +10,7 @@
 
 import { NextResponse } from 'next/server';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
-import { requireMembership } from '@/lib/require-membership';
+import { requireAccount } from '@/lib/require-membership';
 import { clientLocalDay } from '@/lib/local-day';
 import { instantInZone, normalizeZone, wallClockInZone } from '@/lib/time';
 import { bsGoalKind } from '../../../../../mobile-app/src/services/prefOptions.mjs';
@@ -41,7 +41,7 @@ function daysAgo(n: number) {
 }
 
 export async function GET(request: Request) {
-  const denied = await requireMembership(request);
+  const denied = await requireAccount(request);
   if (denied) return denied;
   const supabase = await clientForRequest(request);
   const user = await currentUser(request);

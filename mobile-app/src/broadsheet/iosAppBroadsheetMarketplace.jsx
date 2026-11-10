@@ -1549,9 +1549,9 @@ function BSPublicActionPanel({ action, coach, onClose, onConfirm, onMessageSent,
       left: 0,
       right: 0,
       bottom: 0,
-      // Above the signed-out preview banner (z 150, BSPreviewBannerGated) — an
-      // open action sheet is the active surface and must not be covered by a
-      // passive notice. Only visible once the panel was correctly framed.
+      // Above any passive notice the shell lays over the app (z 150 and below) — an
+      // open action sheet is the active surface and must not be covered by one.
+      // Only visible once the panel was correctly framed.
       zIndex: 200,
       padding: `16px ${t.padX}px calc(16px + env(safe-area-inset-bottom))`,
       background: `linear-gradient(180deg, transparent, ${t.PAPER} 26%)`,
@@ -2436,19 +2436,9 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
   };
 
   const confirmAction = async (current) => {
-    // The membership-first panel's button starts the $5 checkout, not the coach's again. A failure
-    // is said on the panel (Codex on #2353: the button did nothing); an account that turns out to
-    // be a member already goes back to the coach's checkout.
-    if (current && current.join) {
-      setCheckoutBusy(true);
-      let r = null;
-      try { r = await window.ShapeMembershipApi?.startCheckout?.(); } finally { setCheckoutBusy(false); }
-      if (r && r.ok) return;
-      if (r && r.code === 'already_member' && current.back) { setAction(current.back); return; }
-      const message = (r && r.error) || tr('marketplace:listing.checkoutErrorBody', { defaultValue: 'Unable to open Stripe checkout.' });
-      setAction({ ...current, body: message, cta: tr('marketplace:listing.tryAgain', { defaultValue: 'Try again' }), problem: { kind: 'payment', message } });
-      return;
-    }
+    // ⚠ HIRING A COACH NEEDS AN ACCOUNT, NOT THE $5 MEMBERSHIP (owner, 2026-11-10): browsing,
+    // booking and hiring coaches are free, so the coach's checkout no longer meets a
+    // membership-first panel (/api/stripe/checkout-session takes any signed-in adult account).
     // A retry starts clean: only the failure it reaches sets `problem` again.
     current = { ...current, problem: null };
     // Browse / no-account users can view coaches but must create an account to commit.
@@ -2479,19 +2469,6 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
         if (error?.code === 'screening_required' && window.bsOpenScreening) {
           const retry = current;
           window.bsOpenScreening({ onDone: () => { confirmAction(retry); } });
-          return;
-        }
-        // Coaching needs the $5 membership first (owner, 2026-10-14). The route says so with
-        // the gate's own code; the panel then offers the membership, in the paywall's words.
-        if (error?.code === 'membership_required') {
-          setAction({
-            ...current,
-            join: true,
-            back: current,
-            title: `${tr('onboarding:paywall.titlePre')} ${tr('onboarding:paywall.titleAccent')}`,
-            body: error.message,
-            cta: tr('onboarding:paywall.join', { price: '$5' }),
-          });
           return;
         }
         setAction({

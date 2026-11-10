@@ -10,7 +10,7 @@ import { NextResponse } from 'next/server';
 import { dbError } from '@/lib/request-utils';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { deriveScore } from '@/lib/score-derive';
-import { requireMembership } from '@/lib/require-membership';
+import { requireAccount } from '@/lib/require-membership';
 import { readAllLedgerRows } from '@/lib/score-ledger-read';
 
 export const dynamic = 'force-dynamic';
@@ -106,7 +106,7 @@ const CATEGORY_LABELS: Record<string, string> = {
 };
 
 export async function GET(request: Request) {
-  const denied = await requireMembership(request);
+  const denied = await requireAccount(request);
   if (denied) return denied;
   const supabase = await clientForRequest(request);
   const user = await currentUser(request);

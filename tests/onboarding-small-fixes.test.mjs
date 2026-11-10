@@ -476,18 +476,23 @@ test('M4: the table is the server\'s to write; both sign-in doors record; both s
 // Stripe's checkout states the monthly price and the renewal.
 test('M4 + L4: the app says what joining means, in every language, and never "free" beside $5', () => {
   const main = read('mobile-app/src/broadsheet/iosAppBroadsheetMain.jsx');
-  const paywall = main.slice(main.indexOf('function BSPaywall('), main.indexOf('// Persistent "you\'re previewing" banner'));
-  assert.ok(paywall.includes("tr('paywall.preview')"), 'the paywall slice moved');
-  assert.doesNotMatch(paywall, /paywall\.renews|login\.agree|<BSLegalLinks/, 'the paywall carries no renewal line or Terms links (owner)');
-  const login = main.slice(main.indexOf('function BSLogin('), main.indexOf('function BSPaywall('));
+  // The welcome (the signed-out door since 2026-11-10, where the paywall was) carries no renewal
+  // line or Terms links either (owner, 2026-10-18).
+  const welcome = main.slice(main.indexOf('function BSWelcome('), main.indexOf('// ⚠ PHONE NOTIFICATIONS ARE ASKED'));
+  assert.ok(welcome.includes("tr('welcome.membership'"), 'the welcome slice moved');
+  assert.doesNotMatch(welcome, /paywall\.renews|login\.agree|<BSLegalLinks/, 'the welcome carries no renewal line or Terms links (owner)');
+  const login = main.slice(main.indexOf('function BSLogin('), main.indexOf('function BSWelcome('));
   assert.match(login, /\{isCreate && \(isPhone \|\| createStep === 2\) && \([\s\S]{0,200}\{tr\('login\.agree'\)\}\s*<BSLegalLinks /, 'on the create step that makes the account');
   assert.match(main, /onClick=\{\(\) => bsOpenLegal\('\/terms\.html'\)\}[\s\S]{0,120}onClick=\{\(\) => bsOpenLegal\('\/privacy\.html'\)\}/);
   for (const f of ['public/terms.html', 'public/privacy.html']) assert.ok(fs.existsSync(join(ROOT, f)));
-  // L4: the checkout's English refusals are not shown as they came.
-  const start = main.slice(main.indexOf('async function bsmStartCheckout('), main.indexOf('// The membership-resolving hold'));
-  assert.doesNotMatch(start, /__bsToast\?\.\(r\.error/);
-  assert.match(start, /r\.code === 'age_restricted'\) window\.__bsToast\?\.\(t\?\.\('onboarding:login\.err\.under18'\)/);
-  assert.match(start, /r\.code === 'checkout_in_progress'\) window\.__bsToast\?\.\(t\?\.\('onboarding:paywall\.err\.inProgress'\)/);
+  // L4: the checkout's English refusals are not shown as they came. The shell starts no checkout
+  // any more; a locked paid feature's Join (BSPaidLock.jsx) says a named refusal in the member's
+  // language, on the lock itself (toasts show nothing in this app).
+  const lock = read('mobile-app/src/broadsheet/BSPaidLock.jsx');
+  assert.doesNotMatch(lock, /r\.error/, 'the server\'s English is never shown');
+  assert.match(lock, /r && r\.code === 'checkout_in_progress' \? 'inProgress' : r && r\.code === 'age_restricted' \? 'age' : 'failed'/);
+  assert.match(lock, /if \(state === 'inProgress'\) return tr\('onboarding:paywall\.err\.inProgress'/);
+  assert.match(lock, /if \(state === 'age'\) return tr\('onboarding:login\.err\.under18'/);
   assert.doesNotMatch(main, /Create a free account/);
   const FREE = /free|kostenlos|gratis|gratuit|kyauta|grátis|бесплатн|ücretsiz|безкоштовн|miễn phí/i;
   for (const loc of fs.readdirSync(join(ROOT, 'mobile-app/src/i18n/catalogs'))) {
@@ -625,7 +630,7 @@ test('L5: signing in never runs the system prompt; asking does, once, and the an
   assert.match(be, /if \(res\.ok && out && out\.ok !== false\) bsReminderSet\(\);/);
   assert.match(be, /await scheduleLocalHabit\(row\);\s*\/\/[^\n]*\n\s*if \(row\.enabled\) \{ try \{ if \(typeof window !== 'undefined'\) window\.dispatchEvent\(new CustomEvent\('shape:reminderSet'\)\); \}/);
   const main = read('mobile-app/src/broadsheet/iosAppBroadsheetMain.jsx');
-  const ask = main.slice(main.indexOf('function BSPushAsk({ coach = false }) {'), main.indexOf('// Persistent "you\'re previewing" banner'));
+  const ask = main.slice(main.indexOf('function BSPushAsk({ coach = false }) {'), main.indexOf("// How long the shell keeps asking after the checkout's browser closes"));
   assert.ok(ask.length > 100, 'the ask was found');
   assert.match(ask, /window\.addEventListener\('shape:reminderSet', decide\);/);
   assert.match(ask, /if \(perm === 'prompt'\) setOpen\(true\);\s*else if \(perm === 'granted'\) \{ try \{ window\.ShapePush\?\.register\?\.\(\); \} catch \(e\) \{\} \}/, 'only a phone that has not answered is asked; one that allows push is registered (Fable)');

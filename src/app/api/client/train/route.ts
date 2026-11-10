@@ -9,7 +9,7 @@ import { NextResponse } from 'next/server';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { DAY_MS, normalizeZone, startOfWeek } from '@/lib/time';
 import { memberDay, readDayStreak, shiftDay, storedDay } from '@/lib/workout-days';
-import { requireMembership } from '@/lib/require-membership';
+import { requireAccount } from '@/lib/require-membership';
 import { setLoadLb, setLoadUnit } from '@/lib/set-load';
 
 export const dynamic = 'force-dynamic';
@@ -35,7 +35,7 @@ function pnum(v: unknown): number {
 }
 
 export async function GET(request: Request) {
-  const denied = await requireMembership(request);
+  const denied = await requireAccount(request);
   if (denied) return denied;
   const supabase = await clientForRequest(request);
   const user = await currentUser(request);

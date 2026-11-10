@@ -9,7 +9,17 @@ import { isMinorFromDob, mustRefuseForAge } from './age-derive.mjs';
 
 export { isMinorFromDob, mustRefuseForAge };
 
+// The OPEN statuses of a subscription: one that exists and has not ended. Still the rule for a
+// member's subscriptions to their COACHES (and for "already subscribed" checks), so it keeps
+// trialing and past_due. ⚠ NOT THE PLATFORM PERK RULE: see PLATFORM_PERK_STATUSES.
 export const ACTIVE_SUB = new Set(['active', 'trialing', 'past_due']);
+
+// ⚠ PAID FEATURES COME FROM A PAID MEMBERSHIP ONLY (owner, 2026-11-10). An account is free; the
+// $5 platform membership adds assistant Nora, Shape Radio, the AI helpers and the points Store.
+// Only `active` pays for them: Shape sells no trial ("im not doing free trials"), and a member
+// whose renewal failed (past_due, Stripe retrying) keeps their account and the free features but
+// loses the paid ones until the payment goes through ("past due just loses the paid percs").
+export const PLATFORM_PERK_STATUSES = new Set(['active']);
 
 // The proxy gate's verification stamp. After the edge gate verifies a gated
 // request's entitlement it stamps this request header for the route layer;
@@ -18,7 +28,10 @@ export const ACTIVE_SUB = new Set(['active', 'trialing', 'past_due']);
 // value on every request, so the header can only ever be proxy-issued —
 // never caller-supplied.
 export const GATE_STAMP_HEADER = 'x-shape-gate';
+/** Stamped on a request the gate verified as a paid member (or a coach or an admin). */
 export const GATE_STAMP_VALUE = 'member';
+/** Stamped on a request the gate verified as a signed-in adult account, paid or not. */
+export const GATE_STAMP_ACCOUNT = 'account';
 
 // Mirrors getAdminEmails() in admin-access.ts (which can't be imported here —
 // that module pulls in the cookie-based server client).
@@ -39,7 +52,22 @@ export function adminEmails(): string[] {
 }
 
 export type Membership = {
+  /** Paid features: an active platform membership, an approved coach, or an admin. */
   isMember: boolean;
+  /**
+   * The platform membership's renewal failed and Stripe is retrying: the account keeps its free
+   * features, and a paid feature answers `payment_past_due` so the app can say "update your card".
+   * Never true for a coach or an admin (their features never depended on the payment).
+   */
+  pastDue: boolean;
+  /** The newest platform subscription's status, or null (none, or not read for an admin). */
+  platformStatus: string | null;
+  /**
+   * The paid features come with the member's coaching: an active subscription to a coach (owner,
+   * 2026-11-10: "Include the membership while someone is paying a coach"). False for an account
+   * that is a member on its own (a plan, a coach role, an admin), so a screen can say which.
+   */
+  includedWithCoach: boolean;
   isCoach: boolean;
   isAdmin: boolean;
   /**
@@ -58,7 +86,10 @@ export type Membership = {
   isKnownMinor: boolean;
 };
 
-/** Entitlement: approved coach OR admin OR an active platform subscription. */
+/**
+ * Paid entitlement: approved coach OR admin OR an `active` platform subscription (never trialing or
+ * past_due) OR an active subscription to a coach (coaching includes the membership).
+ */
 export async function computeMembership(
   client: SupabaseClient,
   userId: string,
@@ -72,7 +103,12 @@ export async function computeMembership(
   // where it calls this); a caller that sells something on the answer, or shows the app's
   // paywall on it, passes strict so a failed read is unknown, never a non-member (Codex on
   // #2353: an existing member could open a second $5 checkout on a failed read).
-  opts: { emailConfirmed?: boolean; strict?: boolean } = {}
+  // `strictPaid`: only the reads that decide what pays (the platform plan and a coach subscription)
+  // throw; a failed profile read keeps refusing as a minor would (the 18+ gate never opens on a
+  // fault). For the enforcement guards, whose documented fault path is to fail open: without it a
+  // failed read was a confirmed 402 for a paying member, coached or on the $5 plan (Codex P2 on
+  // #2675), because the error resolves and their catch never runs.
+  opts: { emailConfirmed?: boolean; strict?: boolean; strictPaid?: boolean } = {}
 ): Promise<Membership> {
   const isAdmin = !!email && opts.emailConfirmed === true && adminEmails().includes(email.toLowerCase());
   // ⚠ THE PROFILE AND THE SUBSCRIPTION ARE READ TOGETHER. Neither depends on the other, and
@@ -92,9 +128,19 @@ export async function computeMembership(
     .order('current_period_end', { ascending: false, nullsFirst: false })
     .limit(1)
     .maybeSingle());
+  // ⚠ COACHING INCLUDES THE MEMBERSHIP (owner, 2026-11-10). An active subscription to a coach (the
+  // member's own row; "clients read own subscriptions") pays for the paid features while it lasts.
+  // Read beside the others; used only when nothing else made them a member.
+  const coachRead = isAdmin ? null : Promise.resolve(client
+    .from('subscriptions')
+    .select('id')
+    .eq('client_id', userId)
+    .eq('status', 'active')
+    .limit(1));
   // Handled here so a failure is not reported as unhandled while the profile is read; it is
   // still thrown below, where it was always awaited, when the subscription decides.
   if (subRead) subRead.then(undefined, () => {});
+  if (coachRead) coachRead.then(undefined, () => {});
   const { data: profile, error: profileError } = await profileRead;
   if (profileError && opts.strict) throw profileError;
   const role = (profile?.role as string) || 'client';
@@ -109,11 +155,21 @@ export async function computeMembership(
   const isCoach = COACH_ROLES.includes(role) || roles.some((r) => COACH_ROLES.includes(r));
 
   let isMember = isCoach || isAdmin;
+  let platformStatus: string | null = null;
+  let includedWithCoach = false;
   if (!isMember && subRead) {
     const { data: sub, error: subError } = await subRead;
-    if (subError && opts.strict) throw subError;
-    isMember = !!(sub && ACTIVE_SUB.has(String((sub as { status?: unknown }).status)));
+    if (subError && (opts.strict || opts.strictPaid)) throw subError;
+    platformStatus = sub ? String((sub as { status?: unknown }).status ?? '') || null : null;
+    isMember = !!platformStatus && PLATFORM_PERK_STATUSES.has(platformStatus);
   }
+  if (!isMember && coachRead) {
+    const { data: coached, error: coachError } = await coachRead;
+    if (coachError && (opts.strict || opts.strictPaid)) throw coachError;
+    includedWithCoach = Array.isArray(coached) && coached.length > 0;
+    isMember = includedWithCoach;
+  }
+  const pastDue = !isMember && platformStatus === 'past_due';
   // Age is derived from the DATE first (see isMinorFromDob — `over_18` is a
   // signup-time snapshot that goes stale on the member's eighteenth birthday).
   // The stored flag is the fallback for rows that carry no usable DOB, where
@@ -130,5 +186,12 @@ export async function computeMembership(
     profile as { date_of_birth?: unknown; over_18?: unknown; created_at?: unknown } | null
   );
 
-  return { isMember, isCoach, isAdmin, isKnownMinor };
+  return { isMember, pastDue, platformStatus, includedWithCoach, isCoach, isAdmin, isKnownMinor };
+}
+
+/** The 402 a paid feature answers a signed-in adult who may not use it: past due, or not a member. */
+export function paidRefusal(m: Pick<Membership, 'pastDue'>): { error: string; code: 'payment_past_due' | 'membership_required' } {
+  return m.pastDue
+    ? { error: "Your Shape membership payment didn't go through. Update your card to use this.", code: 'payment_past_due' }
+    : { error: 'Shape membership required.', code: 'membership_required' };
 }

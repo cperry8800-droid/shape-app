@@ -286,7 +286,9 @@ test('the website: the dashboard writes the sign-up answers, and a known minor i
   assert.match(shell, /caSeedOnboarding\(membership\);/);
   const age = shell.indexOf('if (membership.signedIn && membership.ageRestricted === true && route !== "settings") return <ClientAgeRestrictedPage />;');
   assert.ok(age > 0, '#2353\'s moved item');
-  assert.ok(age < shell.indexOf('return <ClientJoinPage />;'), 'before the join panel');
+  // An account is free (owner, 2026-11-10): no join panel stands in front of a route, so the age
+  // page comes before the routes themselves.
+  assert.ok(age < shell.indexOf('return (caHasRoute(route) ? CA_ROUTES[route] : CA_ROUTES.today)();'), 'before the routes');
   const dash = read('public/newdesign/dashClient.jsx');
   assert.match(dash, /function ClientAgeRestrictedPage\(\) \{[\s\S]*?Shape is for adults 18 and over\./);
   assert.match(dash, /Object\.assign\(window, \{ ClientDashboardPage, ClientJoinPage, ClientAgeRestrictedPage,/);

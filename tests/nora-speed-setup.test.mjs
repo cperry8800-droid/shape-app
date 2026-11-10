@@ -41,15 +41,16 @@ function heldClient(answers) {
 }
 const tick = () => new Promise((r) => setTimeout(r, 0));
 
-test('⚠ membership reads the profile and the subscription together, each once', async () => {
-  const h = heldClient({ profiles: { data: { role: 'client', roles: [], over_18: true, created_at: '2026-01-01T00:00:00Z' } }, platform_subscriptions: { data: { status: 'active' } } });
+test('⚠ membership reads the profile, the plan and the coach subscriptions together, each once', async () => {
+  const h = heldClient({ profiles: { data: { role: 'client', roles: [], over_18: true, created_at: '2026-01-01T00:00:00Z' } }, platform_subscriptions: { data: { status: 'active' } }, subscriptions: { data: [] } });
   const p = core.computeMembership(h.client, 'u1', 'member@x.com');
   await tick();
-  assert.deepEqual(h.started.sort(), ['platform_subscriptions', 'profiles'], 'the subscription read started before the profile came back');
+  // Coaching includes the membership (owner, 2026-11-10): its read starts with the others.
+  assert.deepEqual(h.started.sort(), ['platform_subscriptions', 'profiles', 'subscriptions'], 'the subscription reads started before the profile came back');
   h.release.profiles(); h.release.platform_subscriptions();
   const m = await p;
-  assert.equal(m.isMember, true);
-  assert.deepEqual(h.runs, { profiles: 1, platform_subscriptions: 1 }, 'neither query ran twice');
+  assert.equal(m.isMember, true, 'a plan decides with the coach read still out');
+  assert.deepEqual(h.runs, { profiles: 1, platform_subscriptions: 1, subscriptions: 1 }, 'no query ran twice');
 });
 
 test('membership decides as before: a coach without a plan, an admin with no read, a failed plan read still throws', async () => {
@@ -74,8 +75,15 @@ test('membership decides as before: a coach without a plan, an admin with no rea
   await tick(); broken.release.platform_subscriptions(); await tick(); broken.release.profiles();
   await assert.rejects(bp, /plan read failed/, 'for a member who needs the plan, a failed read still fails as before');
 
-  const none = heldClient({ profiles: { data: { role: 'client', roles: [], over_18: true, created_at: '2026-01-01T00:00:00Z' } }, platform_subscriptions: { data: null } });
+  const none = heldClient({ profiles: { data: { role: 'client', roles: [], over_18: true, created_at: '2026-01-01T00:00:00Z' } }, platform_subscriptions: { data: null }, subscriptions: { data: [] } });
   const np = core.computeMembership(none.client, 'u5', 'member@x.com');
-  await tick(); none.release.profiles(); none.release.platform_subscriptions();
+  await tick(); none.release.profiles(); none.release.platform_subscriptions(); none.release.subscriptions();
   assert.equal((await np).isMember, false);
+  // A coach the member pays makes them one.
+  const coached = heldClient({ profiles: { data: { role: 'client', roles: [], over_18: true, created_at: '2026-01-01T00:00:00Z' } }, platform_subscriptions: { data: null }, subscriptions: { data: [{ id: 7 }] } });
+  const kp = core.computeMembership(coached.client, 'u6', 'member@x.com');
+  await tick(); coached.release.profiles(); coached.release.platform_subscriptions(); coached.release.subscriptions();
+  const k = await kp;
+  assert.equal(k.isMember, true);
+  assert.equal(k.includedWithCoach, true);
 });

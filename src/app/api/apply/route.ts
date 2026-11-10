@@ -93,6 +93,9 @@ const SERVER_DOCUMENT_KEYS = [
   // /api/me/application shows an application to that account only, so a client-sent value would
   // put an application in someone else's Settings.
   'account_id',
+  // Written beside it: the approval reads `account_id` as the sender only with this marker
+  // (src/lib/coach-approval.ts), since before #2667 a client could send an `account_id`.
+  'account_source',
   'documents',
   'resume_document',
   'credential_documents',
@@ -501,7 +504,7 @@ export async function POST(req: NextRequest) {
   } catch {
     senderId = '';
   }
-  if (senderId) details = { ...details, account_id: senderId };
+  if (senderId) details = { ...details, account_id: senderId, account_source: 'session' };
 
   // L19 (2026-10-10): the anonymous insert policy on provider_applications is gone, so the
   // application row is written through the service role after the checks above.

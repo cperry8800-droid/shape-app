@@ -216,6 +216,14 @@ test('the reading line is drawn only while her audio loads or plays', () => {
   assert.match(JSON.stringify(signIn.props.children), /Sign in with an active membership/);
   assert.doesNotMatch(JSON.stringify(signIn.props.children), /Play voice/);
   assert.match(lineOf('playback_blocked'), /Play voice/);
+  // A paid refusal (owner, 2026-11-10: Cook Mode's voice is a paid feature) says what membership
+  // adds, or the card line for a membership whose renewal failed, with that lock's one action and
+  // never Play voice: playing again cannot buy a membership.
+  assert.match(lineOf('members'), /Nora reading the steps aloud comes with membership\./);
+  assert.match(lineOf('members'), /Join · \{price\}\/mo →/);
+  assert.doesNotMatch(lineOf('members'), /Play voice|Sign in/);
+  assert.match(lineOf('pastDue'), /Your payment didn’t go through\. Update your card to get Shape Radio and Nora back\./);
+  assert.match(lineOf('pastDue'), /Update your card →/);
 });
 
 test('the status follows real playback: playing until her clip ends, idle after', async () => {
@@ -308,6 +316,17 @@ test('flipping the switch says what changed; a visitor is told how to hear her',
   assert.equal(visitor.on, false, 'a visitor sees the switch on');
   visitor.onClick();
   assert.match(said[2], /Sign in with an active membership to hear Nora/);
+  // A signed-in account that has not paid is told what membership adds, with Join on the note.
+  const notes = [];
+  const free = bsCkReadsProp({ tr: trD, voiceCanSpeak: true, voiceMember: false, lock: 'free', readsOn: true, toggle: () => { throw new Error('a free account flipped the switch'); }, say: (t, action) => notes.push({ t, action }) });
+  assert.equal(free.on, false);
+  free.onClick();
+  assert.match(notes[0].t, /Nora reading the steps aloud comes with membership\./);
+  assert.match(notes[0].action.label, /Join/);
+  const due = bsCkReadsProp({ tr: trD, voiceCanSpeak: true, voiceMember: false, lock: 'pastDue', readsOn: true, toggle() {}, say: (t, action) => notes.push({ t, action }) });
+  due.onClick();
+  assert.match(notes[1].t, /Your payment didn’t go through/);
+  assert.match(notes[1].action.label, /Update your card/);
   assert.equal(bsCkReadsProp({ tr: trD, voiceCanSpeak: false, voiceMember: true, readsOn: true, toggle() {}, say() {} }), null);
 });
 

@@ -170,7 +170,10 @@ test('pressing Subscribe again clears the account prompt, and the next answer sh
   assert.ok(p.prompt());
   await p.press('Subscribe');
   assert.equal(p.prompt(), null, 'reset with the other prompts at the top of subscribe');
-  assert.match(p.text(), /Coaching is for Shape members/);
+  // Hiring needs only a free account (owner, 2026-11-10): a checkout that still asks for the
+  // membership is said as that, never as a rule that coaching is for members.
+  assert.match(p.text(), /This checkout asked for a Shape membership first/);
+  assert.doesNotMatch(p.text(), /Coaching is for Shape members/);
   await p.unmount();
 });
 

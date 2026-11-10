@@ -14,6 +14,7 @@
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { listenRedirect, passKey, PASS_PARAM } from '@/lib/radio/pass.mjs';
+import { openStream } from '@/lib/radio/streams.mjs';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -21,6 +22,7 @@ export const dynamic = 'force-dynamic';
 const HEADERS = { 'access-control-allow-origin': '*', 'cache-control': 'no-store' };
 
 export async function GET(request: Request) {
+  const now = Date.now();
   const r = await listenRedirect({
     pass: new URL(request.url).searchParams.get(PASS_PARAM),
     country: request.headers.get('x-vercel-ip-country'),
@@ -29,7 +31,9 @@ export async function GET(request: Request) {
       const { data, error } = await createAdminClient().from('radio_station').select('provider, stream_url').eq('id', 1).maybeSingle();
       return error ? null : data;
     },
-    now: Date.now(),
+    // The stream is recorded as this member's before its ticket exists (src/lib/radio/streams.mjs).
+    openStream: async (userId: string) => openStream(createAdminClient(), { userId, now }),
+    now,
     key: passKey(),
   });
   if (r.status === 302 && 'location' in r) {

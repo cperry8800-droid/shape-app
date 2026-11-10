@@ -193,7 +193,7 @@ test('the plan card and the status line are both role-gated, or they contradict 
   assert.ok(i > 0, 'the identity card’s status line is not role-gated');
   const line = src.slice(i, i + 900);
   assert.match(line, /profile:role\.(trainer|nutritionist)/, 'a coach’s status line does not name their role');
-  assert.match(line, /settings:plan\.(inactive|notMember)/, 'a member’s status line does not state their membership');
+  assert.match(line, /settings:plan\.(free|notMember)/, 'a member’s status line does not state their membership');
   // And the billing rows the Account pane composes are gated the same way: every one
   // of them opens the Stripe CUSTOMER portal, which manages a member's subscription.
   // A coach joins free, so composing them in unguarded would have ADDED three dead
@@ -455,15 +455,17 @@ test('an unread subscription is never reported as an inactive membership', () =>
   // `plan.notMember` to the TOP of the chain, so a slice ending there stopped before
   // the arm this test is named for and failed on a correct tree.
   const line = clean.slice(i, clean.indexOf('const sub = ', i));
-  assert.ok(line.length > 200 && line.includes('plan.inactive'),
+  assert.ok(line.length > 200 && line.includes('plan.free'),
     'the statusLine extractor is no longer reading the whole statement');
 
   assert.ok(/const planKnown = plan != null;/.test(clean), 'the read/unread distinction is gone');
-  // ⚠ NOT `[^:]*` — `tr('settings:plan.inactive'` CONTAINS a colon, so the obvious
+  // ⚠ NOT `[^:]*` — `tr('settings:plan.free'` CONTAINS a colon, so the obvious
   // character class can never reach the thing it is looking for and the guard fails
-  // on a correct tree.
-  assert.ok(/planKnown \? tr\('settings:plan\.inactive'/.test(line),
-    'the inactive claim is no longer gated on the plan having actually been read');
+  // on a correct tree. A free account reads "Free account" (owner, 2026-11-10: it is in the app),
+  // and only once the plan has actually been read.
+  assert.ok(/planKnown \? tr\('settings:plan\.free'/.test(line),
+    'the free-account claim is no longer gated on the plan having actually been read');
+  assert.ok(/planPastDue \? tr\('settings:plan\.pastDue'/.test(line), 'a failed renewal reads as such under the name');
   // Signed-out still settles, and that is a fact about the SESSION rather than about
   // the unread plan — you cannot hold a subscription with no account. Without this
   // the fix would trade a false claim for a lost true one.

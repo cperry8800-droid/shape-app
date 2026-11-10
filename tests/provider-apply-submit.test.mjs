@@ -317,14 +317,17 @@ test('the sender\'s account is stamped by the server alone: a signed-in send car
   await withTurnstile(async () => {
     // Signed out, with a forged id: no account on the row.
     const anon = fakeAdmin();
-    const a = await (await applyRoute(anon)).post({ token: 'good-token', details: { account_id: victim, user_id: victim } });
+    const a = await (await applyRoute(anon)).post({ token: 'good-token', details: { account_id: victim, user_id: victim, account_source: 'session' } });
     assert.equal(a.status, 200, JSON.stringify(a.body));
     assert.equal('account_id' in inserts(anon)[0].payload.details, false, 'a client-sent account id is dropped');
+    // ⚠ And the marker approval reads it by: a client-sent one would make a forged id a stamp.
+    assert.equal('account_source' in inserts(anon)[0].payload.details, false, 'a client-sent session marker is dropped');
     // Signed in, with a forged id: the sender's own account, never the forged one.
     const signed = fakeAdmin();
     const b = await (await applyRoute(signed, { user: member })).post({ bearer: 'session-token', details: { account_id: victim } });
     assert.equal(b.status, 200, JSON.stringify(b.body));
     assert.equal(inserts(signed)[0].payload.details.account_id, member.id);
+    assert.equal(inserts(signed)[0].payload.details.account_source, 'session', 'the server stamps the marker beside it');
   });
 });
 

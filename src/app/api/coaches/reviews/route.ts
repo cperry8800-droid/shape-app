@@ -41,24 +41,24 @@ function shape(row: ReviewRow) {
   return { id: row.id, rating: row.rating, text: row.body ?? '', author: row.author_name ?? 'Member', authorId: row.user_id ?? null, ownerId: row.owner_id ?? null, date: row.created_at };
 }
 
-// ⚠ MEMBERS READ THE REVIEWS; EVERYONE SEES THE RATING (owner, 2026-10-28: "anyone with a shape
-// membership can read them", and "Rating only" for everyone else). A review's words and author go
-// only to a member (computeMembership: an approved coach, an admin, or an active subscription);
-// anyone else gets `reviews: []` and `locked: true` with the same average and count. The database
-// holds the same line (2026-10-28-coach-reviews-members.sql): coach_reviews is readable by a
-// member, a review's author and its coach, and every rating comes from coach_review_ratings(),
-// which returns totals and counts only.
+// ⚠ EVERY ACCOUNT READS THE REVIEWS; EVERYONE SEES THE RATING. A review's words and author went
+// to a paid member only (owner, 2026-10-28); with a free account they go to every signed-in adult
+// account (owner, 2026-11-10: "Every signed-in account"). A visitor still gets `reviews: []` and
+// `locked: true` with the same average and count. The database holds the same line
+// (2026-11-10-coach-reviews-accounts.sql): coach_reviews is readable by any signed-in account, and
+// every rating comes from coach_review_ratings(), which returns totals and counts only.
 // null: the sign-in or the membership couldn't be read. That is unknown, never "not a member", so
 // a member is never shown the paywall over a failed read (Codex P2 ×2 on #2492): the answer is a
 // 503. Only a sign-in check that measured nobody (src/lib/auth-lookup.ts) is a guest; an auth
 // outage answers a null user too.
+// `member` here is "may read the words": a signed-in adult account (a known minor may not).
 type Reader = { member: boolean; admin: boolean } | null;
 async function readReader(request: Request, supabase: SupabaseClient): Promise<Reader> {
   const { user, error } = await userLookupForRequest(request);
   if (!user) return isMeasuredSignedOut(error) ? { member: false, admin: false } : null;
   try {
     const m = await computeMembership(supabase, user.id, user.email ?? null, { emailConfirmed: !!user.email_confirmed_at, strict: true });
-    return { member: m.isMember, admin: m.isAdmin };
+    return { member: !m.isKnownMinor, admin: m.isAdmin };
   } catch {
     return null;
   }
@@ -68,12 +68,14 @@ const UNKNOWN = () => NextResponse.json({ error: "Couldn't check your membership
 // reviews (count > 0), so a locked answer without one would read as "No reviews yet". When the
 // ratings can't be read, that is unknown too (Codex P2 on #2492).
 const RATINGS_UNREAD = () => NextResponse.json({ error: "Couldn't read the ratings just now." }, { status: 503 });
-// The client a member's list is read with. An admin (a confirmed address on the allow-list) is a
-// member here but not to the table's policy, which can't see the allow-list, so their read would
-// come back empty: it goes through the service role (Codex P2 on #2492). Only for a confirmed
-// admin, and only these reads, whose filters are a validated uuid or a cleaned slug.
-function listClient(reader: { admin: boolean }, supabase: SupabaseClient): SupabaseClient {
-  if (!reader.admin) return supabase;
+// The client a reader's list is read with: the service role. Called only for a reader this route
+// has cleared (a signed-in adult account): each list returns `locked` before it for any other.
+// This route decides who reads the words, and its filters
+// are a validated uuid or a cleaned slug. ⚠ Through the caller's own client an account reads only
+// the reviews it wrote and those about it (2026-11-10-coach-reviews-accounts.sql: only this route
+// can tell an adult, so a known minor never reads the words from the table, Codex P2 on #2675), and
+// an admin never matched the policy at all (Codex P2 on #2492).
+function listClient(supabase: SupabaseClient): SupabaseClient {
   try { return createAdminClient(); } catch { return supabase; }
 }
 
@@ -125,7 +127,7 @@ export async function GET(request: Request) {
     const reader = await readReader(request, supabase);
     if (!reader) return UNKNOWN();
     if (!reader.member) return NextResponse.json({ reviews: [], locked: true });
-    const { data, error } = await listClient(reader, supabase).from('coach_reviews').select('*').in('id', ids).limit(3);
+    const { data, error } = await listClient(supabase).from('coach_reviews').select('*').in('id', ids).limit(3);
     if (error) return NextResponse.json({ reviews: [] });
     return NextResponse.json({ reviews: (data ?? []).map((r) => shape(r as ReviewRow)) });
   }
@@ -145,7 +147,7 @@ export async function GET(request: Request) {
     const rating = ratings ? ratingOf(ratings.filter((r) => r.owner_id === ownerParam)) : null;
     if (!reader.member) return rating ? NextResponse.json({ reviews: [], locked: true, ...rating }) : RATINGS_UNREAD();
     // The list is the newest 200; the average and count are over every review.
-    const { data, error } = await listClient(reader, supabase).from('coach_reviews').select('*').eq('owner_id', ownerParam).order('created_at', { ascending: false }).limit(200);
+    const { data, error } = await listClient(supabase).from('coach_reviews').select('*').eq('owner_id', ownerParam).order('created_at', { ascending: false }).limit(200);
     if (error) return NextResponse.json({ reviews: [], ...(rating || {}) });
     return NextResponse.json({ reviews: (data ?? []).map((r) => shape(r as ReviewRow)), ...(rating || {}) });
   }
@@ -158,7 +160,7 @@ export async function GET(request: Request) {
     if (!reader.member) return rating ? NextResponse.json({ reviews: [], locked: true, ...rating }) : RATINGS_UNREAD();
     // select('*') keeps this migration-safe — an explicit owner_id column would
     // 400 pre-migration (PostgREST). shape() picks only the fields it needs.
-    const { data, error } = await listClient(reader, supabase)
+    const { data, error } = await listClient(supabase)
       .from('coach_reviews')
       .select('*')
       .eq('coach_slug', slug)

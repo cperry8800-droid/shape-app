@@ -134,7 +134,7 @@ export async function POST(request: Request) {
 
   const supabase = await clientForRequest(request);
   const membership = await computeMembership(supabase, user.id, user.email ?? null, { emailConfirmed: !!user.email_confirmed_at });
-  if (!membership.isMember) return NextResponse.json({ error: 'membership_required' }, { status: 402 });
+  if (!membership.isMember) return NextResponse.json({ error: membership.pastDue ? 'payment_past_due' : 'membership_required', code: membership.pastDue ? 'payment_past_due' : 'membership_required' }, { status: 402 });
 
   const { data, error } = await supabase.rpc('redeem_store_order', {
     p_items: lines.map((l) => ({ item_id: l.item_id, item_name: l.item_name, cost: l.cost, kind: 'merch' })),

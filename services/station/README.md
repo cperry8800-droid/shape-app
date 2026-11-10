@@ -85,16 +85,28 @@ Run one engine only: two would both play her sets and log them twice.
 
 ## Members only, and only where the licences reach
 
-- **The pass and the ticket.** Shape hands each member Shape's own address for the stream, with
-  a pass on it (`/api/radio/listen?pass=`), signed by Shape and good for six hours. Each time a
-  player connects there, Shape checks the pass and the listener's own country, and sends the
-  player on to the station with a ticket (`?ticket=`): good for two minutes, and naming no one.
-  The station asks Shape whether the ticket is good (`/api/radio/pass`) before it lets the
-  listener in. The station's own address is never handed out, and its access log holds only
-  tickets. Both are checked at the door only: an expired one ends no stream already playing.
-- **The key.** Passes are signed with `RADIO_PASS_SECRET` if it is set in Vercel (32 or more
+- **Your own login, your own membership.** Shape Radio plays only for the account listening, on its
+  own paid membership (an active $5 membership, an approved coach, or an admin): no trial, not past
+  due, and no address someone else shared.
+- **The start code and the ticket.** Shape hands each member Shape's own address for the stream,
+  with a start code on it (`/api/radio/listen?pass=`), signed by Shape and good for ninety seconds:
+  the player asks for a new one, signed in, every time it starts. Each time a player connects there,
+  Shape checks the code and the listener's own country, records the stream as that member's, and
+  sends the player on to the station with a ticket (`?ticket=`): good for two minutes, naming the
+  stream and never the member. The station asks Shape whether the ticket is good (`/api/radio/pass`)
+  before it lets the listener in, and Shape keeps which account the connection is. The station's own
+  address is never handed out, and its access log holds only tickets.
+- **One device per account, dropped when the membership stops.** When an account connects on a
+  second device, its older connection is dropped. When its membership ends or goes past due, its
+  stream is dropped too: Stripe's word marks it at once, and Shape confirms every live connection's
+  membership again about once a minute. The **door** service drops them: every three seconds it asks
+  Shape (`/api/radio/kicks`) which connections to drop, and drops each with Icecast's own
+  `killclient`, inside this machine (it needs `ICECAST_ADMIN_PASSWORD`; Icecast's admin pages stay
+  off the public address). Shape keeps the account only while it listens: the record goes when the
+  station says the listener left.
+- **The key.** Codes and tickets are signed with `RADIO_PASS_SECRET` if it is set in Vercel (32 or more
   characters), or else with a key Shape derives from its database service key. Changing either
-  ends every pass out there; members' players simply ask for a new one.
+  ends every code out there; members' players simply ask for a new one.
 - **The territory.** Members outside the US and the UK get no stream: the app and website say
   Shape Radio isn't available in their region yet. The country is the one Vercel measures for each
   connection, so a shared address plays nowhere else either.

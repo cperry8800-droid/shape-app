@@ -300,7 +300,7 @@ function CmPreviewNotice() {
       <div style={{ flex: 1, minWidth: 240 }}>
         <div style={{ fontFamily: mono, fontSize: 11, letterSpacing: "0.16em", textTransform: "uppercase", color: TEAL, marginBottom: 4 }}>This is a preview</div>
         <div style={{ fontFamily: sans, fontSize: 15, lineHeight: 1.5, color: "rgba(242,237,228,0.78)" }}>
-          The activity here is a sample of what the community looks like. To actually send messages, open the <strong style={{ color: INK }}>chat bubble in the bottom-right</strong> — that's where real conversations happen (Shape members only).
+          The activity here is a sample of what the community looks like. To actually send messages, open the <strong style={{ color: INK }}>chat bubble in the bottom-right</strong> — that's where real conversations happen (free with a Shape account).
         </div>
       </div>
     </div>
@@ -341,7 +341,7 @@ function LiveActivity() {
 
         <div style={{ marginTop: 32, textAlign: "center" }}>
           <a href="/newdesign/Login.html" style={{ display: "inline-block", padding: "15px 30px", borderRadius: 2, background: TEAL, color: PAPER, fontFamily: sans, fontSize: 13.5, fontWeight: 600, letterSpacing: "0.04em", textDecoration: "none" }}>Join the feed</a>
-          <div style={{ marginTop: 12, fontFamily: mono, fontSize: 10.5, letterSpacing: "0.14em", color: "rgba(242,237,228,0.45)" }}>FREE WITH ANY SHAPE MEMBERSHIP</div>
+          <div style={{ marginTop: 12, fontFamily: mono, fontSize: 10.5, letterSpacing: "0.14em", color: "rgba(242,237,228,0.45)" }}>FREE WITH A SHAPE ACCOUNT</div>
         </div>
       </div>
     </section>

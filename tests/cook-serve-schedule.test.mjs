@@ -194,11 +194,14 @@ test("the session setup's voice switch says what it just did, both ways", () => 
   // anything there; it must name the state the switch moved TO. A remembered setting needs a
   // store, and Node's global has none, so one is lent for this test and taken back.
   const store = new Map();
-  const had = { ls: Object.getOwnPropertyDescriptor(globalThis, 'localStorage'), voice: globalThis.ShapeVoice, chat: globalThis.ShapeCanChat };
+  // Cook Mode's voice needs an account (ShapeCanChat) and is a paid feature (ShapePaid, owner
+  // 2026-11-10): both are lent for this test as a member's.
+  const had = { ls: Object.getOwnPropertyDescriptor(globalThis, 'localStorage'), voice: globalThis.ShapeVoice, chat: globalThis.ShapeCanChat, paid: globalThis.ShapePaid };
   Object.defineProperty(globalThis, 'localStorage', { configurable: true, writable: true,
     value: { getItem: (k) => (store.has(k) ? store.get(k) : null), setItem: (k, v) => { store.set(k, String(v)); }, removeItem: (k) => { store.delete(k); } } });
   globalThis.ShapeVoice = { speak() {}, stop() {} };
   globalThis.ShapeCanChat = true;
+  globalThis.ShapePaid = true;
   try {
     const r = SHAPE_KITCHEN_RECIPES.find((x) => bsCookableFromRecipe(x));
     const s = drive(MOD.BSPrepSession, { program: [{ meals: [{ id: 'v1', slot: 'Lunch', title: r.title }] }], onClose() {} });
@@ -219,6 +222,7 @@ test("the session setup's voice switch says what it just did, both ways", () => 
     if (had.ls) Object.defineProperty(globalThis, 'localStorage', had.ls); else delete globalThis.localStorage;
     if (had.voice === undefined) delete globalThis.ShapeVoice; else globalThis.ShapeVoice = had.voice;
     if (had.chat === undefined) delete globalThis.ShapeCanChat; else globalThis.ShapeCanChat = had.chat;
+    if (had.paid === undefined) delete globalThis.ShapePaid; else globalThis.ShapePaid = had.paid;
   }
 });
 

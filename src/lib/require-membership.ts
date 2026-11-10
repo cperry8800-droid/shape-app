@@ -21,11 +21,12 @@
 
 import { NextResponse } from 'next/server';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
-import { computeMembership, GATE_STAMP_HEADER, GATE_STAMP_VALUE } from '@/lib/membership-core';
+import { computeMembership, GATE_STAMP_ACCOUNT, GATE_STAMP_HEADER, GATE_STAMP_VALUE, paidRefusal } from '@/lib/membership-core';
 
 /**
- * Returns null when the caller may use paid features (verified member /
- * approved coach / admin), or the 401/402 response the route should return.
+ * Returns null when the caller may use PAID features (an active membership, an approved coach or
+ * an admin), or the 401/402/403 response the route should return. A past-due member gets 402
+ * `payment_past_due`, anyone else 402 `membership_required`.
  * Call it first in every handler of a paid route:
  *
  *   const denied = await requireMembership(request);
@@ -38,21 +39,51 @@ export async function requireMembership(request: Request): Promise<NextResponse 
     const user = await currentUser(request);
     if (!user) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
     const client = await clientForRequest(request);
-    const { isMember, isKnownMinor } = await computeMembership(client, user.id, user.email ?? null);
+    // ⚠ THE ADDRESS'S CONFIRMATION GOES IN. Left out, an admin with no coach role read as a
+    // non-member here whenever the proxy's stamp was missing (computeMembership grants an admin
+    // only a CONFIRMED allow-listed address).
+    // strictPaid: a failed read of what pays is a fault (fail open below), never a confirmed 402.
+    const membership = await computeMembership(client, user.id, user.email ?? null, { emailConfirmed: !!user.email_confirmed_at, strictPaid: true });
+    const { isMember, isKnownMinor } = membership;
     // Same 18+ refusal as the proxy — this is the per-endpoint half, so it must
     // hold on its own when the proxy stamp is absent.
     if (isKnownMinor) {
       return NextResponse.json({ error: 'Shape is for adults 18 and over.', code: 'age_restricted' }, { status: 403 });
     }
-    if (!isMember) {
-      return NextResponse.json(
-        { error: 'Shape membership required.', code: 'membership_required' },
-        { status: 402 }
-      );
-    }
+    if (!isMember) return NextResponse.json(paidRefusal(membership), { status: 402 });
     return null;
   } catch (e) {
     console.error('[require-membership] enforcement fault — failing open:', e);
+    return null;
+  }
+}
+
+/**
+ * The FREE features' guard (owner, 2026-11-10: an account is free; membership adds assistant
+ * Nora, Shape Radio, the AI helpers and the points Store). Returns null for any signed-in adult
+ * account, paid or not, or the 401/403 the route should return. Call it first in every handler of
+ * a free route under the gated prefixes:
+ *
+ *   const denied = await requireAccount(request);
+ *   if (denied) return denied;
+ *
+ * Same layering as requireMembership: the edge gate's stamp (either value) is the fast path, and
+ * a fault fails open with a loud log.
+ */
+export async function requireAccount(request: Request): Promise<NextResponse | null> {
+  const stamp = request.headers.get(GATE_STAMP_HEADER);
+  if (stamp === GATE_STAMP_ACCOUNT || stamp === GATE_STAMP_VALUE) return null;
+  try {
+    const user = await currentUser(request);
+    if (!user) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
+    const client = await clientForRequest(request);
+    const { isKnownMinor } = await computeMembership(client, user.id, user.email ?? null, { emailConfirmed: !!user.email_confirmed_at });
+    if (isKnownMinor) {
+      return NextResponse.json({ error: 'Shape is for adults 18 and over.', code: 'age_restricted' }, { status: 403 });
+    }
+    return null;
+  } catch (e) {
+    console.error('[require-account] enforcement fault — failing open:', e);
     return null;
   }
 }

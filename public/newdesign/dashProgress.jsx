@@ -919,6 +919,12 @@ function useDprWeeklyReadout(live) {
   // message. The response carries the authoritative `user_id`, so the subject is
   // taken FROM the answer rather than made a precondition of the question.
   const [held, setHeld] = React.useState(null);
+  // The weekly readout is assistant Nora's (owner, 2026-11-10: the membership). A 402 is no failure
+  // to hide: the route's code ("membership_required" for a free account, "payment_past_due" for a
+  // renewal that failed), and the card draws a locked teaser for it instead
+  // (DprWeeklyReadoutLocked). It holds no one's data, so nothing about it can leak across an
+  // account switch.
+  const [locked, setLocked] = React.useState(null);
   // The account signed in NOW, against which a held readout's own subject is
   // checked. `undefined` means not yet resolved — which is not the same as "no
   // account", and must not hide a card the cookie session is entitled to.
@@ -986,10 +992,11 @@ function useDprWeeklyReadout(live) {
     return () => { try { if (sub && sub.data && sub.data.subscription) sub.data.subscription.unsubscribe(); } catch (e) {} };
   }, []);
   React.useEffect(() => {
-    if (!live) { setHeld(null); return undefined; }
+    if (!live) { setHeld(null); setLocked(null); return undefined; }
     let on = true;
     (async () => {
       let d = null;
+      let lock = null;
       try {
         // The cookie-session bridge, so a member signed in that way is not read
         // as anon by anything downstream. Its failure is not fatal here.
@@ -1001,12 +1008,16 @@ function useDprWeeklyReadout(live) {
           cache: "no-store",
           body: JSON.stringify({ window_days: DPR_READOUT_WINDOW }),
         });
-        d = res.ok ? await res.json() : null;
+        if (res.status === 402) {
+          const why = await res.json().catch(() => null);
+          lock = why && why.code === "payment_past_due" ? "payment_past_due" : "membership_required";
+        } else d = res.ok ? await res.json() : null;
       } catch (e) { d = null; }
       // ⚠ A FAILED FETCH HOLDS NOTHING, rather than a stale or partial station.
       // The route already carries an honest EMPTY readout for a member without
       // enough overlap to say anything — that is a real answer and it renders. A
       // network failure is not an answer.
+      if (on) setLocked(lock);
       if (on) setHeld(d && d.readout && d.user_id ? d : null);
     })();
     return () => { on = false; };
@@ -1042,7 +1053,26 @@ function useDprWeeklyReadout(live) {
   // There is no demo readout, ever — a fabricated health insight presented as a
   // finding is exactly what the evidence layer beneath it spends a
   // false-discovery-rate correction to avoid.
-  return { held, shown: !(!live || !held || !held.readout || mismatched) };
+  return { held, locked: live ? locked : null, shown: !(!live || !held || !held.readout || mismatched) };
+}
+
+// The readout's place for an account without it: what it is, and the way in (pageShell.jsx's
+// ShapePaidLock: Join for a free account; for a renewal that failed, the past-due line and
+// Update your card). No readout, no finding and no sample: a teaser of the card, not of a body.
+function DprWeeklyReadoutLocked({ code }) {
+  const kind = code === "payment_past_due" ? "pastdue" : "join";
+  const Lock = window.ShapePaidLock;
+  return (
+    <div data-readout-locked={kind} className="dash-plate dash-plate--tick dash-plate--bracket" style={{ "--dac": DPR_TEAL, paddingLeft: 24 }}>
+      <span className="dash-eyebrow">The read · this week</span>
+      <div style={{ marginTop: 12, fontSize: 13, lineHeight: 1.5, color: DPR_INK50 }}>
+        Each week Nora reads your training, food and check-ins together and writes what moved, with the pattern behind it.
+      </div>
+      <div style={{ marginTop: 12 }}>
+        {Lock ? <Lock kind={kind} feature="Nora's weekly read" more={kind === "join" ? <a href="#membership" style={{ fontFamily: DPR_MONO, fontSize: 9, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: DPR_TEAL, textDecoration: "none" }}>What's included</a> : null} /> : null}
+      </div>
+    </div>
+  );
 }
 
 // ⚠ AND THE CARD KEEPS ITS OWN GUARD, WHICH IS NOT BELT-AND-BRACES. `empty` reaches
@@ -1289,7 +1319,10 @@ function ClientProgressPage() {
     // in the list and the grid adds or removes its item as the flag flips — and an
     // empty widget gets no item, where the old unconditional workaround left an
     // 18px slot in the signed-out preview.
-    { key: "readout", title: "The read · this week", size: "full", empty: !readout.shown, render: () => <DprWeeklyReadout shown={readout.shown} held={readout.held} /> },
+    { key: "readout", title: "The read · this week", size: "full", empty: !readout.shown && !readout.locked, render: () => (readout.locked ? <DprWeeklyReadoutLocked code={readout.locked} /> : <DprWeeklyReadout shown={readout.shown} held={readout.held} />) },
+    // Your week: the free, shareable recap of the member's own Mon–Sun week (owner, 2026-11-10),
+    // dashClient.jsx's card, read at render time (it loads before this file on the shell).
+    { key: "weekRecap", title: "Your week", size: "half", empty: source !== "live", render: () => (window.ClientWeekRecapCard ? <window.ClientWeekRecapCard week="current" who={dash && dash.user ? dash.user.firstName || "" : ""} /> : null) },
     // THE CROSSOVER — conditional: exists only when the shared read fired
     // (work habits + enough data past the statistical floors). Slate accent
     // (#7aa7dc), the work domain's color.
@@ -1528,4 +1561,4 @@ function ClientProgressPage() {
   );
 }
 
-Object.assign(window, { ClientProgressPage, DprMilestoneTimeline, DprChart, DprCheckinForm, DprWeeklyReadout });
+Object.assign(window, { ClientProgressPage, DprMilestoneTimeline, DprChart, DprCheckinForm, DprWeeklyReadout, DprWeeklyReadoutLocked });

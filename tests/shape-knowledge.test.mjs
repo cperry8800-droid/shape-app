@@ -120,3 +120,22 @@ test('the Morning check-in entry: found by its words, and says what the app says
   for (const k of ['mornings.bandReady', 'mornings.bandSteady', 'mornings.bandEasy', 'mornings.bandLow']) assert.ok(body.includes(en[k]), `the band ${en[k]}`);
   assert.ok(body.includes(en['mornings.patternsTitle'].replace("'", '’')), 'What we’ve noticed, by its title');
 });
+
+// ⚠ Nora names the yearly price only when it is set up (Codex P2 on #2675): with
+// STRIPE_PLATFORM_ANNUAL_PRICE_ID unset the checkout refuses a year, so she never promises one.
+test('the membership entry names the yearly price only when STRIPE_PLATFORM_ANNUAL_PRICE_ID is set', async () => {
+  const url = new URL('../src/lib/ai/shapeKnowledge.mjs', import.meta.url).href;
+  const before = process.env.STRIPE_PLATFORM_ANNUAL_PRICE_ID;
+  const body = async (tag) => (await import(`${url}?yearly=${tag}`)).SHAPE_KNOWLEDGE.find((e) => e.id === 'membership').body;
+  try {
+    delete process.env.STRIPE_PLATFORM_ANNUAL_PRICE_ID;
+    const none = await body('none');
+    assert.match(none, /The membership is \$5 a month — the Shape platform fee —/);
+    assert.doesNotMatch(none, /\$48|a year|yearly/);
+    process.env.STRIPE_PLATFORM_ANNUAL_PRICE_ID = 'price_test';
+    assert.match(await body('set'), /The membership is \$5 a month or \$48 a year — the Shape platform fee —/);
+  } finally {
+    if (before === undefined) delete process.env.STRIPE_PLATFORM_ANNUAL_PRICE_ID;
+    else process.env.STRIPE_PLATFORM_ANNUAL_PRICE_ID = before;
+  }
+});

@@ -33,9 +33,10 @@ function supabaseMock({ snapshot = null, coachOnClient = true, writeRows = [{ us
     _calls: calls,
   };
 }
-function ctxFor(actor, supabase, callImpl) {
+// A paid member's context by default: the chat route sets isMember from computeMembership.
+function ctxFor(actor, supabase, callImpl, { isMember = true } = {}) {
   const calls = [];
-  return { actor, supabase, _calls: calls, call: async (method, path, body) => { calls.push({ method, path, body }); return callImpl(method, path, body); } };
+  return { actor, supabase, isMember, _calls: calls, call: async (method, path, body) => { calls.push({ method, path, body }); return callImpl(method, path, body); } };
 }
 function registryWith(action) { const r = createRegistry(); r.define(action.name, action); return r; }
 
@@ -694,4 +695,14 @@ test('H9: the coach undos that used to report success whatever they hit now refu
     assert.equal(supabase._calls.deletes.length, 0, 'nothing was deleted blind');
     assert.equal(audit._rows[0].status, 'executed');
   }
+});
+
+test('log_meal is the assistant, a paid feature: a free account is told so before a card is drawn (2026-11-10)', async () => {
+  const registry = registryWith(logMealAction);
+  const ctx = ctxFor({ id: 'client-1', role: 'client' }, supabaseMock({}), () => ({ ok: true, status: 200, data: { ok: true } }), { isMember: false });
+  const r = await proposeChange({ registry, action: 'log_meal', input: { kcal: 600 }, actor: { id: 'client-1', role: 'client' }, ctx, secret: SECRET });
+  assert.equal(r.ok, false);
+  assert.equal(r.error, 'preview_failed');
+  assert.match(r.message, /Becoming a member unlocks this/);
+  assert.equal(ctx._calls.length, 0, 'nothing is logged');
 });

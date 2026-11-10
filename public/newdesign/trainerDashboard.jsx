@@ -300,9 +300,13 @@ function DashGuideButton({ place }) {
 
 // The frame every dashboard tab renders inside: the rail, then a column holding the app
 // bar and the page's own <main>. `title` defaults to the active tab's label.
+// `window.ShapeDashNotice`, when a shell sets one, is drawn under the app bar on every page of that
+// shell: one place rather than a copy in every route (the client dashboard's past-due notice,
+// ClientApp.html). It renders nothing when there is nothing to say.
 function DashFrame({ navItems, payoutCard, title, children }) {
   const active = (navItems || []).find((n) => n && n.active);
   const heading = title || (active && active.label) || "";
+  const Notice = typeof window !== "undefined" && typeof window.ShapeDashNotice === "function" ? window.ShapeDashNotice : null;
   return (
     <div className="dash-app" style={{ background: PAPER, color: INK, fontFamily: sans }}>
       <DashSidebar navItems={navItems} payoutCard={payoutCard} />
@@ -314,6 +318,7 @@ function DashFrame({ navItems, payoutCard, title, children }) {
           </div>
           <Header />
         </div>
+        {Notice ? <Notice /> : null}
         {children}
       </div>
     </div>
