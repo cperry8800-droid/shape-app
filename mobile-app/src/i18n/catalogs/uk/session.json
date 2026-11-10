@@ -170,6 +170,8 @@
   "train.onDeck": "Далі",
   "train.openSession": "Вільне тренування",
   "train.plan": "План",
+  "train.moreMoves": "ще {count}",
+  "train.playlistFor": "Для: {workouts}",
   "train.previewEyebrow": "Перегляд · Лише читання",
   "train.programKicker": "Програма",
   "train.programWeek": "{name} · Тиждень {week}",

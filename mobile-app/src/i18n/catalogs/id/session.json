@@ -170,6 +170,8 @@
   "train.onDeck": "Berikutnya",
   "train.openSession": "Sesi bebas",
   "train.plan": "Rencana",
+  "train.moreMoves": "+{count} lagi",
+  "train.playlistFor": "Untuk {workouts}",
   "train.previewEyebrow": "Pratinjau · Hanya baca",
   "train.programKicker": "Program",
   "train.programWeek": "{name} · Minggu {week}",

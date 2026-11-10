@@ -511,12 +511,38 @@ test('Train hands the day and its doors to BSTrainDay, and a picked day moves th
   assert.equal(at((n) => n.props && n.props.tour === 'hero-train'), -1, 'the old lead is gone (BSTrainDay carries the tour anchor)');
   assert.equal(day.props.program.length, 7, 'the whole week');
   assert.ok(String(day.props.head || '').length > 0, 'the session has a title');
-  for (const k of ['onDay', 'onMonth', 'onBurn', 'onStart', 'onSwap', 'onMove', 'onRadio']) assert.equal(typeof day.props[k], 'function', `${k} is not wired`);
+  for (const k of ['onDay', 'onMonth', 'onPlan', 'movesOf', 'onBurn', 'onStart', 'onSwap', 'onMove', 'onRadio']) assert.equal(typeof day.props[k], 'function', `${k} is not wired`);
   day.props.onMonth();
   day.props.onRadio();
   assert.equal(month, 1, 'Month view opens the calendar');
   assert.equal(radio, 1, 'the playlist opens Shape Radio');
-  assert.ok(day.props.links.length >= 2 && day.props.links.every((l) => typeof l.onOpen === 'function' && l.label), 'the links come with their doors');
+  assert.ok(day.props.links.length >= 1 && day.props.links.every((l) => typeof l.onOpen === 'function' && l.label), 'the links come with their doors');
+  // The coach's music is no link of its own (owner, 2026-11-10: "remove the music from jordan box"): it sits
+  // in Playlists, under the workouts it plays with.
+  assert.ok(!day.props.links.some((l) => /music/i.test(l.label) || l.glyph === '♪'), 'the music row is back');
+  const lists = order[at(fn('BSCoachPlaylists'))];
+  assert.ok(lists && lists.props.program === day.props.program, 'Playlists does not read the week it matches against');
+  // Full plan opens the week as a sheet on today, not the calendar; On deck's days open it on theirs.
+  const full = day.props.links.find((l) => l.label === 'Full plan');
+  assert.ok(full, 'no Full plan link');
+  full.onOpen();
+  d.render();
+  let sheet = d.nodes().find(fn('BSTrainPlanSheet'));
+  assert.ok(sheet, 'Full plan did not open the plan sheet');
+  assert.equal(sheet.props.movesOf, d.nodes().find(fn('BSTrainDay')).props.movesOf, 'On deck and the plan read the moves alike');
+  assert.equal(month, 1, 'Full plan opened the calendar');
+  assert.equal(sheet.props.focusIdx, (new Date().getDay() + 6) % 7, 'it opens on today');
+  sheet.props.onClose();
+  d.render();
+  assert.equal(d.nodes().find(fn('BSTrainPlanSheet')), undefined, 'the sheet did not close');
+  d.nodes().find(fn('BSTrainDay')).props.onPlan(4);
+  d.render();
+  sheet = d.nodes().find(fn('BSTrainPlanSheet'));
+  assert.equal(sheet && sheet.props.focusIdx, 4, 'a day on deck opens the plan on that day');
+  sheet.props.onMonth();
+  d.render();
+  assert.equal(month, 2, 'Month view in the sheet opens the calendar');
+  assert.equal(d.nodes().find(fn('BSTrainPlanSheet')), undefined, 'and closes the sheet');
   // A day in another session than this one: the page's day moves, and the session with it.
   const before = day.props.head;
   const other = day.props.program.findIndex((p, i) => i !== day.props.day && (p.headline || p.title) !== before);
