@@ -337,12 +337,28 @@ test('the coach\'s own page: Your hours and Make it yours as a small pill in the
     assert.equal(b.querySelector('span').style.height, '30px', `${sel} has a smaller face`);
   }
   await m.unmount();
-  // A visitor's console still docks above the tab bar.
+  // A visitor's console sits in the head too and scrolls away (owner, 10 Nov: "still staying present and
+  // too high on screen when i scroll"); the summit keeps its own Book at the foot of the page.
   reset();
   const v = await mount(page());
-  assert.equal($('[data-climb-console]').style.position, 'sticky');
+  const theirs = $('[data-climb-console]');
+  assert.ok(theirs.closest('[data-climb-hero]'), 'in the head, under the quote and plates');
+  assert.notEqual(theirs.style.position, 'sticky', 'it does not follow the scroll');
+  assert.ok(!theirs.style.bottom, 'no offset over the tab bar');
+  assert.equal($$('[data-climb-console]').length, 1, 'one console, no docked copy');
   assert.ok(!$('[data-climb-console-self]'));
   await v.unmount();
+});
+
+test('the portrait, a little smaller (owner, 10 Nov), in the same box so the name stays below the route', async () => {
+  reset();
+  const m = await mount(page());
+  const prism = $('[data-climb-prism]');
+  assert.equal(prism.style.width, '38%');
+  assert.equal(prism.style.maxWidth, '144px', 'was 168');
+  assert.equal(prism.style.height, '184px', 'was 214');
+  assert.equal(prism.parentElement.style.height, '336px', 'its box keeps its height');
+  await m.unmount();
 });
 
 // ── The house rules ──────────────────────────────────────────────────────────────────────────
