@@ -1109,7 +1109,7 @@ function BSGoalGlyph({ id, color, size = 18 }) {
   );
 }
 
-export function BSClientGoals({ onBack, onOpenProgress = () => {} }) {
+export function BSClientGoals({ onBack, onOpenProgress = () => {}, initialView = 'cover', onView = null }) {
   const { useBS, BSPage, BSFooter, BSMeCorner, BS_GOALS_DEFAULT, BS_GOAL_LB_TO_KG, BS_PRIMARY_GOALS, BS_PRIMARY_GOAL_MAX, _bsScrollTopOnMount, bsDateLocale, bsGoalDocKg, bsGoalUnitIsLb, bsGoalWeighIns, bsMyTierColor, bsPrimaryGoalFromText, bsPrimaryGoalIsCustom, bsPrimaryGoalLabel, bsPrimaryGoalToken, bsTHexA, useBSProgram, BS_MAST_TOP_CSS = 'max(44px, calc(env(safe-area-inset-top, 0px) + 12px), var(--bs-notch-floor, 0px))' } = window;
   const t = useBS();
   const tr = useShapeTr();
@@ -1131,7 +1131,13 @@ export function BSClientGoals({ onBack, onOpenProgress = () => {} }) {
   // Cover-page routing (owner pick 2026-08-28, Concept B): 'cover' plus one
   // full-screen page per station. The old five-item anchor index existed only
   // because the one-ledger page was long — the cover's doors replace it.
-  const [goalView, setGoalView] = useState('cover');
+  // A Back to this page opens the station it was on (initialView, which the parent replays: Home's
+  // 'goals:<station>' sub, Settings' the same), and the parent hears each change (onView) so it can
+  // announce it. A jump from a station (the coach credit's Find a coach, Search) comes back to it.
+  const [goalView, setGoalView] = useState(initialView || 'cover');
+  const onViewRef = React.useRef(onView);
+  onViewRef.current = onView;
+  React.useEffect(() => { if (onViewRef.current) onViewRef.current(goalView); }, [goalView]);
   // ⚠ Resolve the scroller and the focus targets from OUR OWN subtree, never
   // `document.querySelector` — that returns the FIRST match in document order,
   // and this page has a second mount inside BSSettings (see showGoals) where
@@ -1144,7 +1150,8 @@ export function BSClientGoals({ onBack, onOpenProgress = () => {} }) {
   const goalScrollRef = React.useRef(null);
   const goalScroller = () => { try { return goalScrollRef.current?.closest?.('.bs-scroll') || null; } catch (e) { return null; } };
   const coverScrollRef = React.useRef(0);
-  const prevGoalViewRef = React.useRef('cover');
+  // Starts on the view it opened on, so a page opened onto a station does not take the focus on mount.
+  const prevGoalViewRef = React.useRef(initialView || 'cover');
   const openGoalView = (v) => {
     // ⚠ Capture the cover's offset HERE, not in the effect below: by the time a
     // layout effect runs the scroller already holds the station's content, and
@@ -1179,30 +1186,12 @@ export function BSClientGoals({ onBack, onOpenProgress = () => {} }) {
       }
     } catch (e) {}
   }, [goalView]);
-  // ⚠ The open station is deliberately NOT announced to the nav stack, and the
-  // BSClientEat/BSSettings pattern does NOT transfer here — this page cannot
-  // announce for itself. Two reasons, both measured:
-  //   (1) INERT from Home. This page is BSClientHome's `goalsPage` overlay, and
-  //       the shell does not model Home's overlays: navLoc() returns a bare
-  //       { tab:'home' } and navResolve() has branches for store/market/chat/
-  //       eat/me but NONE for home. bsNavCompose would produce
-  //       { tab:'home', sub:'training' } and the replay drops `sub` on the floor.
-  //   (2) HARMFUL from Settings. BSClientGoals has a SECOND call site inside
-  //       BSSettings (showGoals), which IS modelled and announces its own sub —
-  //       and bsNavAnnounce writes ONE module-level slot, last write wins. An
-  //       announce here therefore overwrites the parent's. Reproduced against
-  //       the real register: with Settings deep-linked at 'edit-profile' and the
-  //       member walked back to its root (navSub ''), opening this page's cover
-  //       announced null, so bsNavCompose fell back to the shell's stale
-  //       open-time settingsStart and composed sub:'edit-profile' — a value the
-  //       member had already left. Opening a station composed sub:'training',
-  //       which matches no Settings pane at all.
-  // Making it real requires the PARENT to own the announcement. Since #2683 the
-  // parents do: BSClientHome announces this page as its 'goals' sub (replayed
-  // through the shell's homeStart) and Settings its own, and the register is
-  // keyed per surface, so neither clobbers the other. What is still not built is
-  // the STATION: an initialView on this page for the parent to replay, which is
-  // why this page still announces nothing of its own (War Room).
+  // ⚠ This page announces nothing itself: its PARENT owns the announcement. It has two mounts, Home's
+  // `goalsPage` and Settings' `showGoals`, and an announce from here could not say which it is under.
+  // So each parent records the page and its open station (Home as its 'goals:<station>' sub, replayed
+  // through the shell's homeStart; Settings as its own sub, replayed through settingsStart), each under
+  // its own key in the register (services/navHistory.mjs), and hands the station back as initialView.
+  // The station names and the sub's spelling are services/navPlaces.mjs's (bsGoalsSub/bsGoalsView).
   const loggedIn = !!(typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.().user);
   // Live "Your plans" + "This week targets" for the Contract (null →
   // BSGoalsContract keeps its demo content). Built from the assigned plan + the

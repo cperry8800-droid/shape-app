@@ -267,8 +267,8 @@ test('the website builder opens ?plan= once the library holds it; the app lists 
   assert.match(nutri, /if \(typeof d\.planId !== 'string' \|\| !d\.planId \|\| d\.planKind !== 'meal_plan'\) return;/);
   // The client Nora drafted it for rides along to Assign (Codex on #2594), as the trainer's does.
   // A meal plan open with unsaved changes is asked first (services/leaveGuard.mjs, Codex on #2594).
-  assert.match(nutri, /const clientId = typeof d\.clientId === 'string' && d\.clientId \? d\.clientId : null;\s*(\/\/[^\n]*\n\s*)?mayLeave\(window\)\.then\(\(ok\) => \{\s*if \(!ok\) return;\s*navJumpRef\.current\.navPush\(\);\s*setOpenPlanRequest\(\{ planId: d\.planId, clientId, nonce: Date\.now\(\) \}\);\s*setTab\('plans'\);/);
-  assert.match(nutri, /<BSNutriPlans sheet=\{sheet\} openPlanRequest=\{openPlanRequest\} onOpenConsumed=\{\(\) => setOpenPlanRequest\(null\)\} \/>/);
+  assert.match(nutri, /const clientId = typeof d\.clientId === 'string' && d\.clientId \? d\.clientId : null;\s*(\/\/[^\n]*\n\s*)?mayLeave\(window\)\.then\(\(ok\) => \{\s*if \(!ok\) return;\s*navJumpRef\.current\.navPush\(\);\s*setOpenPlanRequest\(\{ planId: d\.planId, clientId, nonce: Date\.now\(\) \}\);\s*setPlansStart\(''\);\s*setTab\('plans'\);/);
+  assert.match(nutri, /<BSNutriPlans sheet=\{sheet\} initialTab=\{plansStart\} openPlanRequest=\{openPlanRequest\} onOpenConsumed=\{\(\) => setOpenPlanRequest\(null\)\} \/>/);
   const trainer = P.slice(P.indexOf('function BSTrainerAppInner('), P.indexOf('function BSNutritionistApp('));
   assert.match(trainer, /if \(!planId \|\| e\.detail\.planKind === 'meal_plan'\) return;/, 'not a program: the trainer shell never opens it');
   // ⚠ Codex, #2260: Plans filtered the builder's documents out, so a confirmed draft vanished.

@@ -29,6 +29,10 @@ export function bsNavPeek() { return _stack[_stack.length - 1] || null; }
 export function bsNavCanPop() { return _stack.length > 0; }
 export function bsNavSize() { return _stack.length; }
 export function bsNavClear() { _stack = []; _announced = new Map(); }
+// The stack alone, for a shell taking over from another (bsGuardOnFirstUse): what the live pages announced
+// stays, since the other shell's pages cleared theirs when they unmounted, and this shell's pages may have
+// announced already (Programs on Workouts) before its first push (Codex P1 on #2687).
+export function bsNavDropStack() { _stack = []; }
 export function bsNavReplaceTop(loc) {
   if (!loc || typeof loc !== 'object') return false;
   if (_stack.length) _stack[_stack.length - 1] = loc; else _stack.push(loc);
@@ -83,3 +87,14 @@ export function bsGuardAfterPush(prevSize, nextSize) { return prevSize === 0 && 
 export function bsGuardAfterPop(sizeAfterPop) { return sizeAfterPop > 0 ? 'rearm' : 'disarm'; }
 export function bsGuardAfterInAppPop(sizeAfterPop, armed) { return sizeAfterPop === 0 && armed ? 'consume' : null; }
 export function bsGuardAfterClear(armed) { return armed ? 'consume' : null; }
+// `bsGuardOnFirstUse` — the first time a shell touches the history, a stack
+//                       already there is ANOTHER shell's: the member app's, left
+//                       when the account switched to a coach app (Settings'
+//                       profile type, a notification handed over), or the other
+//                       way. Those locations name tabs this shell does not have,
+//                       so they go; and the guard entry that shell armed is still
+//                       in the browser's history, so this shell adopts it as its
+//                       own. Left as it was, the new shell never armed (its push
+//                       was not empty→non-empty), ignored every popstate, and a
+//                       phone Back walked off the app (2026-11-10).
+export function bsGuardOnFirstUse(size) { return size > 0 ? 'adopt' : null; }

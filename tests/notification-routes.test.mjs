@@ -318,7 +318,7 @@ test('Settings opens on the page a notification asks for, and the notification l
   assert.match(CLIENT, /const \[showSessions, setShowSessions\] = useStateBSC\(initialPage === 'sessions'\);/);
   assert.match(CLIENT, /const \[showNotifications, setShowNotifications\] = useStateBSC\(initialPage === 'notifications'\);/);
   assert.match(CLIENT, /const \[showHabits, setShowHabits\] = useStateBSC\(initialPage === 'habits'\);/);
-  assert.match(CLIENT, /const \[detail, setDetail\] = useStateBSC\(initialPage === 'practice' \|\| initialPage === 'hours' \? 'practice' : initialPage === 'library' \? 'more' : ''\);/);
+  assert.match(CLIENT, /const \[detail, setDetail\] = useStateBSC\(initialPage === 'practice' \|\| initialPage === 'hours' \? 'practice' : initialPage === 'library' \|\| bsGoalsView\(initialPage\) != null \? 'more' : ''\);/);
   assert.match(CLIENT, /\{ l: tr\('settings:notif\.inbox', \{ defaultValue: 'Your notifications' \}\), r: tr\('settings:notif\.inboxMeta', \{ defaultValue: 'Open' \}\), action: \(\) => setShowNotifications\(true\) \},/);
   // A new start page remounts Settings, so one already open goes there.
   assert.match(CLIENT, /<BSSettings\s+key=\{'settings:' \+ settingsStart \+ \(settingsLanded \? ':landed' : ''\)\}/);

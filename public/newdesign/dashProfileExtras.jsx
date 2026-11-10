@@ -882,11 +882,12 @@ function CoachAccountSettings({ accountId }) {
 }
 
 // The coach's own setup, under their profile: a heading that says only they see it, then the four
-// cards in two columns on a wide screen, one on a phone. It takes the profile's own width (1240,
-// as the hero and tabs do); at 900 it sat narrower than the tabs above it, off their edge.
+// cards in two columns on a wide screen, one on a phone. It takes the profile's own width: the
+// dashboard's whole width inside its 32px gutters, as the profile does there since 2026-11-10 (owner:
+// "profile should take up full width of page"); capped at 1240 and centred it sat off the hero's edge.
 function DashProfileExtras() {
   return (
-    <section className="px-setup" aria-labelledby="px-setup-title" style={{ maxWidth: 1240, margin: "0 auto", padding: "44px 40px 34px", boxSizing: "border-box" }}>
+    <section className="px-setup" aria-labelledby="px-setup-title" style={{ padding: "36px 32px 34px", boxSizing: "border-box" }}>
       {/* A plain literal, as every stylesheet here is (tests/site-nav.test.mjs). */}
       <style>{`
         .px-setup .px-grid { columns: 2 440px; column-gap: 16px; }

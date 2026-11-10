@@ -1182,7 +1182,7 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
   const campTitle = { base: "Start here", day: words.day, range: nutri ? "Meal plans" : "The range", kitchen: words.kitchen, plates: "Plate notes", replays: "Replays", proof: "Proof", words: "What clients say", about: `About ${first}`, find: "Find me", posts: "Posts", summit: words.work };
 
   return (
-    <div className="cpw" data-coach-profile="" data-climb="" data-role={role} data-mode={live ? "live" : "sample"} data-accent={DRAW} style={{ position: "relative", minHeight: chrome ? "100vh" : "auto", background: pal.PAPER_BG, color: INK, fontFamily: CPW_BODY, WebkitFontSmoothing: "antialiased", paddingBottom: docked ? 96 : 0 }}>
+    <div className="cpw" data-coach-profile="" data-climb="" data-in-dash={chrome ? undefined : ""} data-role={role} data-mode={live ? "live" : "sample"} data-accent={DRAW} style={{ position: "relative", minHeight: chrome ? "100vh" : "auto", background: pal.PAPER_BG, color: INK, fontFamily: CPW_BODY, WebkitFontSmoothing: "antialiased", paddingBottom: docked ? 96 : 0 }}>
       <style>{`
     /* clip, not hidden: hidden makes a box a scroller, and the camp row and its marks never pin.
        pageShell's html, body { overflow-x: hidden } does that to <body> on every page, and a coach dashboard's
@@ -1306,6 +1306,43 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
     .cpw-tabs::-webkit-scrollbar,.cpw-sheet::-webkit-scrollbar,.cpw-quotes::-webkit-scrollbar{display:none;width:0;height:0}
     .cpw-tabs,.cpw-sheet,.cpw-quotes{scrollbar-width:none}
     .cpw button:focus-visible,.cpw a:focus-visible,.cpw-sheet button:focus-visible,.cpw-sheet a:focus-visible{outline:2px solid ${ACC};outline-offset:2px}
+    /* ── In the coach dashboard (owner, 2026-11-10, of the Profile tab: "profile should take up full width
+       of page and formatting looks bad. Everything looks huge. I want it to look like what the preview
+       design was", the Coach Cockpit preview). The page's whole width inside the dashboard's 32px gutters
+       instead of a centred 1440, and the hero at the preview's scale: a narrower portrait, the name sized
+       to its own column (cqi, not 100vw, which counted the rail), smaller chips, buttons and plates, and
+       the wire joined to the stage's foot. The public page (chrome) and phones keep their own. */
+    @media (min-width:1000px){
+      .cpw[data-in-dash] .cpw-wrap{max-width:none;padding:0 32px}
+      .cpw[data-in-dash] .cpw-bar{padding:14px 0 12px}
+      .cpw[data-in-dash] .cpw-stage{min-height:0;border-radius:18px}
+      .cpw[data-in-dash] .cpw-stage.cpw-has-wire{border-radius:18px 18px 0 0;border-bottom:0}
+      .cpw[data-in-dash] .cpw-wire{margin-top:0;border-radius:0 0 18px 18px;min-height:46px;padding-left:20px}
+      .cpw[data-in-dash] .cpw-wire-it{font-size:14px}
+      .cpw[data-in-dash] .cpw-stage-grid{grid-template-columns:clamp(230px,19vw,300px) minmax(0,1fr);gap:clamp(28px,2.8vw,44px);padding:28px 28px 26px;min-height:520px}
+      .cpw[data-in-dash] .cpw-stage-text{padding-top:6px;container-type:inline-size}
+      .cpw[data-in-dash] .cpw-stage-text > :not(.cpw-plates){max-width:620px}
+      .cpw[data-in-dash] .cpw-h1{margin-top:10px !important;font-size:max(34px,min(78px,calc(min(620px,100cqi) / (var(--cpw-l,8) * 0.76)))) !important}
+      .cpw[data-in-dash] .cpw-prism-cap{padding:34px 16px 20px 26px}
+      .cpw[data-in-dash] .cpw-prism-cap span{font-size:14px !important}
+      .cpw[data-in-dash] .cpw-prism-cap .cpw-dtl{font-size:10.5px}
+      .cpw[data-in-dash] .cpw-prism [data-initials]{font-size:48px !important}
+      .cpw[data-in-dash] .cpw-chips{margin-top:18px;gap:6px}
+      .cpw[data-in-dash] .cpw-chip{min-height:30px;padding:0 10px;border-radius:7px;font-size:13px}
+      .cpw[data-in-dash] .cpw-quote{margin-top:16px;font-size:16px}
+      .cpw[data-in-dash] .cpw-stage-actions{gap:6px 12px;margin-top:12px}
+      .cpw[data-in-dash] .cpw-cta{min-height:40px;padding:0 16px;border-radius:9px;font-size:14px}
+      .cpw[data-in-dash] .cpw-plates{grid-template-columns:repeat(4,minmax(0,176px));gap:10px;padding-top:26px}
+      .cpw[data-in-dash] .cpw-stat{padding:12px 14px 11px;gap:8px}
+      .cpw[data-in-dash] .cpw-stat-n{font-size:28px}
+      .cpw[data-in-dash] .cpw-stat::after{height:4px}
+      .cpw[data-in-dash] .cpw-summit-plate{padding:10px 14px 9px}
+      .cpw[data-in-dash] .cpw-camp{grid-template-columns:180px minmax(0,1fr)}
+      .cpw[data-in-dash] .cpw-camps > section.cpw-camp{padding-top:24px !important;padding-bottom:32px !important}
+      .cpw[data-in-dash] .cpw-camp-head{margin-bottom:20px;padding-bottom:12px}
+      .cpw.cpw[data-in-dash] .cpw-camp-title{font-size:clamp(26px,2.4vw,40px) !important}
+      .cpw[data-in-dash] .cpw-camp-lead{font-size:15px}
+    }
     @media (prefers-reduced-motion: reduce){
       .cpw-wire-run{animation:none}
       .cpw-wire-dup{display:none}
@@ -1406,7 +1443,7 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
         </div>
 
         {/* ── The first screen: the stage ── */}
-        <section className="cpw-stage" data-who="" aria-label={name}>
+        <section className={"cpw-stage" + (wire.length ? " cpw-has-wire" : "")} data-who="" aria-label={name}>
           {/* The art: their photo, darkened, under the terrain. The whole stage on a desktop; on a phone the
               top of it, where the portrait and the summit are (the name and plates run on below it). */}
           <div className="cpw-stage-art">
@@ -1421,8 +1458,8 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
               aria-label={ratingShown ? `Rated ${ratingShown} out of 10 from ${reviews.count} ${reviews.count === 1 ? "review" : "reviews"}` : "New on Shape: no reviews yet"}
               style={{ left: `${(wide ? 0.79 : 0.8) * 100}%`, top: `${(wide ? 0.44 : 0.42) * 100}%` }}>
               <span className="cpw-plate cpw-summit-plate" data-summit-ring="" style={{ borderColor: cpwA(DRAW, 0.55) }}>
-                {ratingShown ? <React.Fragment><span className="cpw-fig" style={{ fontSize: wide ? 46 : 36 }}>{ratingShown}</span><span style={{ fontSize: 14, color: ink(0.8), marginLeft: 4 }}>/10</span></React.Fragment>
-                  : <span className="cpw-fig" style={{ fontSize: wide ? 30 : 24 }}>New</span>}
+                {ratingShown ? <React.Fragment><span className="cpw-fig" style={{ fontSize: wide ? (chrome ? 46 : 34) : 36 }}>{ratingShown}</span><span style={{ fontSize: 14, color: ink(0.8), marginLeft: 4 }}>/10</span></React.Fragment>
+                  : <span className="cpw-fig" style={{ fontSize: wide ? (chrome ? 30 : 24) : 24 }}>New</span>}
               </span>
               <span className="cpw-dtl cpw-summit-cap" style={{ color: ACC }}>{ratingShown ? `Rating · ${reviews.count.toLocaleString()} ${reviews.count === 1 ? "review" : "reviews"}` : "No reviews yet"}</span>
             </button>

@@ -98,7 +98,9 @@ test('Chat from another tab, or a Back to its list, opens the list, not an earli
   assert.doesNotMatch(CLIENT, /if \(loc\.tab === 'chat' && loc\.detail\) setChatRequest/);
   // The coach apps: the same in both shells, on the tab bar and the swipe.
   assert.equal((PROS.match(/if \(loc\.tab === 'chat'\) setChatRequest\(loc\.detail \? \{ \.\.\.loc\.detail, nonce: Date\.now\(\) \} : null\);/g) || []).length, 2);
-  assert.equal((PROS.match(/const enterTab = \(k\) => \{ if \(k === 'chat' && tab !== 'chat'\) setChatRequest\(null\); setTab\(k\); \};/g) || []).length, 2);
+  // (Each shell's tab bar also opens its library fresh: Programs, Plans; 2026-11-10.)
+  assert.match(PROS, /const enterTab = \(k\) => \{ if \(k === 'chat' && tab !== 'chat'\) setChatRequest\(null\); if \(k === 'programs' && tab !== 'programs'\) setProgramInitialTab\(''\); setTab\(k\); \};/);
+  assert.match(PROS, /const enterTab = \(k\) => \{ if \(k === 'chat' && tab !== 'chat'\) setChatRequest\(null\); if \(k === 'plans' && tab !== 'plans'\) setPlansStart\(''\); setTab\(k\); \};/);
   assert.match(PROS, /<BSTabBar active=\{tab\} onChange=\{enterTab\} tabs=\{\[/);
   assert.match(PROS, /<BSTabBar active=\{tab\} onChange=\{\(k\) => \{ mayLeave\(window\)\.then\(\(ok\) => \{ if \(ok\) enterTab\(k\); \}\); \}\} tabs=\{\[/);
   assert.equal((PROS.match(/navSlide\(intent === 'next-tab' \? 'l' : 'r'\);\n\s+enterTab\(next\);/g) || []).length, 2);
@@ -136,7 +138,7 @@ test('a Settings page opened straight from elsewhere goes back there; reached in
     assert.match(settings, new RegExp(`onBack=\\{backFrom\\('${page}', `), page);
   }
   // Every page it can open on is announced, with whether it was landed on.
-  assert.match(settings, /const navSub = editing \? 'edit-profile' : showIntegrations \? 'integrations' : showPricing \? 'pricing'\n\s+: showNotifications \? 'notifications' : showSessions \? 'sessions' : showHabits \? 'habits'\n(?:\s*\/\/[^\n]*\n)*\s+: showBusiness \? 'business' : showLibrary \? 'library' : showHours \? 'hours'\n\s+: detail === 'practice' \? 'practice' : '';/);
+  assert.match(settings, /const navSub = editing \? 'edit-profile' : showIntegrations \? 'integrations' : showPricing \? 'pricing'\n\s+: showNotifications \? 'notifications' : showSessions \? 'sessions' : showHabits \? 'habits'\n(?:\s*\/\/[^\n]*\n)*\s+: showBusiness \? 'business' : showLibrary \? 'library' : showHours \? 'hours'\n(?:\s*\/\/[^\n]*\n)*\s+: showGoals \? bsGoalsSub\(goalsView\)\n\s+: detail === 'practice' \? 'practice' : '';/);
   assert.match(settings, /window\.ShapeNav\?\.announce\?\.\(navLanded \? \{ sub: navSub, landed: true \} : \{ sub: navSub \}, 'settings'\);/);
   // The shells: a jump onto a page lands; the gear and a Back to Settings' own page do not.
   assert.match(CLIENT, /const goSettings = \(\) => \{ if \(!showSettings\) navPush\(\); setSettingsStart\(''\); setSettingsLanded\(false\); setShowSettings\(true\); \};/);
@@ -195,21 +197,30 @@ test('a cook or workout screen another page opened goes back there when it close
 
 test('Home\'s own pages are announced and reopen on a Back; a reminder\'s Your mornings goes back where it came from', () => {
   const home = between(CLIENT, 'function BSClientHome({', '\n}\n');
-  assert.match(CLIENT, /function BSClientHome\(\{.*initialPage = '', initialViaNav = false, onStartConsumed = \(\) => \{\} \}\) \{/);
-  for (const [state, page] of [['habitsPage', 'habits'], ['goalsPage', 'goals'], ['morningsPage', 'mornings'], ['homeProgressPage', 'progress']]) {
+  assert.match(CLIENT, /function BSClientHome\(\{.*initialPage = '', initialViaNav = false, initialPreview = null, onStartConsumed = \(\) => \{\} \}\) \{/);
+  for (const [state, page] of [['habitsPage', 'habits'], ['morningsPage', 'mornings'], ['homeProgressPage', 'progress'], ['checkinPage', 'checkin']]) {
     assert.match(home, new RegExp(`const \\[${state}, set[A-Za-z]+\\] = useStateBSC\\(initialPage === '${page}'\\);`), state);
   }
-  assert.match(home, /const homeSub = goalsPage \? 'goals' : morningsPage \? 'mornings' : habitsPage \? 'habits' : homeProgressPage \? 'progress' : '';/);
+  // Goals opens on its station ('goals:<station>', services/navPlaces.mjs), and today's session (or Team's
+  // picked day) on its preview (2026-11-10, "fix all of these").
+  assert.match(home, /const \[goalsPage, setGoalsPage\] = useStateBSC\(bsGoalsView\(initialPage\) != null\);/);
+  assert.match(home, /const \[showWorkoutPreview, setShowWorkoutPreview\] = useStateBSC\(initialPage === 'today' \? \(initialPreview \|\| true\) : false\);/);
+  // Named in the order Home draws them.
+  assert.match(home, /const homeSub = showWorkoutPreview \? 'today' : habitsPage \? 'habits' : checkinPage \? 'checkin' : homeProgressPage \? 'progress'\n\s+: goalsPage \? bsGoalsSub\(goalsView\) : morningsPage \? 'mornings' : '';/);
+  const order = ['  if (showWorkoutPreview) {', '  if (habitsPage) {', '  if (checkinPage) {', '  if (homeProgressPage) {', '  if (goalsPage) {', '  if (morningsPage) {'].map((k) => home.indexOf(k));
+  assert.ok(order.every((at, i) => at > 0 && (i === 0 || at > order[i - 1])), 'the sub names the page Home draws');
   // A reminder's Your mornings keeps its way back through a jump from it and the Back that returns (Codex P2 on #2683).
   assert.match(home, /const \[morningsViaNav, setMorningsViaNav\] = useStateBSC\(initialPage === 'mornings' && !!initialViaNav\);/);
-  assert.match(home, /const homeBackViaNav = homeSub === 'mornings' && morningsViaNav;\n\s+React\.useEffect\(\(\) => \{\n\s+window\.ShapeNav\?\.announce\?\.\(homeBackViaNav \? \{ sub: homeSub, back: 'nav' \} : \{ sub: homeSub \}, 'home'\);/);
+  assert.match(home, /const homeBackViaNav = homeSub === 'mornings' && morningsViaNav;/);
+  assert.match(home, /window\.ShapeNav\?\.announce\?\.\(\{ sub: homeSub, \.\.\.\(homeBackViaNav \? \{ back: 'nav' \} : null\), \.\.\.\(homePreview \? \{ preview: homePreview \} : null\) \}, 'home'\);/);
   assert.match(home, /else if \(initialPage === 'mornings'\) \{ setMorningsPage\(true\); setMorningsViaNav\(!!initialViaNav\); \}/);
   assert.ok(home.indexOf('const [morningsViaNav') < home.indexOf('const homeBackViaNav'), 'declared before the announce reads it');
+  for (const s of ['const [checkinPage', 'const [showWorkoutPreview', 'const [goalsView']) assert.ok(home.indexOf(s) > 0 && home.indexOf(s) < home.indexOf('const homeSub'), s + ' declared before the announce reads it');
   assert.ok(home.indexOf('const homeSub') < home.indexOf('  if (habitsPage) {'), 'the announce sits above the early returns');
   assert.match(home, /setMorningsPage\(true\);\n\s+setMorningsViaNav\(true\);/);
   assert.match(home, /<BSYourMornings onBack=\{\(\) => \{ const v = morningsViaNav; setMorningsPage\(false\); setMorningsViaNav\(false\); if \(v && window\.ShapeNav\?\.canPop\?\.\(\)\) window\.ShapeNav\.back\(\); \}\}/);
-  assert.match(CLIENT, /if \(loc\.tab === 'home'\) \{ setHomeStart\(loc\.sub \|\| ''\); setHomeStartViaNav\(loc\.back === 'nav'\); \}/);
-  assert.match(CLIENT, /initialPage=\{homeStart\} initialViaNav=\{homeStartViaNav\} onStartConsumed=\{\(\) => \{ setHomeStart\(''\); setHomeStartViaNav\(false\); \}\} \/>,/);
+  assert.match(CLIENT, /if \(loc\.tab === 'home'\) \{ setHomeStart\(loc\.sub \|\| ''\); setHomeStartViaNav\(loc\.back === 'nav'\); setHomeStartPreview\(loc\.sub === 'today' && loc\.preview \? loc\.preview : null\); \}/);
+  assert.match(CLIENT, /initialPage=\{homeStart\} initialViaNav=\{homeStartViaNav\} initialPreview=\{homeStartPreview\} onStartConsumed=\{\(\) => \{ setHomeStart\(''\); setHomeStartViaNav\(false\); setHomeStartPreview\(null\); \}\} \/>,/);
 });
 
 test('Settings\' Library and Your hours come back to themselves after their jumps', () => {
@@ -217,9 +228,9 @@ test('Settings\' Library and Your hours come back to themselves after their jump
   assert.match(settings, /const \[showHours, setShowHours\] = useStateBSC\(initialPage === 'hours'\);/);
   assert.match(settings, /const \[showLibrary, setShowLibrary\] = useStateBSC\(initialPage === 'library'\);/);
   // Named before the pane it sits in: Your hours is open over Your practice (Codex P2 on #2683).
-  assert.match(settings, /: showBusiness \? 'business' : showLibrary \? 'library' : showHours \? 'hours'\n\s+: detail === 'practice' \? 'practice' : '';/);
+  assert.match(settings, /: showBusiness \? 'business' : showLibrary \? 'library' : showHours \? 'hours'\n(?:\s*\/\/[^\n]*\n)*\s+: showGoals \? bsGoalsSub\(goalsView\)\n\s+: detail === 'practice' \? 'practice' : '';/);
   // Each reopens over the pane it sits in, so its ← lands there: Library in More, Your hours in Your practice.
-  assert.match(settings, /useStateBSC\(initialPage === 'practice' \|\| initialPage === 'hours' \? 'practice' : initialPage === 'library' \? 'more' : ''\);/);
+  assert.match(settings, /useStateBSC\(initialPage === 'practice' \|\| initialPage === 'hours' \? 'practice' : initialPage === 'library' \|\| bsGoalsView\(initialPage\) != null \? 'more' : ''\);/);
   // Their jumps push first, so the announced page is what comes back.
   assert.match(CLIENT, /navJumpRef\.current\.navPush\(\); setShowSettings\(false\); setSettingsStart\(''\); setShowSearch\(false\);\n\s+setMarketRole\(/, 'Browse coaches (shape:openMarket)');
   assert.equal((PROS.match(/const onAvail = \(\) => \{ navJumpRef\.current\.navPush\(\); setShowSettings\(false\); setShowCalendar\(true\); \};/g) || []).length, 2, 'Open calendar (shape:proAvailability)');

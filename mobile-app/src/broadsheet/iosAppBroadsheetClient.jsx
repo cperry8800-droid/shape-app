@@ -23,6 +23,7 @@ import { bsChatStamp, bsChatDayLabel, bsChatClock, bsChatDividerIndexes } from '
 import { bsReplyFor, bsReplyFromMetadata, bsReplySnippet, bsReplySwipeDecide, bsReplySwipeOffset, bsReplySwipeCommits, BS_REPLY_SWIPE } from '../services/chatReply.mjs';
 import { bsTypingSend, bsTypingWho, bsReceiptFor, bsMergeThreadHistory, BS_SIGNALS_EMPTY } from '../services/chatSignals.mjs';
 import { bsThreadNavKey, bsThreadViaNav } from '../services/chatThreadBack.mjs';
+import { bsGoalsSub, bsGoalsView, bsChatPlaceLoc, bsChatPlaceOf, bsProfileLoc } from '../services/navPlaces.mjs';
 import { bsScoreRecord, RANGE_KEYS } from '../services/scoreHistory.mjs';
 // The ONE ceiling. The prompt must ask at exactly the load the core refuses to
 // admit unconsidered — a local copy of 150 that drifted would leave the screen
@@ -745,6 +746,8 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
   const [eatStart, setEatStart] = useStateBSC('');
   const [homeStart, setHomeStart] = useStateBSC('');
   const [homeStartViaNav, setHomeStartViaNav] = useStateBSC(false);
+  // Team's preview of a picked day, which a Back to Home's 'today' opens again (BSClientHome's initialPreview).
+  const [homeStartPreview, setHomeStartPreview] = useStateBSC(null);
   const [meStart, setMeStart] = useStateBSC('');
   // THE CYCLE (spec 2026-07-19) — the calendar rides the takeover pattern so
   // back returns to wherever the member opened it from.
@@ -774,14 +777,14 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
     setShowCycle(loc.overlay === 'cycle');
     if (loc.overlay === 'settings') { setSettingsStart(loc.sub || ''); setSettingsLanded(!!loc.landed); setShowSettings(true); }
     else { setShowSettings(false); setSettingsStart(''); setSettingsLanded(false); }
-    if (loc.tab === 'store') setStoreView(loc.sub === 'score' ? 'score' : 'store');
+    if (loc.tab === 'store') setStoreView(loc.sub === 'score' || loc.sub === 'record' ? loc.sub : 'store');
     // Coaches comes back on the coach whose profile was open (BSMarketplaceScreen announces it), or its list.
     if (loc.tab === 'market') { setMarketRole((loc.detail && loc.detail.role) || null); setMarketCoach((loc.detail && loc.detail.coach) || null); }
     // A Back to Chat's list carries no thread, and drops any older one, which the remounting page would
     // otherwise open again.
     if (loc.tab === 'chat') setChatRequest(loc.detail ? { ...loc.detail, nonce: Date.now() } : null);
     if (loc.tab === 'eat') setEatStart(loc.sub || '');
-    if (loc.tab === 'home') { setHomeStart(loc.sub || ''); setHomeStartViaNav(loc.back === 'nav'); }
+    if (loc.tab === 'home') { setHomeStart(loc.sub || ''); setHomeStartViaNav(loc.back === 'nav'); setHomeStartPreview(loc.sub === 'today' && loc.preview ? loc.preview : null); }
     if (loc.tab === 'me') setMeStart(loc.sub || '');
     if (loc.tab) setTab(loc.tab);
   };
@@ -1390,7 +1393,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
     );
   }
   const screens = {
-    home:    <BSClientHome     onProfile={goSettings} sheet={sheet} goCalendar={goCalendar} goRadio={goRadio} goTrain={goTrain} goEat={(view) => { navPush(); if (typeof view === 'string') setEatStart(view); setTab('eat'); }} goMarket={goMarket} goScore={goScore} goChat={goChat} goIntegrations={goIntegrations} tweaks={tweaks} setTweak={setTweak} checkinOpen={checkinOpen} onCheckinOpenConsumed={() => setCheckinOpen(null)} initialPage={homeStart} initialViaNav={homeStartViaNav} onStartConsumed={() => { setHomeStart(''); setHomeStartViaNav(false); }} />,
+    home:    <BSClientHome     onProfile={goSettings} sheet={sheet} goCalendar={goCalendar} goRadio={goRadio} goTrain={goTrain} goEat={(view) => { navPush(); if (typeof view === 'string') setEatStart(view); setTab('eat'); }} goMarket={goMarket} goScore={goScore} goChat={goChat} goIntegrations={goIntegrations} tweaks={tweaks} setTweak={setTweak} checkinOpen={checkinOpen} onCheckinOpenConsumed={() => setCheckinOpen(null)} initialPage={homeStart} initialViaNav={homeStartViaNav} initialPreview={homeStartPreview} onStartConsumed={() => { setHomeStart(''); setHomeStartViaNav(false); setHomeStartPreview(null); }} />,
     train:   <BSClientTrain    onProfile={goSettings} sheet={sheet} goCalendar={goCalendar} goRadio={goRadio} goMarket={goMarket} autoStart={pendingTrainStart} onAutoStartConsumed={() => setPendingTrainStart(false)} />,
     eat:     <BSClientEat      onProfile={goSettings} sheet={sheet} goCalendar={goCalendar} goRadio={goRadio} goMarket={goMarket} initialView={eatStart} onStartConsumed={() => setEatStart('')} cookWith={cookWith} onCookWithConsumed={() => setCookWith(null)} prepTonight={prepTonight} onPrepTonightConsumed={() => setPrepTonight(null)} />,
     chat:    <BSClientFeed     onProfile={goSettings} role={tweaks.role || 'client'} openRequest={chatRequest} />,
@@ -1398,11 +1401,12 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
     // Coaches, a root tab (owner, 2026-11-09): no ← Back of its own, as Home, Train and Eat have none;
     // the phone's back and a swipe still walk the history a jump to it pushed.
     market:  <BSMarketplaceScreen initialRole={marketRole} initialCoach={marketCoach} onCoachConsumed={() => setMarketCoach(null)} onProfile={goSettings} goChat={goChat} />,
-    store:   storeView === 'score'
+    store:   storeView === 'score' || storeView === 'record'
       // Back from the Score goes where the reader came from (owner, 2026-10-31: back "goes back to [the]
       // page … where that person was"): Home when Home opened it, the Store when the Store did. It
       // used to go to the Store whatever opened it. Each step between the two is a history step.
-      ? <BSShapeScorePage profile={scoreProfile} onBack={() => { if (!navBack()) setStoreView('store'); }} onOpenStore={() => { navPush(); setStoreView('store'); }} />
+      // Its Record is storeView 'record', so a jump from the Record comes back to it (2026-11-10).
+      ? <BSShapeScorePage profile={scoreProfile} initialRecord={storeView === 'record'} onRecord={(open) => setStoreView((v) => (v === 'score' || v === 'record' ? (open ? 'record' : 'score') : v))} onBack={() => { if (!navBack()) setStoreView('store'); }} onOpenStore={() => { navPush(); setStoreView('store'); }} />
       : <BSShapeStorePage profile={scoreProfile} onBack={() => { if (!navBack()) setTab('home'); }} onOpenScore={() => { navPush(); setStoreView('score'); }} />,
     me:      <BSClientMe       onProfile={goSettings} onLogout={onLogout} onIntegrations={goIntegrations} goMarket={goMarket} goRadio={goRadio} goChat={goChat} goHome={() => setTab('home')} sheet={sheet} tweaks={tweaks} setTweak={setTweak} initialPage={meStart} onStartConsumed={() => setMeStart('')} />,
   };
@@ -3456,7 +3460,7 @@ function BSMemberSetupStation({ onGoal, onTrain, onCheckin, onFindCoach }) {
   );
 }
 
-function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = () => {}, goMarket, goScore, goChat = () => {}, goIntegrations, tweaks = {}, setTweak = () => {}, checkinOpen = null, onCheckinOpenConsumed = () => {}, initialPage = '', initialViaNav = false, onStartConsumed = () => {} }) {
+function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = () => {}, goMarket, goScore, goChat = () => {}, goIntegrations, tweaks = {}, setTweak = () => {}, checkinOpen = null, onCheckinOpenConsumed = () => {}, initialPage = '', initialViaNav = false, initialPreview = null, onStartConsumed = () => {} }) {
   // The coach Today's clean type (owner, 2026-10-28: "Member/client home page font needs to match
   // coaches"): Geist heads and Inter Tight words below the top bars, as the coach's (bsCleanType.jsx).
   const t = useBSClean();
@@ -3545,14 +3549,22 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
   // overlays. Step 3's shelf JSX reads this const directly.
   const stepsToday = useBSStepsToday();
   const [previewMeal, setPreviewMeal] = useStateBSC(null);
-  const [showWorkoutPreview, setShowWorkoutPreview] = useStateBSC(false);
+  // Today's session (`true`), or the one Team opened ({ workout, day }); a Back to it opens it again
+  // (initialPage 'today', its preview the shell's homeStartPreview).
+  const [showWorkoutPreview, setShowWorkoutPreview] = useStateBSC(initialPage === 'today' ? (initialPreview || true) : false);
   // The member's Shape Score points, for the ticker's PTS (owner, 2026-11-03: "you can show points";
   // the tier's progress lives on the profile). The signed-out preview reads the sample's.
   const homeScore = _bsUseLiveScore(SHAPE_SCORE_PROFILES.client);
   const [showLogMeal, setShowLogMeal] = useStateBSC(false);
   // Home's own pages open on a Back to them (initialPage, the shell's homeStart; announced below).
   const [habitsPage, setHabitsPage] = useStateBSC(initialPage === 'habits');
-  const [goalsPage, setGoalsPage] = useStateBSC(initialPage === 'goals');
+  const [goalsPage, setGoalsPage] = useStateBSC(bsGoalsView(initialPage) != null);
+  // The Goals station open over its cover, which Home announces with the page ('goals:<station>') and
+  // hands back to BSClientGoals on a Back to it (services/navPlaces.mjs).
+  const [goalsView, setGoalsView] = useStateBSC(bsGoalsView(initialPage) || 'cover');
+  React.useEffect(() => { if (!goalsPage) setGoalsView('cover'); }, [goalsPage]);
+  // The weekly check-in (BSWeeklyCheckin), a page of Home's like the others.
+  const [checkinPage, setCheckinPage] = useStateBSC(initialPage === 'checkin');
   const [morningsPage, setMorningsPage] = useStateBSC(initialPage === 'mornings'); // Your mornings (BSYourMornings.jsx): the morning check-in over time
   // Engine-driven top move — the signal engine's single highest-value action for
   // the signed-in client today (check-in overdue · streak at risk · food gap ·
@@ -3587,21 +3599,28 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
   // Your mornings opened by a check-in reminder (the shell pushed where the member was) goes back there, and
   // keeps that way back through a jump from it and the Back that returns (Codex P2 on #2683).
   const [morningsViaNav, setMorningsViaNav] = useStateBSC(initialPage === 'mornings' && !!initialViaNav);
-  const homeSub = goalsPage ? 'goals' : morningsPage ? 'mornings' : habitsPage ? 'habits' : homeProgressPage ? 'progress' : '';
+  // Named in the order Home draws them (its early returns below): the session preview over every page,
+  // then Habits, the check-in, Progress, Goals (with its station) and Your mornings. A preview's Message
+  // or Move, and the check-in's corners, jump out too (2026-11-10, "fix all of these").
+  const homeSub = showWorkoutPreview ? 'today' : habitsPage ? 'habits' : checkinPage ? 'checkin' : homeProgressPage ? 'progress'
+    : goalsPage ? bsGoalsSub(goalsView) : morningsPage ? 'mornings' : '';
   const homeBackViaNav = homeSub === 'mornings' && morningsViaNav;
+  // Team's preview of a picked day rides along, so the Back opens that day's, not today's.
+  const homePreview = homeSub === 'today' && showWorkoutPreview && typeof showWorkoutPreview === 'object' ? showWorkoutPreview : null;
   React.useEffect(() => {
-    window.ShapeNav?.announce?.(homeBackViaNav ? { sub: homeSub, back: 'nav' } : { sub: homeSub }, 'home');
+    window.ShapeNav?.announce?.({ sub: homeSub, ...(homeBackViaNav ? { back: 'nav' } : null), ...(homePreview ? { preview: homePreview } : null) }, 'home');
     return () => window.ShapeNav?.announce?.(null, 'home');
-  }, [homeSub, homeBackViaNav]);
+  }, [homeSub, homeBackViaNav, homePreview]);
   React.useEffect(() => {
     if (!initialPage) return;
-    if (initialPage === 'goals') setGoalsPage(true);
+    if (bsGoalsView(initialPage) != null) { setGoalsView(bsGoalsView(initialPage)); setGoalsPage(true); }
+    else if (initialPage === 'today') setShowWorkoutPreview(initialPreview || true);
+    else if (initialPage === 'checkin') setCheckinPage(true);
     else if (initialPage === 'mornings') { setMorningsPage(true); setMorningsViaNav(!!initialViaNav); }
     else if (initialPage === 'habits') setHabitsPage(true);
     else if (initialPage === 'progress') setHomeProgressPage(true);
     onStartConsumed();
   }, [initialPage]); // eslint-disable-line react-hooks/exhaustive-deps
-  const [checkinPage, setCheckinPage] = useStateBSC(false);
   const [checkinDue, setCheckinDue] = useStateBSC(false);
   // ⚠ THE PREF GOVERNS EVERY CHECK-IN SURFACE, NOT JUST THE DAILY PROMPT (owner ruling
   // 2026-08-21). BSTodayNudge self-gates on this same hook, but the weekly bulletin and
@@ -3894,7 +3913,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
     return <BSClientProgress onBack={() => setHomeProgressPage(false)} />;
   }
   if (goalsPage) {
-    return <BSClientGoals onBack={() => setGoalsPage(false)} onOpenProgress={() => { setGoalsPage(false); setHomeProgressPage(true); }} />;
+    return <BSClientGoals initialView={goalsView} onView={setGoalsView} onBack={() => setGoalsPage(false)} onOpenProgress={() => { setGoalsPage(false); setHomeProgressPage(true); }} />;
   }
   // Your mornings (part 2): the card's done line and summary, the energy lead, and with Check-ins off
   // the quiet row and a reminder open it. The cycle chip rides on it, never on Home (doctrine).
@@ -22710,10 +22729,20 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   const chatNavDetail = openChat && openChat.conversation_id ? { conversationId: openChat.conversation_id, coach: openChat.n || null, role: openChat.s || null, ...(backViaNav ? { back: 'nav' } : null) }
     : openChat && openChat.channelId != null && !String(openChat.channelId).startsWith('sample') ? { channel: { id: openChat.channelId, name: openChat.n, memberCount: openChat.memberCount, isHost: openChat.isHost }, ...(backViaNav ? { back: 'nav' } : null) }
     : null;
+  // And where Chat is (the Wall, Community, Team's Coaches or Friends, Channels) and a profile opened
+  // inside it, over the list or a thread (services/navPlaces.mjs). A jump from any of them (a profile's
+  // Score, a card in a thread, Search) comes back to it, under the thread or profile that was open
+  // (2026-11-10, "fix all of these").
+  const chatAnnounce = {
+    ...(chatNavDetail || null),
+    place: bsChatPlaceLoc(tab, filter, teamsSel),
+    ...(bsProfileLoc(openProfile) ? { profile: bsProfileLoc(openProfile) } : null),
+  };
+  if (!chatAnnounce.place) delete chatAnnounce.place;
   React.useEffect(() => {
-    window.ShapeNav?.announce?.(chatNavDetail ? { detail: chatNavDetail } : null, 'chat');
+    window.ShapeNav?.announce?.(Object.keys(chatAnnounce).length ? { detail: chatAnnounce } : null, 'chat');
     return () => window.ShapeNav?.announce?.(null, 'chat');
-  }, [JSON.stringify(chatNavDetail)]);
+  }, [JSON.stringify(chatAnnounce)]);
   const loadCoachThreads = React.useCallback(() => {
     if (!window.ShapeMessages?.listDirectCoachThreads) return;
     window.ShapeMessages.listDirectCoachThreads()
@@ -22745,6 +22774,11 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
     const name = openRequest.coach;
     // A request that opens no thread (the Wall, Nora, Team's list) leaves none held for a nav Back.
     setNavBackKey(null);
+    // A Back to Chat brings its place, and a profile that was open inside it; the thread it brings (below)
+    // opens under that profile. Any other request closes a profile, which would otherwise hide the thread.
+    const place = bsChatPlaceOf(openRequest.place);
+    if (place) { setTab(place.tab); if (place.filter) setFilter(place.filter); if (place.teams) setTeamsSel(place.teams); }
+    setOpenProfile(openRequest.profile && typeof openRequest.profile === 'object' ? openRequest.profile : null);
     // Deep-link to an exact conversation (e.g. a coach tapping MESSAGE on a
     // client profile): open that thread directly by id.
     if (openRequest.conversationId) {
@@ -22809,6 +22843,8 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
     // Nora is a sheet now: the shell opens it for a support request, so the
     // Chat tab has nothing to do here.
     if (openRequest.support) return;
+    // A Back to Chat's list (or a profile over it): the place is set above, and no thread opens.
+    if (place && !name) { setOpenChat(null); return; }
     setTab('teams');
     setTeamsSel('coaches');
     if (!name) { setOpenChat(null); return; }
@@ -29585,14 +29621,17 @@ function BSClientMe(props) {
   const { initialPage = '', onStartConsumed = () => {} } = props;
   // Goal / progress doors moved to the HOME tab (their overlays live there) —
   // the Me tab keeps only the Score → Store chain off the hero's score plate.
-  const [showScore, setShowScore] = useStateBSC(initialPage === 'score');
+  const [showScore, setShowScore] = useStateBSC(initialPage === 'score' || initialPage === 'record');
   const [showStore, setShowStore] = useStateBSC(initialPage === 'store');
+  // The Score page's Record, open over it: announced as Me's 'record' and opened again on a Back to it.
+  const [scoreRecord, setScoreRecord] = useStateBSC(initialPage === 'record');
+  React.useEffect(() => { if (!showScore) setScoreRecord(false); }, [showScore]);
   // Nav announce (spec §2): keep the register current with the Me tab's active
-  // replayable sub-page so a cross-jump push carries it. Only score/store are
-  // direct sub-states of this component (reconcile lives under Settings →
-  // Integrations, record under the Score page), so those are all that's announced.
+  // replayable sub-page so a cross-jump push carries it: the Score, its Record (the Score page reports it
+  // through onRecord, since the page has other parents) and the Store. Reconcile lives under Settings →
+  // Integrations, which Settings announces.
   React.useEffect(() => { if (initialPage) onStartConsumed(); }, []);
-  const meNavSub = showScore ? 'score' : showStore ? 'store' : '';
+  const meNavSub = showScore ? (scoreRecord ? 'record' : 'score') : showStore ? 'store' : '';
   React.useEffect(() => {
     window.ShapeNav?.announce?.({ sub: meNavSub }, 'me');
     return () => window.ShapeNav?.announce?.(null, 'me');
@@ -29606,7 +29645,7 @@ function BSClientMe(props) {
   const name = bsMyName();
   const photo = bsMyPhoto() || null;
   const person = { who: name, init: bsMyInitials() || bsInitials(name) || 'A', kind: 'CLIENT', userId: uid, photo };
-  if (showScore) return <BSShapeScorePage profile={scoreProfile} onBack={() => setShowScore(false)} onOpenStore={() => { setShowScore(false); setShowStore(true); }} />;
+  if (showScore) return <BSShapeScorePage profile={scoreProfile} initialRecord={scoreRecord} onRecord={setScoreRecord} onBack={() => setShowScore(false)} onOpenStore={() => { setShowScore(false); setShowStore(true); }} />;
   if (showStore) return <BSShapeStorePage profile={scoreProfile} onBack={() => setShowStore(false)} onOpenScore={() => { setShowStore(false); setShowScore(true); }} />;
   return (
     <BSTerrainProfile
@@ -30308,7 +30347,7 @@ function BSScoreRecordPage({ onBack, tier }) {
   );
 }
 
-function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.client }) {
+function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.client, initialRecord = false, onRecord = null }) {
   const t = useBS();
   const tr = useShapeTr(); // i18n — the Score "The Standing" screen is the localization pilot
   profile = _bsUseLiveScore(profile);
@@ -30336,7 +30375,12 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
   // The tabs under the page: a member's Ledger (first) and Points; a coach's Breakdown (in the
   // ledger's place) and Points. The Tiers tab is the ladder now, and the Rewards tab the Store's.
   const [scoreTab, setScoreTab] = useStateBSC(isCoach ? 'breakdown' : 'ledger');
-  const [showRecord, setShowRecord] = useStateBSC(false);
+  // The Record over the page: a Back to the page opens it again (initialRecord), and the parent that
+  // owns the announce hears it open and close (onRecord: Me's 'record' sub, the Store tab's storeView).
+  const [showRecord, setShowRecord] = useStateBSC(!!initialRecord && !isCoach);
+  const onRecordRef = React.useRef(onRecord);
+  onRecordRef.current = onRecord;
+  React.useEffect(() => { if (onRecordRef.current) onRecordRef.current(showRecord); }, [showRecord]);
   React.useInsertionEffect(() => { bsInjectSessionDetailCss(); }, []);
   const [momRef, momSeen] = useBSSdInView();
   const heat = bsTierColor(tier);
@@ -32825,7 +32869,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     return () => clearTimeout(tm);
   }, [fxPreview]);
   // Library sits in More and Your hours in Your practice, so a Back to either reopens it over its own pane.
-  const [detail, setDetail] = useStateBSC(initialPage === 'practice' || initialPage === 'hours' ? 'practice' : initialPage === 'library' ? 'more' : ''); // '' = settings page; else a drill-in card pane
+  const [detail, setDetail] = useStateBSC(initialPage === 'practice' || initialPage === 'hours' ? 'practice' : initialPage === 'library' || bsGoalsView(initialPage) != null ? 'more' : ''); // '' = settings page; else a drill-in card pane
   // ⚠ A READ NEVER OVERWRITES A SAVE (Codex, #2371). The rows can be picked while the pane's read
   // is still out, and a save's answer is the newer document. So the read is dropped if a save was
   // in flight when it started, or one started before it answered.
@@ -32906,7 +32950,10 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   // Your hours (Availability): the coach's weekly hours, booking rules and time off (BSCoachHours.jsx).
   const [showHours, setShowHours] = useStateBSC(initialPage === 'hours');
   const [listingSheet, setListingSheet] = useStateBSC(null);
-  const [showGoals, setShowGoals] = useStateBSC(false);
+  // More → Goals, and the station open on it ('goals' or 'goals:<station>', as Home records it).
+  const [showGoals, setShowGoals] = useStateBSC(bsGoalsView(initialPage) != null);
+  const [goalsView, setGoalsView] = useStateBSC(bsGoalsView(initialPage) || 'cover');
+  React.useEffect(() => { if (!showGoals) setGoalsView('cover'); }, [showGoals]);
   // Also → Coach on Shape: the application screen, full screen over Settings (and so over the nav).
   const [showApply, setShowApply] = useStateBSC(false);
   const [showLibrary, setShowLibrary] = useStateBSC(initialPage === 'library');
@@ -33734,6 +33781,8 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     // Library (Browse coaches) and Your hours (Open calendar) jump out too, and come back to themselves. A
     // page is named before the pane it sits in: Your hours is open over Your practice (Codex P2 on #2683).
     : showBusiness ? 'business' : showLibrary ? 'library' : showHours ? 'hours'
+    // Goals (More → Goals) and its open station, which reopen over More (2026-11-10).
+    : showGoals ? bsGoalsSub(goalsView)
     : detail === 'practice' ? 'practice' : '';
   const navLanded = !!navSub && navSub === landedOn;
   React.useEffect(() => {
@@ -34101,7 +34150,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     return <BSClientProgress onBack={() => setShowProgress(false)} />;
   }
   if (showGoals) {
-    return <BSClientGoals onBack={() => setShowGoals(false)} onOpenProgress={() => { setShowGoals(false); setShowProgress(true); }} />;
+    return <BSClientGoals initialView={goalsView} onView={setGoalsView} onBack={() => setShowGoals(false)} onOpenProgress={() => { setShowGoals(false); setShowProgress(true); }} />;
   }
   if (showLibrary) {
     return <BSClientLibrary onBack={() => setShowLibrary(false)} goMarket={() => { setShowLibrary(false); try { window.dispatchEvent(new Event('shape:openMarket')); } catch (e) {} }} />;
