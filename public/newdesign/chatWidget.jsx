@@ -536,6 +536,40 @@ const CW_PLACE_SUBS = {
   support: "Shape's concierge",
 };
 
+// ── Channels, as the app lists them (owner, 2026-11-10: "yes wire up the real channels next") ──
+// The app's `listChannels` (shapeBackend.js) and its chat page's ordering, from the same three
+// reads: the visible channels, their members, and the caller's unread counts. Shape HQ, then the
+// PR Wall, pinned for everyone; the rest with the member's own pins first. One difference: the
+// app draws a canned Shape HQ (sample "product news") when no real one exists, and a member's
+// view here carries no sample, so HQ shows only once there is a real channel by that name.
+function cwChannelRole(n, desc) {
+  return `${n} ${n === 1 ? "member" : "members"}${desc ? " · " + desc : ""}`;
+}
+function cwChannelThreads(rows, members, me, unread, when) {
+  const by = {};
+  (members || []).forEach((m) => { if (m && m.channel_id) (by[m.channel_id] = by[m.channel_id] || []).push(m); });
+  const list = (rows || []).filter((c) => c && c.id).map((c) => {
+    const ms = by[c.id] || [];
+    const mine = ms.find((m) => m.user_id === me) || null;
+    const n = ms.length;
+    const desc = String(c.description || "").trim();
+    return {
+      channelId: c.id, name: String(c.name || "channel"), who: "# " + String(c.name || "channel"),
+      role: cwChannelRole(n, desc), memberCount: n, desc,
+      last: c.last_message || "", time: c.last_message_at ? when(c.last_message_at) : "",
+      unread: (unread && unread[c.id]) || 0, group: true,
+      joined: !!mine, host: !!((mine && mine.role === "host") || (me && c.created_by === me)),
+      private: c.visibility === "private", pinned: !!(mine && mine.pinned), official: false,
+      messages: [],
+    };
+  });
+  const named = (t, n) => t.name.trim().toLowerCase() === n;
+  const hq = list.find((t) => named(t, "shape hq")) || null;
+  const prw = list.find((t) => named(t, "pr wall")) || null;
+  const rest = list.filter((t) => t !== hq && t !== prw).sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0));
+  return [hq, prw].filter(Boolean).map((t) => ({ ...t, pinned: true, official: true })).concat(rest);
+}
+
 // The tab ids of a thread record saved before records named their tabs. Those were
 // positional, and their LENGTH says which list wrote them: the Feed tab or not in front,
 // then Team (circle), the peer DM tabs — all three for a visitor, the viewer's one once
@@ -1363,11 +1397,9 @@ function ChatWidget(props) {
   // (`participants read conversations` → `can_access_conversation(id)`), which is
   // the same path the app takes.
   //
-  // ⚠ SCOPE: coach threads and member DMs — the two surfaces that carry message
-  // history, both out of `conversations`/`messages`. CHANNELS ARE NOT HERE: they
-  // are a separate `channels` table with its own rows and their own message
-  // store, so they are a different read rather than one more bucket, and the
-  // Channels tab keeps its sample set until that lands.
+  // ⚠ SCOPE: coach threads and member DMs, out of `conversations`/`messages`, and the
+  // channels, out of their own `channels` table and `channel_messages` store (2026-11-10).
+  // A channel's messages are read on open by the channel poll below, not here.
   const [threadsLive, setThreadsLive] = React.useState(null); // null = not read yet
   React.useEffect(() => {
     // ⚠ A MEASURED SIGNED-OUT VISITOR IS THE ONLY ONE THIS REFUSES TO LOAD FOR.
@@ -1515,7 +1547,32 @@ function ChatWidget(props) {
           unread: 0, conversationId: r.conversation_id, messages: [],
         }));
 
-        if (!cancelled) setThreadsLive({ circle: coachThreads, friends: dmThreads });
+        // Channels: the app's three reads (channels, channel_members, channel_unread). ⚠ A FAILED
+        // READ LEAVES THE CHANNELS AS THEY ARE rather than installing none: an empty list is a
+        // claim ("there are no channels"), and the coach threads above are real either way.
+        let channelThreads = null;
+        try {
+          const chRes = await db.from("channels")
+            .select("id, name, description, created_by, visibility, last_message, last_message_at, created_at")
+            .order("last_message_at", { ascending: false, nullsFirst: false })
+            .order("created_at", { ascending: false });
+          if (cancelled) return;
+          if (chRes && !chRes.error) {
+            const rows = chRes.data || [];
+            const ids = rows.map((c) => c.id);
+            const memRes = ids.length ? await db.from("channel_members").select("channel_id, user_id, role, pinned").in("channel_id", ids) : { data: [] };
+            if (cancelled) return;
+            const unread = {};
+            try {
+              const ur = await db.rpc("channel_unread");
+              ((ur && !ur.error && ur.data) || []).forEach((r) => { unread[r.channel_id] = Number(r.unread) || 0; });
+            } catch (e) { /* no badges, the list still stands */ }
+            if (cancelled) return;
+            if (memRes && !memRes.error) channelThreads = cwChannelThreads(rows, memRes.data || [], me, unread, relTime);
+          }
+        } catch (e) { /* channels stay as they were */ }
+
+        if (!cancelled) setThreadsLive({ circle: coachThreads, friends: dmThreads, ...(channelThreads ? { community: channelThreads } : {}) });
       } catch (e) {
         if (!cancelled) setThreadsLive(false);
       }
@@ -1547,8 +1604,10 @@ function ChatWidget(props) {
         const id = tabs[i] && tabs[i].id;
         const live = Object.prototype.hasOwnProperty.call(threadsLive, id) ? threadsLive[id] : null;
         if (!live) return list;
-        const have = new Set((list || []).map((t) => t.conversationId).filter(Boolean));
-        const add = live.filter((t) => t.conversationId && !have.has(t.conversationId));
+        // A thread is known by its conversation, or a channel by its id.
+        const key = (t) => (t && (t.conversationId || (t.channelId ? "ch:" + t.channelId : null))) || null;
+        const have = new Set((list || []).map(key).filter(Boolean));
+        const add = live.filter((t) => key(t) && !have.has(key(t)));
         return add.length ? [...(list || []), ...add] : list;
       }));
       return;
@@ -1854,6 +1913,25 @@ function ChatWidget(props) {
     if (convId) {
       post(`/api/conversations/${encodeURIComponent(convId)}/messages`, { body: text })
         .then((r) => settle(r.failed ? { failed: r.failed } : {}));
+      return;
+    }
+    // A channel: stored as the member, as the app's `sendChannelMessage` stores it. Members only
+    // (the table's insert policy); the composer offers Join first to someone who is not one.
+    const chId = activeThread && activeThread.channelId;
+    if (chId) {
+      (async () => {
+        const db = window.shapeDb && window.shapeDb.client;
+        if (!db) { settle({ failed: "No connection. Try again." }); return; }
+        let u = null;
+        try { const r = await db.auth.getUser(); u = r && r.data && r.data.user; } catch (e) {}
+        if (!u) { settle({ failed: "Sign in to post in channels." }); return; }
+        const meta = u.user_metadata || {};
+        const author = (myName && myName !== "You" ? myName : "") || meta.full_name || String(u.email || "Member").split("@")[0];
+        try {
+          const { error } = await db.from("channel_messages").insert({ channel_id: chId, sender_id: u.id, author_name: author, body: text });
+          settle(error ? { failed: "It didn\u2019t go through. Try again." } : {});
+        } catch (e) { settle({ failed: "No connection. Try again." }); }
+      })();
       return;
     }
     if (provider) {
@@ -2312,6 +2390,64 @@ function ChatWidget(props) {
     return () => { cancelled = true; clearInterval(id); };
   }, [open, tabIdx, activeIdx, threadsByTab]);
 
+  // ── An open channel: its messages, then what is new every 8 seconds ──────────────
+  // Read straight from `channel_messages` (readable for a public channel, or a member's),
+  // as the app reads them. ⚠ THE NEWEST 200, NOT THE OLDEST: the app's read is ascending
+  // with a limit, which on a busy channel opens on its first 200 messages and never shows
+  // the latest; here the first read takes the newest and turns them round. Later reads take
+  // what came after the last one seen. Opening it marks it read (`mark_channel_read`).
+  const activeChannelId = (() => { const t = (threadsByTab[tabIdx] || [])[activeIdx]; return (t && t.channelId) || null; })();
+  React.useEffect(() => {
+    if (!open || !activeChannelId) return undefined;
+    const chId = activeChannelId;
+    const db = window.shapeDb && window.shapeDb.client;
+    if (!db) return undefined;
+    let cancelled = false;
+    const seenKey = "ch:" + chId;
+    try { db.rpc("mark_channel_read", { p_channel_id: chId }).then(() => {}, () => {}); } catch (e) {}
+    const fetchOnce = async () => {
+      const since = lastSeenRef.current[seenKey];
+      let rows = null;
+      try {
+        const q = db.from("channel_messages").select("*").eq("channel_id", chId);
+        const res = since
+          ? await q.gt("created_at", since).order("created_at", { ascending: true }).limit(200)
+          : await q.order("created_at", { ascending: false }).limit(200);
+        if (cancelled || !res || res.error) return;
+        rows = (res.data || []).slice();
+        if (!since) rows.reverse();
+      } catch (e) { return; }
+      if (!rows.length) return;
+      lastSeenRef.current[seenKey] = rows[rows.length - 1].created_at;
+      const me = myUserIdRef.current;
+      const mapped = rows.map((m) => {
+        const mine = !!(me && m.sender_id === me);
+        return {
+          who: mine ? "You" : (m.author_name || "Member"), t: m.body, me: mine, userId: m.sender_id || null,
+          time: new Date(m.created_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }),
+        };
+      });
+      setThreadsByTab((prev) => prev.map((ts) => (ts || []).map((t) => {
+        if (!t || t.channelId !== chId) return t;
+        // A message this page sent is already on screen; its stored copy replaces it (once each).
+        let local = t.messages || [];
+        if (since) {
+          for (const row of mapped) {
+            if (!row.me) continue;
+            const k = local.findIndex((x) => x.me && x.lid && !x.failed && x.t === row.t);
+            if (k >= 0) local = local.slice(0, k).concat(local.slice(k + 1));
+          }
+        }
+        const last = mapped[mapped.length - 1];
+        return { ...t, messages: since ? [...local, ...mapped] : mapped, last: `${last.me ? "You" : last.who}: ${last.t}`, unread: 0 };
+      })));
+      if (since) { try { db.rpc("mark_channel_read", { p_channel_id: chId }).then(() => {}, () => {}); } catch (e) {} }
+    };
+    fetchOnce();
+    const id = setInterval(fetchOnce, 8000);
+    return () => { cancelled = true; clearInterval(id); };
+  }, [open, activeChannelId]);
+
   const selectThread = (i) => {
     setActiveByTab(prev => prev.map((v, ti) => ti === tabIdx ? i : v));
     setThreadsByTab(prev => prev.map((ts, ti) => ti !== tabIdx ? ts : ts.map((t, j) => j === i ? { ...t, unread: 0 } : t)));
@@ -2319,7 +2455,43 @@ function ChatWidget(props) {
 
   const togglePin = (i, e) => {
     e && e.stopPropagation();
-    setThreadsByTab(prev => prev.map((ts, ti) => ti !== tabIdx ? ts : ts.map((t, j) => j === i ? { ...t, pinned: !t.pinned } : t)));
+    const th = (threadsByTab[tabIdx] || [])[i];
+    // Shape HQ and the PR Wall are pinned for everyone, as in the app.
+    if (th && th.official) return;
+    const next = !(th && th.pinned);
+    setThreadsByTab(prev => prev.map((ts, ti) => ti !== tabIdx ? ts : ts.map((t, j) => j === i ? { ...t, pinned: next } : t)));
+    // A real channel you belong to keeps the pin on your account (the app's `set_channel_pinned`).
+    const db = window.shapeDb && window.shapeDb.client;
+    if (th && th.channelId && th.joined && db) {
+      try { db.rpc("set_channel_pinned", { p_channel_id: th.channelId, p_pinned: next }).then(() => {}, () => {}); } catch (err) {}
+    }
+  };
+
+  // Joining a channel: a member row of your own, which a public channel allows (the app's
+  // `joinChannel`). Already a member reads as joined.
+  const [joinBusy, setJoinBusy] = React.useState(null);
+  const [joinErr, setJoinErr] = React.useState(null); // { id, text }
+  const joinChannel = async (chId) => {
+    const db = window.shapeDb && window.shapeDb.client;
+    if (!chId) return;
+    if (!db) { setJoinErr({ id: chId, text: "No connection. Try again." }); return; }
+    setJoinBusy(chId); setJoinErr(null);
+    try {
+      const r = await db.auth.getUser();
+      const uid = r && r.data && r.data.user && r.data.user.id;
+      if (!uid) { setJoinErr({ id: chId, text: "Sign in to join channels." }); return; }
+      const { error } = await db.from("channel_members").insert({ channel_id: chId, user_id: uid, role: "member" });
+      if (error && error.code !== "23505" && !/duplicate|conflict/i.test(error.message || "")) { setJoinErr({ id: chId, text: "Couldn\u2019t join this channel. Try again." }); return; }
+      setThreadsByTab(prev => prev.map((ts) => (ts || []).map((t) => {
+        if (!t || t.channelId !== chId || t.joined) return t;
+        const n = (Number(t.memberCount) || 0) + 1;
+        return { ...t, joined: true, memberCount: n, role: cwChannelRole(n, t.desc || "") };
+      })));
+    } catch (err) {
+      setJoinErr({ id: chId, text: "No connection. Try again." });
+    } finally {
+      setJoinBusy(null);
+    }
   };
 
   const selectTab = (i) => {
@@ -2328,9 +2500,30 @@ function ChatWidget(props) {
     setSearchQ("");
   };
 
+  const [createErr, setCreateErr] = React.useState("");
   const createChannel = () => {
     const slug = newName.trim().replace(/^#\s*/, "").replace(/\s+/g, "-").toLowerCase();
     if (!slug) return;
+    // A member whose channels are live makes a real one (the app's `create_channel`: public,
+    // with them as its host). A visitor's stays on this page, as the sample does.
+    const db = window.shapeDb && window.shapeDb.client;
+    if (threadsLive && typeof threadsLive === "object" && threadsLive.community && db) {
+      const desc = newDesc.trim();
+      const ti = tabIdx;
+      setCreateErr("");
+      (async () => {
+        try {
+          const { data: id, error } = await db.rpc("create_channel", { p_name: slug, p_description: desc || null, p_visibility: "public" });
+          if (error || !id) { setCreateErr("Couldn\u2019t create the channel. Try again."); return; }
+          dirtyRef.current = true;
+          const made = { channelId: id, name: slug, who: "# " + slug, role: cwChannelRole(1, desc), memberCount: 1, desc, last: "", time: "now", unread: 0, group: true, joined: true, host: true, private: false, pinned: false, official: false, messages: [] };
+          setThreadsByTab(prev => prev.map((ts, k) => k !== ti ? ts : [...(ts || []), made]));
+          setActiveByTab(prev => prev.map((v, k) => k === ti ? (threadsByTab[ti]?.length || 0) : v));
+          setCreating(false); setNewName(""); setNewDesc("");
+        } catch (err) { setCreateErr("No connection. Try again."); }
+      })();
+      return;
+    }
     dirtyRef.current = true;
     const newThread = {
       who: "# " + slug,
@@ -2634,10 +2827,11 @@ function ChatWidget(props) {
                         {t.online && <span style={{ flex: "none", width: 7, height: 7, borderRadius: 999, background: "#3ddc84", boxShadow: "0 0 0 2px rgba(61,220,132,0.2)" }} />}
                         {t.group ? String(t.who || "").replace(/^#\s*/, "") : t.who}
                       </span>
-                      {t.pinned && <span style={{ flex: "none", fontSize: 8.5, color: "var(--sh-accent-ink, #2ee0c4)", fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.08em", background: "rgba(var(--sh-accent2-rgb, 10,197,168),0.12)", padding: "1px 5px", borderRadius: 3 }}>PINNED</span>}
+                      {t.pinned && <span style={{ flex: "none", fontSize: 8.5, color: "var(--sh-accent-ink, #2ee0c4)", fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.08em", background: "rgba(var(--sh-accent2-rgb, 10,197,168),0.12)", padding: "1px 5px", borderRadius: 3 }}>{t.official ? "SHAPE" : "PINNED"}</span>}
+                      {t.channelId && !t.joined && <span style={{ flex: "none", fontSize: 8.5, color: "var(--sh-ink2, #a09b94)", fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.08em", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.18)", padding: "0 5px", borderRadius: 3 }}>JOIN</span>}
                     </div>
                     <div style={{ display: "flex", alignItems: "center", gap: 6, flex: "none" }}>
-                      <button
+                      {!t.official && <button
                         className="chw-pin"
                         onClick={(e) => togglePin(origIdx, e)}
                         title={t.pinned ? "Unpin" : "Pin to top"}
@@ -2650,7 +2844,7 @@ function ChatWidget(props) {
                           transition: "opacity 120ms",
                         }}>
                         {t.pinned ? "📌" : "📍"}
-                      </button>
+                      </button>}
                       <div style={{ fontSize: 10, color: "var(--sh-ink3, #75706a)", fontFamily: "'JetBrains Mono', monospace" }}>{t.time || ""}</div>
                     </div>
                   </div>
@@ -2709,6 +2903,7 @@ function ChatWidget(props) {
                       outline: "none", marginBottom: 10,
                     }}
                   />
+                  {createErr && <div role="alert" style={{ fontFamily: sans, fontSize: 12, color: "var(--sh-gold, #d8a23a)", marginBottom: 8 }}>{createErr}</div>}
                   <div style={{ display: "flex", gap: 6 }}>
                     <button onClick={createChannel} disabled={!newName.trim()}
                       style={{
@@ -2718,7 +2913,7 @@ function ChatWidget(props) {
                         fontFamily: sans, fontSize: 12, fontWeight: 500,
                         cursor: newName.trim() ? "pointer" : "not-allowed",
                       }}>Create</button>
-                    <button onClick={() => { setCreating(false); setNewName(""); setNewDesc(""); }}
+                    <button onClick={() => { setCreating(false); setNewName(""); setNewDesc(""); setCreateErr(""); }}
                       style={{
                         background: "transparent", color: "var(--sh-ink2, #a09b94)",
                         border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.12)", padding: "7px 10px", borderRadius: 6,
@@ -2871,6 +3066,14 @@ function ChatWidget(props) {
             )}
 
             <div ref={scrollRef} style={{ flex: 1, overflowY: "auto", padding: noraMode ? "20px 18px 16px" : "18px 20px", display: "flex", flexDirection: "column", gap: 12 }}>
+              {active && active.channelId && !(active.messages || []).length && (
+                // A real channel with nothing in it yet says what it is for, not a blank page.
+                <div data-channel-empty style={{ margin: "auto", maxWidth: 360, textAlign: "center", padding: "24px 8px" }}>
+                  <div style={{ fontFamily: serif, fontSize: 20, letterSpacing: "-0.015em", color: INK }}>#{active.name}</div>
+                  <div style={{ marginTop: 8, fontFamily: sans, fontSize: 13, lineHeight: 1.5, color: "var(--sh-ink2, #a09b94)" }}>{active.desc || "No messages yet."}</div>
+                  <div style={{ marginTop: 10, fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--sh-ink3, #75706a)" }}>{active.joined ? "Say the first thing" : "Join to post"}</div>
+                </div>
+              )}
               {active?.messages?.map((m, i) => {
                 if (m && m.shape) {
                   return (
@@ -3142,6 +3345,15 @@ function ChatWidget(props) {
                   : (voiceErr || speakNotice)}
               </div>
             )}
+            {active && active.channelId && !active.joined ? (
+              // Posting is for a channel's members (its insert policy), as in the app: Join first.
+              <div data-channel-join style={{ margin: "10px 14px 14px", padding: "12px 14px", borderRadius: 14, border: "1px solid rgba(var(--sh-accent2-rgb, 10,197,168),0.28)", background: "rgba(var(--sh-accent2-rgb, 10,197,168),0.06)", display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+                <div role={joinErr && joinErr.id === active.channelId ? "alert" : undefined} style={{ flex: 1, minWidth: 160, fontFamily: sans, fontSize: 13, lineHeight: 1.4, color: joinErr && joinErr.id === active.channelId ? "var(--sh-gold, #d8a23a)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.78)" }}>
+                  {joinErr && joinErr.id === active.channelId ? joinErr.text : `Join #${active.name || String(active.who || "").replace(/^#\s*/, "")} to post here.`}
+                </div>
+                <button type="button" className="cw-send" onClick={() => joinChannel(active.channelId)} disabled={joinBusy === active.channelId}>{joinBusy === active.channelId ? "Joining\u2026" : "Join"}</button>
+              </div>
+            ) : (
             <div style={{ padding: "10px 14px 14px" }}>
               <div className="cw-composer">
               <textarea
@@ -3171,6 +3383,7 @@ function ChatWidget(props) {
               </button>
               </div>
             </div>
+            )}
             </React.Fragment>
             )}
           </div>
