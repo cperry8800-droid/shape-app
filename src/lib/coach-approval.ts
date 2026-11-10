@@ -394,7 +394,16 @@ async function publishProviderRow(admin: Admin, application: ProviderApplication
   return data.id as number;
 }
 
-/** Records how a decision email went, best-effort: the decision itself is already saved. */
+/** Records how a decision email went, best-effort: the decision itself is already saved.
+ *
+ * ⚠ INTO THE ROW AS IT IS NOW, NEVER THE DECISION'S SNAPSHOT (Codex P2 on #2675). The email takes
+ * seconds, and the row can move meanwhile: an applicant confirming from an earlier link while the
+ * confirmation email was still going out approved the application, and this write then put back
+ * the review as it was before (pending_confirmation, no approved_provider) over a live coach. Only
+ * `decision_email` is added, to the review read now, compare-and-set on `updated_at` (which every
+ * write moves), and read again if something wrote in between. `review`, the decision's snapshot,
+ * is no longer written: the callers' shape is kept.
+ */
 export async function recordDecisionEmail(
   admin: Admin,
   applicationId: string,
@@ -402,16 +411,28 @@ export async function recordDecisionEmail(
   kind: 'approval' | 'rejection' | 'confirmation',
   result: { ok: boolean; error?: string }
 ) {
+  const decisionEmail = { kind, ok: result.ok, error: result.ok ? null : result.error ?? 'failed', at: new Date().toISOString() };
   try {
-    await admin
-      .from('provider_applications')
-      .update({
-        admin_review: {
-          ...review,
-          decision_email: { kind, ok: result.ok, error: result.ok ? null : result.error ?? 'failed', at: new Date().toISOString() },
-        },
-      })
-      .eq('id', applicationId);
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      const { data: row, error: readError } = await admin
+        .from('provider_applications')
+        .select('admin_review, updated_at')
+        .eq('id', applicationId)
+        .maybeSingle();
+      if (readError) throw readError;
+      if (!row) return;
+      const current = row as { admin_review?: unknown; updated_at?: string | null };
+      if (!current.updated_at) break;
+      const { data: changed, error } = await admin
+        .from('provider_applications')
+        .update({ admin_review: { ...asRecord(current.admin_review), decision_email: decisionEmail } })
+        .eq('id', applicationId)
+        .eq('updated_at', current.updated_at)
+        .select('id');
+      if (error) throw error;
+      if (changed?.length) return;
+    }
+    console.error('[applications] the decision email was not recorded: the application kept changing, or has no updated_at', { applicationId, kind });
   } catch (err) {
     console.error('[applications] could not record the decision email', err);
   }

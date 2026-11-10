@@ -548,6 +548,41 @@ test('pricing: monthly and yearly, the free week with Nora, and coaching that in
 });
 
 
+// ⚠ NO YEARLY CLAIM BEFORE THE PLANS SAY THERE IS ONE (Codex P2 on #2675, after the card's own fix):
+// the hero, the FAQ and the homepage's member card said $48 a year with STRIPE_PLATFORM_ANNUAL_PRICE_ID
+// unset, when the checkout refuses a year. Drawn with no yearly plan, with one, and while unread.
+test('pricing and the homepage: the yearly price is said only once the plans say it is set up', async () => {
+  const P = read('public/newdesign/pricing.jsx');
+  const L = read('public/newdesign/landing.jsx');
+  const PRICING_SRC = jsx(slice(P, 'const PRICING_FAQ = [', 'const REDUCED_PR')
+    + slice(P, 'function PricingHero()', 'function PricingCard()')
+    + slice(P, 'function PricingFAQ()', 'function PricingCTA()'));
+  const LANDING_SRC = jsx(slice(L, 'const ROLES = [', 'const REDUCED =') + slice(L, 'function RoleCard(', 'function RoleGrid()'));
+  const draw = async (plans) => {
+    const w = fakeWindow();
+    const f = fakeFetch({ '/api/membership/plans': () => (plans === 'down' ? { status: 503, body: {} } : { status: 200, body: plans }) });
+    publish(w, f);
+    const { PricingHero, PricingFAQ } = new Function('React', 'window', 'serif', 'mono', 'sans', 'TEAL', 'INK', PRICING_SRC + '\nreturn { PricingHero, PricingFAQ };')(React, w, 'serif', 'mono', 'sans', 'teal', 'ink');
+    const { ROLES, RoleCard } = new Function('React', 'window', 'serif', 'mono', 'sans', 'TEAL', 'TEAL_BRIGHT', 'INK', 'RUST', 'REDUCED', LANDING_SRC + '\nreturn { ROLES, RoleCard };')(React, w, 'serif', 'mono', 'sans', 'teal', 'teal2', 'ink', 'rust', true);
+    const member = ROLES.find((r) => r.key === 'client');
+    const v = await mount(React.createElement('div', null,
+      React.createElement(PricingHero), React.createElement(PricingFAQ), React.createElement(RoleCard, { role: member, index: 0, total: 4 })));
+    const out = v.text();
+    await v.unmount();
+    return out;
+  };
+  for (const none of [{ monthly: PLANS.monthly, annual: null }, 'down']) {
+    const t = await draw(none);
+    assert.doesNotMatch(t, /\$48|a year|\/ year|yearly plan/i, `a year is promised with ${JSON.stringify(none)}: ` + t.slice(0, 400));
+    assert.match(t, /The membership, \$5 a month, adds Nora as your assistant/);
+    assert.match(t, /Free account · \$5 \/ month membership/);
+  }
+  const yes = await draw(PLANS);
+  assert.match(yes, /The membership, \$5 a month or \$48 a year, adds Nora as your assistant/);
+  assert.match(yes, /Is there a yearly plan\?/);
+  assert.match(yes, /Free account · \$5 \/ month or \$48 \/ year membership/);
+});
+
 // ── Shape Radio ─────────────────────────────────────────────────────────────────────────────
 test('radio: a 402 is said as the membership, or as the card that didn\'t go through, never "press again"', async () => {
   const play = slice(RADIO, 'if (r.status === 451)', 'const cfg = await r.json();');

@@ -13,12 +13,16 @@
 //
 // Plain ESM, no deps: node:test drives searchKnowledge() directly.
 
+// ⚠ The yearly price only when it is set up (Codex P2 on #2675): with STRIPE_PLATFORM_ANNUAL_PRICE_ID
+// unset the checkout refuses a year, so Nora never tells anyone it exists.
+const YEARLY_PRICE = typeof process !== 'undefined' && process.env && process.env.STRIPE_PLATFORM_ANNUAL_PRICE_ID ? ' or $48 a year' : '';
+
 export const SHAPE_KNOWLEDGE = Object.freeze([
   {
     id: 'membership',
     title: 'What a Shape membership costs and includes',
     tags: ['price', 'cost', 'membership', 'platform fee', '$5', 'five dollars', 'month', 'year', 'annual', '$48', 'include', 'subscription', 'join', 'sign up', 'free', 'free account', 'trial', 'free trial', 'free week', 'paid', 'locked', 'channels', 'community'],
-    body: 'A Shape account is free and covers most of the app, with or without a coach: logging workouts and meals, programs, Shape Kitchen recipes, progress and a weekly recap to share, Score points and the top 10 of the leaderboards, the community and its channels, and browsing, booking, hiring and messaging coaches. The membership is $5 a month or $48 a year — the Shape platform fee — and adds Nora as your assistant (looking up your plan and numbers, logging for you, voice, the weekly readout), Shape Radio, the AI helpers, Cook Mode’s voice, the full leaderboards with your exact rank, and spending points in the Store. It is included while you pay a coach on Shape. There is no free trial, but after your first three workouts Nora is your assistant free for a week, no card. Anything bought from a coach is separate and goes to that coach.',
+    body: 'A Shape account is free and covers most of the app, with or without a coach: logging workouts and meals, programs, Shape Kitchen recipes, progress and a weekly recap to share, Score points and the top 10 of the leaderboards, the community and its channels, and browsing, booking, hiring and messaging coaches. The membership is $5 a month' + YEARLY_PRICE + ' — the Shape platform fee — and adds Nora as your assistant (looking up your plan and numbers, logging for you, voice, the weekly readout), Shape Radio, the AI helpers, Cook Mode’s voice, the full leaderboards with your exact rank, and spending points in the Store. It is included while you pay a coach on Shape. There is no free trial, but after your first three workouts Nora is your assistant free for a week, no card. Anything bought from a coach is separate and goes to that coach.',
     source: 'Pricing page FAQ',
   },
   {

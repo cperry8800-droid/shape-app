@@ -151,6 +151,65 @@ test('1: ⚠ one device per account: a newer connection marks the older one to d
   assert.deepEqual(await admitConnection(fakeDb({ fail: ['select:radio_streams'] }), { streamId: phone, boot: BOOT, bootAt: BOOT_AT, client: 9, now: NOW }), { ok: false, reason: 'read_failed' });
 });
 
+test('1: ⚠ a step of the one-device rule that fails is no admission, and leaves no connection (Codex P2 on #2675)', async () => {
+  // The marks of the older connections fail: the older device would play on, so the newer is refused.
+  {
+    const db = fakeDb();
+    const [older, newer] = [await openStream(db, { userId: ANA, now: NOW }), await openStream(db, { userId: ANA, now: NOW })];
+    assert.equal((await admitConnection(db, { streamId: older, boot: BOOT, bootAt: BOOT_AT, client: 5, now: NOW })).ok, true);
+    const r = await admitConnection(fakeDbProxy(db, { 'update:radio_connections': 1 }), { streamId: newer, boot: BOOT, bootAt: BOOT_AT, client: 6, now: NOW + 1000 });
+    assert.deepEqual(r, { ok: false, reason: 'write_failed' });
+    assert.deepEqual(live(db).map((c) => c.client), [5], 'the refused listener left a connection behind');
+    assert.equal(live(db)[0].kick_requested_at, null);
+  }
+  // The read of a newer connection fails: refused, nothing left.
+  {
+    const db = fakeDb();
+    const s = await openStream(db, { userId: ANA, now: NOW });
+    const r = await admitConnection(fakeDbProxy(db, { 'select:radio_connections': 1 }), { streamId: s, boot: BOOT, bootAt: BOOT_AT, client: 7, now: NOW });
+    assert.deepEqual(r, { ok: false, reason: 'read_failed' });
+    assert.equal(live(db).length, 0);
+  }
+  // The older one's own mark fails after a newer was found: it is refused rather than left playing.
+  {
+    const db = fakeDb();
+    const [s1, s2] = [await openStream(db, { userId: ANA, now: NOW }), await openStream(db, { userId: ANA, now: NOW })];
+    await admitConnection(db, { streamId: s2, boot: BOOT, bootAt: BOOT_AT, client: 32, now: NOW });
+    const r = await admitConnection(fakeDbProxy(db, { 'update:radio_connections': 3 }), { streamId: s1, boot: BOOT, bootAt: BOOT_AT, client: 31, now: NOW + 500 });
+    assert.deepEqual(r, { ok: false, reason: 'write_failed' });
+    assert.deepEqual(live(db).map((c) => c.client), [32], 'only the newer connection is left');
+    assert.equal(live(db)[0].kick_requested_at, null, 'and it plays');
+  }
+});
+
+/** The same tables as `db`, with the nth call of a kind failing from now on. */
+function fakeDbProxy(db, failNth) {
+  const seen = {};
+  return {
+    tables: db.tables,
+    from(table) {
+      const q = db.from(table);
+      const kindOf = { op: 'select' };
+      const wrap = new Proxy(q, {
+        get(t, k) {
+          if (k === 'then') {
+            return (res, rej) => {
+              const kind = `${kindOf.op}:${table}`;
+              seen[kind] = (seen[kind] ?? 0) + 1;
+              if (failNth[kind] === seen[kind]) return Promise.resolve({ data: null, error: { message: `fake failure on ${kind}` } }).then(res, rej);
+              return t.then(res, rej);
+            };
+          }
+          const v = t[k];
+          if (typeof v !== 'function') return v;
+          return (...args) => { if (['insert', 'upsert', 'update', 'delete'].includes(k)) kindOf.op = k; v.apply(t, args); return wrap; };
+        },
+      });
+      return wrap;
+    },
+  };
+}
+
 test('1: a connection from an earlier start of the station is cleared; a leave clears its own row only', async () => {
   const db = fakeDb();
   const s = await openStream(db, { userId: ANA, now: NOW });

@@ -216,6 +216,13 @@ const ADDED = [
   { name: "confirm: reopening leaves the waiting approval", file: ACTIONS,
     find: "      ...(pendingConfirmation({ admin_review: review }) ? { admin_review: { ...review, pending_confirmation: null } } : {}),\n",
     replace: "" },
+  // Codex P2 on #2675: the email's record goes into the row as it is then.
+  { name: "r8: the email record writes the decision's snapshot back", file: APPROVAL,
+    find: "        .update({ admin_review: { ...asRecord(current.admin_review), decision_email: decisionEmail } })",
+    replace: "        .update({ admin_review: { ...review, decision_email: decisionEmail } })" },
+  { name: "r8: the email record overwrites a newer write", file: APPROVAL,
+    find: "        .eq('id', applicationId)\n        .eq('updated_at', current.updated_at)\n",
+    replace: "        .eq('id', applicationId)\n" },
   { name: "confirm: the page sets the coach up on GET", file: CONFIRM_PAGE,
     find: "import { confirmCoachApproval } from './actions';",
     replace: "import { confirmCoachApproval } from './actions';\nimport { provisionApproval } from '@/lib/coach-approval';" },

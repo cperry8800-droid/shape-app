@@ -78,15 +78,26 @@ export async function admitConnection(db, { streamId, boot, bootAt, client, now 
   // and marks itself when a higher one is already recorded. Whatever the order of the two writes,
   // the highest is never marked and every lower one is (each one's check runs after its own write,
   // so at least one of the two sees the other). Connections of an earlier start are marked too.
+  //
+  // ⚠ AND A STEP OF THAT WHICH FAILS IS NO ADMISSION (Codex P2 on #2675). An unmarked older
+  // connection, or a newer one never read, would let two devices play on one account, so the
+  // listener is refused and its own row goes: it was never let in, and Icecast won't say it left.
+  const refuse = async (reason) => {
+    try { await db.from(CONNECTIONS).delete().eq('boot', boot).eq('client', client); } catch { /* the station's next start clears it */ }
+    return { ok: false, reason };
+  };
   const mark = { kick_requested_at: at, kick_reason: 'newer_stream' };
   const [sameBoot, otherBoot] = await Promise.all([
     db.from(CONNECTIONS).update(mark).eq('user_id', userId).eq('boot', boot).lt('client', client).is('kick_requested_at', null).select('client'),
     db.from(CONNECTIONS).update(mark).eq('user_id', userId).neq('boot', boot).is('kick_requested_at', null).select('client'),
   ]);
-  const { data: newer } = await db.from(CONNECTIONS).select('client')
+  if (sameBoot.error || otherBoot.error) return refuse('write_failed');
+  const { data: newer, error: newerErr } = await db.from(CONNECTIONS).select('client')
     .eq('user_id', userId).eq('boot', boot).gt('client', client).is('kick_requested_at', null).limit(1);
+  if (newerErr) return refuse('read_failed');
   if (newer && newer.length) {
-    await db.from(CONNECTIONS).update(mark).eq('boot', boot).eq('client', client).is('kick_requested_at', null);
+    const { error: selfErr } = await db.from(CONNECTIONS).update(mark).eq('boot', boot).eq('client', client).is('kick_requested_at', null);
+    if (selfErr) return refuse('write_failed');
   }
   const superseded = (sameBoot.data?.length ?? 0) + (otherBoot.data?.length ?? 0);
   return { ok: true, userId, superseded, newer: !!(newer && newer.length) };

@@ -54,7 +54,8 @@ const EXAMPLE_COACHES = [
 
 const PRICING_FAQ = [
   { q: "What do I get for $5/month?", a: "Nora as your assistant (she makes changes for you to confirm or undo, talks by voice, and writes your weekly read), Shape Radio ad-free, spending your Shape Score points in the Store, the full leaderboard and your exact rank, AI program drafts and Cook Mode by voice. Everything else is free with your account: building and logging workouts, logging meals, Shape Kitchen, your progress, the community, and hiring and messaging coaches. Anything you buy from an individual coach (a subscription, a plan, a one-off session) is separate and goes directly to them." },
-  { q: "Is there a yearly plan?", a: "Yes: $48/year, the same membership for less than ten months of the monthly price. Monthly is $5/month. Both cancel any time from your settings." },
+  // Shown only once the plans say a yearly price is set up (PricingFAQ).
+  { q: "Is there a yearly plan?", a: "Yes: $48/year, the same membership for less than ten months of the monthly price. Monthly is $5/month. Both cancel any time from your settings.", yearly: true },
   { q: "Is there a free plan?", a: "Yes: a Shape account is free, with no card. It keeps your training, meals, progress, coaches and a place on the leaderboards. Try Nora free for a week after your first three workouts — no card, once per account. The $5/mo membership adds Nora as your assistant for good, Shape Radio, the points Store and the full leaderboard with your exact rank, and you can start or cancel it any time." },
   { q: "Is membership included with a coach?", a: "Yes. Membership is included while you’re coached on Shape: while you pay a trainer or nutritionist through Shape, Nora as your assistant, Shape Radio, the Store and the full leaderboard are yours, at no extra cost. If you also have your own plan, you can cancel it." },
   { q: "Do I have to subscribe to a coach?", a: "No. With a free account you can browse, message intro calls, buy one-off plans, build your own workouts right in the app, and use the community. A lot of members train on self-built weeks or à-la-carte plans. Others subscribe to one or more coaches for ongoing programming." },
@@ -81,6 +82,11 @@ function Reveal({ children, delay = 0, style = {} }) {
 }
 
 function PricingHero() {
+  // ⚠ The yearly price only once the plans say it is set up (Codex P2 on #2675): with
+  // STRIPE_PLATFORM_ANNUAL_PRICE_ID unset the checkout refuses a year, so the page never promises one.
+  const plans = window.useShapePlans ? window.useShapePlans() : null;
+  const M = window.ShapeMembership;
+  const yearly = plans && plans.annual && M && M.money ? ` or ${M.money(plans.annual.priceCents)} a year` : "";
   return (
     <section style={{ position: "relative", padding: "40px 72px 70px", overflow: "hidden" }}>
       <div aria-hidden style={{ position: "absolute", width: 620, height: 620, top: "-20%", right: "-8%", borderRadius: "50%", filter: "blur(80px)", opacity: 0.32, background: `radial-gradient(circle, ${TEAL}, transparent 70%)`, pointerEvents: "none" }} />
@@ -89,7 +95,7 @@ function PricingHero() {
         <h1 style={{ fontFamily: serif, fontSize: "clamp(42px, 6vw, 84px)", letterSpacing: "-0.045em", fontWeight: 300, margin: 0, lineHeight: 0.88 }}>
           Free to join.<br />Five dollars <em style={{ fontStyle: "italic", fontWeight: 600, color: "transparent", WebkitTextStroke: `1.4px ${INK}` }}>a&nbsp;month</em> for more.
         </h1>
-        <p style={{ fontFamily: sans, fontSize: 18, color: "rgba(242,237,228,0.66)", margin: "32px auto 0", maxWidth: 720, lineHeight: 1.6 }}>A free account trains, logs meals, cooks from Shape Kitchen, hires coaches and is ranked on the leaderboards. The membership, $5 a month or $48 a year, adds Nora as your assistant, Shape Radio, the points Store, and the full leaderboard with your exact rank. Try Nora free for a week after your first three workouts — no card. Coaches are optional: they set their own rates, you pay them directly, and you can cancel any time.</p>
+        <p style={{ fontFamily: sans, fontSize: 18, color: "rgba(242,237,228,0.66)", margin: "32px auto 0", maxWidth: 720, lineHeight: 1.6 }}>A free account trains, logs meals, cooks from Shape Kitchen, hires coaches and is ranked on the leaderboards. The membership, $5 a month{yearly}, adds Nora as your assistant, Shape Radio, the points Store, and the full leaderboard with your exact rank. Try Nora free for a week after your first three workouts — no card. Coaches are optional: they set their own rates, you pay them directly, and you can cancel any time.</p>
       </div>
     </section>
   );
@@ -202,12 +208,15 @@ function PricingCoaches() {
 
 function PricingFAQ() {
   const [open, setOpen] = React.useState(0);
+  // The yearly plan's answer only once the plans say it is set up, as the hero and the card.
+  const plans = window.useShapePlans ? window.useShapePlans() : null;
+  const faq = PRICING_FAQ.filter((f) => !f.yearly || !!(plans && plans.annual));
   return (
     <section style={{ padding: "120px 72px" }}>
       <div style={{ maxWidth: 920, margin: "0 auto" }}>
         <div style={{ fontFamily: mono, fontSize: 12, letterSpacing: "0.2em", textTransform: "uppercase", color: TEAL, marginBottom: 18 }}>FAQ</div>
         <h2 style={{ fontFamily: serif, fontSize: "clamp(36px, 5vw, 60px)", letterSpacing: "-0.035em", fontWeight: 300, margin: "0 0 44px", lineHeight: 1 }}>Things people <em style={{ fontStyle: "italic", fontWeight: 600, color: TEAL }}>actually ask.</em></h2>
-        {PRICING_FAQ.map((f, i) => (
+        {faq.map((f, i) => (
           <div key={i} style={{ borderTop: "1px solid rgba(242,237,228,0.1)", padding: "26px 0" }}>
             <button onClick={() => setOpen(open === i ? -1 : i)} style={{ width: "100%", textAlign: "left", background: "transparent", border: 0, color: INK, cursor: "pointer", padding: 0, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 24 }}>
               <span style={{ fontFamily: serif, fontSize: 26, letterSpacing: "-0.015em", fontWeight: 400 }}>{f.q}</span>

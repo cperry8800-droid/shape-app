@@ -1256,3 +1256,44 @@ test('the migration adds admin_review in one re-runnable transaction, guarded, a
   assert.doesNotMatch(body, /alter table (public\.)?(trainers|nutritionists|provider_credentials)\b/i);
   assert.doesNotMatch(body, /create (or replace )?(function|policy)/i);
 });
+
+// ⚠ THE EMAIL'S RECORD GOES INTO THE ROW AS IT IS THEN (Codex P2 on #2675). A confirmation email
+// takes seconds; an applicant confirming from an earlier link in that time approved the
+// application, and the record of the email then wrote back the review as it was before it went
+// out, wiping approved_provider over a live coach.
+test('a decision email is recorded into the application as it is now, never over a newer decision', async () => {
+  const admin = fakeAdmin({ tables: { provider_applications: [application()], profiles: [], trainers: [] } });
+  const row = () => admin.tables.provider_applications[0];
+  // While the confirmation email is out, the applicant confirms: approved, with its provider.
+  const email = {
+    sendEmail: async () => {
+      Object.assign(row(), {
+        status: 'approved',
+        admin_review: { ...row().admin_review, pending_confirmation: null, approved_provider: { id: 101, role: 'trainer', bound_by: 'confirmed' } },
+        updated_at: 'touched-confirm',
+      });
+      return { ok: true };
+    },
+  };
+  const approval = await loadRealModule(join(ROOT, 'src/lib/coach-approval.ts'), {
+    typescript: true,
+    registry: new Map([
+      ['@/lib/email', email],
+      ['@/lib/age-derive.mjs', ageDerive],
+      ['@/lib/coach-application-emails', emails],
+      ['@/lib/provider-applications', pa],
+      ['@/lib/provider-experience.mjs', providerExperience],
+    ]),
+  });
+  const sent = await approval.requestConfirmation(admin.client, row(), { kind: 'confirm', user: MEMBER, mailTo: MEMBER.email },
+    { decidedBy: ADMIN.id, notes: '', applicantNote: '', experienceException: null });
+  assert.deepEqual(sent, { ok: true });
+  assert.equal(row().status, 'approved');
+  assert.deepEqual(row().admin_review.approved_provider, { id: 101, role: 'trainer', bound_by: 'confirmed' }, 'the confirmed approval was written over');
+  assert.equal(row().admin_review.pending_confirmation, null, 'the waiting confirmation came back');
+  assert.equal(row().admin_review.decision_email.kind, 'confirmation', 'and the email is still recorded');
+  // The record is compare-and-set on updated_at, against the row read after the email.
+  const record = admin.calls.filter((c) => c.table === 'provider_applications' && c.op === 'update').at(-1);
+  assert.ok(record.filters.includes('updated_at=touched-confirm'), record.filters.join(' '));
+  assert.deepEqual(Object.keys(record.payload), ['admin_review']);
+});

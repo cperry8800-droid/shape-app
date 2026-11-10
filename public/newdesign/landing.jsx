@@ -17,7 +17,8 @@ const ROLES = [
     blurb: "A free Shape account trains, logs meals, cooks and hires a coach whenever you want one. $5 a month adds Nora as your assistant, Shape Radio, the points Store, and the full leaderboard and your exact rank. Try Nora free for a week after your first three workouts — no card.",
     cta: "Get started",
     href: "SignupClient.html",
-    meta: "Free account · $5 / month or $48 / year membership",
+    // The yearly price is added by RoleCard once the plans say it is set up (Codex P2 on #2675).
+    meta: "Free account · $5 / month membership",
     perks: ["Workouts + meal logging, free", "Shape Kitchen recipes + guided cooking, free", "Every coach, when you want one, free", "Members: Nora as your assistant", "Members: Shape Radio, ad-free", "Members: spend Score points in the Store"],
   },
   {
@@ -123,6 +124,13 @@ function RoleCard({ role, index, total }) {
   const [hover, setHover] = React.useState(false);
   const [shown, setShown] = React.useState(REDUCED);
   const isRadio = role.key === "radio";
+  // The member card names the yearly price only once /api/membership/plans says it is set up: with
+  // none, a checkout for a year is refused (Codex P2 on #2675).
+  const plans = window.useShapePlans ? window.useShapePlans() : null;
+  const M = window.ShapeMembership;
+  const meta = role.key === "client" && plans && plans.annual && M && M.money
+    ? `Free account · ${M.money(plans.monthly.priceCents)} / month or ${M.money(plans.annual.priceCents)} / year membership`
+    : role.meta;
 
   React.useEffect(() => {
     if (REDUCED || !ref.current) return;
@@ -185,7 +193,7 @@ function RoleCard({ role, index, total }) {
       </ul>
 
       <div style={{ marginTop: "auto", paddingTop: 20, borderTop: "1px solid rgba(242,237,228,0.08)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <div style={{ fontFamily: mono, fontSize: 10.5, letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(242,237,228,0.48)" }}>{role.meta}</div>
+        <div style={{ fontFamily: mono, fontSize: 10.5, letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(242,237,228,0.48)" }}>{meta}</div>
         <div style={{ fontFamily: sans, fontSize: 13.5, fontWeight: 600, color: INK, display: "flex", alignItems: "center", gap: 8 }}>
           {role.cta}
           <span style={{ transition: "transform .25s ease", transform: hover ? "translateX(5px)" : "translateX(0)", color: TEAL }}>→</span>
