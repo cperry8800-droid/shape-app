@@ -18979,7 +18979,9 @@ function BSUniversalSearch({ onClose }) {
     if (signedIn && window.ShapeChannels?.list) {
       window.ShapeChannels.list().then(r => {
         const list = (r && r.data) || [];
-        if (!dead) setChAll(list.map(c => ({ id: c.id, name: c.name, blurb: c.description || '', memberCount: c.memberCount || (Array.isArray(c.members) ? c.members.length : 0) })));
+        // The channel as listChannels gives it, so its circle and what opening it shows are the
+        // Channels tab's: its picture, Shape's own, read-only, host, joined (Codex P1 on #2676).
+        if (!dead) setChAll(list.map(c => ({ id: c.id, name: c.name, blurb: c.description || '', memberCount: c.memberCount || (Array.isArray(c.members) ? c.members.length : 0), picture: c.picture || null, official: !!c.official, readOnly: !!c.readOnly, isHost: !!c.isHost, joined: !!c.joined })));
       }).catch(() => {});
     }
     if (window.ShapeMarketPlans?.list) {
@@ -22601,9 +22603,19 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
     }
     // Deep-link to a channel (e.g. from universal search): open it directly,
     // loading its messages exactly like a Channels-tab tap.
+    // ⚠ BY ITS ID, FROM THE LIST: a link carries a few of the channel's fields (a shared-channel card
+    // has its id, name and count), and opening on those alone dropped read-only, Shape's own, the
+    // picture and the host's controls (Codex P1 on #2676): Shape HQ opened with a composer whose
+    // every post the table refuses.
     if (openRequest.channel && openRequest.channel.id != null) {
       setTab('channels');
-      openChannelNow(openRequest.channel);
+      const asked = openRequest.channel;
+      const sample = String(asked.id).startsWith('sample');
+      if (sample || !window.ShapeChannels?.list) { openChannelNow(asked); return; }
+      window.ShapeChannels.list().then((r) => {
+        const full = ((r && r.data) || []).find((c) => c.id === asked.id);
+        openChannelNow(full ? { ...asked, ...full } : asked);
+      }).catch(() => openChannelNow(asked));
       return;
     }
     // Deep-link to the Wall (Home's "On the wall" card).
@@ -23524,7 +23536,10 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
           const chRow = (ch, i) => {
             const isSample = String(ch.id || '').startsWith('sample');
             const chN = (unread && unread['ch:' + ch.id]) || 0;
-            const openOrJoin = () => ch.joined ? openChannelNow(ch) : joinChannelNow(ch);
+            // A channel only Shape posts in (Shape HQ) opens for everyone: there is nothing to join for,
+            // and the migration seeds no members (Codex P2 on #2676; the website opens it too).
+            const openable = ch.joined || ch.readOnly;
+            const openOrJoin = () => openable ? openChannelNow(ch) : joinChannelNow(ch);
             return (
               <div key={ch.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 2px', borderTop: i ? `1px solid ${hair}66` : 0, ...(chReduced ? null : { animation: 'bsSdFadeUp 300ms ease both', animationDelay: `${Math.min(i, 10) * 26}ms` }) }}>
                 <button onClick={openOrJoin} style={{ flex: 1, minWidth: 0, background: 'transparent', border: 0, textAlign: 'left', cursor: 'pointer', color: cardInk, padding: 0 }}>
@@ -23548,7 +23563,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}>
                   {ch.isHost && !isSample && <button onClick={() => { setAddMemberFor(ch); setMemberQuery(''); }} aria-label={tr('feed:channels.addMember', { defaultValue: 'Add member' })} title={tr('feed:channels.addMember', { defaultValue: 'Add member' })} style={{ width: 28, height: 28, border: 0, background: 'transparent', color: muted, fontFamily: t.MONO, fontSize: 14, fontWeight: 700, lineHeight: 1, cursor: 'pointer', padding: 0 }}>＋</button>}
                   <button onClick={() => pinChannelNow(ch)} aria-label={ch.pinned ? tr('feed:channels.unpin', { defaultValue: 'Unpin' }) : tr('feed:channels.pinToTop', { defaultValue: 'Pin to top' })} title={ch.pinned ? tr('feed:channels.unpin', { defaultValue: 'Unpin' }) : tr('feed:channels.pinToTop', { defaultValue: 'Pin to top' })} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, border: 0, background: 'transparent', cursor: 'pointer', padding: 0, opacity: ch.pinned ? 1 : 0.3 }}><PinIcon filled={ch.pinned} size={15} /></button>
-                  {ch.joined
+                  {openable
                     ? <button onClick={openOrJoin} aria-label={tr('feed:channels.openChannel', { defaultValue: 'Open #{name}', name: ch.name })} style={{ width: 28, height: 28, border: 0, background: 'transparent', color: muted, fontFamily: t.MONO, fontSize: 15, lineHeight: 1, cursor: 'pointer', padding: 0 }}>›</button>
                     : <button onClick={openOrJoin} style={{ marginLeft: 4, padding: '8px 13px', borderRadius: 0, background: t.INK, color: t.PAPER, border: 0, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}>{tr('feed:channels.join', { defaultValue: 'Join' })}</button>}
                 </div>

@@ -217,6 +217,22 @@ test('a picture that failed to load is that address, not the circle: a new one g
   }
 });
 
+// Codex P1 on #2676: a channel opened from search or a shared-channel card carried a few fields, so
+// Shape HQ opened with a composer and a host lost their picture controls. Codex P2: Shape HQ has no
+// members, and the list's first tap joined it instead of opening it.
+test('the app opens a channel as the list has it, and Shape HQ without joining it', () => {
+  // Search keeps the channel's own fields.
+  assert.match(CLIENT, /setChAll\(list\.map\(c => \(\{ id: c\.id, name: c\.name, blurb: c\.description \|\| '', memberCount: [^\n]*, picture: c\.picture \|\| null, official: !!c\.official, readOnly: !!c\.readOnly, isHost: !!c\.isHost, joined: !!c\.joined \}\)\)\);/, 'search drops the channel\'s flags');
+  // A deep link is opened as the list has that channel, by its id.
+  const link = CLIENT.slice(CLIENT.indexOf("    if (openRequest.channel && openRequest.channel.id != null) {"), CLIENT.indexOf("    // Deep-link to the Wall (Home's"));
+  assert.ok(link.length > 0, 'the channel deep link moved');
+  assert.match(link, /window\.ShapeChannels\.list\(\)\.then\(\(r\) => \{\n\s*const full = \(\(r && r\.data\) \|\| \[\]\)\.find\(\(c\) => c\.id === asked\.id\);\n\s*openChannelNow\(full \? \{ \.\.\.asked, \.\.\.full \} : asked\);/, 'a deep link opens on the fields it carries');
+  assert.doesNotMatch(link, /setTab\('channels'\);\n\s*openChannelNow\(openRequest\.channel\);/, 'a deep link opens on the fields it carries');
+  // A read-only channel opens, for a member or not, and its row offers no Join.
+  assert.match(CLIENT, /const openable = ch\.joined \|\| ch\.readOnly;\n\s*const openOrJoin = \(\) => openable \? openChannelNow\(ch\) : joinChannelNow\(ch\);/, 'Shape HQ is joined on the first tap');
+  assert.match(CLIENT, /\{openable\n\s*\? <button onClick=\{openOrJoin\} aria-label=\{tr\('feed:channels\.openChannel'/, 'Shape HQ\'s row offers Join');
+});
+
 test('the app: Shape HQ has no composer, and only a member channel\'s host may change its picture', () => {
   assert.match(CLIENT, /\{thread\.readOnly \? \(\n\s*\/\/ A channel only Shape posts in \(Shape HQ\): no composer, and it says why\.\n\s*<div data-channel-readonly=""[^\n]*\n\s*\{tr\('feed:channels\.readOnly'[^\n]*\n\s*<\/div>\n\s*\) : \(\n\s*<BSMessageComposer /, 'the read-only note does not replace the composer');
   assert.match(CLIENT, /const canSetPicture = !!\(thread\.channelId && thread\.isHost && !thread\.official && !String\(thread\.channelId\)\.startsWith\('sample'\)/, 'the picture change is not for the host of a member channel alone');

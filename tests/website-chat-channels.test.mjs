@@ -209,6 +209,8 @@ test('a member sees the real channels, in the app\'s order, and not the sample',
     assert.match(r[0], /Shape HQ/, 'Shape HQ is pinned first, for everyone');
     assert.match(r[1], /PR Wall/, 'then the PR Wall');
     assert.match(r[0], /SHAPE/, 'marked as Shape\'s own');
+    // Shape HQ is read, and nobody joins it (it has no members): its row says nothing about joining.
+    assert.doesNotMatch(r[0], /JOIN/, 'Shape HQ\'s row asks to join (Codex P2 on #2676)');
     assert.match(r[1], /SHAPE/);
     assert.match(r[2], /macro-mondays/, 'then the member\'s own pin');
     assert.ok(r.slice(3).some((x) => /sunday-run-club/.test(x)));

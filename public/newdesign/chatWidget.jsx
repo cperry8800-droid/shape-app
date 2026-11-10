@@ -2983,7 +2983,7 @@ function ChatWidget(props) {
                         {t.group ? <React.Fragment><CwChannelHash />{String(t.who || "").replace(/^#\s*/, "")}</React.Fragment> : t.who}
                       </span>
                       {t.pinned && <span style={{ flex: "none", fontSize: 8.5, color: "var(--sh-accent-ink, #2ee0c4)", fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.08em", background: "rgba(var(--sh-accent2-rgb, 10,197,168),0.12)", padding: "1px 5px", borderRadius: 3 }}>{t.official ? "SHAPE" : "PINNED"}</span>}
-                      {t.channelId && !t.joined && <span style={{ flex: "none", fontSize: 8.5, color: "var(--sh-ink2, #a09b94)", fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.08em", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.18)", padding: "0 5px", borderRadius: 3 }}>JOIN</span>}
+                      {t.channelId && !t.joined && !t.readOnly && <span style={{ flex: "none", fontSize: 8.5, color: "var(--sh-ink2, #a09b94)", fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.08em", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.18)", padding: "0 5px", borderRadius: 3 }}>JOIN</span>}
                     </div>
                     <div style={{ display: "flex", alignItems: "center", gap: 6, flex: "none" }}>
                       {!t.official && <button
