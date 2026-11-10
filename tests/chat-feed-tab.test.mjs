@@ -357,7 +357,7 @@ test('posting is gated on a MEASURED signed-in, and a refused post rolls back', 
   const s = stripComments(FEED);
   // Three states: null unknown / false signed out / true signed in. `!signedIn`
   // would disable posting for a signed-in member for as long as the read takes.
-  assert.match(s, /disabled=\{signedIn !== true\}/, 'the composer is no longer gated on a measured signed-in');
+  assert.match(s, /disabled=\{signedIn !== true( \|\| roleUnsure)?\}/, 'the composer is no longer gated on a measured signed-in');
   assert.match(s, /setSignedIn\(signedIn\)/, 'the loader no longer publishes the auth state');
   // ⚠ THE ROLLBACK IS THE HALF THAT SURVIVES A RACE. The gate makes the
   // signed-out case unreachable; this covers every other refusal, and the arm it
@@ -472,6 +472,14 @@ test('the feed keeps up: re-read on a post, on return, and on a timer, keeping w
   assert.match(F, /visible\.map\(\(p, i\) => <CfFeedCard /, 'the list renders the per-render FeedItem');
   // A retry after a failed first read can still replace the error.
   assert.match(F, /loadedRef\.current = ok \|\| !signedIn;/, 'a failed read counts as loaded, so a retry is ignored');
+  // ⚠ Codex P1 on #2671: the role is the account's, read with it, never the cache's guess.
+  // A trainer's post in the role place was filed under CLIENT on a first visit.
+  assert.match(F, /const pr = await sdb\.getProfile\(u\.id\);/, 'the feed no longer reads the account\'s role');
+  assert.match(F, /const myRole = \(signedIn === true && acctRole\) \|\| cachedRole \|\| "client";/, 'a signed-in member\'s role is the cache\'s guess again');
+  assert.match(F, /const roleUnsure = place === "role" && signedIn === true && !acctRole;/, 'the role place no longer waits for the role');
+  assert.match(F, /disabled=\{signedIn !== true \|\| roleUnsure\}/, 'New post in the role place opens before the role is known');
+  assert.match(F, /window\.dispatchEvent\(new Event\("shape:viewer-role"\)\)/, 'the bubble is not told the role');
+  assert.match(stripComments(WIDGET), /window\.addEventListener\("shape:viewer-role", seen\)/, 'the role tab does not follow the account');
   // The member is found on every page, not only where /supabase.js is loaded.
   assert.match(F, /window\.shapeEnsureDb \? await window\.shapeEnsureDb\(\)/, 'the feed assumes the client is loaded');
 });

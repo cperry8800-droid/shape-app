@@ -66,6 +66,13 @@ export default {
     { name: 'the card is a new component every render', file: FEED,
       find: '  const CfFeedCard = cardTypeRef.current || (cardTypeRef.current = FeedItem);',
       replace: '  const CfFeedCard = FeedItem;' },
+    // ── the role is the account's (Codex P1 on #2671) ──
+    { name: 'a signed-in member\'s role is the cache\'s guess', file: FEED,
+      find: '  const myRole = (signedIn === true && acctRole) || cachedRole || "client";',
+      replace: '  const myRole = cachedRole || "client";' },
+    { name: 'New post in the role place opens before the role is known', file: FEED,
+      find: 'disabled={signedIn !== true || roleUnsure}',
+      replace: 'disabled={signedIn !== true}' },
     // ── the saved threads ──
     { name: 'the saved record no longer names its tabs', file: WIDGET,
       find: 'JSON.stringify({ threadsByTab, activeByTab, tabIds: tabs.map((t) => t.id) })',

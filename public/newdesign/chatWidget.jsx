@@ -605,6 +605,13 @@ function ChatWidget(props) {
     return feedReady ? FEED_TABS.concat(fallback) : fallback;
   }, [props.tabs, props.threads, props.title, props.eyebrow, feedReady]);
   // The viewer's role feed, named as the app names it (`feed:chip.*`, `feed:places.*Sub`).
+  // Drawn again when the feed learns the account's role (`shape:viewer-role`).
+  const [, setRoleSeen] = React.useState(0);
+  React.useEffect(() => {
+    const seen = () => setRoleSeen((n) => n + 1);
+    window.addEventListener("shape:viewer-role", seen);
+    return () => window.removeEventListener("shape:viewer-role", seen);
+  }, []);
   const cwViewerRole = () => { try { return String((window.shapeViewerRole && window.shapeViewerRole()) || "").toLowerCase(); } catch (e) { return ""; } };
   const tabLabel = (t) => {
     if (!t || t.place !== "role") return t ? t.label : "";

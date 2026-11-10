@@ -1027,6 +1027,12 @@ function CommunityFeed({ place = "wall" } = {}) {
   // was a sample person's ("Priya M."), so the composer and a new post's optimistic row
   // named someone else until the feed was read again.
   const [meName, setMeName] = React.useState("");
+  // The signed-in account's role, from its profile: null until read (see `myRole`).
+  const [acctRole, setAcctRole] = React.useState(null);
+  // ⚠ THREE STATES, NOT TWO. null = not resolved yet, false = measured signed
+  // out, true = measured signed in. Collapsing null into false would disable
+  // posting for a signed-in member for as long as the read takes.
+  const [signedIn, setSignedIn] = React.useState(null);
   const [composerOpen, setComposerOpen] = React.useState(false);
   // "+25 · CAREER" confirmation — shown ONLY when award_work_milestone
   // actually granted (spec 2026-07-13; a same-month duplicate shows nothing).
@@ -1142,8 +1148,17 @@ function CommunityFeed({ place = "wall" } = {}) {
   // `cfEnsureWallFonts` for why it is one link from here rather than an edit to
   // all 35 host pages.
   React.useEffect(() => { cfEnsureWallFonts(); }, []);
-  const myRole = (typeof window !== "undefined" && window.shapeViewerRole)
-    ? String(window.shapeViewerRole() || "").toLowerCase() : "client";
+  // ⚠ THE ROLE IS THE ACCOUNT'S, READ WITH IT (Codex P1 on #2671). `shapeViewerRole` is
+  // filled in by globalChatButton.js after a profile read of its own, so on a first visit,
+  // after cleared storage or a switch of account it still said "client": a trainer's post
+  // made in the role place was filed under CLIENT for good, and the role place showed them
+  // the clients' room. The feed reads the profile's role itself (`acctRole`, below); the
+  // cached one stands in only for a visitor or while that read is out, and posting in the
+  // role place waits for it.
+  const cachedRole = (typeof window !== "undefined" && window.shapeViewerRole)
+    ? String(window.shapeViewerRole() || "").toLowerCase() : "";
+  const myRole = (signedIn === true && acctRole) || cachedRole || "client";
+  const roleUnsure = place === "role" && signedIn === true && !acctRole;
   // This place, in the app's words: where a post made here is filed, and what it is called.
   const postChannel = cfPlaceChannel(place, myRole);
   const placeName = place === "community" ? "Community"
@@ -1206,10 +1221,6 @@ function CommunityFeed({ place = "wall" } = {}) {
   const loadedRef = React.useRef(false);
   // A new lens is a new read: its first answer may say it failed.
   React.useEffect(() => { loadedRef.current = false; }, [feedMode]);
-  // ⚠ THREE STATES, NOT TWO. null = not resolved yet, false = measured signed
-  // out, true = measured signed in. Collapsing null into false would disable
-  // posting for a signed-in member for as long as the read takes.
-  const [signedIn, setSignedIn] = React.useState(null);
   // ＋ Post elsewhere on the site (the living profile's own feed head, livingShared.jsx
   // lvComposePost) asks for the composer: a one-shot request read once the account is known
   // to be signed in, and an event for a feed already on screen. Signed out, it is left alone.
@@ -1413,6 +1424,7 @@ function CommunityFeed({ place = "wall" } = {}) {
       let signedIn = false;
       let uid = null;
       let name = "";
+      let role = null;
       // The feed is asked for at once; the account is found while it answers. Who you are
       // decides only which cards are yours and which hearts are filled.
       const feedReq = fetch('/api/community/feed' + (feedMode === 'following' ? '?mode=following' : ''), { credentials: 'same-origin' })
@@ -1431,11 +1443,29 @@ function CommunityFeed({ place = "wall" } = {}) {
           const u = data && data.user;
           uid = u && u.id; signedIn = !!uid;
           if (u) name = (u.user_metadata && u.user_metadata.full_name) || String(u.email || "").split("@")[0] || "";
+          if (u && sdb.getProfile) {
+            try {
+              const pr = await sdb.getProfile(u.id);
+              const r = pr && pr.role ? String(pr.role).trim().toLowerCase() : "";
+              if (r) role = r;
+              if (pr && pr.full_name) name = pr.full_name;
+            } catch (e) { /* the role stays unknown, and the role place waits */ }
+          }
         }
       } catch (e) {}
       if (!alive) return;
       setSignedIn(signedIn);
       setMeName(name);
+      if (signedIn && role) {
+        setAcctRole(role);
+        // The bubble's role tab reads the same cache: tell it, as globalChatButton.js does
+        // once it knows (`shape.viewerRole`), so its label follows the account.
+        if (window.__shapeViewerRole !== role) {
+          window.__shapeViewerRole = role;
+          try { localStorage.setItem("shape.viewerRole", role); } catch (e) {}
+          try { window.dispatchEvent(new Event("shape:viewer-role")); } catch (e) {}
+        }
+      } else if (!signedIn) setAcctRole(null);
       cfLoadUnits(signedIn).then((u) => { if (alive && u) setUnits(u); });
       let live = [];
       let ok = false;
@@ -1993,8 +2023,8 @@ function CommunityFeed({ place = "wall" } = {}) {
             It RENDERS rather than disappearing, and says why — the roster-CSV
             precedent: a control that is simply absent is not discoverable, and one
             that leads nowhere costs more trust than one that explains itself. */}
-        <button type="button" className="cf-btn cf-btn-primary" onClick={() => setComposerOpen(true)} disabled={signedIn !== true}
-          title={signedIn === false ? "Sign in to post" : signedIn === null ? "Checking your account…" : `Post to ${placeName}`}>
+        <button type="button" className="cf-btn cf-btn-primary" onClick={() => setComposerOpen(true)} disabled={signedIn !== true || roleUnsure}
+          title={signedIn === false ? "Sign in to post" : (signedIn === null || roleUnsure) ? "Checking your account…" : `Post to ${placeName}`}>
           <span aria-hidden style={{ fontSize: 15, lineHeight: 1 }}>＋</span> New post
         </button>
         {signedIn === false && (
