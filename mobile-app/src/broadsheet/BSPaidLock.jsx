@@ -1,6 +1,6 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
-import { bsPaidLockNow, bsNoraLockNow, bsNoraLockOf, bsNoraDaysLeft, bsNoraPreviewNoticeShown, bsNoraPreviewStamp, bsPastDueNoticeShown, bsPastDueStamp } from '../services/memberGate.mjs';
+import { bsPaidLockNow, bsNoraLockNow, bsNoraLockOf, bsPastDueNoticeShown, bsPastDueStamp } from '../services/memberGate.mjs';
 // ─── A LOCKED PAID FEATURE (owner, 2026-11-10) ─────────────────────────────────
 // An account is all the app needs; the $5 membership adds assistant Nora (her action cards and
 // her voice), Shape Radio, the AI helpers, Cook Mode's voice and the points Store. Every one of
@@ -12,11 +12,9 @@ import { bsPaidLockNow, bsNoraLockNow, bsNoraLockOf, bsNoraDaysLeft, bsNoraPrevi
 //            your card to get Shape Radio and Nora back." and Update your card, which opens the
 //            Stripe billing portal. Never the Join prompt: a second checkout would sell them a
 //            second membership.
-//   noraEnded  a free account whose free week of assistant Nora has ended (after its first 3
-//            workouts it gets 7 days of her, once): "Your free week with Nora has ended. Join to
-//            keep her." and Join. Only Nora's features take it (her cards, her voice, Cook Mode's
-//            voice, the weekly readout): Radio, the Store, the full board and the AI helpers were
-//            never in the week, and say the plain upgrade.
+//
+// Assistant Nora (her cards, her voice, Cook Mode's voice, the weekly readout) is paid only, like
+// the rest: a free account meets the same two locks on her (window.ShapeNora, read by useBSNoraLock).
 //
 // Join opens the plan picker (Monthly or Annual, from /api/membership/plans) before the checkout,
 // unless only monthly is configured. An account whose membership comes with its coaching is a
@@ -59,23 +57,16 @@ export function useBSPaidLock() {
   return useBSFlag(bsPaidLockRead);
 }
 
-/** Assistant Nora's lock now (window.ShapeNora): null, 'free', 'pastDue' or 'noraEnded'. */
+/** Assistant Nora's lock now (window.ShapeNora): null, 'free' or 'pastDue'. */
 export function bsNoraLockRead() {
-  try { return bsNoraLockNow({ nora: window.ShapeNora, pastDue: window.ShapePastDue, noraPreview: window.ShapeNoraPreview }); } catch (e) { return null; }
+  try { return bsNoraLockNow({ nora: window.ShapeNora, pastDue: window.ShapePastDue }); } catch (e) { return null; }
 }
 export function useBSNoraLock() {
   return useBSFlag(bsNoraLockRead);
 }
-/** A Nora route's 402 code as its lock, the ended week included. */
+/** A Nora route's 402 code as its lock ('free' when the code names none). */
 export function bsNoraLockFromCode(code) {
-  try { return bsNoraLockOf(code, window.ShapeNoraPreview) || 'free'; } catch (e) { return 'free'; }
-}
-/** The free week now: { startedAt, endsAt, active } or null. */
-export function bsNoraPreviewRead() {
-  try { return window.ShapeNoraPreview || null; } catch (e) { return null; }
-}
-export function useBSNoraPreview() {
-  return useBSFlag(bsNoraPreviewRead);
+  try { return bsNoraLockOf(code) || 'free'; } catch (e) { return 'free'; }
 }
 /** Whether the account's membership comes with its coaching (window.ShapeIncludedWithCoach). */
 export function useBSIncludedWithCoach() {
@@ -163,7 +154,7 @@ export async function bsPaidJoin() {
   return { ok: false, code: (r && r.code) || null };
 }
 
-/** The lock's one action: Update your card for a past-due membership, Join for anyone else (an ended free week included). */
+/** The lock's one action: Update your card for a past-due membership, Join for anyone else. */
 export function bsPaidGo(lock) {
   return lock === 'pastDue' ? bsOpenBillingPortal().then((ok) => ({ ok })) : bsPaidJoin();
 }
@@ -187,13 +178,7 @@ export function bsPaidFeatureLine(tr, feature) {
 /** One sentence for a place with no room for the card (Cook Mode's note, a status line). */
 export function bsPaidSentence(tr, lock, feature) {
   if (lock === 'pastDue') return tr('common:paid.pastDue', { defaultValue: 'Your payment didn’t go through. Update your card to get Shape Radio and Nora back.' });
-  if (lock === 'noraEnded') return bsNoraEndedLine(tr);
   return `${bsPaidFeatureLine(tr, feature)} ${tr('common:paid.freeBody', { price: BS_MEMBERSHIP_PRICE, defaultValue: '{price} a month adds Nora, Shape Radio and the AI helpers.' })}`;
-}
-
-/** The ended free week's line. */
-export function bsNoraEndedLine(tr) {
-  return tr('common:paid.noraEnded', { defaultValue: 'Your free week with Nora has ended. Join to keep her.' });
 }
 
 /** What every account gets free (community channels among them, never a membership perk). */
@@ -294,8 +279,7 @@ export function BSPaidLock({ lock, feature, compact = false, tone, style }) {
   );
   const body = pastDue
     ? tr('common:paid.pastDue', { defaultValue: 'Your payment didn’t go through. Update your card to get Shape Radio and Nora back.' })
-    : lock === 'noraEnded' ? bsNoraEndedLine(tr)
-      : bsPaidFeatureLine(tr, feature);
+    : bsPaidFeatureLine(tr, feature);
   const sub = pastDue ? null : tr('common:paid.freeBody', { price: BS_MEMBERSHIP_PRICE, defaultValue: '{price} a month adds Nora, Shape Radio and the AI helpers.' });
 
   if (compact) {
@@ -414,50 +398,6 @@ export function BSSignInToSend({ t, pinned = false, square = false, arrow = fals
   return go
     ? <button type="button" onClick={go} style={style}>{words}{arrow ? <span aria-hidden="true"> →</span> : null}</button>
     : <div style={style}>{words}</div>;
-}
-
-// ── Nora's free week (owner, 2026-11-10) ───────────────────────────────────────────────────────
-
-/** "N days left with Nora", or null outside an active free week. */
-export function bsNoraDaysLine(tr, noraPreview, now = Date.now()) {
-  const days = bsNoraDaysLeft(noraPreview, now);
-  if (days == null) return null;
-  return tr('common:paid.noraWeek.sheetLine', { days, defaultValue: '{days, plural, one {# day left with Nora} other {# days left with Nora}}' });
-}
-
-const BS_NORA_WEEK_SEEN = 'shape.noraWeekSeen';
-
-/**
- * The free week's one-time notice, on Home: what she can do now and the days left, until its × puts
- * it away for this week (once per account). A row like the past-due notice (Home adds no plates).
- */
-export function BSNoraPreviewNotice() {
-  const useBS = window.useBS;
-  const t = useBS ? useBS() : null;
-  const tr = useShapeTr();
-  const preview = useBSNoraPreview();
-  const lock = useBSNoraLock();
-  const uid = window.ShapeAuth?.getCachedState?.()?.user?.id || null;
-  const [stamp, setStamp] = React.useState(() => { try { return localStorage.getItem(BS_NORA_WEEK_SEEN); } catch (e) { return null; } });
-  if (!t || lock || !bsNoraPreviewNoticeShown({ noraPreview: preview, uid, stamp })) return null;
-  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
-  const days = bsNoraDaysLeft(preview);
-  const hide = () => {
-    const s = bsNoraPreviewStamp(uid, preview);
-    try { localStorage.setItem(BS_NORA_WEEK_SEEN, s); } catch (e) {}
-    setStamp(s);
-  };
-  return (
-    <div data-bs-nora-week-notice="" role="status" style={{ margin: `8px ${t.padX}px 4px`, display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0 8px 12px', borderLeft: `3px solid ${teal}`, borderBottom: `1px solid ${t.HAIR || t.RULE}` }}>
-      <span aria-hidden="true" style={{ color: teal, fontSize: 14, lineHeight: 1 }}>{'✦'}</span>
-      <div style={{ flex: 1, minWidth: 0, fontFamily: t.BODY, fontSize: 13, lineHeight: 1.4, color: t.INK }}>
-        {tr('common:paid.noraWeek.unlocked', { defaultValue: 'You’ve unlocked a free week of Nora as your assistant — she can now look up your plan, log for you and talk by voice.' })}
-        {days != null ? <span style={{ display: 'block', marginTop: 3, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: teal }}>{tr('common:paid.noraWeek.daysLeft', { days, defaultValue: '{days, plural, one {# day left} other {# days left}}' })}</span> : null}
-      </div>
-      <button type="button" onClick={hide} aria-label={tr('common:paid.noraWeek.dismiss', { defaultValue: 'Got it' })}
-        style={{ flex: 'none', width: 44, height: 44, border: 0, background: 'transparent', color: t.INK50, fontSize: 18, lineHeight: 1, cursor: 'pointer', display: 'grid', placeItems: 'center' }}>×</button>
-    </div>
-  );
 }
 
 // ── The plan picker (owner, 2026-11-10: $5 a month or $48 a year) ───────────────────────────────

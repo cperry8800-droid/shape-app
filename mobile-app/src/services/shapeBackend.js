@@ -846,10 +846,10 @@ const MEMBERSHIP_LOOKUP_MS = 8000;
 // `member` is the paid features (the $5 membership, an approved coach or an admin); a free account
 // is in the app all the same (owner, 2026-11-10). `pastDue` is a membership whose renewal failed
 // while Stripe retries: `member` is false then, and the app asks for the card, not a new checkout.
-// `nora` is assistant Nora (a member's, or a free week's: `noraPreview`), and `includedWithCoach`
-// a membership that comes with an active coaching subscription.
+// `nora` is assistant Nora (a paid feature: the server answers it as `member`), and
+// `includedWithCoach` a membership that comes with an active coaching subscription.
 async function lookupMembership() {
-  if (!state.user?.id) return { member: false, ageRestricted: false, pastDue: false, nora: false, noraPreview: null, includedWithCoach: false };
+  if (!state.user?.id) return { member: false, ageRestricted: false, pastDue: false, nora: false, includedWithCoach: false };
   const ctl = typeof AbortController === 'function' ? new AbortController() : null;
   let timer = null;
   const late = new Promise((resolve) => {
@@ -865,9 +865,8 @@ async function lookupMembership() {
         member: d.member === true,
         ageRestricted: d.ageRestricted === true,
         pastDue: d.member !== true && d.pastDue === true,
-        // Assistant Nora: a member's, or a free account's free week after its first 3 workouts.
+        // Assistant Nora: a paid feature, so a member always has her.
         nora: d.member === true || d.nora === true,
-        noraPreview: d.noraPreview && typeof d.noraPreview === 'object' ? d.noraPreview : null,
         // Membership included with an active coaching subscription (no $5 plan needed).
         includedWithCoach: d.member === true && d.includedWithCoach === true,
       };
@@ -3085,13 +3084,6 @@ async function saveStructuredWorkoutSession({
   const { data, error } = await supabase.rpc('save_workout_session', { p_session: sessionPayload, p_sets: normalizedSetLogs, p_samples: samples });
   if (error) throw error;
   if (!data?.session?.id) throw new Error('The workout save was not confirmed. Retry from your saved draft.');
-  // ⚠ THE WORKOUT THAT STARTS A FREE WEEK OF NORA OPENS HER AT ONCE (Codex P2 on #2675). The database
-  // starts the week as this session is saved (shape_start_nora_preview, on a third completed workout);
-  // with no fresh membership answer the shell kept her locked until the app went to the background,
-  // spending the week. An account that has her already asks nothing.
-  if (typeof window !== 'undefined' && window.ShapeNora !== true) {
-    try { window.dispatchEvent(new Event('shape:membership-recheck')); } catch (e) { /* the next return to the front asks */ }
-  }
   return { stored: 'supabase', data: { ...data.session, set_logs: data.set_logs || [], sensor_samples: data.sensor_samples || [] } };
 
 }

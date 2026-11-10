@@ -174,16 +174,19 @@ test('app Talk view: her face, the status in the member\'s language, End', async
   // A reply that could not be spoken says why: signed out is not a membership question.
   assert.match(says('paused', { reason: 'signed_out' }), /Sign in to hear Nora's voice\./);
   assert.match(says('paused', { reason: 'members' }), /Talking to Nora comes with membership\./);
-  // Her voice is assistant Nora's (window.ShapeNora, a member's or a free week's).
-  const prev = { nora: globalThis.window.ShapeNora, due: globalThis.window.ShapePastDue, week: globalThis.window.ShapeNoraPreview };
+  // Her voice is assistant Nora's (window.ShapeNora), paid only: a free account is told what
+  // membership adds, never of a free week (owner, 2026-11-10: there is none).
+  const prev = { nora: globalThis.window.ShapeNora, due: globalThis.window.ShapePastDue };
   try {
     globalThis.window.ShapeNora = false; globalThis.window.ShapePastDue = true;
     assert.match(says('paused', { reason: 'members' }), /Your payment didn’t go through\. Update your card to get Shape Radio and Nora back\./);
     assert.match(bsNoraVoiceFail(tr, 'members'), /Your payment didn’t go through/);
-    // A free week that has ended says so.
-    globalThis.window.ShapePastDue = false; globalThis.window.ShapeNoraPreview = { startedAt: '2026-11-01T00:00:00Z', endsAt: '2026-11-08T00:00:00Z', active: false };
-    assert.match(says('error', { reason: 'members' }), /Your free week with Nora has ended\. Join to keep her\./);
-  } finally { globalThis.window.ShapeNora = prev.nora; globalThis.window.ShapePastDue = prev.due; globalThis.window.ShapeNoraPreview = prev.week; }
+    // A free account (Nora false, not past due) meets the plain upgrade.
+    globalThis.window.ShapePastDue = false;
+    assert.match(says('error', { reason: 'members' }), /Talking to Nora comes with membership\./);
+    assert.doesNotMatch(says('error', { reason: 'members' }), /free week/i);
+    assert.match(bsNoraVoiceFail(tr, 'members'), /^Talking to Nora comes with membership\./);
+  } finally { globalThis.window.ShapeNora = prev.nora; globalThis.window.ShapePastDue = prev.due; }
   // Listen's failure note names the real reason; a signed-out member was told it was a member feature.
   assert.equal(bsNoraVoiceFail(tr, 'signed_out'), "Sign in to hear Nora's voice.");
   assert.equal(bsNoraVoiceFail(tr, 'playback_blocked'), 'Tap Listen again to hear Nora.');

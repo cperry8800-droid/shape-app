@@ -29,53 +29,24 @@ export function bsAccountGate({ isApprovedCoach, authReady, signedIn, membership
 /**
  * The flags the shell publishes for every screen: `canChat` (window.ShapeCanChat, any signed-in
  * account: messaging is free), `paid` (window.ShapePaid: Shape Radio, the Store, the AI helpers,
- * the full leaderboard), `nora` (window.ShapeNora: assistant Nora, a member's or a free week's),
- * `noraPreview` (window.ShapeNoraPreview, the free week itself) and `pastDue`
+ * the full leaderboard), `nora` (window.ShapeNora: assistant Nora) and `pastDue`
  * (window.ShapePastDue). `paid` and `nora` are undefined until the account's answer is known, so a
  * screen that locks on an explicit `false` never locks a member on the first frames of a cold launch.
  *
- * ⚠ NORA'S FREE WEEK (owner, 2026-11-10). After a free account's first 3 completed workouts it gets
- * 7 days of assistant Nora, once, no card: her action cards, her voice (and Cook Mode's), the weekly
- * readout and her lookups. Not Shape Radio, the Store, the full leaderboard or the AI helpers, which
- * stay on `paid`. The server answers `nora` and `noraPreview` ({ startedAt, endsAt, active }); a
- * server from before the field reads as `nora = paid`.
+ * ⚠ ASSISTANT NORA IS PAID ONLY (owner, 2026-11-10): an active $5 plan, an approved coach, an admin
+ * or an account paying a coach. A free account never has her, not even for a while: the server's
+ * `nora` is the paid features (`member`), and a free account meets her paid lock (Join, or Update
+ * your card when past due).
  */
 export function bsPaidFlags({ signedIn, isApprovedCoach, membership }) {
-  if (!signedIn) return { canChat: false, paid: undefined, pastDue: false, nora: undefined, noraPreview: null };
-  if (isApprovedCoach) return { canChat: true, paid: true, pastDue: false, nora: true, noraPreview: null };
+  if (!signedIn) return { canChat: false, paid: undefined, pastDue: false, nora: undefined };
+  if (isApprovedCoach) return { canChat: true, paid: true, pastDue: false, nora: true };
   const m = membership || {};
-  if (m.loading || typeof m.active !== 'boolean') return { canChat: true, paid: undefined, pastDue: false, nora: undefined, noraPreview: null };
+  if (m.loading || typeof m.active !== 'boolean') return { canChat: true, paid: undefined, pastDue: false, nora: undefined };
   const paid = m.active === true;
-  const noraPreview = bsNoraPreviewOf(m.noraPreview);
   // `nora` unknown (no lookup has answered yet) stays undefined, which never locks: only a false does.
   const nora = paid ? true : typeof m.nora === 'boolean' ? m.nora : undefined;
-  return { canChat: true, paid, pastDue: !paid && m.pastDue === true, nora, noraPreview };
-}
-
-/** The free week as the server sent it, or null: { startedAt, endsAt, active }. */
-export function bsNoraPreviewOf(p) {
-  if (!p || typeof p !== 'object') return null;
-  const startedAt = typeof p.startedAt === 'string' ? p.startedAt : null;
-  const endsAt = typeof p.endsAt === 'string' ? p.endsAt : null;
-  if (!startedAt && !endsAt) return null;
-  return { startedAt, endsAt, active: p.active === true };
-}
-
-/** Whole days left in an active free week (a part day counts as one), or null when there is none. */
-export function bsNoraDaysLeft(noraPreview, now = Date.now()) {
-  if (!noraPreview || noraPreview.active !== true || !noraPreview.endsAt) return null;
-  const ms = Date.parse(noraPreview.endsAt) - now;
-  if (!Number.isFinite(ms)) return null;
-  return ms > 0 ? Math.ceil(ms / 86400000) : 0;
-}
-
-// The free week's one-time notice: once per account per week, put away by its ×.
-export function bsNoraPreviewStamp(uid, noraPreview) {
-  return String(uid == null ? '' : uid) + ':' + String((noraPreview && (noraPreview.startedAt || noraPreview.endsAt)) || '');
-}
-export function bsNoraPreviewNoticeShown({ noraPreview, uid, stamp }) {
-  if (!uid || !noraPreview || noraPreview.active !== true) return false;
-  return stamp !== bsNoraPreviewStamp(uid, noraPreview);
+  return { canChat: true, paid, pastDue: !paid && m.pastDue === true, nora };
 }
 
 /**
@@ -148,22 +119,17 @@ export function bsPaidLockNow({ paid, pastDue }) {
 }
 
 /**
- * Assistant Nora's lock: only an explicit `nora === false` locks. A free week that has ended is its
- * own lock ('noraEnded': "Your free week with Nora has ended. Join to keep her."); past due is past
- * due whatever the week did.
+ * Assistant Nora's lock: only an explicit `nora === false` locks (unknown never does). A free
+ * account reads 'free' (Join), a membership whose renewal failed 'pastDue' (Update your card).
  */
-export function bsNoraLockNow({ nora, pastDue, noraPreview }) {
+export function bsNoraLockNow({ nora, pastDue }) {
   if (nora !== false) return null;
-  if (pastDue === true) return 'pastDue';
-  if (noraPreview && noraPreview.active === false) return 'noraEnded';
-  return 'free';
+  return pastDue === true ? 'pastDue' : 'free';
 }
 
-/** A Nora route's refusal code as its lock: the upgrade reads as the ended week once there was one. */
-export function bsNoraLockOf(code, noraPreview) {
-  const lock = bsPaidLockOf(code);
-  if (lock === 'free' && noraPreview && noraPreview.active === false) return 'noraEnded';
-  return lock;
+/** A Nora route's refusal code as its lock: the same codes as any paid route. */
+export function bsNoraLockOf(code) {
+  return bsPaidLockOf(code);
 }
 
 // Home's past-due notice is put away for the day: the stamp is "<uid>:<local day>", so it comes

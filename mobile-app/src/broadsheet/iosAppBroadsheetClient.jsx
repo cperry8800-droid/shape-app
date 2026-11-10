@@ -121,7 +121,7 @@ import { BSCoachHoursPage } from './BSCoachHours.jsx';
 import { BSTrainerProfile } from './BSTrainerProfile.jsx';
 import { BSNotifications } from './BSNotifications.jsx';
 import { BSNoraTalk, useNoraTalk, bsNoraVoiceFail } from './BSNoraTalk.jsx';
-import { BSPaidLock, BSPaidLockSheet, BSPastDueNotice, BSNoraPreviewNotice, BSSignInToSend, BSLockGlyph, useBSPaidLock, useBSNoraLock, useBSNoraPreview, useBSIncludedWithCoach, bsNoraLockRead, bsNoraLockFromCode, bsNoraDaysLine, bsPaidRefused, bsPaidSentence, bsPaidActionLabel, bsPaidGo, bsPickPlan, bsPlanPriceLabel, bsFreeWithAccountLine, bsOpenBillingPortal } from './BSPaidLock.jsx';
+import { BSPaidLock, BSPaidLockSheet, BSPastDueNotice, BSSignInToSend, BSLockGlyph, useBSPaidLock, useBSNoraLock, useBSIncludedWithCoach, bsNoraLockRead, bsNoraLockFromCode, bsPaidRefused, bsPaidSentence, bsPaidActionLabel, bsPaidGo, bsPickPlan, bsPlanPriceLabel, bsFreeWithAccountLine, bsOpenBillingPortal } from './BSPaidLock.jsx';
 import { BSWeekRecap, bsIsRecapDay } from './BSWeekRecap.jsx';
 import { bsPaidLockOf } from '../services/memberGate.mjs';
 import { BSVoiceRecorder, BSVoiceNotePlayer } from './BSVoiceNote.jsx';
@@ -3979,8 +3979,6 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
       {/* A membership whose renewal failed (owner, 2026-11-10): one row, put away for the day by its ×,
           with Update your card (the Stripe billing portal). A row, not a plate: Home adds no plates. */}
       <BSPastDueNotice />
-      {/* Nora's free week (owner, 2026-11-10): once, when it starts, put away by its ×. */}
-      <BSNoraPreviewNotice />
       {/* Last week's recap, one row on Mondays (the full card is on Progress). */}
       {bsHomeSignedIn && bsIsRecapDay() ? <BSWeekRecap who={bsMyName()} variant="row" /> : null}
 
@@ -6743,8 +6741,8 @@ function useBSCookReads() { return React.useSyncExternalStore(bsCookReadsSub, bs
 // while a step was not due yet (no narration at all), and after a stop. The line was on
 // screen while she was silent, so it is now drawn only for 'loading' and 'playing'.
 // Cook Mode's voice — Nora reading the steps aloud and the hold-to-talk mic — needs an account and
-// is assistant Nora (owner, 2026-11-10): a member's, or a free week's. `voiceMember` is both; `lock`
-// says which lock a signed-in account meets ('free' | 'pastDue' | 'noraEnded'), for what it says.
+// is assistant Nora (owner, 2026-11-10), a paid feature. `voiceMember` is that; `lock` says which
+// lock a signed-in account meets ('free' | 'pastDue'), for what it says.
 function useBSCookVoiceGate() {
   const signedIn = useBSCanChat();
   const lock = useBSNoraLock();
@@ -24327,8 +24325,6 @@ function BSNoraSheet({ onClose }) {
   // account's Talk key shows the lock under it, and Listen opens the lock as a sheet, instead of
   // starting audio the server refuses.
   const voiceLock = useBSNoraLock();
-  // Her free week (owner, 2026-11-10): "N days left with Nora" under the keys while it runs.
-  const noraWeekLine = bsNoraDaysLine(tr, useBSNoraPreview());
   const [talkLock, setTalkLock] = useStateBSC(false);
   const [listenLock, setListenLock] = useStateBSC(null);
   React.useEffect(() => { if (!voiceLock) setTalkLock(false); }, [voiceLock]);
@@ -24527,7 +24523,6 @@ function BSNoraSheet({ onClose }) {
             )}
           </div>
           {voiceLock && talkLock && <BSPaidLock lock={voiceLock} feature="voice" compact style={{ marginTop: 12 }} />}
-          {!voiceLock && noraWeekLine ? <div data-nora-week-line="" style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: deskTeal }}>{'\u2726'} {noraWeekLine}</div> : null}
         </div>
 
         <div ref={scrollRef} className="bs-hide-scroll" style={{ flex: 1, minHeight: 0, overflowY: 'auto', scrollbarWidth: 'none', msOverflowStyle: 'none' }}>

@@ -4,8 +4,8 @@
 // help-desk Nora. The membership ($5 a month or $48 a year, or one that comes with coaching, or an
 // approved coach, or an admin) adds the paid features: assistant Nora and her voice, Shape Radio,
 // the AI helpers, Cook Mode's voice and the points Store. Past due (the renewal failed, Stripe
-// retrying) is treated as free, and told to update the card. A free account's first 3 workouts
-// earn one free week of assistant Nora (never Radio, the Store, the full board or the AI helpers).
+// retrying) is treated as free, and told to update the card. Assistant Nora is paid only: a free
+// account meets her lock (there is no free week of her).
 // The weekly recap is free and shareable; the AI weekly readout stays paid.
 //
 // The pure rules are memberGate.mjs's; the lock every paid feature draws is BSPaidLock.jsx, driven
@@ -68,7 +68,7 @@ globalThis.localStorage = { getItem: (k) => (store.has(k) ? store.get(k) : null)
 const LOCK = await loadRealModule(join(ROOT, 'mobile-app/src/broadsheet/BSPaidLock.jsx'), { registry: new Map([['react', React], ['react-dom', require_('react-dom')]]) });
 const html = (el) => renderToStaticMarkup(el);
 const text = (el) => html(el).replace(/<[^>]+>/g, ' ').replace(/&#x27;/g, "'").replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim();
-const FLAGS = ['ShapePaid', 'ShapePastDue', 'ShapeAuth', 'ShapeNora', 'ShapeNoraPreview', 'ShapeIncludedWithCoach'];
+const FLAGS = ['ShapePaid', 'ShapePastDue', 'ShapeAuth', 'ShapeNora', 'ShapeIncludedWithCoach'];
 const withFlags = (flags, fn) => {
   const prev = Object.fromEntries(FLAGS.map((k) => [k, W[k]]));
   Object.assign(W, flags);
@@ -234,7 +234,7 @@ test('Radio, the Store, the AI helpers and the full board read ShapePaid; assist
   assert.match(RADIO, /if \(!r\.showPrompt \|\| lock\) return null;/);
   assert.match(RADIO, /const lock = bsRadioSignedIn\(\) \? paidLock : null;/);
   assert.match(RADIO, /\{lockNow \? <BSPaidLock lock=\{lockNow\} feature="radio"/);
-  // Cook Mode's voice is assistant Nora's (her free week included).
+  // Cook Mode's voice is assistant Nora's, a paid feature.
   assert.match(CLIENT, /function useBSCookVoiceGate\(\) \{\n\s+const signedIn = useBSCanChat\(\);\n\s+const lock = useBSNoraLock\(\);\n\s+return \{ voiceMember: signedIn && !lock, lock: signedIn \? lock : null \};/);
   assert.equal((CLIENT.match(/const \{ voiceMember, lock: voiceLock \} = useBSCookVoiceGate\(\);/g) || []).length, 3, 'one dish, the board and the prep session');
   assert.doesNotMatch(CLIENT, /const voiceMember = useBSCanChat\(\);/);
@@ -254,7 +254,7 @@ test('Radio, the Store, the AI helpers and the full board read ShapePaid; assist
   const readout = CLIENT.slice(CLIENT.indexOf('function BSWeeklyReadoutCard('), CLIENT.indexOf('function bsProgressWeight('));
   assert.match(readout, /<BSPaidLock lock=\{readoutLock\} feature="readout" compact \/>/);
   assert.match(readout, /const flagLock = useBSNoraLock\(\);/);
-  // The AI helpers and the Store were never in Nora's free week: they stay on ShapePaid.
+  // The AI helpers and the Store read ShapePaid.
   const recipeSheet = CLIENT.slice(CLIENT.indexOf('function BSMyRecipeSheet('), CLIENT.indexOf('function BSMyRecipeSheet(') + 2500);
   assert.match(recipeSheet, /const flagLock = useBSPaidLock\(\);/);
   const builder = CLIENT.slice(CLIENT.indexOf('function BSWorkoutBuilder('), CLIENT.indexOf('function BSWorkoutBuilder(') + 4000);
@@ -289,7 +289,8 @@ test('the backend carries a paid refusal\'s lock to every caller', () => {
   assert.match(BACKEND, /if \(res\.status === 402\) return \{ ok: false, draft: null, reason: payload && payload\.code === 'payment_past_due' \? 'payment_past_due' : 'membership_required' \};/, 'recipe import');
   assert.equal((BACKEND.match(/if \(!res\.ok\) throw bsStoreError\(res, data, '/g) || []).length, 3, 'the Store\'s three writes');
   assert.equal((BACKEND.match(/if \(!res\.ok\) throw bsNoraActionError\(res, payload, /g) || []).length, 2, 'Confirm and Undo');
-  assert.match(BACKEND, /pastDue: d\.member !== true && d\.pastDue === true,\n\s+\/\/[^\n]*\n\s+nora: d\.member === true \|\| d\.nora === true,\n\s+noraPreview: d\.noraPreview && typeof d\.noraPreview === 'object' \? d\.noraPreview : null,\n\s+\/\/[^\n]*\n\s+includedWithCoach: d\.member === true && d\.includedWithCoach === true,/);
+  assert.match(BACKEND, /pastDue: d\.member !== true && d\.pastDue === true,\n\s+\/\/[^\n]*\n\s+nora: d\.member === true \|\| d\.nora === true,\n\s+\/\/[^\n]*\n\s+includedWithCoach: d\.member === true && d\.includedWithCoach === true,/);
+  assert.doesNotMatch(BACKEND, /noraPreview/, 'the membership read carries no free week');
 });
 
 test('the leaderboards (like Strava): a free account is ranked; the full board, the exact rank and its history are paid', () => {
@@ -309,52 +310,47 @@ test('the leaderboards (like Strava): a free account is ranked; the full board, 
   assert.equal(EN.common['paid.feature.leaderboard'], 'See your exact rank and the full board with membership.');
 });
 
-test('Nora\'s free week: her features read ShapeNora, an ended week says so, and the days left show', () => {
-  const now = Date.parse('2026-11-10T12:00:00Z');
-  const week = { startedAt: '2026-11-08T12:00:00Z', endsAt: '2026-11-15T12:00:00Z', active: true };
-  const ended = { ...week, active: false };
-  // The shell's flags: a member always has her; a free week gives her to a free account.
+test('assistant Nora is paid only: a free account meets her lock, and nothing of a free week is left', () => {
+  // The shell's flags: a member always has her; a free account never does (the server's `nora` is
+  // `member` now, and a `noraPreview` it may still send is read by nothing).
   const m = (o) => ({ loading: false, active: false, ...o });
-  assert.equal(gate.bsPaidFlags({ signedIn: true, isApprovedCoach: false, membership: m({ nora: true, noraPreview: week }) }).nora, true);
-  assert.equal(gate.bsPaidFlags({ signedIn: true, isApprovedCoach: false, membership: m({ nora: true, noraPreview: week }) }).paid, false, 'the week is not the membership');
+  const week = { startedAt: '2026-11-08T12:00:00Z', endsAt: '2026-11-15T12:00:00Z', active: true };
   assert.equal(gate.bsPaidFlags({ signedIn: true, isApprovedCoach: false, membership: m({ active: true }) }).nora, true, 'a server with no field: a member has her');
-  assert.equal(gate.bsPaidFlags({ signedIn: true, isApprovedCoach: false, membership: m({ nora: false }) }).nora, false);
+  assert.deepEqual(gate.bsPaidFlags({ signedIn: true, isApprovedCoach: false, membership: m({ nora: false }) }), { canChat: true, paid: false, pastDue: false, nora: false }, 'a free account: no Nora');
+  assert.deepEqual(gate.bsPaidFlags({ signedIn: true, isApprovedCoach: false, membership: m({ nora: false, noraPreview: week }) }), { canChat: true, paid: false, pastDue: false, nora: false }, 'a stray free week gives nothing');
   assert.equal(gate.bsPaidFlags({ signedIn: true, isApprovedCoach: false, membership: m({}) }).nora, undefined, 'no lookup heard: unknown, which never locks (Codex P2 on #2675)');
-  // Her lock.
-  assert.equal(gate.bsNoraLockNow({ nora: true, noraPreview: week }), null);
+  // Her lock: Join for a free account, Update your card for a past-due one; unknown never locks.
+  assert.equal(gate.bsNoraLockNow({ nora: true }), null);
   assert.equal(gate.bsNoraLockNow({ nora: undefined }), null, 'unknown: never locked');
-  assert.equal(gate.bsNoraLockNow({ nora: false, noraPreview: ended }), 'noraEnded');
-  assert.equal(gate.bsNoraLockNow({ nora: false, pastDue: true, noraPreview: ended }), 'pastDue');
-  assert.equal(gate.bsNoraLockNow({ nora: false, noraPreview: null }), 'free');
-  assert.equal(gate.bsNoraLockOf('membership_required', ended), 'noraEnded');
-  assert.equal(gate.bsNoraLockOf('payment_past_due', ended), 'pastDue');
-  assert.equal(gate.bsNoraDaysLeft(week, now), 5);
-  assert.equal(gate.bsNoraDaysLeft(week, Date.parse('2026-11-15T11:00:00Z')), 1, 'a part day counts');
-  assert.equal(gate.bsNoraDaysLeft(ended, now), null);
-  // The ended week's lock says so, with Join.
-  const endedLock = text(React.createElement(LOCK.BSPaidLock, { lock: 'noraEnded', feature: 'voice' }));
-  assert.match(endedLock, /Your free week with Nora has ended\. Join to keep her\./);
-  assert.match(endedLock, /Join · \$5\/mo →/);
-  assert.equal(LOCK.bsPaidSentence(t, 'noraEnded', 'cookVoice'), 'Your free week with Nora has ended. Join to keep her.');
-  assert.equal(withFlags({ ShapeNora: false, ShapeNoraPreview: ended, ShapePastDue: false }, () => LOCK.bsNoraLockRead()), 'noraEnded');
-  assert.equal(withFlags({ ShapeNora: false, ShapeNoraPreview: ended }, () => LOCK.bsNoraLockFromCode('membership_required')), 'noraEnded');
-  // The sheet's line and Home's one-time notice.
-  assert.equal(LOCK.bsNoraDaysLine(t, week, now), '5 days left with Nora');
-  assert.equal(LOCK.bsNoraDaysLine(t, { ...week, endsAt: '2026-11-11T00:00:00Z' }, now), '1 day left with Nora');
-  store.clear();
-  const auth = { getCachedState: () => ({ user: { id: 'u1' } }) };
-  const live = { ...week, endsAt: new Date(Date.now() + 3 * 86400000 - 60000).toISOString() };
-  const notice = withFlags({ ShapeNora: true, ShapeNoraPreview: live, ShapeAuth: auth }, () => text(React.createElement(LOCK.BSPaidLock && LOCK.BSNoraPreviewNotice)));
-  assert.match(notice, /You’ve unlocked a free week of Nora as your assistant — she can now look up your plan, log for you and talk by voice\./);
-  assert.match(notice, /3 days left/);
-  store.set('shape.noraWeekSeen', gate.bsNoraPreviewStamp('u1', live));
-  assert.equal(withFlags({ ShapeNora: true, ShapeNoraPreview: live, ShapeAuth: auth }, () => html(React.createElement(LOCK.BSNoraPreviewNotice))), '', 'once: put away for this week');
-  store.clear();
-  assert.equal(withFlags({ ShapeNora: true, ShapeNoraPreview: null, ShapeAuth: auth }, () => html(React.createElement(LOCK.BSNoraPreviewNotice))), '', 'a member with no week sees nothing');
-  // Wired: the sheet's line, Home's notice, the shell's flag.
-  assert.match(CLIENT, /const noraWeekLine = bsNoraDaysLine\(tr, useBSNoraPreview\(\)\);/);
-  assert.match(CLIENT, /<BSNoraPreviewNotice \/>/);
-  assert.match(MAIN, /window\.ShapeNora = paidFlags\.nora;\n\s+window\.ShapeNoraPreview = paidFlags\.noraPreview;/);
+  assert.equal(gate.bsNoraLockNow({ nora: false }), 'free');
+  assert.equal(gate.bsNoraLockNow({ nora: false, pastDue: true }), 'pastDue');
+  assert.equal(gate.bsNoraLockNow({ nora: false, noraPreview: { ...week, active: false } }), 'free', 'no ended-week lock');
+  assert.equal(gate.bsNoraLockOf('membership_required'), 'free');
+  assert.equal(gate.bsNoraLockOf('payment_past_due'), 'pastDue');
+  assert.equal(gate.bsNoraLockOf('something_else'), null);
+  assert.equal(withFlags({ ShapeNora: false, ShapePastDue: false }, () => LOCK.bsNoraLockRead()), 'free');
+  assert.equal(withFlags({ ShapeNora: false, ShapePastDue: true }, () => LOCK.bsNoraLockRead()), 'pastDue');
+  assert.equal(withFlags({ ShapeNora: undefined, ShapePastDue: false }, () => LOCK.bsNoraLockRead()), null);
+  assert.equal(withFlags({ ShapeNora: true, ShapePastDue: false }, () => LOCK.bsNoraLockRead()), null);
+  assert.equal(LOCK.bsNoraLockFromCode('membership_required'), 'free');
+  assert.equal(LOCK.bsNoraLockFromCode('payment_past_due'), 'pastDue');
+  assert.equal(LOCK.bsNoraLockFromCode(undefined), 'free', 'a 402 with no code is the upgrade');
+  // A free account's lock on her voice is the plain upgrade, with Join.
+  const free = text(React.createElement(LOCK.BSPaidLock, { lock: 'free', feature: 'voice' }));
+  assert.match(free, /Talking to Nora comes with membership\./);
+  assert.match(free, /Join · \$5\/mo →/);
+  assert.doesNotMatch(free, /free week/i);
+  assert.equal(LOCK.bsPaidSentence(t, 'free', 'cookVoice'), 'Nora reading the steps aloud comes with membership. $5 a month adds Nora, Shape Radio and the AI helpers.');
+  // The free week's helpers, notice, line and flag are gone.
+  for (const k of ['bsNoraPreviewOf', 'bsNoraDaysLeft', 'bsNoraPreviewStamp', 'bsNoraPreviewNoticeShown']) assert.ok(!(k in gate), `memberGate.mjs still exports ${k}`);
+  for (const k of ['BSNoraPreviewNotice', 'useBSNoraPreview', 'bsNoraPreviewRead', 'bsNoraDaysLine', 'bsNoraEndedLine']) assert.ok(!(k in LOCK), `BSPaidLock.jsx still exports ${k}`);
+  const APP = [MAIN, CLIENT, BACKEND, read('mobile-app/src/broadsheet/BSPaidLock.jsx'), read('mobile-app/src/broadsheet/BSNoraTalk.jsx'), read('mobile-app/src/services/memberGate.mjs')].join('\n');
+  assert.doesNotMatch(APP, /noraPreview|NoraPreview|noraWeek|noraEnded|NoraDays|noraDaysLeft|free week/i);
+  assert.match(MAIN, /window\.ShapeNora = paidFlags\.nora;\n\s+window\.ShapeIncludedWithCoach = includedWithCoach;/);
+  for (const loc of LOCALES) {
+    const stale = Object.keys(cat(loc, 'common')).filter((k) => k === 'paid.noraEnded' || k.startsWith('paid.noraWeek.'));
+    assert.deepEqual(stale, [], `${loc}: the free week's copy is gone`);
+  }
 });
 
 test('Join picks Monthly or Annual from the real plans, and the plan reaches the checkout', async () => {
@@ -454,7 +450,6 @@ test('every new lock key is in all 13 catalogs, with its placeholders', () => {
   const KEYS = {
     common: ['paid.eyebrow', 'paid.eyebrowPastDue', 'paid.pastDue', 'paid.freeBody', 'paid.updateCard', 'paid.opening', 'paid.failed', 'paid.notNow', 'paid.hideToday', 'paid.short',
       'paid.feature.radio', 'paid.feature.voice', 'paid.feature.actions', 'paid.feature.readout', 'paid.feature.cookVoice', 'paid.feature.recipeImport', 'paid.feature.draft', 'paid.feature.store', 'paid.feature.leaderboard', 'paid.feature.any',
-      'paid.noraEnded', 'paid.noraWeek.unlocked', 'paid.noraWeek.daysLeft', 'paid.noraWeek.sheetLine', 'paid.noraWeek.dismiss',
       'paid.plans.eyebrow', 'paid.plans.title', 'paid.plans.body', 'paid.plans.monthly', 'paid.plans.annual', 'paid.plans.perMonth', 'paid.plans.perYear', 'paid.plans.save',
       'recap.title', 'recap.lastWeek', 'recap.workouts', 'recap.activeMinutes', 'recap.mealDays', 'recap.daysActive', 'recap.points', 'recap.streak', 'recap.share', 'recap.sharing', 'recap.shareFailed', 'recap.empty'],
     settings: ['plan.free', 'plan.pastDue', 'plan.subFree', 'plan.subPaid', 'account.metaPastDue', 'plan.renewsYearly', 'plan.includedCoach', 'plan.includedCoachBody', 'plan.includedCoachOwn'],
@@ -494,7 +489,7 @@ test('community channels are free: a free account (ShapePaid false) opens the ch
   assert.match(composer, /const paidLock = voice \? noraLock : null;/);
   const { loadBroadsheet, drive } = await import('./helpers/broadsheet-mount.mjs');
   const { BSMessageComposer } = await loadBroadsheet(['BSMessageComposer']);
-  Object.assign(globalThis, { ShapeCanChat: true, ShapePaid: false, ShapePastDue: false, ShapeNora: false, ShapeNoraPreview: null });
+  Object.assign(globalThis, { ShapeCanChat: true, ShapePaid: false, ShapePastDue: false, ShapeNora: false });
   let sent = 0;
   const d = drive(BSMessageComposer, { value: 'Hello channel', onChange() {}, onSend: () => { sent += 1; }, mag: true });
   assert.ok(d.nodes().some((n) => n.type === 'textarea'), 'a free account has no field to type in');

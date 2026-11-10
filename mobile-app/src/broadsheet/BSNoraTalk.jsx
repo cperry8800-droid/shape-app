@@ -87,11 +87,11 @@ export function useNoraTalk(ask) {
   return { ...view, ringRef, barsRef, start, tap: () => loop.tap(), end: () => loop.end() };
 }
 
-// ⚠ HER VOICE IS ASSISTANT NORA, A PAID FEATURE (owner, 2026-11-10), a member's or a free week's.
+// ⚠ HER VOICE IS ASSISTANT NORA, A PAID FEATURE (owner, 2026-11-10), for members only.
 // The loop names a 402 'members'; what it says follows the account: a membership whose renewal
-// failed is told to update the card, an ended free week that it has ended, anyone else that
-// membership adds her voice. The Talk key does not open this view for a locked account at all (the
-// Nora sheet shows the lock); this is for a refusal the shell's flags had not caught.
+// failed is told to update the card, anyone else that membership adds her voice. The Talk key
+// does not open this view for a locked account at all (the Nora sheet shows the lock); this is
+// for a refusal the shell's flags had not caught.
 function bsNoraTalkLock() {
   return bsNoraLockRead() || bsNoraLockFromCode('membership_required');
 }

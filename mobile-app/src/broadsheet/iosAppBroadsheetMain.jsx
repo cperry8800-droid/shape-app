@@ -1648,16 +1648,15 @@ function BSAppShell({ tweaks, setTweak }) {
     // seeds nothing, so a known minor's next launch holds for the answer instead of opening the app.
     // `pastDue` too: a membership whose renewal failed is asked to update the card. Unknown keeps
     // what was known.
-    // `nora` and `noraPreview`: assistant Nora, a member's or a free week's (owner, 2026-11-10);
+    // `nora`: assistant Nora, a paid feature (owner, 2026-11-10);
     // `includedWithCoach`: a membership that comes with an active coaching subscription.
     let ageRestricted = false;
     let pastDue = false;
     let nora = false;
-    let noraPreview = null;
     let includedWithCoach = false;
     // Whether any lookup has answered on this account yet. Until one does, a seeded `active` stands,
-    // but Nora and past due are unknown, never false: a free week is not locked, nor a past-due
-    // account sent to Join, by a lookup that failed on a cold launch (Codex P2 on #2675).
+    // but Nora and past due are unknown, never false: Nora is not locked, nor a past-due account
+    // sent to Join, by a lookup that failed on a cold launch (Codex P2 on #2675).
     let heard = false;
     const run = () => Promise.resolve(window.ShapeMembershipApi?.lookup?.() ?? null).catch(() => null).then((d) => {
       if (cancelled) return null;
@@ -1665,7 +1664,7 @@ function BSAppShell({ tweaks, setTweak }) {
       if (d) {
         heard = true;
         ageRestricted = d.ageRestricted === true; pastDue = d.pastDue === true;
-        nora = d.nora === true; noraPreview = d.noraPreview || null; includedWithCoach = d.includedWithCoach === true;
+        nora = d.nora === true; includedWithCoach = d.includedWithCoach === true;
       }
       if (answer === true || answer === false) {
         // A recheck that finds a new member says so, so a screen that was locked reads again
@@ -1676,8 +1675,8 @@ function BSAppShell({ tweaks, setTweak }) {
       }
       const active = bsMembershipAfter(known, answer);
       setMembership(heard
-        ? { loading: false, active, ageRestricted, pastDue: !active && pastDue, nora: active || nora, noraPreview, includedWithCoach: active && includedWithCoach }
-        : { loading: false, active, ageRestricted, pastDue: undefined, nora: active ? true : undefined, noraPreview: null, includedWithCoach: false });
+        ? { loading: false, active, ageRestricted, pastDue: !active && pastDue, nora: active || nora, includedWithCoach: active && includedWithCoach }
+        : { loading: false, active, ageRestricted, pastDue: undefined, nora: active ? true : undefined, includedWithCoach: false });
       return active;
     });
     run();
@@ -1810,24 +1809,22 @@ function BSAppShell({ tweaks, setTweak }) {
   // signed-in account (messaging a coach is free); window.ShapePaid is the paid features (Shape
   // Radio, the Store, the AI helpers, the full leaderboard), unknown (undefined) until this
   // account's answer is in, so nothing locks a member on a cold launch; window.ShapeNora is
-  // assistant Nora (a member's, or a free week's: window.ShapeNoraPreview); window.ShapePastDue is
-  // a membership whose renewal failed; window.ShapeIncludedWithCoach a membership that comes with
-  // coaching. Each change is announced ('shape:canchat', 'shape:paid') for the screens mounted.
+  // assistant Nora (a paid feature, like the rest); window.ShapePastDue is a membership whose
+  // renewal failed; window.ShapeIncludedWithCoach a membership that comes with coaching. Each
+  // change is announced ('shape:canchat', 'shape:paid') for the screens mounted.
   const paidFlags = bsPaidFlags({ signedIn, isApprovedCoach, membership });
   const includedWithCoach = paidFlags.paid === true && !!(membership && membership.includedWithCoach === true);
-  const previewKey = paidFlags.noraPreview ? `${paidFlags.noraPreview.startedAt}|${paidFlags.noraPreview.endsAt}|${paidFlags.noraPreview.active}` : '';
   useEffectBSM(() => {
     try {
       window.ShapeCanChat = paidFlags.canChat;
       window.ShapePaid = paidFlags.paid;
       window.ShapePastDue = paidFlags.pastDue;
       window.ShapeNora = paidFlags.nora;
-      window.ShapeNoraPreview = paidFlags.noraPreview;
       window.ShapeIncludedWithCoach = includedWithCoach;
       window.dispatchEvent(new Event('shape:canchat'));
       window.dispatchEvent(new Event('shape:paid'));
     } catch (e) {}
-  }, [paidFlags.canChat, paidFlags.paid, paidFlags.pastDue, paidFlags.nora, previewKey, includedWithCoach]);
+  }, [paidFlags.canChat, paidFlags.paid, paidFlags.pastDue, paidFlags.nora, includedWithCoach]);
 
   useEffectBSM(() => {
     let cancelled = false;
