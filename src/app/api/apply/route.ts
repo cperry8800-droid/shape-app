@@ -89,6 +89,10 @@ const ACCOUNT_DAILY_APPLICATIONS = 5;
 // under any of these names would put a path of the caller's choosing in front of the reviewer
 // (the review page signs a link for each), so they are dropped from what the client sends.
 const SERVER_DOCUMENT_KEYS = [
+  // The account that sent the application, stamped below from the signed-in caller alone: GET
+  // /api/me/application shows an application to that account only, so a client-sent value would
+  // put an application in someone else's Settings.
+  'account_id',
   'documents',
   'resume_document',
   'credential_documents',
@@ -487,6 +491,17 @@ export async function POST(req: NextRequest) {
     meets_experience_preference: !belowExperienceStandard(yearsExperience),
     background_check_consent: true,
   }, 'consent_received');
+
+  // ⚠ THE SENDER'S ACCOUNT, STAMPED HERE ONLY (Codex on #2667): the address and every other field are
+  // the form's, so they are anyone's to write; the signed-in caller (Bearer or cookie) is not. It is
+  // the one ownership GET /api/me/application trusts. A signed-out application carries none.
+  let senderId = '';
+  try {
+    senderId = (await currentUser(req))?.id ?? '';
+  } catch {
+    senderId = '';
+  }
+  if (senderId) details = { ...details, account_id: senderId };
 
   // L19 (2026-10-10): the anonymous insert policy on provider_applications is gone, so the
   // application row is written through the service role after the checks above.

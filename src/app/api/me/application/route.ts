@@ -9,10 +9,11 @@
 //
 // Auth: cookie session or Bearer token (the installed app sends no cookie). provider_applications has
 // no applicant read policy (rows are written and reviewed with the service role), so the read is the
-// admin client's, scoped here to the caller: rows whose address is their sign-in address, as approval
-// matches an application to an account. ⚠ NEVER BY details.user_id (Codex on #2667): /api/apply keeps the
-// details a client sends, so an id there is anyone's to write, and a row tagged with someone else's
-// account id would show in their Settings.
+// admin client's, scoped here to the caller: rows /api/apply stamped with their account
+// (details.account_id), set from the signed-in sender and never from the form. ⚠ NOT BY THE ADDRESS, NOR
+// details.user_id (Codex on #2667): both are the form's, so anyone could file an application under
+// someone else's address or id and put it in that person's Settings. An application sent signed out
+// shows nowhere here; its applicant hears by email.
 
 import { NextResponse } from 'next/server';
 import { currentUser } from '@/lib/request-auth';
@@ -32,14 +33,11 @@ const OPEN_STATUSES = ['pending', 'in_review'];
 export async function GET(request: Request) {
   const user = await currentUser(request);
   if (!user) return privateJson({ error: 'Authentication required.' }, { status: 401 });
-  const email = String(user.email || '').trim().toLowerCase();
-  // An account with no address has no application to find.
-  if (!email) return privateJson({ application: null });
   const admin = createAdminClient();
-  // Exact reads by the address only, never a pattern built from it. ⚠ THE OPEN ONES ARE READ ON THEIR OWN
-  // (Codex on #2667): a window of the newest rows alone would drop an open application older than ten
-  // later decisions, and pickApplication shows an open one first.
-  const scoped = () => admin.from('provider_applications').select(COLUMNS).eq('email', email);
+  // Exact reads by the stamped account only. ⚠ THE OPEN ONES ARE READ ON THEIR OWN (Codex on #2667): a
+  // window of the newest rows alone would drop an open application older than ten later decisions, and
+  // pickApplication shows an open one first.
+  const scoped = () => admin.from('provider_applications').select(COLUMNS).eq('details->>account_id', user.id);
   const newest = (q: ReturnType<typeof scoped>) => q.order('created_at', { ascending: false }).limit(10);
   const reads = [
     newest(scoped()),
@@ -49,5 +47,5 @@ export async function GET(request: Request) {
   // ⚠ A FAILED READ IS NOT "NO APPLICATION": the row would offer to apply again over one in review.
   if (results.some((r) => r.error)) return privateJson({ error: 'Could not read your application.', code: 'unavailable' }, { status: 503 });
   const rows = results.flatMap((r) => (Array.isArray(r.data) ? r.data : []));
-  return privateJson({ application: pickApplication(rows, { email }) });
+  return privateJson({ application: pickApplication(rows, { accountId: user.id }) });
 }

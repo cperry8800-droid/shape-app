@@ -1,15 +1,17 @@
 // Mutation spec for where a person's own coach application stands (2026-11-09): the stage rule and the
 // one-to-show pick (src/lib/application-status.mjs), the route that reads it with the admin client
-// (src/app/api/me/application/route.ts), and the app's read and Settings row
+// (src/app/api/me/application/route.ts), the account /api/apply stamps on an application, and the
+// app's read and Settings row
 // (services/shapeBackend.js, iosAppBroadsheetClient.jsx). Every mutation must be killed.
 //   node scripts/mutate.mjs --spec tests/mutations/application-status-2026-11-09.mutations.mjs --fail-on-skipped
 const LIB = 'src/lib/application-status.mjs';
 const ROUTE = 'src/app/api/me/application/route.ts';
+const APPLY = 'src/app/api/apply/route.ts';
 const BACKEND = 'mobile-app/src/services/shapeBackend.js';
 const CLIENT = 'mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx';
 
 export default {
-  test: 'node --test tests/application-status-route.test.mjs tests/app-coaches-tab.test.mjs',
+  test: 'node --test tests/application-status-route.test.mjs tests/app-coaches-tab.test.mjs tests/provider-apply-submit.test.mjs',
   timeoutMs: 180_000,
   mutations: [
     // ── the stage ──
@@ -19,9 +21,11 @@ export default {
     { name: 'a reviewer opening it is not shown', file: LIB, find: "  if (status === 'in_review') return 'in_review';", replace: '' },
 
     // ── the one to show: the caller's own only ──
-    { name: "someone else's row is picked", file: LIB, find: "  const mine = (Array.isArray(rows) ? rows : []).filter((r) => r && String(r.email || '').trim().toLowerCase() === mail);", replace: "  const mine = (Array.isArray(rows) ? rows : []).filter((r) => r);" },
-    { name: 'the address is matched case-sensitively', file: LIB, find: "  const mine = (Array.isArray(rows) ? rows : []).filter((r) => r && String(r.email || '').trim().toLowerCase() === mail);", replace: "  const mine = (Array.isArray(rows) ? rows : []).filter((r) => r && String(r.email || '').trim() === mail);" },
-    { name: 'a client-written account id is ownership again', file: LIB, find: "  const mine = (Array.isArray(rows) ? rows : []).filter((r) => r && String(r.email || '').trim().toLowerCase() === mail);", replace: "  const mine = (Array.isArray(rows) ? rows : []).filter((r) => r && (String(r.email || '').trim().toLowerCase() === mail || (r.details && r.details.user_id)));" },
+    { name: "someone else's row is picked", file: LIB, find: "  const mine = (Array.isArray(rows) ? rows : []).filter((r) => r && record(r.details).account_id === id);", replace: "  const mine = (Array.isArray(rows) ? rows : []).filter((r) => r);" },
+    { name: 'the form\'s address is ownership again', file: LIB, find: "  const mine = (Array.isArray(rows) ? rows : []).filter((r) => r && record(r.details).account_id === id);", replace: "  const mine = (Array.isArray(rows) ? rows : []).filter((r) => r && (record(r.details).account_id === id || !!r.email));" },
+    { name: 'a client-written account id is ownership again', file: LIB, find: "  const mine = (Array.isArray(rows) ? rows : []).filter((r) => r && record(r.details).account_id === id);", replace: "  const mine = (Array.isArray(rows) ? rows : []).filter((r) => r && (record(r.details).account_id === id || record(r.details).user_id === id));" },
+    { name: 'the apply route keeps a client-sent account id', file: APPLY, find: "  'account_id',\n  'documents',", replace: "  'documents'," },
+    { name: 'the apply route does not stamp the sender', file: APPLY, find: "  if (senderId) details = { ...details, account_id: senderId };", replace: '' },
     { name: 'a decided one shows over an open one', file: LIB, find: "  const row = open[0] || mine.slice().sort(newest)[0];", replace: '  const row = mine.slice().sort(newest)[0];' },
     { name: 'an open one claims a decision date', file: LIB, find: "    decidedAt: OPEN.has(String(row.status)) ? null : (row.reviewed_at || null),", replace: '    decidedAt: row.reviewed_at || null,' },
 

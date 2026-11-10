@@ -30,14 +30,14 @@ export function applicationStage(row) {
 
 /**
  * The one application to show: an open one first (the newest), else the newest decided one.
- * A row is the person's when its address is their sign-in address, as approval matches an application
- * to an account. ⚠ NEVER BY details.user_id (Codex on #2667): /api/apply keeps the details a client
- * sends, so an id there is anyone's to write.
+ * A row is the person's when /api/apply stamped it with their account (details.account_id, set from
+ * the signed-in sender, stripped from what a client sends). ⚠ NEVER BY THE ADDRESS OR details.user_id
+ * (Codex on #2667): both are the form's, anyone's to write.
  */
-export function pickApplication(rows, { email } = {}) {
-  const mail = String(email || '').trim().toLowerCase();
-  if (!mail) return null;
-  const mine = (Array.isArray(rows) ? rows : []).filter((r) => r && String(r.email || '').trim().toLowerCase() === mail);
+export function pickApplication(rows, { accountId } = {}) {
+  const id = String(accountId || '');
+  if (!id) return null;
+  const mine = (Array.isArray(rows) ? rows : []).filter((r) => r && record(r.details).account_id === id);
   if (!mine.length) return null;
   const newest = (a, b) => String(b.created_at || '').localeCompare(String(a.created_at || ''));
   const open = mine.filter((r) => OPEN.has(String(r.status))).sort(newest);
