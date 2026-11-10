@@ -17,7 +17,7 @@ import { supersetKey, blockKind, videoUrl } from '../../../../../public/newdesig
 import { sharedWeekOneOf } from '../../../../lib/coach-client-legs.mjs';
 import { OPEN_SUB_STATUSES } from '../../../../lib/coach-trajectory.mjs';
 import { bsNormalizeListingMedia } from '../../../../../public/newdesign/listingMedia.mjs';
-import { playlistLinkIndex, linkedPlaylist, linkMealDays, mealDaysHavePlaylist } from '../../../../lib/plan-playlist-links.mjs';
+import { playlistLinkIndex, linkedPlaylist, linkMealDays, mealDaysHavePlaylist, mealDayPlaylists, playlistLookups } from '../../../../lib/plan-playlist-links.mjs';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -366,17 +366,41 @@ export async function GET(request: Request) {
     if (owner) workoutOwner.set(String(w.id), owner);
   }
   const menuOwner = mealDaysHavePlaylist(mealDays) ? ownerOfRow(nuNames, mp?.nutritionist_id) : null;
-  const playlistOwners = [...new Set([...workoutOwner.values(), ...(menuOwner ? [menuOwner] : [])])];
+  const wanted = playlistLookups([
+    ...workouts.map((w) => ({ playlist: w.playlist, owner: workoutOwner.get(String(w.id)) ?? null })),
+    ...mealDayPlaylists(mealDays).map((p) => ({ playlist: p, owner: menuOwner })),
+  ]);
   let playlistLinks: ReturnType<typeof playlistLinkIndex> = new Map();
-  if (playlistOwners.length) {
+  if (wanted.ids.length || wanted.nameOwners.length) {
     try {
-      const { data, error } = await createAdminClient()
-        .from('coach_soundtracks')
-        .select('id, owner_id, name, url')
-        .in('owner_id', playlistOwners)
-        .limit(1000);
-      if (error) console.error('[client/plan] playlist links read failed:', error.message);
-      else playlistLinks = playlistLinkIndex(data ?? []);
+      const admin = createAdminClient();
+      const rows: unknown[] = [];
+      // ⚠ NO CAPPED READ OF EVERY ROW (Codex P2 on #2679): a playlist with an id is read by that id.
+      if (wanted.ids.length) {
+        const { data, error } = await admin
+          .from('coach_soundtracks')
+          .select('id, owner_id, name, url')
+          .in('owner_id', wanted.idOwners)
+          .in('id', wanted.ids);
+        if (error) throw new Error(error.message);
+        rows.push(...(data ?? []));
+      }
+      // One saved before ids is matched by a name only one of its coach's playlists has, so that coach's
+      // whole list is read, a page at a time from where the last one ended, until one comes back empty: the
+      // server's own row ceiling can cut a page short, so a short page proves nothing. At most 20 reads.
+      for (let from = 0, reads = 0; wanted.nameOwners.length && reads < 20; reads++) {
+        const { data, error } = await admin
+          .from('coach_soundtracks')
+          .select('id, owner_id, name, url')
+          .in('owner_id', wanted.nameOwners)
+          .order('id', { ascending: true })
+          .range(from, from + 999);
+        if (error) throw new Error(error.message);
+        if (!data || !data.length) break;
+        rows.push(...data);
+        from += data.length;
+      }
+      playlistLinks = playlistLinkIndex(rows as Parameters<typeof playlistLinkIndex>[0]);
     } catch (e) {
       console.error('[client/plan] playlist links read failed:', e instanceof Error ? e.message : e);
     }

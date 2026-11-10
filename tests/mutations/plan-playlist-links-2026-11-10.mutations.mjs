@@ -23,13 +23,21 @@ export default {
     { name: 'a meal is not linked', file: LIB, find: '          const p = linkedPlaylist(m.playlist, owner, index);', replace: '          const p = m.playlist;' },
     { name: 'a stored day link is kept', file: LIB, find: "    if ('playlist' in d) {", replace: '    if (false) {' },
 
-    // ── the route's read ──
-    { name: "the read isn't held to the plan's coaches", file: ROUTE, find: "        .in('owner_id', playlistOwners)\n", replace: '' },
-    { name: 'the read runs with no playlist on the plan', file: ROUTE, find: '  if (playlistOwners.length) {', replace: '  if (true) {' },
+    // ── the route's reads ──
+    { name: "the id read isn't held to the plan's coaches", file: ROUTE, find: "          .in('owner_id', wanted.idOwners)\n", replace: '' },
+    { name: 'the id read reads every row of the coaches', file: ROUTE, find: "          .in('id', wanted.ids);", replace: ';' },
+    { name: "the name read isn't held to its coaches", file: ROUTE, find: "          .in('owner_id', wanted.nameOwners)\n", replace: '' },
+    { name: 'the name read stops after one page', file: ROUTE, find: '        from += data.length;\n      }', replace: '        from += data.length;\n        break;\n      }' },
+    { name: 'the name read steps a full page past a short one', file: ROUTE, find: '        from += data.length;', replace: '        from += 1000;' },
+    { name: 'the read runs with no playlist on the plan', file: ROUTE, find: '  if (wanted.ids.length || wanted.nameOwners.length) {', replace: '  if (true) {' },
     { name: "a workout reads the menu's coach", file: ROUTE, find: "    const linked = w.playlist ? linkedPlaylist(w.playlist, workoutOwner.get(String(w.id)) ?? null, playlistLinks) : null;", replace: "    const linked = w.playlist ? linkedPlaylist(w.playlist, menuOwner, playlistLinks) : null;" },
     { name: 'the menu is sent unlinked', file: ROUTE, find: '      days: menuDays,', replace: '      days: mealDays,' },
-    // (Throwing from the error branch is no mutation: the read's own try catches it. The catch is the guard.)
+    // (Throwing from an error branch is no mutation: the reads' own try catches it. The catch is the guard.)
     { name: 'a failed read breaks the plan', file: ROUTE, find: "    } catch (e) {\n      console.error('[client/plan] playlist links read failed:', e instanceof Error ? e.message : e);\n    }", replace: "    } catch (e) {\n      throw e;\n    }" },
+    // ── what the reads ask for ──
+    { name: 'a non-uuid id is read', file: LIB, find: '    else if (UUID.test(id)) { ids.add(id); idOwners.add(owner); }', replace: '    else { ids.add(id); idOwners.add(owner); }' },
+    { name: 'a legacy name reads no list', file: LIB, find: '    if (!id) nameOwners.add(owner);\n    else if', replace: '    if (!id) {}\n    else if' },
+    { name: 'a row both reads return counts twice', file: LIB, find: '    if (rowId && ix.byId.has(rowId)) continue;\n', replace: '' },
 
     // ── the chip ──
     { name: 'the chip opens any link', file: CARD, find: '    return u.protocol === "https:" && DCL_PLAYLIST_HOSTS.test(u.hostname) ? u.href : null;', replace: '    return u.href;' },

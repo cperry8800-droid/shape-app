@@ -41,7 +41,10 @@ export function playlistLinkIndex(rows) {
     if (!owners.has(owner)) owners.set(owner, { byId: new Map(), byName: new Map() });
     const ix = owners.get(owner);
     const href = safePlaylistUrl(r.url);
-    if (r.id != null && String(r.id).trim()) ix.byId.set(String(r.id).trim(), href);
+    const rowId = r.id != null && String(r.id).trim() ? String(r.id).trim() : '';
+    // A row both reads returned (by id, and in its coach's whole list) is one playlist, not two of a name.
+    if (rowId && ix.byId.has(rowId)) continue;
+    if (rowId) ix.byId.set(rowId, href);
     const key = nameKey(r.name);
     if (!key) continue;
     // A second playlist of this name makes the name say nothing: a plan saved before ids could mean either.
@@ -65,6 +68,41 @@ export function linkedPlaylist(p, owner, index) {
   // By id when the plan has one: a playlist since deleted opens nothing, not a namesake.
   const href = id ? ix.byId.get(id) ?? null : ix.byName.get(nameKey(name)) ?? null;
   return href ? { ...out, url: href } : out;
+}
+
+// A saved playlist's id is a uuid (coach_soundtracks.id); the payload is client-written, so anything else is
+// no id that could match, and one such value in the read's `in('id', …)` would fail the whole read.
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * What a plan's playlists need read from their coaches' saved ones (Codex P2 on #2679: one capped read of
+ * every owner's rows could cut off the very playlist a plan names). A playlist with an id needs only that
+ * row: `ids`, from `idOwners`. One saved before ids is matched by a name only one of that coach's playlists
+ * has, which takes the coach's whole list: `nameOwners`.
+ * @param {Array<{ playlist: unknown, owner: string|null|undefined }>} refs
+ */
+export function playlistLookups(refs) {
+  const ids = new Set(), idOwners = new Set(), nameOwners = new Set();
+  for (const ref of Array.isArray(refs) ? refs : []) {
+    const p = ref && ref.playlist;
+    const owner = ref && ref.owner != null ? String(ref.owner) : '';
+    if (!owner || !p || typeof p !== 'object' || !String(p.name ?? '').trim()) continue;
+    const id = p.id == null ? '' : String(p.id).trim();
+    if (!id) nameOwners.add(owner);
+    else if (UUID.test(id)) { ids.add(id); idOwners.add(owner); }
+  }
+  return { ids: [...ids], idOwners: [...idOwners], nameOwners: [...nameOwners] };
+}
+
+/** Every playlist on a menu's days, on a day or a meal. */
+export function mealDayPlaylists(days) {
+  const out = [];
+  for (const d of Array.isArray(days) ? days : []) {
+    if (!d || typeof d !== 'object') continue;
+    if (d.playlist && typeof d.playlist === 'object') out.push(d.playlist);
+    for (const m of Array.isArray(d.meals) ? d.meals : []) if (m && m.playlist && typeof m.playlist === 'object') out.push(m.playlist);
+  }
+  return out;
 }
 
 /** Whether a plan's meal days carry any playlist, on a day or a meal. */
