@@ -195,16 +195,21 @@ test('a cook or workout screen another page opened goes back there when it close
 
 test('Home\'s own pages are announced and reopen on a Back; a reminder\'s Your mornings goes back where it came from', () => {
   const home = between(CLIENT, 'function BSClientHome({', '\n}\n');
-  assert.match(CLIENT, /function BSClientHome\(\{.*initialPage = '', onStartConsumed = \(\) => \{\} \}\) \{/);
+  assert.match(CLIENT, /function BSClientHome\(\{.*initialPage = '', initialViaNav = false, onStartConsumed = \(\) => \{\} \}\) \{/);
   for (const [state, page] of [['habitsPage', 'habits'], ['goalsPage', 'goals'], ['morningsPage', 'mornings'], ['homeProgressPage', 'progress']]) {
     assert.match(home, new RegExp(`const \\[${state}, set[A-Za-z]+\\] = useStateBSC\\(initialPage === '${page}'\\);`), state);
   }
-  assert.match(home, /const homeSub = goalsPage \? 'goals' : morningsPage \? 'mornings' : habitsPage \? 'habits' : homeProgressPage \? 'progress' : '';\n\s+React\.useEffect\(\(\) => \{\n\s+window\.ShapeNav\?\.announce\?\.\(\{ sub: homeSub \}\);/);
+  assert.match(home, /const homeSub = goalsPage \? 'goals' : morningsPage \? 'mornings' : habitsPage \? 'habits' : homeProgressPage \? 'progress' : '';/);
+  // A reminder's Your mornings keeps its way back through a jump from it and the Back that returns (Codex P2 on #2683).
+  assert.match(home, /const \[morningsViaNav, setMorningsViaNav\] = useStateBSC\(initialPage === 'mornings' && !!initialViaNav\);/);
+  assert.match(home, /const homeBackViaNav = homeSub === 'mornings' && morningsViaNav;\n\s+React\.useEffect\(\(\) => \{\n\s+window\.ShapeNav\?\.announce\?\.\(homeBackViaNav \? \{ sub: homeSub, back: 'nav' \} : \{ sub: homeSub \}\);/);
+  assert.match(home, /else if \(initialPage === 'mornings'\) \{ setMorningsPage\(true\); setMorningsViaNav\(!!initialViaNav\); \}/);
+  assert.ok(home.indexOf('const [morningsViaNav') < home.indexOf('const homeBackViaNav'), 'declared before the announce reads it');
   assert.ok(home.indexOf('const homeSub') < home.indexOf('  if (habitsPage) {'), 'the announce sits above the early returns');
   assert.match(home, /setMorningsPage\(true\);\n\s+setMorningsViaNav\(true\);/);
   assert.match(home, /<BSYourMornings onBack=\{\(\) => \{ const v = morningsViaNav; setMorningsPage\(false\); setMorningsViaNav\(false\); if \(v && window\.ShapeNav\?\.canPop\?\.\(\)\) window\.ShapeNav\.back\(\); \}\}/);
-  assert.match(CLIENT, /if \(loc\.tab === 'home'\) setHomeStart\(loc\.sub \|\| ''\);/);
-  assert.match(CLIENT, /initialPage=\{homeStart\} onStartConsumed=\{\(\) => setHomeStart\(''\)\} \/>,/);
+  assert.match(CLIENT, /if \(loc\.tab === 'home'\) \{ setHomeStart\(loc\.sub \|\| ''\); setHomeStartViaNav\(loc\.back === 'nav'\); \}/);
+  assert.match(CLIENT, /initialPage=\{homeStart\} initialViaNav=\{homeStartViaNav\} onStartConsumed=\{\(\) => \{ setHomeStart\(''\); setHomeStartViaNav\(false\); \}\} \/>,/);
 });
 
 test('Settings\' Library and Your hours come back to themselves after their jumps', () => {

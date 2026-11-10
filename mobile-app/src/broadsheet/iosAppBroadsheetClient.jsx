@@ -740,6 +740,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
   // ── Nav history (spec 2026-07-09): replay targets for popped descriptors ──
   const [eatStart, setEatStart] = useStateBSC('');
   const [homeStart, setHomeStart] = useStateBSC('');
+  const [homeStartViaNav, setHomeStartViaNav] = useStateBSC(false);
   const [meStart, setMeStart] = useStateBSC('');
   // THE CYCLE (spec 2026-07-19) — the calendar rides the takeover pattern so
   // back returns to wherever the member opened it from.
@@ -776,7 +777,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
     // otherwise open again.
     if (loc.tab === 'chat') setChatRequest(loc.detail ? { ...loc.detail, nonce: Date.now() } : null);
     if (loc.tab === 'eat') setEatStart(loc.sub || '');
-    if (loc.tab === 'home') setHomeStart(loc.sub || '');
+    if (loc.tab === 'home') { setHomeStart(loc.sub || ''); setHomeStartViaNav(loc.back === 'nav'); }
     if (loc.tab === 'me') setMeStart(loc.sub || '');
     if (loc.tab) setTab(loc.tab);
   };
@@ -1385,7 +1386,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
     );
   }
   const screens = {
-    home:    <BSClientHome     onProfile={goSettings} sheet={sheet} goCalendar={goCalendar} goRadio={goRadio} goTrain={goTrain} goEat={(view) => { navPush(); if (typeof view === 'string') setEatStart(view); setTab('eat'); }} goMarket={goMarket} goScore={goScore} goChat={goChat} goIntegrations={goIntegrations} tweaks={tweaks} setTweak={setTweak} checkinOpen={checkinOpen} onCheckinOpenConsumed={() => setCheckinOpen(null)} initialPage={homeStart} onStartConsumed={() => setHomeStart('')} />,
+    home:    <BSClientHome     onProfile={goSettings} sheet={sheet} goCalendar={goCalendar} goRadio={goRadio} goTrain={goTrain} goEat={(view) => { navPush(); if (typeof view === 'string') setEatStart(view); setTab('eat'); }} goMarket={goMarket} goScore={goScore} goChat={goChat} goIntegrations={goIntegrations} tweaks={tweaks} setTweak={setTweak} checkinOpen={checkinOpen} onCheckinOpenConsumed={() => setCheckinOpen(null)} initialPage={homeStart} initialViaNav={homeStartViaNav} onStartConsumed={() => { setHomeStart(''); setHomeStartViaNav(false); }} />,
     train:   <BSClientTrain    onProfile={goSettings} sheet={sheet} goCalendar={goCalendar} goRadio={goRadio} goMarket={goMarket} autoStart={pendingTrainStart} onAutoStartConsumed={() => setPendingTrainStart(false)} />,
     eat:     <BSClientEat      onProfile={goSettings} sheet={sheet} goCalendar={goCalendar} goRadio={goRadio} goMarket={goMarket} initialView={eatStart} onStartConsumed={() => setEatStart('')} cookWith={cookWith} onCookWithConsumed={() => setCookWith(null)} prepTonight={prepTonight} onPrepTonightConsumed={() => setPrepTonight(null)} />,
     chat:    <BSClientFeed     onProfile={goSettings} role={tweaks.role || 'client'} openRequest={chatRequest} />,
@@ -3457,7 +3458,7 @@ function BSMemberSetupStation({ onGoal, onTrain, onCheckin, onFindCoach }) {
   );
 }
 
-function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = () => {}, goMarket, goScore, goChat = () => {}, goIntegrations, tweaks = {}, setTweak = () => {}, checkinOpen = null, onCheckinOpenConsumed = () => {}, initialPage = '', onStartConsumed = () => {} }) {
+function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = () => {}, goMarket, goScore, goChat = () => {}, goIntegrations, tweaks = {}, setTweak = () => {}, checkinOpen = null, onCheckinOpenConsumed = () => {}, initialPage = '', initialViaNav = false, onStartConsumed = () => {} }) {
   // The coach Today's clean type (owner, 2026-10-28: "Member/client home page font needs to match
   // coaches"): Geist heads and Inter Tight words below the top bars, as the coach's (bsCleanType.jsx).
   const t = useBSClean();
@@ -3585,21 +3586,23 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
   // Home's pages ride on the nav history (owner, 2026-11-10: "Make sure back buttons are going back to
   // previous page and location user was on"): a jump from Goals (Find a coach) or Your mornings (the cycle,
   // Connect) comes back to that page, not to Home's own. A Back that lands while Home is mounted opens it too.
+  // Your mornings opened by a check-in reminder (the shell pushed where the member was) goes back there, and
+  // keeps that way back through a jump from it and the Back that returns (Codex P2 on #2683).
+  const [morningsViaNav, setMorningsViaNav] = useStateBSC(initialPage === 'mornings' && !!initialViaNav);
   const homeSub = goalsPage ? 'goals' : morningsPage ? 'mornings' : habitsPage ? 'habits' : homeProgressPage ? 'progress' : '';
+  const homeBackViaNav = homeSub === 'mornings' && morningsViaNav;
   React.useEffect(() => {
-    window.ShapeNav?.announce?.({ sub: homeSub });
+    window.ShapeNav?.announce?.(homeBackViaNav ? { sub: homeSub, back: 'nav' } : { sub: homeSub });
     return () => window.ShapeNav?.announce?.(null);
-  }, [homeSub]);
+  }, [homeSub, homeBackViaNav]);
   React.useEffect(() => {
     if (!initialPage) return;
     if (initialPage === 'goals') setGoalsPage(true);
-    else if (initialPage === 'mornings') setMorningsPage(true);
+    else if (initialPage === 'mornings') { setMorningsPage(true); setMorningsViaNav(!!initialViaNav); }
     else if (initialPage === 'habits') setHabitsPage(true);
     else if (initialPage === 'progress') setHomeProgressPage(true);
     onStartConsumed();
   }, [initialPage]); // eslint-disable-line react-hooks/exhaustive-deps
-  // Your mornings opened by a check-in reminder (the shell pushed where the member was) goes back there.
-  const [morningsViaNav, setMorningsViaNav] = useStateBSC(false);
   const [checkinPage, setCheckinPage] = useStateBSC(false);
   const [checkinDue, setCheckinDue] = useStateBSC(false);
   // ⚠ THE PREF GOVERNS EVERY CHECK-IN SURFACE, NOT JUST THE DAILY PROMPT (owner ruling
