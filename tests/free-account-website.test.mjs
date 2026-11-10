@@ -628,6 +628,6 @@ test('Nora in the chat: voice is on `nora` (the free week too), with the days le
   assert.match(check, /const paid = !!\(md && \(md\.member === true \|\| md\.coach === true \|\| md\.includedWithCoach === true\)\);/);
   assert.match(check, /setNoraWeek\(md && md\.signedIn === true && !paid && md\.noraPreview/, 'a member\'s own Nora is no free week');
   assert.match(CHAT, /\{member === true && noraWeekLeft != null && \(\n\s+<div data-nora-week-left[^>]*>\n\s+\{noraWeekLeft\} \{noraWeekLeft === 1 \? "day" : "days"\} left with Nora/);
-  assert.match(CHAT, /<span>\{pastDue \? CW_PAST_DUE_LINE : noraWeekEnded \? CW_NORA_ENDED_LINE : "Voice chat with Nora unlocks with membership\."\}<\/span>/);
+  assert.match(CHAT, /<span[^>]*>\{pastDue \? CW_PAST_DUE_LINE : noraWeekEnded \? CW_NORA_ENDED_LINE : "Voice chat with Nora unlocks with membership\."\}<\/span>/);
   assert.match(CHAT, /const CW_NORA_ENDED_LINE = "Your free week with Nora has ended\. Join to keep her\.";/);
 });
