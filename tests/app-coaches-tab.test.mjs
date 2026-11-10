@@ -131,6 +131,25 @@ function liveWorldDone() {
   for (const k of ['ShapeAuth', 'ShapeCoachReviews', 'ShapeCoachAvailability', 'ShapePlan']) delete globalThis[k];
 }
 
+test('filters chosen over the example roster are held to what the live listings carry once they land (Codex on #2667)', async () => {
+  liveWorld();
+  try {
+    const s = screen();
+    // While the directory is read, the example roster shows, with its cities and ways of meeting.
+    const f0 = s.dir().props.filters;
+    const city = f0.city && f0.city.options.find((c) => c !== 'Anywhere');
+    assert.ok(city, 'the example roster offers a city');
+    f0.city.onChange(city); s.d.render();
+    s.dir().props.filters.meet.onChange('inperson'); s.d.render();
+    assert.deepEqual(s.dir().props.filters.applied.map((a) => a.key).sort(), ['city', 'meet']);
+    // The live listings land; they state no city and no way of meeting.
+    await s.flush();
+    const f = s.dir().props.filters;
+    assert.equal(f.applied.length, 0, 'a city or way of meeting the live listings do not carry stayed on');
+    assert.equal(s.dir().props.list.length, 2, 'and hid every live coach');
+  } finally { liveWorldDone(); }
+});
+
 test('a live listing: its reviews or New, its price with its unit, its own open times, and no place or format claimed', async () => {
   liveWorld();
   try {
@@ -415,6 +434,8 @@ test('Settings › Coach on Shape: the door, or the stage the route says, with w
   const sent = client.bsCoachApplyRow({ role: 'nutritionist', stage: 'submitted', submittedAt: '2026-11-07T10:00:00Z', decidedAt: null }, { tr, amber: '#d8a23a', locale: 'en-US' });
   assert.equal(sent.title, 'Coach on Shape');
   assert.deepEqual(sent.tag, { text: 'Submitted', color: '#d8a23a' });
+  // ⚠ An application under way is status only (Codex on #2667): its tap reads the status again.
+  assert.equal(sent.retry, true);
   assert.equal(sent.summary, 'Nutritionist application · sent Nov 7 · usually 2–3 business days');
   // A reviewer opening it is In review; Background check only once the reviewer has asked for one.
   const pending = client.bsCoachApplyRow({ role: 'trainer', stage: 'in_review', submittedAt: null }, { tr, amber: '#d8a23a' });
@@ -425,6 +446,11 @@ test('Settings › Coach on Shape: the door, or the stage the route says, with w
   assert.equal(approved.tag.text, 'Approved');
   assert.equal(approved.summary, 'Trainer application · sent Nov 2', 'no wait is promised once it is decided');
   assert.equal(client.bsCoachApplyRow({ role: 'trainer', stage: 'not_approved' }, { tr }).tag.lit, false);
+  assert.equal(client.bsCoachApplyRow({ role: 'trainer', stage: 'not_approved' }, { tr }).retry, undefined, 'not approved may apply again');
+  assert.equal(approved.retry, true, 'approved is status only');
+  for (const stage of ['in_review', 'background_check']) assert.equal(client.bsCoachApplyRow({ role: 'trainer', stage }, { tr }).retry, true, stage);
+  // A dietitian's application is named as one (it rides the nutritionist rails, Codex on #2667).
+  assert.match(client.bsCoachApplyRow({ role: 'dietitian', stage: 'submitted', submittedAt: null }, { tr }).summary, /^Dietitian application \(RD\/RDN\)/);
   // Drawn by the Settings root: the tag in its lit slot beside the row.
   const { BSSettingsRoot } = await loadCarved('BSSettingsRoot.jsx');
   const root = drive(BSSettingsRoot, { also: [pending] });

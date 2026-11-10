@@ -5202,7 +5202,7 @@ async function getMyApplicationStatus() {
     if (!json || typeof json !== 'object' || !('application' in json)) return { unavailable: true };
     const a = json.application;
     if (!a || typeof a !== 'object') return null;
-    const role = a.role === 'nutritionist' ? 'nutritionist' : a.role === 'trainer' ? 'trainer' : null;
+    const role = ['trainer', 'nutritionist', 'dietitian'].includes(a.role) ? a.role : null;
     const stage = APPLICATION_STAGES.includes(a.stage) ? a.stage : null;
     if (!role || !stage) return { unavailable: true };
     return { role, stage, submittedAt: typeof a.submittedAt === 'string' ? a.submittedAt : null, decidedAt: typeof a.decidedAt === 'string' ? a.decidedAt : null };

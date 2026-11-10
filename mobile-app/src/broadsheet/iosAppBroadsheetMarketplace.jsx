@@ -899,14 +899,23 @@ function bsmPass(c, f, role, q, now) {
 // GOES THROUGH THIS (Codex on #2667): the role picker and a jump that lands on the open tab with a role
 // (Goals, Train's "Find a trainer"); kept, a filter the role can't hold hid every coach the member asked for.
 function bsmFiltersForRole(f, role, everyone, now) {
-  const cities = new Set((everyone || []).filter((c) => bsmPass(c, BSM_FILTERS0, role, '', now)).map(bsmCityOf).filter(Boolean));
+  const pool = (everyone || []).filter((c) => bsmPass(c, BSM_FILTERS0, role, '', now));
+  const cities = new Set(pool.map(bsmCityOf).filter(Boolean));
+  // A way of meeting no listing states can't be chosen (the sheet hides it), so it can't stay on.
+  const meetKnown = pool.some((c) => c.format === 'In-person' || c.format === 'Remote' || c.format === 'Hybrid');
   return {
     ...f,
     goals: f.goals.filter((id) => bsmGoalFits(BSM_GOALS.find((g) => g.id === id) || {}, role)),
     city: f.city === 'Anywhere' || cities.has(f.city) ? f.city : 'Anywhere',
+    meet: meetKnown ? f.meet : 'either',
     maxSession: role === 'Nutritionists' ? null : f.maxSession,
     maxMonth: role === 'Trainers' ? null : f.maxMonth,
   };
+}
+// The same filters, or `f` itself when nothing changes (so a check that finds nothing re-renders nothing).
+function bsmSameFilters(a, b) {
+  return a.city === b.city && a.meet === b.meet && a.maxSession === b.maxSession && a.maxMonth === b.maxMonth
+    && a.goals.length === b.goals.length && a.goals.every((g, i) => g === b.goals[i]);
 }
 // The sorts: Best match is the goal's fit, then an open intro, then the rating and how many reviews
 // it rests on (the website's mkScore); price compares per session before per month.
@@ -1071,6 +1080,12 @@ function BSMarketplaceScreen({ onBack = null, onProfile, initialRole, goChat, in
   // And every account's open intro times, for the rows' next open time and "Open intro this week".
   useMktOpenTimes(everyone);
   everyoneRef.current = everyone;
+  // ⚠ THE COACHES CHANGE UNDER THE FILTERS (Codex on #2667): the example roster shows while the live
+  // directory is read, and a city or a way of meeting chosen from it may name nothing the live listings
+  // state; when the coaches change, the filters are held to what they carry, as a role change holds them.
+  useEffectBSM2(() => {
+    setF((prev) => { const next = bsmFiltersForRole(prev, pill, everyone, Date.now()); return bsmSameFilters(prev, next) ? prev : next; });
+  }, [everyone]);   // eslint-disable-line react-hooks/exhaustive-deps
   const team = useMktTeam();
 
   // Real profile photos for live coaches (those with an account) — shown in the

@@ -43,7 +43,10 @@ export function pickApplication(rows, { email } = {}) {
   const open = mine.filter((r) => OPEN.has(String(r.status))).sort(newest);
   const row = open[0] || mine.slice().sort(newest)[0];
   return {
-    role: row.provider_type === 'nutritionist' ? 'nutritionist' : 'trainer',
+    // An RD/RDN applies on the nutritionist rails, marked by details.nutrition_role (/api/apply).
+    role: row.provider_type === 'nutritionist'
+      ? (record(row.details).nutrition_role === 'dietitian' ? 'dietitian' : 'nutritionist')
+      : 'trainer',
     stage: applicationStage(row),
     status: String(row.status || 'pending'),
     submittedAt: row.created_at || null,

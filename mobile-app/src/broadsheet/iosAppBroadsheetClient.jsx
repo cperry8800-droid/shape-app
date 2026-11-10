@@ -32322,11 +32322,14 @@ function bsCoachApplyRow(app, { tr, amber = '#d8a23a', teal = '#34d6c5', unlit =
   const sent = app.submittedAt ? new Date(app.submittedAt) : null;
   const date = sent && !isNaN(sent.getTime()) ? sent.toLocaleDateString(locale, { month: 'short', day: 'numeric' }) : '';
   const summary = [
-    app.role === 'nutritionist' ? tr('settings:coachApply.nutritionistApp', { defaultValue: 'Nutritionist application' }) : tr('settings:coachApply.trainerApp', { defaultValue: 'Trainer application' }),
+    app.role === 'dietitian' ? tr('onboarding:apply.tag.dietitian', { defaultValue: 'Dietitian application (RD/RDN)' })
+      : app.role === 'nutritionist' ? tr('settings:coachApply.nutritionistApp', { defaultValue: 'Nutritionist application' }) : tr('settings:coachApply.trainerApp', { defaultValue: 'Trainer application' }),
     date ? tr('settings:coachApply.sent', { defaultValue: 'sent {date}', date }) : null,
     st === 'submitted' || st === 'in_review' || st === 'background_check' ? tr('settings:coachApply.usually', { defaultValue: 'usually 2–3 business days' }) : null,
   ].filter(Boolean).join(' · ');
-  return { title, summary, detail: 'coachapply', tag, wrap: true };
+  // ⚠ AN APPLICATION UNDER WAY, OR APPROVED, IS STATUS ONLY (Codex on #2667): its tap reads the status
+  // again (`retry`), never a fresh form over it; only Not approved offers to apply again.
+  return { title, summary, detail: 'coachapply', tag, wrap: true, ...(st === 'not_approved' ? null : { retry: true }) };
 }
 
 // The accounts a person made, for Settings' Profile mode: their roles as the apps they open, each once,
@@ -33687,7 +33690,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   }
   if (showApply && window.BSProviderApplicationScreen) {
     const Apply = window.BSProviderApplicationScreen;
-    return <Apply initialRole={coachApp && coachApp.role === 'nutritionist' ? 'nutritionist' : 'trainer'} onBack={() => { setShowApply(false); setCoachAppReads((n) => n + 1); }} />;
+    return <Apply initialRole={coachApp && (coachApp.role === 'nutritionist' || coachApp.role === 'dietitian') ? coachApp.role : 'trainer'} onBack={() => { setShowApply(false); setCoachAppReads((n) => n + 1); }} />;
   }
   if (showPublicProfile) {
     const role = (window.ShapeAuth && window.ShapeAuth.getCachedState && window.ShapeAuth.getCachedState().profile && window.ShapeAuth.getCachedState().profile.role) || 'client';
