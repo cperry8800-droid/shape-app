@@ -33,11 +33,11 @@ export default {
     { name: 'a trainer\'s role channel is the client one', file: FEED,
       find: '  return r === "trainer" ? "TRAINER" : r === "nutritionist" ? "NUTRI" : "CLIENT";',
       replace: '  return r === "nutritionist" ? "NUTRI" : "CLIENT";' },
-    // ⚠ A PROVEN NO-OP, KEPT AS A SECOND WALL: `cfInPlace` already confines Community to
-    // SHAPE and the role place to the viewer's own channel, both inside `cfFeedScope`, so
-    // the visible filter's own scope line cannot change what renders. It stays so that a
-    // later loosening of `cfInPlace` does not open the peer rooms by itself.
-    { name: 'the visible filter drops its own scope line', file: FEED, expectSurvive: true,
+    // `cfInPlace` already confines Community to SHAPE and the role place to the viewer's own
+    // channel, so this line is a second wall rather than the only one: it stays so a later
+    // loosening of `cfInPlace` cannot open the peer rooms by itself, and the chip-row guard
+    // (chat-feed-tab, "dropping the chip row…") holds the render to it.
+    { name: 'the visible filter drops its own scope line', file: FEED,
       find: '              if (place !== "wall" && scope.indexOf(cfChannelOf(p)) < 0) return false;\n',
       replace: '' },
     // ── where a post made here is filed ──
