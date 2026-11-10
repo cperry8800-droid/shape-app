@@ -79,10 +79,14 @@ test('the nav: six tabs, Coaches between Eat and Chat, in the tab bar\'s order a
   assert.match(client, /onChange=\{enterTab\}/);
   assert.match(client, /if \(k === 'market' && tab !== 'market'\) \{ setMarketRole\(null\); setMarketCoach\(null\); \}/);
   assert.match(client, /market: {2}<BSMarketplaceScreen initialRole=\{marketRole\} initialCoach=\{marketCoach\} onCoachConsumed=\{\(\) => setMarketCoach\(null\)\} onProfile=\{goSettings\} goChat=\{goChat\} \/>,/);
-  // The chrome draws Coaches as its own icon, a whistle in the other icons' line, filled when lit.
+  // The chrome draws Coaches as its own icon, a megaphone in the other icons' line, filled when lit (owner,
+  // 2026-11-10: "go with 6"; it was a whistle).
   const chrome = read('iosAppBroadsheet.jsx');
   assert.match(chrome, /const BS_TAB_ICON_KEYS = new Set\(\['home', 'train', 'eat', 'market', 'chat',/);
   assert.equal((chrome.match(/case 'market': return <svg \{\.\.\.p\}>/g) || []).length, 2, 'a line icon and a filled one');
+  assert.match(chrome, /case 'market': return <svg \{\.\.\.p\}><path \{\.\.\.F\} d="M3\.6 9\.6h3\.6L16\.6 4\.8v14l-9\.4-4\.4H3\.6z" \/>/, 'the filled megaphone');
+  assert.match(chrome, /case 'market': return <svg \{\.\.\.p\}><path d="M3\.8 9\.8h3\.4L16\.5 5v13\.6l-9\.3-4\.4H3\.8z" \/>/, 'the line megaphone');
+  assert.doesNotMatch(chrome, /A5\.5 5\.5 0 1 0 14\.4 12\.8Z/, 'no whistle left');
   // Six tabs fit a 320px phone at 44px each: the capsule's ends come in to 4px.
   assert.match(chrome, /const PAD = n >= 6 \? 4 : 9;/);
   assert.ok((320 - 2 * 24 - 2 * 4) / 6 >= 44);
