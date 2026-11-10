@@ -22672,7 +22672,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
     if (openRequest.channel && openRequest.channel.id != null) {
       setTab('channels');
       const asked = openRequest.channel;
-      setNavBackKey(bsThreadNavKey(openRequest, { channelId: asked.id }));
+      setNavBackKey(bsThreadNavKey(openRequest, { channelId: openRequest.channel.id }));
       const sample = String(asked.id).startsWith('sample');
       if (sample || !window.ShapeChannels?.list) { openChannelNow(asked); return; }
       window.ShapeChannels.list().then((r) => {
