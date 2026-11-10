@@ -97,7 +97,7 @@ test('the leave guard: one held at a time, asked before a tab tap or a jump, let
 
   const pros = read('mobile-app/src/broadsheet/iosAppBroadsheetPros.jsx');
   const nutri = pros.slice(pros.indexOf('function BSNutritionistAppInner('), pros.indexOf('function BSNutriToday('));
-  assert.match(nutri, /<BSTabBar active=\{tab\} onChange=\{\(k\) => \{ mayLeave\(window\)\.then\(\(ok\) => \{ if \(ok\) setTab\(k\); \}\); \}\}/, 'the tab bar asks first');
+  assert.match(nutri, /<BSTabBar active=\{tab\} onChange=\{\(k\) => \{ mayLeave\(window\)\.then\(\(ok\) => \{ if \(ok\) enterTab\(k\); \}\); \}\}/, 'the tab bar asks first');
   assert.match(nutri, /mayLeave\(window\)\.then\(\(ok\) => \{\n\s+if \(!ok\) return;\n\s+navJumpRef\.current\.navPush\(\);\n\s+setOpenPlanRequest\(/, 'so does opening Nora\'s plan');
   // A swipe that reaches the shell steps tabs too (Codex on #2594): it asks the guard before it does.
   assert.match(nutri, /const onNavGesture = \(intent\) => \{ mayLeave\(window\)\.then\(\(ok\) => \{ if \(ok\) stepNav\(intent\); \}\); \};/, 'and a swipe');

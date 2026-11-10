@@ -696,6 +696,9 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
   const [showTour, setShowTour] = useStateBSP(false);
   // Universal search — the ⌕ in the header opens it (shared client component).
   const [showSearch, setShowSearch] = useStateBSP(false);
+  // The query Search shows (for the nav history) and the one it reopens on after a Back (the client shell's rule).
+  const searchQueryRef = React.useRef('');
+  const [searchStart, setSearchStart] = useStateBSP('');
   // Another person's profile, opened from a notification (person:<user>): a friend's habit.
   const [notifPerson, setNotifPerson] = useStateBSP(null);
   // It closes on any other navigation (BS_NAV_EVENTS), so nothing moves only the page under it.
@@ -713,7 +716,7 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
     return () => window.removeEventListener('shape:openNora', open);
   }, []);
   useEffectBSP(() => {
-    const open = () => { navJumpRef.current.navPush(); setShowSearch(true); };
+    const open = () => { navJumpRef.current.navPush(); searchQueryRef.current = ''; setSearchStart(''); setShowSearch(true); };
     window.addEventListener('shape:openSearch', open);
     return () => window.removeEventListener('shape:openSearch', open);
   }, []);
@@ -835,12 +838,12 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
         // a screen where they could not: it opens the website's editor (dashProfileExtras.jsx) instead.
         case 'credentials':
           if (window.ShapeSite?.open) { window.ShapeSite.open('/newdesign/TrainerApp.html#profile'); return; }
-          clear(); setSettingsStart('practice'); setShowSettings(true); return;
+          clear(); setSettingsStart('practice'); setSettingsLanded(true); setShowSettings(true); return;
         // The waiting room is in Settings ▸ Your practice.
-        case 'waitlist': clear(); setSettingsStart('practice'); setShowSettings(true); return;
+        case 'waitlist': clear(); setSettingsStart('practice'); setSettingsLanded(true); setShowSettings(true); return;
         case 'settings': clear(); setShowSettings(true); return;
         // A sale or a monthly renewal: Business, in Settings.
-        case 'business': clear(); setSettingsStart('business'); setShowSettings(true); return;
+        case 'business': clear(); setSettingsStart('business'); setSettingsLanded(true); setShowSettings(true); return;
         // A payment to Shape (the owners' notice): the admin console, on the website.
         case 'admin': window.ShapeStaff?.openConsole?.(); return;
         case 'profile': clear(); setTab('me'); return;
@@ -872,6 +875,8 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
   const [queueView, setQueueView] = useStateBSP(null);
   const [liveWatch, setLiveWatch] = useStateBSP(null);
   const [settingsStart, setSettingsStart] = useStateBSP(''); // replayed Settings sub-page (announce register)
+  // Was Settings opened straight onto that page from somewhere else? Its ← then leaves Settings (BSSettings).
+  const [settingsLanded, setSettingsLanded] = useStateBSP(false);
   const scoreProfile = SHAPE_SCORE_PROFILES?.trainer;
   // ── Nav history (spec 2026-07-09; PR A shipped the client spine) ──
   // Takeovers are early-returns below, so they ARE the location when open.
@@ -882,7 +887,7 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
     if (showReviews) return { tab, overlay: 'reviews' };
     if (showHabits) return { tab, overlay: 'habits' };
     if (queueView) return { tab, overlay: 'queue', detail: { type: queueView } };
-    if (showSearch) return { tab, overlay: 'search' };
+    if (showSearch) return { tab, overlay: 'search', ...(searchQueryRef.current ? { query: searchQueryRef.current } : null) };
     if (tab === 'store') return { tab: 'store', sub: storeView };
     if (tab === 'programs') return { tab: 'programs', sub: programInitialTab };
     return { tab };
@@ -899,10 +904,11 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
     setShowReviews(loc.overlay === 'reviews');
     setShowHabits(loc.overlay === 'habits');
     setShowSearch(loc.overlay === 'search');
+    setSearchStart(loc.overlay === 'search' ? (loc.query || '') : '');
     setQueueView(loc.overlay === 'queue' && loc.detail ? loc.detail.type : null);
     setLiveWatch(null);
-    if (loc.overlay === 'settings') { setSettingsStart(loc.sub || ''); setShowSettings(true); }
-    else { setShowSettings(false); setSettingsStart(''); }
+    if (loc.overlay === 'settings') { setSettingsStart(loc.sub || ''); setSettingsLanded(!!loc.landed); setShowSettings(true); }
+    else { setShowSettings(false); setSettingsStart(''); setSettingsLanded(false); }
     if (loc.tab === 'store') setStoreView(loc.sub === 'score' ? 'score' : 'store');
     if (loc.tab === 'programs') setProgramInitialTab(loc.sub || 'programs');
     // A Back to Chat's list carries no thread, and drops any older one (the client shell's rule).
@@ -916,7 +922,7 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
   // the corner gear fires this from inside Settings, whose drill-in pane is
   // local state, so an unconditional push recorded a duplicate location and ate
   // the next back. BSSettings answers the same event by closing its pane.
-  const goSettings = () => { if (!showSettings) navPush(); setShowSettings(true); };
+  const goSettings = () => { if (!showSettings) navPush(); setSettingsLanded(false); setShowSettings(true); };
   const openHomeWidget = (action) => {
     // Push ONLY for actions that actually navigate — an unknown action must not
     // leave a phantom entry the user's next back would spend itself on.
@@ -1041,7 +1047,7 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
   // shell state, so a takeover that returns before the main render would set
   // showSearch, paint nothing, and still push a nav entry the next back ate.
   const searchOverlay = showSearch && typeof window !== 'undefined' && window.BSUniversalSearch
-    ? React.createElement(window.BSUniversalSearch, { onClose: () => { if (!navBack()) setShowSearch(false); } })
+    ? React.createElement(window.BSUniversalSearch, { initialQuery: searchStart, onQuery: (v) => { searchQueryRef.current = v; }, onClose: () => { if (!navBack()) setShowSearch(false); }, onLeave: () => setShowSearch(false) })
     : null;
   // ⚠ Settings is an OVERLAY, not an early return — see the long note in the
   // client shell. Returning <BSSettings/> unmounted the coach tab tree, so the
@@ -1051,7 +1057,7 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
   // stacking context so Settings' sheets stack inside it.
   const settingsOverlay = showSettings ? (
     <div style={{ position: 'absolute', inset: 0, zIndex: 210 }}>
-      <BSSettings key={'settings:' + settingsStart} initialPage={settingsStart} onBack={() => { if (!navBack()) { setShowSettings(false); setSettingsStart(''); } }} onLogout={onLogout} tweaks={tweaks} setTweak={setTweak} />
+      <BSSettings key={'settings:' + settingsStart + (settingsLanded ? ':landed' : '')} initialPage={settingsStart} landed={settingsLanded} onBack={() => { if (!navBack()) { setShowSettings(false); setSettingsStart(''); } }} onLogout={onLogout} tweaks={tweaks} setTweak={setTweak} />
     </div>
   ) : null;
   // Every takeover renders BOTH overlays: opening Settings from (say) the calendar
@@ -1067,7 +1073,7 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
   if (showReviews) return takeover(<BSWorkoutReviewPage role="trainer" onBack={() => { if (!navBack()) setShowReviews(false); }} />);
   if (showHabits) return takeover(<BSHabitsPage tweaks={tweaks} setTweak={setTweak} accent={t.GREEN} onBack={() => { if (!navBack()) setShowHabits(false); }} onOpenScore={() => { navPush(); setShowHabits(false); setStoreView('score'); setTab('store'); }} />);
   if (queueView) return takeover(<BSProWidgetQueuePage role="trainer" type={queueView} onBack={() => { if (!navBack()) setQueueView(null); }} />);
-  if (liveWatch) return takeover(<BSProLiveWatch client={liveWatch.client} clientId={liveWatch.clientId} workout={liveWatch.workout} onBack={() => setLiveWatch(null)} onMessage={conversationId=>{setChatRequest({coach:liveWatch.client,role:'Client',conversationId,nonce:Date.now()});setLiveWatch(null);setTab('chat');}} />);
+  if (liveWatch) return takeover(<BSProLiveWatch client={liveWatch.client} clientId={liveWatch.clientId} workout={liveWatch.workout} onBack={() => setLiveWatch(null)} onMessage={conversationId=>{navPush();setChatRequest({coach:liveWatch.client,role:'Client',conversationId,back:'nav',nonce:Date.now()});setLiveWatch(null);setTab('chat');}} />);
   const screens = {
     today:    <BSTrainerToday onProfile={goSettings} sheet={sheet} goCalendar={() => { navPush(); setShowCalendar(true); }} goRadio={goRadio} onOpenReviews={() => { navPush(); setShowReviews(true); }} onWidgetOpen={openHomeWidget} onOpenHabits={() => { navPush(); setShowHabits(true); }} onOpenScore={() => { navPush(); setStoreView('score'); setTab('store'); }} onWatchLive={(c) => setLiveWatch(c)} tweaks={tweaks} setTweak={setTweak} />,
     clients:  <BSTrainerClients sheet={sheet} openRequest={openClientReq} onOpenConsumed={() => setOpenClientReq(null)} />,
@@ -6533,6 +6539,9 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
   const [showTour, setShowTour] = useStateBSP(false);
   // Universal search — the ⌕ in the header opens it (shared client component).
   const [showSearch, setShowSearch] = useStateBSP(false);
+  // The query Search shows (for the nav history) and the one it reopens on after a Back (the client shell's rule).
+  const searchQueryRef = React.useRef('');
+  const [searchStart, setSearchStart] = useStateBSP('');
   // Another person's profile, opened from a notification (person:<user>): a friend's habit.
   const [notifPerson, setNotifPerson] = useStateBSP(null);
   // It closes on any other navigation (BS_NAV_EVENTS), so nothing moves only the page under it.
@@ -6550,7 +6559,7 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
     return () => window.removeEventListener('shape:openNora', open);
   }, []);
   useEffectBSP(() => {
-    const open = () => { navJumpRef.current.navPush(); setShowSearch(true); };
+    const open = () => { navJumpRef.current.navPush(); searchQueryRef.current = ''; setSearchStart(''); setShowSearch(true); };
     window.addEventListener('shape:openSearch', open);
     return () => window.removeEventListener('shape:openSearch', open);
   }, []);
@@ -6671,12 +6680,12 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
         // a screen where they could not: it opens the website's editor (dashProfileExtras.jsx) instead.
         case 'credentials':
           if (window.ShapeSite?.open) { window.ShapeSite.open('/newdesign/NutritionistApp.html#profile'); return; }
-          clear(); setSettingsStart('practice'); setShowSettings(true); return;
+          clear(); setSettingsStart('practice'); setSettingsLanded(true); setShowSettings(true); return;
         // The waiting room is in Settings ▸ Your practice.
-        case 'waitlist': clear(); setSettingsStart('practice'); setShowSettings(true); return;
+        case 'waitlist': clear(); setSettingsStart('practice'); setSettingsLanded(true); setShowSettings(true); return;
         case 'settings': clear(); setShowSettings(true); return;
         // A sale or a monthly renewal: Business, in Settings.
-        case 'business': clear(); setSettingsStart('business'); setShowSettings(true); return;
+        case 'business': clear(); setSettingsStart('business'); setSettingsLanded(true); setShowSettings(true); return;
         // A payment to Shape (the owners' notice): the admin console, on the website.
         case 'admin': window.ShapeStaff?.openConsole?.(); return;
         case 'profile': clear(); setTab('me'); return;
@@ -6702,6 +6711,8 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
   const [storeView, setStoreView] = useStateBSP('store');
   const [queueView, setQueueView] = useStateBSP(null);
   const [settingsStart, setSettingsStart] = useStateBSP(''); // replayed Settings sub-page (announce register)
+  // Was Settings opened straight onto that page from somewhere else? Its ← then leaves Settings (BSSettings).
+  const [settingsLanded, setSettingsLanded] = useStateBSP(false);
   const scoreProfile = SHAPE_SCORE_PROFILES?.nutritionist;
   // ── Nav history (spec 2026-07-09) — mirrors the trainer shell. ──
   const navLoc = () => {
@@ -6711,7 +6722,7 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
     if (showReviews) return { tab, overlay: 'reviews' };
     if (showHabits) return { tab, overlay: 'habits' };
     if (queueView) return { tab, overlay: 'queue', detail: { type: queueView } };
-    if (showSearch) return { tab, overlay: 'search' };
+    if (showSearch) return { tab, overlay: 'search', ...(searchQueryRef.current ? { query: searchQueryRef.current } : null) };
     if (tab === 'store') return { tab: 'store', sub: storeView };
     return { tab };
   };
@@ -6724,9 +6735,10 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
     setShowReviews(loc.overlay === 'reviews');
     setShowHabits(loc.overlay === 'habits');
     setShowSearch(loc.overlay === 'search');
+    setSearchStart(loc.overlay === 'search' ? (loc.query || '') : '');
     setQueueView(loc.overlay === 'queue' && loc.detail ? loc.detail.type : null);
-    if (loc.overlay === 'settings') { setSettingsStart(loc.sub || ''); setShowSettings(true); }
-    else { setShowSettings(false); setSettingsStart(''); }
+    if (loc.overlay === 'settings') { setSettingsStart(loc.sub || ''); setSettingsLanded(!!loc.landed); setShowSettings(true); }
+    else { setShowSettings(false); setSettingsStart(''); setSettingsLanded(false); }
     if (loc.tab === 'store') setStoreView(loc.sub === 'score' ? 'score' : 'store');
     // A Back to Chat's list carries no thread, and drops any older one (the client shell's rule).
     if (loc.tab === 'chat') setChatRequest(loc.detail ? { ...loc.detail, nonce: Date.now() } : null);
@@ -6739,7 +6751,7 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
   // the corner gear fires this from inside Settings, whose drill-in pane is
   // local state, so an unconditional push recorded a duplicate location and ate
   // the next back. BSSettings answers the same event by closing its pane.
-  const goSettings = () => { if (!showSettings) navPush(); setShowSettings(true); };
+  const goSettings = () => { if (!showSettings) navPush(); setSettingsLanded(false); setShowSettings(true); };
   const openHomeWidget = (action) => {
     // Push ONLY for actions that actually navigate — an unknown action must not
     // leave a phantom entry the user's next back would spend itself on.
@@ -6858,7 +6870,7 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
   // ⚠ Same rule as the trainer shell + the client shell: every early return
   // carries the search takeover, or ⌕ is a dead control on that page.
   const searchOverlay = showSearch && typeof window !== 'undefined' && window.BSUniversalSearch
-    ? React.createElement(window.BSUniversalSearch, { onClose: () => { if (!navBack()) setShowSearch(false); } })
+    ? React.createElement(window.BSUniversalSearch, { initialQuery: searchStart, onQuery: (v) => { searchQueryRef.current = v; }, onClose: () => { if (!navBack()) setShowSearch(false); }, onLeave: () => setShowSearch(false) })
     : null;
   // ⚠ Settings is an OVERLAY, not an early return — see the long note in the
   // client shell. Returning <BSSettings/> unmounted the coach tab tree, so the
@@ -6868,7 +6880,7 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
   // stacking context so Settings' sheets stack inside it.
   const settingsOverlay = showSettings ? (
     <div style={{ position: 'absolute', inset: 0, zIndex: 210 }}>
-      <BSSettings key={'settings:' + settingsStart} initialPage={settingsStart} onBack={() => { if (!navBack()) { setShowSettings(false); setSettingsStart(''); } }} onLogout={onLogout} tweaks={tweaks} setTweak={setTweak} />
+      <BSSettings key={'settings:' + settingsStart + (settingsLanded ? ':landed' : '')} initialPage={settingsStart} landed={settingsLanded} onBack={() => { if (!navBack()) { setShowSettings(false); setSettingsStart(''); } }} onLogout={onLogout} tweaks={tweaks} setTweak={setTweak} />
     </div>
   ) : null;
   // Every takeover renders BOTH overlays: opening Settings from (say) the calendar

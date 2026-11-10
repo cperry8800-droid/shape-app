@@ -61,8 +61,8 @@ test('every jump that pushes before opening a chat says so on its request', () =
   assert.equal((PROS.match(/setChatRequest\(\{ coach: d\.name \|\| 'Coach', role: d\.role \|\| 'Care team', conversationId: cid, back: 'nav', nonce: Date\.now\(\) \}\);/g) || []).length, 2);
   // Each of those pushes first, in its own handler.
   assert.equal((PROS.match(/const on(?:Msg|Coach) = async \(e\) => \{\n\s+navJumpRef\.current\.navPush\(\);/g) || []).length, 4);
-  // No request without a push carries the mark (the live-watch Message opens over no history).
-  assert.doesNotMatch(PROS, /setChatRequest\(\{coach:liveWatch\.client[^}]*back/);
+  // The trainer's live watch: its Message pushes first now, so the thread's ← returns to Today.
+  assert.match(PROS, /onMessage=\{conversationId=>\{navPush\(\);setChatRequest\(\{coach:liveWatch\.client,role:'Client',conversationId,back:'nav',nonce:Date\.now\(\)\}\);/);
 });
 
 test('the thread\'s ← steps the nav history only for the thread a jump opened', () => {
@@ -84,10 +84,10 @@ test('the thread\'s ← steps the nav history only for the thread a jump opened'
 test('a Back reopens Coaches on the coach whose profile was open', () => {
   assert.match(CLIENT, /if \(loc\.tab === 'market'\) \{ setMarketRole\(\(loc\.detail && loc\.detail\.role\) \|\| null\); setMarketCoach\(\(loc\.detail && loc\.detail\.coach\) \|\| null\); \}/);
   const mk = between(MARKET, 'function BSMarketplaceScreen({', '\n}\n');
-  assert.match(mk, /const openCoachLoc = open && open\.provider_id != null && \(open\.provider_role === 'trainer' \|\| open\.provider_role === 'nutritionist'\)\n\s+\? \{ role: open\.provider_role, providerId: open\.provider_id, \.\.\.\(openListing \? \{ listing: true \} : null\) \} : null;/);
+  assert.match(mk, /const openCoachLoc = open && open\.provider_id != null && \(open\.provider_role === 'trainer' \|\| open\.provider_role === 'nutritionist'\)\n\s+\? \{ role: open\.provider_role, providerId: open\.provider_id, \.\.\.\(openListing \? \{ listing: true \} : null\), \.\.\.\(openViaNav \? \{ back: 'nav' \} : null\) \} : null;/);
   assert.match(mk, /window\.ShapeNav\?\.announce\?\.\(openCoachLoc \? \{ detail: \{ \.\.\.\(initialRole \? \{ role: initialRole \} : null\), coach: openCoachLoc \} \} : null\);\n\s+return \(\) => window\.ShapeNav\?\.announce\?\.\(null\);/);
   // The deep-open it rides back on reopens the listing when that was what was open.
-  assert.match(mk, /if \(hit\) \{ setOpen\(hit\); setOpenNo\(null\); setOpenIntro\(false\); setOpenListing\(!!initialCoach\.listing\); setDeepMiss\(false\); \}/);
+  assert.match(mk, /if \(hit\) \{ setOpen\(hit\); setOpenNo\(null\); setOpenIntro\(false\); setOpenListing\(!!initialCoach\.listing\); setOpenViaNav\(initialCoach\.back === 'nav'\); setDeepMiss\(false\); \}/);
   // The announce sits above the screen's early returns, so it runs whatever the screen draws.
   assert.ok(mk.indexOf('const openCoachLoc') < mk.indexOf('  if (open) {'));
 });
@@ -102,4 +102,61 @@ test('Chat from another tab, or a Back to its list, opens the list, not an earli
   assert.match(PROS, /<BSTabBar active=\{tab\} onChange=\{enterTab\} tabs=\{\[/);
   assert.match(PROS, /<BSTabBar active=\{tab\} onChange=\{\(k\) => \{ mayLeave\(window\)\.then\(\(ok\) => \{ if \(ok\) enterTab\(k\); \}\); \}\} tabs=\{\[/);
   assert.equal((PROS.match(/navSlide\(intent === 'next-tab' \? 'l' : 'r'\);\n\s+enterTab\(next\);/g) || []).length, 2);
+});
+
+// The audit that followed (2026-11-10): Search's results, Settings' pages opened from elsewhere, a coach
+// opened straight from a chat card or a notification.
+test('a Search result that opens another page leaves Search without a Back, and a Back returns to it', () => {
+  const search = between(CLIENT, 'function BSUniversalSearch({', '\n}\n');
+  assert.match(CLIENT, /function BSUniversalSearch\(\{ onClose, onLeave = onClose, initialQuery = '', onQuery = null \}\) \{/);
+  // The four jumps close it with onLeave: a workout's Start, a channel (two lists), Browse coaches.
+  assert.equal((search.match(/onLeave\(\); try \{ window\.dispatchEvent/g) || []).length, 4);
+  assert.doesNotMatch(search, /onClose\(\); try \{ window\.dispatchEvent\(new (?:Custom)?Event\('shape:(?:startWorkout|openMarket)'/, 'a jump that pops the history under itself again');
+  assert.doesNotMatch(search, /onClose\(\); try \{ window\.dispatchEvent\(new CustomEvent\('shape:openConversation', \{ detail: \{ channel: c \} \}\)\)/);
+  // It reopens on the query it showed.
+  assert.match(search, /const \[q, setQ\] = useStateBSC\(initialQuery \|\| ''\);\n\s+React\.useEffect\(\(\) => \{ if \(onQuery\) onQuery\(q\.trim\(\)\); \}, \[q\]\);/);
+  for (const [name, src, n] of [['member', CLIENT, 1], ['coach', PROS, 2]]) {
+    assert.equal((src.match(/if \(showSearch\) return \{ tab, overlay: 'search', \.\.\.\(searchQueryRef\.current \? \{ query: searchQueryRef\.current \} : null\) \};/g) || []).length, n, name);
+    assert.equal((src.match(/setSearchStart\(loc\.overlay === 'search' \? \(loc\.query \|\| ''\) : ''\);/g) || []).length, n, name);
+    assert.equal((src.match(/const open = \(\) => \{ navJumpRef\.current\.navPush\(\); searchQueryRef\.current = ''; setSearchStart\(''\); setShowSearch\(true\); \};/g) || []).length, n, name);
+  }
+  assert.match(CLIENT, /<BSUniversalSearch initialQuery=\{searchStart\} onQuery=\{\(v\) => \{ searchQueryRef\.current = v; \}\} onClose=\{\(\) => \{ if \(!navBack\(\)\) setShowSearch\(false\); \}\} onLeave=\{\(\) => setShowSearch\(false\)\} \/>/);
+  assert.equal((PROS.match(/initialQuery: searchStart, onQuery: \(v\) => \{ searchQueryRef\.current = v; \}, onClose: \(\) => \{ if \(!navBack\(\)\) setShowSearch\(false\); \}, onLeave: \(\) => setShowSearch\(false\)/g) || []).length, 2);
+  // The member app's jumps close Search themselves, after their push records it.
+  assert.match(CLIENT, /navJumpRef\.current\.navPush\(\); setShowSettings\(false\); setSettingsStart\(''\); setShowSearch\(false\);\n\s+setMarketRole\(/);
+  assert.match(CLIENT, /const onStart = \(event\) => \{ navJumpRef\.current\.navPush\(\); setShowCalendar\(false\); setShowSearch\(false\); setTab\('train'\);/);
+  // A notified person's Message leaves the profile to the jump (BS_NAV_EVENTS closes it), not to a Back.
+  assert.match(CLIENT, /onMessage=\{me && person\.userId !== me \? \(p\) => bsOpenMemberConversation\(p, null\) : null\} \/>/);
+});
+
+test('a Settings page opened straight from elsewhere goes back there; reached inside Settings, back to Settings', () => {
+  const settings = between(CLIENT, 'function BSSettings({', '\n}\n');
+  assert.match(settings, /const landedOn = landed \? initialPage : '';\n\s+const backFrom = \(page, close\) => \(\) => \{ if \(landedOn && landedOn === page\) onBack\(\); else close\(\); \};/);
+  for (const page of ['pricing', 'sessions', 'notifications', 'integrations', 'habits', 'business', 'edit-profile', 'practice']) {
+    assert.match(settings, new RegExp(`onBack=\\{backFrom\\('${page}', `), page);
+  }
+  // Every page it can open on is announced, with whether it was landed on.
+  assert.match(settings, /const navSub = editing \? 'edit-profile' : showIntegrations \? 'integrations' : showPricing \? 'pricing'\n\s+: showNotifications \? 'notifications' : showSessions \? 'sessions' : showHabits \? 'habits'\n\s+: showBusiness \? 'business' : detail === 'practice' \? 'practice' : '';/);
+  assert.match(settings, /window\.ShapeNav\?\.announce\?\.\(navLanded \? \{ sub: navSub, landed: true \} : \{ sub: navSub \}\);/);
+  // The shells: a jump onto a page lands; the gear and a Back to Settings' own page do not.
+  assert.match(CLIENT, /const goSettings = \(\) => \{ if \(!showSettings\) navPush\(\); setSettingsStart\(''\); setSettingsLanded\(false\); setShowSettings\(true\); \};/);
+  assert.match(CLIENT, /const goEditProfile = \(\) => \{ navPush\(\); setSettingsStart\('edit-profile'\); setSettingsLanded\(true\); setShowSettings\(true\); \};/);
+  assert.match(CLIENT, /const goIntegrations = \(\) => \{ navPush\(\); setSettingsStart\('integrations'\); setSettingsLanded\(true\); setShowSettings\(true\); \};/);
+  assert.match(CLIENT, /const toSettings = \(page\) => \{ clear\(\); setSettingsStart\(page\); setSettingsLanded\(!!page\); setShowSettings\(true\); \};/);
+  assert.match(CLIENT, /key=\{'settings:' \+ settingsStart \+ \(settingsLanded \? ':landed' : ''\)\}\n\s+initialPage=\{settingsStart\}\n\s+landed=\{settingsLanded\}/);
+  for (const [name, src, n] of [['member', CLIENT, 1], ['coach', PROS, 2]]) {
+    assert.equal((src.match(/if \(loc\.overlay === 'settings'\) \{ setSettingsStart\(loc\.sub \|\| ''\); setSettingsLanded\(!!loc\.landed\); setShowSettings\(true\); \}/g) || []).length, n, name);
+  }
+  assert.equal((PROS.match(/clear\(\); setSettingsStart\('(?:practice|business)'\); setSettingsLanded\(true\); setShowSettings\(true\); return;/g) || []).length, 6);
+  assert.equal((PROS.match(/const goSettings = \(\) => \{ if \(!showSettings\) navPush\(\); setSettingsLanded\(false\); setShowSettings\(true\); \};/g) || []).length, 2);
+  assert.equal((PROS.match(/<BSSettings key=\{'settings:' \+ settingsStart \+ \(settingsLanded \? ':landed' : ''\)\} initialPage=\{settingsStart\} landed=\{settingsLanded\}/g) || []).length, 2);
+});
+
+test('a coach opened straight from a chat card or a notification goes back there, not to the list', () => {
+  assert.match(CLIENT, /\? \{ role: e\.detail\.role, providerId: Number\(e\.detail\.coachId\), back: 'nav' \}/);
+  const mk = between(MARKET, 'function BSMarketplaceScreen({', '\n}\n');
+  assert.match(mk, /setOpenListing\(!!initialCoach\.listing\); setOpenViaNav\(initialCoach\.back === 'nav'\);/);
+  assert.match(mk, /const closeOpen = \(\) => \{\n\s+const viaNav = openViaNav;\n\s+setOpen\(null\); setOpenNo\(null\); setOpenIntro\(false\); setOpenListing\(false\); setOpenViaNav\(false\);\n\s+if \(viaNav && window\.ShapeNav\?\.canPop\?\.\(\)\) window\.ShapeNav\.back\(\);\n\s+\};/);
+  // A Back to it keeps the way back.
+  assert.match(mk, /\.\.\.\(openViaNav \? \{ back: 'nav' \} : null\) \} : null;/);
 });

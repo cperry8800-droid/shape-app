@@ -724,6 +724,8 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
   React.useEffect(() => bsNoraOpen({ page: bsNoraPage(tab), label: noraTabLabel }, noraOwner.current), [tab, noraTabLabel]);
   const [showSettings, setShowSettings] = useStateBSC(false);
   const [settingsStart, setSettingsStart] = useStateBSC('');
+  // Was Settings opened straight onto that page from somewhere else? Its ← then leaves Settings (BSSettings).
+  const [settingsLanded, setSettingsLanded] = useStateBSC(false);
   const [showCalendar, setShowCalendar] = useStateBSC(false);
   // The day the calendar opens on: a day tapped in Home's week, else null (today).
   const [calendarDate, setCalendarDate] = useStateBSC(null);
@@ -749,7 +751,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
   const navLoc = () => {
     if (showSettings) return { tab, overlay: 'settings', sub: settingsStart || '' };
     if (showCalendar) return { tab, overlay: 'calendar' };
-    if (showSearch) return { tab, overlay: 'search' };
+    if (showSearch) return { tab, overlay: 'search', ...(searchQueryRef.current ? { query: searchQueryRef.current } : null) };
     if (showCycle) return { tab, overlay: 'cycle' };
     if (tab === 'store') return { tab: 'store', sub: storeView };
     if (tab === 'market') return { tab: 'market', detail: marketRole ? { role: marketRole } : undefined };
@@ -761,10 +763,11 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
     // A notified person's profile is no location of its own: any step back closes it.
     setNotifPerson(null);
     setShowSearch(loc.overlay === 'search');
+    setSearchStart(loc.overlay === 'search' ? (loc.query || '') : '');
     setShowCalendar(loc.overlay === 'calendar');
     setShowCycle(loc.overlay === 'cycle');
-    if (loc.overlay === 'settings') { setSettingsStart(loc.sub || ''); setShowSettings(true); }
-    else { setShowSettings(false); setSettingsStart(''); }
+    if (loc.overlay === 'settings') { setSettingsStart(loc.sub || ''); setSettingsLanded(!!loc.landed); setShowSettings(true); }
+    else { setShowSettings(false); setSettingsStart(''); setSettingsLanded(false); }
     if (loc.tab === 'store') setStoreView(loc.sub === 'score' ? 'score' : 'store');
     // Coaches comes back on the coach whose profile was open (BSMarketplaceScreen announces it), or its list.
     if (loc.tab === 'market') { setMarketRole((loc.detail && loc.detail.role) || null); setMarketCoach((loc.detail && loc.detail.coach) || null); }
@@ -782,9 +785,10 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
   // a duplicate location, changed nothing on screen, and had the next back
   // silently consumed. BSSettings answers the same event by closing its pane,
   // which is what "take me to my profile" means once you are already in it.
-  const goSettings = () => { if (!showSettings) navPush(); setSettingsStart(''); setShowSettings(true); };
-  const goEditProfile = () => { navPush(); setSettingsStart('edit-profile'); setShowSettings(true); };
-  const goIntegrations = () => { navPush(); setSettingsStart('integrations'); setShowSettings(true); };
+  const goSettings = () => { if (!showSettings) navPush(); setSettingsStart(''); setSettingsLanded(false); setShowSettings(true); };
+  // A jump straight onto a page of Settings lands there: that page's ← goes back where the member was.
+  const goEditProfile = () => { navPush(); setSettingsStart('edit-profile'); setSettingsLanded(true); setShowSettings(true); };
+  const goIntegrations = () => { navPush(); setSettingsStart('integrations'); setSettingsLanded(true); setShowSettings(true); };
   const goCycle    = () => { navPush(); setShowSettings(false); setShowCycle(true); };
   const goRadio    = () => { navPush(); setTab('radio'); };
   const goTrain    = (options) => { navPush(); if (options?.workout) setPendingTrainStart({ workout: options.workout }); setTab('train'); };
@@ -897,10 +901,12 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
     // and detail.coachId (a chat coach_invite card) so it opens that coach's
     // Listing directly once the live providers load.
     const open = (e) => {
-      navJumpRef.current.navPush(); setShowSettings(false); setSettingsStart('');
+      navJumpRef.current.navPush(); setShowSettings(false); setSettingsStart(''); setShowSearch(false);
       setMarketRole(typeof e?.detail?.role === 'string' ? e.detail.role : null);
+      // `back: 'nav'`: this jump pushed where the member was, so that coach's ← steps back there (a chat's
+      // coach card, a notification), not to Coaches' list (2026-11-10).
       setMarketCoach((typeof e?.detail?.role === 'string' && e?.detail?.coachId != null)
-        ? { role: e.detail.role, providerId: Number(e.detail.coachId) }
+        ? { role: e.detail.role, providerId: Number(e.detail.coachId), back: 'nav' }
         : null);
       setTab('market');
     };
@@ -947,7 +953,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
       navJumpRef.current.navPush(); setShowSettings(false); setSettingsStart('');
       setShowCalendar(false); setShowSearch(false); setShowCycle(false); setChatRequest(null);
     };
-    const toSettings = (page) => { clear(); setSettingsStart(page); setShowSettings(true); };
+    const toSettings = (page) => { clear(); setSettingsStart(page); setSettingsLanded(!!page); setShowSettings(true); };
     const open = (e) => {
       const d = (e && e.detail) || {};
       if (BS_COACH_PAGES.includes(d.page)) {
@@ -1057,6 +1063,9 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
 
   // Universal search — the ⌕ in every header opens it (no prop-threading).
   const [showSearch, setShowSearch] = useStateBSC(false);
+  // The query Search shows (for the nav history) and the one it reopens on after a Back.
+  const searchQueryRef = React.useRef('');
+  const [searchStart, setSearchStart] = useStateBSC('');
   const [showNoraSheet, setShowNoraSheet] = useStateBSC(false);
   React.useEffect(() => {
     const open = () => { setShowSearch(false); setShowNoraSheet(true); };
@@ -1064,7 +1073,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
     return () => window.removeEventListener('shape:openNora', open);
   }, []);
   React.useEffect(() => {
-    const open = () => { navJumpRef.current.navPush(); setShowSearch(true); };
+    const open = () => { navJumpRef.current.navPush(); searchQueryRef.current = ''; setSearchStart(''); setShowSearch(true); };
     window.addEventListener('shape:openSearch', open);
     return () => window.removeEventListener('shape:openSearch', open);
   }, []);
@@ -1118,7 +1127,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
   // "Start session" from the calendar event sheet → close calendar, jump to the
   // Train tab, and auto-launch the live session there.
   React.useEffect(() => {
-    const onStart = (event) => { navJumpRef.current.navPush(); setShowCalendar(false); setTab('train'); setPendingTrainStart(event.detail?.workout ? { workout: event.detail.workout } : true); };
+    const onStart = (event) => { navJumpRef.current.navPush(); setShowCalendar(false); setShowSearch(false); setTab('train'); setPendingTrainStart(event.detail?.workout ? { workout: event.detail.workout } : true); };
     window.addEventListener('shape:startWorkout', onStart);
     return () => window.removeEventListener('shape:startWorkout', onStart);
   }, []);
@@ -1276,7 +1285,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
   // calendar, habits, the coach queue and live-watch), i.e. the whole Settings
   // section — deleting their ⌕ instead would defeat the contract this PR exists
   // to establish. One overlay, referenced by every return, keeps it working.
-  const searchOverlay = showSearch ? <BSUniversalSearch onClose={() => { if (!navBack()) setShowSearch(false); }} /> : null;
+  const searchOverlay = showSearch ? <BSUniversalSearch initialQuery={searchStart} onQuery={(v) => { searchQueryRef.current = v; }} onClose={() => { if (!navBack()) setShowSearch(false); }} onLeave={() => setShowSearch(false)} /> : null;
   // The first-run steps (goal, coaching, screening) deliberately do NOT get it — they must not be
   // escapable before they are done. ⚠ An earlier version of this comment also
   // claimed they "carry no masthead, so there is no ⌕ to press". That is true of
@@ -1314,8 +1323,9 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
   const settingsOverlay = showSettings ? (
     <div style={{ position: 'absolute', inset: 0, zIndex: 210 }}>
       <BSSettings
-        key={'settings:' + settingsStart}
+        key={'settings:' + settingsStart + (settingsLanded ? ':landed' : '')}
         initialPage={settingsStart}
+        landed={settingsLanded}
         onBack={() => { if (!navBack()) { setShowSettings(false); setSettingsStart(''); } }}
         onLogout={onLogout}
         tweaks={tweaks}
@@ -18748,7 +18758,7 @@ function BSNotifiedPerson({ userId, onClose }) {
     <div data-notified-person style={{ position: 'absolute', inset: 0, zIndex: 230, background: t.PAPER }}>
       {person
         ? <BSPublicProfile person={person} onBack={onClose}
-            onMessage={me && person.userId !== me ? (p) => bsOpenMemberConversation(p, onClose) : null} />
+            onMessage={me && person.userId !== me ? (p) => bsOpenMemberConversation(p, null) : null} />
         : <div data-person-loading="" style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 0` }}>
             {/* While the read is out: the masthead row and the Back every page has, where it has it. */}
             {window.BSMastRow && <window.BSMastRow trailing={null} />}
@@ -18884,11 +18894,17 @@ function BSAskNoraLink({ t, label, draft, problem, style }) {
     </button>
   );
 }
-function BSUniversalSearch({ onClose }) {
+// `onClose` is Search's own ← (it steps the nav history back). `onLeave` closes Search for a result that
+// opens another page (the coaches, a workout, a channel): that page's jump pushes Search, query and all
+// (`onQuery`), so its Back comes back here. Closing through `onClose` first popped the history under the
+// jump, and its late popstate reopened Search over the new page (owner, 2026-11-10: "Make sure back
+// buttons are going back to previous page and location user was on").
+function BSUniversalSearch({ onClose, onLeave = onClose, initialQuery = '', onQuery = null }) {
   const t = useBS();
   const tr = useShapeTr();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
-  const [q, setQ] = useStateBSC('');
+  const [q, setQ] = useStateBSC(initialQuery || '');
+  React.useEffect(() => { if (onQuery) onQuery(q.trim()); }, [q]); // eslint-disable-line react-hooks/exhaustive-deps
   const [filter, setFilter] = useStateBSC('all'); // all | members | coaches
   const [rows, setRows] = useStateBSC(null);
   const [busy, setBusy] = useStateBSC(false);
@@ -19085,7 +19101,7 @@ function BSUniversalSearch({ onClose }) {
   );
   if (viewWorkout) return (
     <div style={{ position: 'absolute', inset: 0, zIndex: 230, background: t.PAPER }}>
-      <BSWorkoutDetail workout={viewWorkout} onBack={() => setViewWorkout(null)} onStart={() => { onClose(); try { window.dispatchEvent(new CustomEvent('shape:startWorkout', { detail: { workout: viewWorkout } })); } catch (e) {} }} />
+      <BSWorkoutDetail workout={viewWorkout} onBack={() => setViewWorkout(null)} onStart={() => { onLeave(); try { window.dispatchEvent(new CustomEvent('shape:startWorkout', { detail: { workout: viewWorkout } })); } catch (e) {} }} />
     </div>
   );
 
@@ -19170,7 +19186,7 @@ function BSUniversalSearch({ onClose }) {
           chHits.length ? (
             <>
               <div style={{ ...eyebrow, padding: '8px 0 2px' }}>{tr('feed:channels.count', { count: chHits.length, defaultValue: '{count, plural, one {# channel} other {# channels}}' })}</div>
-              {chHits.map((c, i) => <TileRow key={'ch' + c.id} first={i === 0} glyph="#" color={teal} title={c.name} sub={`${tr('feed:thread.memberCount', { count: c.memberCount || 0, defaultValue: '{count, plural, one {# member} other {# members}}' })}${c.blurb ? ' · ' + c.blurb : ''}`} onClick={() => { onClose(); try { window.dispatchEvent(new CustomEvent('shape:openConversation', { detail: { channel: c } })); } catch (e) {} }} />)}
+              {chHits.map((c, i) => <TileRow key={'ch' + c.id} first={i === 0} glyph="#" color={teal} title={c.name} sub={`${tr('feed:thread.memberCount', { count: c.memberCount || 0, defaultValue: '{count, plural, one {# member} other {# members}}' })}${c.blurb ? ' · ' + c.blurb : ''}`} onClick={() => { onLeave(); try { window.dispatchEvent(new CustomEvent('shape:openConversation', { detail: { channel: c } })); } catch (e) {} }} />)}
             </>
           ) : (
             <div style={{ padding: '18px 0', fontFamily: t.DISPLAY, fontSize: 15, color: t.INK50 }}>{needle ? tr('feed:channels.noneMatch', { q: q.trim(), defaultValue: 'No channels match “{q}”' })
@@ -19189,7 +19205,7 @@ function BSUniversalSearch({ onClose }) {
           ) : (rows !== null && list.length === 0 && moreHits === 0 && !noraHit && !askNora) ? (
             <div style={{ padding: '18px 0' }}>
               <div style={{ fontFamily: t.DISPLAY, fontSize: 15, color: t.INK50 }}>{tr('common:search.noMatch', { query: q.trim(), defaultValue: 'Nothing on Shape matches “{query}”.' })}</div>
-              <button onClick={() => { onClose(); try { window.dispatchEvent(new Event('shape:openMarket')); } catch (e) {} }} style={{ marginTop: 10, background: 'transparent', border: 0, padding: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: teal }}>{tr('common:search.browseCoaches', { defaultValue: 'Browse coaches on the marketplace →' })}</button>
+              <button onClick={() => { onLeave(); try { window.dispatchEvent(new Event('shape:openMarket')); } catch (e) {} }} style={{ marginTop: 10, background: 'transparent', border: 0, padding: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: teal }}>{tr('common:search.browseCoaches', { defaultValue: 'Browse coaches on the marketplace →' })}</button>
             </div>
           ) : (
             <>
@@ -19218,7 +19234,7 @@ function BSUniversalSearch({ onClose }) {
               {filter === 'all' && chHits.length > 0 && (
                 <>
                   <div style={{ ...eyebrow, padding: '16px 0 2px' }}>{tr('feed:tab.channels', { defaultValue: 'Channels' })}</div>
-                  {chHits.map((c, i) => <TileRow key={'ch' + c.id} first={i === 0} glyph="#" color={teal} title={c.name} sub={`${tr('feed:thread.memberCount', { count: c.memberCount || 0, defaultValue: '{count, plural, one {# member} other {# members}}' })}${c.blurb ? ' · ' + c.blurb : ''}`} onClick={() => { onClose(); try { window.dispatchEvent(new CustomEvent('shape:openConversation', { detail: { channel: c } })); } catch (e) {} }} />)}
+                  {chHits.map((c, i) => <TileRow key={'ch' + c.id} first={i === 0} glyph="#" color={teal} title={c.name} sub={`${tr('feed:thread.memberCount', { count: c.memberCount || 0, defaultValue: '{count, plural, one {# member} other {# members}}' })}${c.blurb ? ' · ' + c.blurb : ''}`} onClick={() => { onLeave(); try { window.dispatchEvent(new CustomEvent('shape:openConversation', { detail: { channel: c } })); } catch (e) {} }} />)}
                 </>
               )}
               {filter === 'all' && recHits.length > 0 && (
@@ -32539,8 +32555,15 @@ function bsAccountRoles(profile) {
   return out.includes('nutritionist') ? out.filter((x) => x !== 'dietitian') : out;
 }
 
-function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initialPage = '' }) {
+function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initialPage = '', landed = false }) {
   const t = useBS();
+  // A page Settings was opened straight onto from somewhere else (Home's Watch & apps → Integrations, a
+  // notification → your notifications, Goals → Edit profile: the shell's `landed`) goes back to where the
+  // member was, through Settings' own Back (owner, 2026-11-10: "Make sure back buttons are going back to
+  // previous page and location user was on"); it used to land on Settings' own page, a second ← away.
+  // Reached from Settings' own page, it goes back there, as before.
+  const landedOn = landed ? initialPage : '';
+  const backFrom = (page, close) => () => { if (landedOn && landedOn === page) onBack(); else close(); };
   const tr = useShapeTr();
   const r = useBSRadio();
   const [showContact, setShowContact] = useStateBSC(false);
@@ -33483,11 +33506,16 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   // Nav announce (spec §2): the shell only sees settingsStart at OPEN time;
   // this keeps the register current as the user moves within Settings. Only
   // the replayable keys (initialPage-supported) are announced.
-  const navSub = editing ? 'edit-profile' : showIntegrations ? 'integrations' : showPricing ? 'pricing' : '';
+  // Every page Settings can be opened on (initialPage) is announced, so a jump from it comes back to it, and
+  // whether it was landed on, so its ← still leaves Settings after that Back (2026-11-10).
+  const navSub = editing ? 'edit-profile' : showIntegrations ? 'integrations' : showPricing ? 'pricing'
+    : showNotifications ? 'notifications' : showSessions ? 'sessions' : showHabits ? 'habits'
+    : showBusiness ? 'business' : detail === 'practice' ? 'practice' : '';
+  const navLanded = !!navSub && navSub === landedOn;
   React.useEffect(() => {
-    window.ShapeNav?.announce?.({ sub: navSub });
+    window.ShapeNav?.announce?.(navLanded ? { sub: navSub, landed: true } : { sub: navSub });
     return () => window.ShapeNav?.announce?.(null);
-  }, [navSub]);
+  }, [navSub, navLanded]);
   // Persist the profile identity across sessions/devices via user_goals. Read again when Nora's
   // account setup (or its Undo) changes the name from her sheet; a key typed into stays theirs.
   const identityRev = useBSUserGoalsRev(BS_IDENTITY_KINDS);
@@ -33814,13 +33842,13 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     return <BSSubprocessorsPage onBack={() => setShowSubprocessors(false)} onContact={() => { setShowSubprocessors(false); setShowContact(true); }} />;
   }
   if (showPricing) {
-    return <BSPricingPage onBack={() => setShowPricing(false)} />;
+    return <BSPricingPage onBack={backFrom('pricing', () => setShowPricing(false))} />;
   }
   if (showSessions) {
-    return <BSSessionsScreen onBack={() => setShowSessions(false)} />;
+    return <BSSessionsScreen onBack={backFrom('sessions', () => setShowSessions(false))} />;
   }
   if (showNotifications) {
-    return <BSNotifications onBack={() => setShowNotifications(false)} onRoute={(route, data) => {
+    return <BSNotifications onBack={backFrom('notifications', () => setShowNotifications(false))} onRoute={(route, data) => {
       if (route === 'sessions') { setShowNotifications(false); setShowSessions(true); return; }
       // Every other route goes through the map a tapped push uses too (bsRouteNotification):
       // a waitlist invite opens the marketplace, a prep reminder the cook screen, a message its thread.
@@ -33834,7 +33862,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     return <BSNoraMemoryPage onBack={() => setShowNoraMemory(false)} />;
   }
   if (showIntegrations) {
-    return <BSIntegrationsPage onBack={() => setShowIntegrations(false)} />;
+    return <BSIntegrationsPage onBack={backFrom('integrations', () => setShowIntegrations(false))} />;
   }
   if (showScore) {
     return <BSShapeScorePage profile={scoreProfile} onBack={() => setShowScore(false)} onOpenStore={() => { setShowScore(false); setShowStore(true); }} />;
@@ -33855,7 +33883,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     return <BSClientLibrary onBack={() => setShowLibrary(false)} goMarket={() => { setShowLibrary(false); try { window.dispatchEvent(new Event('shape:openMarket')); } catch (e) {} }} />;
   }
   if (showHabits) {
-    return <BSHabitsPage tweaks={tweaks} setTweak={setTweak} accent={t.GREEN} onBack={() => setShowHabits(false)} onOpenScore={() => { setShowHabits(false); setShowScore(true); }} />;
+    return <BSHabitsPage tweaks={tweaks} setTweak={setTweak} accent={t.GREEN} onBack={backFrom('habits', () => setShowHabits(false))} onOpenScore={() => { setShowHabits(false); setShowScore(true); }} />;
   }
   if (showCheckin) {
     return <BSWeeklyCheckin onBack={() => setShowCheckin(false)} />;
@@ -33867,7 +33895,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     return <BSLeaderboard onBack={() => setShowLeaderboard(false)} mode={isCoachRole ? 'coach' : 'member'} role={coachRole || 'trainer'} />;
   }
   if (showBusiness) {
-    return <BSCoachBusinessPage role={coachRole || 'trainer'} tab={showBusiness} onBack={() => setShowBusiness(null)} />;
+    return <BSCoachBusinessPage role={coachRole || 'trainer'} tab={showBusiness} onBack={backFrom('business', () => setShowBusiness(null))} />;
   }
   if (showHours) {
     return <BSCoachHoursPage role={coachRole || 'trainer'} onBack={() => setShowHours(false)}
@@ -34521,7 +34549,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
           what this pane is named after. The JSX is UNCHANGED apart from two spaces
           of indent: a move that also rewrites is a move nobody can review. */}
       {detail === 'practice' && (<>
-        <DetailBack title={tr('settings:section.practice', { defaultValue: 'Your practice' })} />
+        <DetailBack title={tr('settings:section.practice', { defaultValue: 'Your practice' })} onBack={backFrom('practice', () => setDetail(''))} />
         {/* Not in the marketplace yet: each missing step with the action that fixes it. */}
         {isCoachRole && myListing && !myListing.ready && window.BSListingNotice && (() => {
           const Notice = window.BSListingNotice;
@@ -34646,7 +34674,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
           shape:openProfile, and this page holds an unsaved draft it must not discard —
           the invariant recorded beside toRoot. */}
       {!detail && editing && (<>
-        <DetailBack title={tr('settings:passport.edit', { defaultValue: 'Edit profile' })} onBack={cancelEdit} />
+        <DetailBack title={tr('settings:passport.edit', { defaultValue: 'Edit profile' })} onBack={backFrom('edit-profile', cancelEdit)} />
         {(() => {
           const acc = bsMyTierColor(); // the avatar follows my Shape Score tier, as on the card
           // The lit panel (owner, 2026-11-09, of this page: "this page looks outdated"): the root's
