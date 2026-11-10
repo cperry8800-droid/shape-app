@@ -28,7 +28,8 @@ export default {
     { name: 'the read runs with no playlist on the plan', file: ROUTE, find: '  if (playlistOwners.length) {', replace: '  if (true) {' },
     { name: "a workout reads the menu's coach", file: ROUTE, find: "    const linked = w.playlist ? linkedPlaylist(w.playlist, workoutOwner.get(String(w.id)) ?? null, playlistLinks) : null;", replace: "    const linked = w.playlist ? linkedPlaylist(w.playlist, menuOwner, playlistLinks) : null;" },
     { name: 'the menu is sent unlinked', file: ROUTE, find: '      days: menuDays,', replace: '      days: mealDays,' },
-    { name: 'a failed read breaks the plan', file: ROUTE, find: "      if (error) console.error('[client/plan] playlist links read failed:', error.message);\n      else playlistLinks = playlistLinkIndex(data ?? []);", replace: "      if (error) throw new Error(error.message);\n      playlistLinks = playlistLinkIndex(data ?? []);" },
+    // (Throwing from the error branch is no mutation: the read's own try catches it. The catch is the guard.)
+    { name: 'a failed read breaks the plan', file: ROUTE, find: "    } catch (e) {\n      console.error('[client/plan] playlist links read failed:', e instanceof Error ? e.message : e);\n    }", replace: "    } catch (e) {\n      throw e;\n    }" },
 
     // ── the chip ──
     { name: 'the chip opens any link', file: CARD, find: '    return u.protocol === "https:" && DCL_PLAYLIST_HOSTS.test(u.hostname) ? u.href : null;', replace: '    return u.href;' },
