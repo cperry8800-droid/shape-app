@@ -625,6 +625,21 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
 
   return [
     {
+      section: 'Tutorials, PR 1 of 3: a five-stop coach welcome, a guide for every coach dashboard page, Skip tour on every step, the app tour fixed and replayable (#2677). No migration',
+      items: [
+        { label: 'Owner, 2026-11-10: "we need create tutorials for dashboard on website for coaches and tutorial for new accounts on the app. They need to show all features" … approving the proposal: "Go to all recommendations. Also have viewing the tutorial once initially, have the option to go through it again at a later date if user wants to. Also make sure user has option to cancel tutorial if they don\'t want it"', status: 'done' },
+        { label: '#2677 the engine (spotlightTour.js, website and app): a 340px card with the guide\'s name, "2 of 5" and a bar; Skip tour on every step but the last, and skipping says where to take it again; Escape skips; onDone(reason); translated labels; when() leaves out a step the account lacks; ← →; one tour at a time; docked under 560px; html[data-guide-open] holds the Nora hint, the Radio prompt and the website\'s chat launcher under the dim', status: 'done' },
+        { label: '#2677 the coach dashboard (dashTour.js): the welcome is five stops (Needs you, the rail, getting listed, the guides); 12 guides on each page\'s real controls (Today, Week, Schedule, Clients, a client\'s file, Programs or Meal plans, Business, Profile, Playlists, Goal & Score, Settings, Nora/chat/search); a Guide button beside each page\'s name; Settings → Guides lists them, ticked, and replays the welcome; a coach who saw the old tour gets one quiet note. The Programs step no longer says programs are sold there', status: 'done' },
+        { label: '#2677 progress: web_coach_guides { welcome, note, chapters: { <role>:<guide>: day } }, read, merged (earliest day, never unticked) and written back bound to the account; a failed read writes nothing; only a finished guide is ticked; a coach with both listings keeps each role\'s ticks', status: 'done' },
+        { label: '#2677 the app: Train lights the Build door for a member with no plan, Radio the Radio box, a Coaches stop, Chat\'s copy without "Coaches"; Settings → About → Take the tour replays it for members and coaches; the card\'s words in 13 locales (14 strings)', status: 'done' },
+        { label: 'Review: Codex P2 on 41643b1 (one ticks record for a coach with both listings: finishing Programs ticked Meal plans), fixed in bcd4802 with a test that fails without it; Codex clean on bcd4802. Mutations: tour-guides 39 killed, nothing skipped. npm test 10,699, 0 failing. Walked in Chromium locally (1280 and 390) and on the Vercel preview\'s example dashboard; CI green on the final head', status: 'done' },
+        { label: 'PR 2 (planned): the member app\'s own five-stop welcome and nine page guides, Help → Guides, a first-visit offer under each tab\'s title', status: 'pending' },
+        { label: 'PR 3 (planned): "Open for business", the coach setup widget on Today (a photo, a rate and payouts from /api/coach/listing, hours, a first program, the profile link), each row opening its guide', status: 'pending' },
+        { label: 'Left by #2677: no step lets a click through to the lit control ("try it"); the member dashboard\'s own tour is still the 14-step pass', status: 'pending' },
+        { label: 'Left by #2677: the 14 new app strings want the native-speaker read already waited on (Hausa and Pidgin first)', status: 'pending' },
+      ],
+    },
+    {
       section: 'Website meals card: the day\'s playlist and each meal\'s, in the meal builder\'s Client preview and for the member (#2673). No migration',
       items: [
         { label: 'Owner, 2026-11-10: "does the website builder show the playlist on the client card too?" (a trainer\'s Client view did, DashWorkoutCard; a nutritionist\'s did not) … "yes"', status: 'done' },

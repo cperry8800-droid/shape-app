@@ -1231,6 +1231,51 @@ section.dash-lib-top, section.dash-lib-list { padding-left:20px !important; padd
 .dash-appbar .shape-header-inner { max-width: none !important; height: 60px !important; padding: 0 24px !important; }
 .dash-appbar .shape-nav-tabs, .dash-appbar .shape-nav-hi, .dash-appbar .shape-nav-logo,
 .dash-appbar .shape-nav-dash { display: none !important; }
+/* The app bar's lead: the tab's name and its Guide (trainerDashboard.jsx DashGuideButton). The
+   name keeps its own look; the lead only places the pair. On a phone the bar shows the logo, so
+   the Guide moves to the end of the tab row (the rail) and this pair hides. */
+.dash-appbar-lead { position: absolute; left: 32px; top: 0; height: 60px; display: flex; align-items: center; gap: 14px; z-index: 61; pointer-events: none; }
+.dash-appbar-lead .dash-appbar-title { position: static; height: auto; }
+.dash-guide-btn { pointer-events: auto; display: inline-flex; align-items: center; gap: 7px; height: 32px; padding: 0 12px 0 7px; border-radius: 999px;
+  border: 1px solid var(--sh-line2, #413d38); background: transparent; color: var(--sh-ink, #f2ede4); cursor: pointer; white-space: nowrap;
+  font-family: var(--sh-font-body, 'Space Grotesk', 'Space Grotesk Fallback', sans-serif); font-size: 12.5px; font-weight: 600; line-height: 1; }
+.dash-guide-btn:hover { border-color: var(--sh-accent, #2ee0c4); }
+.dash-guide-btn:focus-visible { outline: 2px solid var(--sh-accent, #2ee0c4); outline-offset: 2px; }
+.dash-guide-q { width: 18px; height: 18px; border-radius: 50%; border: 1.5px solid var(--sh-accent, #2ee0c4); color: var(--sh-accent, #2ee0c4);
+  display: inline-grid; place-items: center; font-family: var(--sh-font-mono, 'JetBrains Mono', 'JetBrains Mono Fallback', monospace); font-size: 10px; font-weight: 700; }
+.dash-guide-done { color: var(--sh-accent, #2ee0c4); font-weight: 700; }
+.dash-guide-btn--rail { display: none; }
+
+/* Settings → Guides (dashProfileExtras.jsx DashGuidesCard): two columns of guides, a tick for each
+   finished one. */
+.dash-guides-list { list-style: none; margin: 16px 0 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); column-gap: 28px; }
+.dash-guides-list li { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 9px 0; border-top: 1px solid var(--sh-line, #302c27); }
+.dash-guides-mark { font-family: var(--sh-font-mono, 'JetBrains Mono', 'JetBrains Mono Fallback', monospace); font-size: 12px; color: var(--sh-ink3, #75706a); }
+.dash-guides-list li[data-done] .dash-guides-mark { color: var(--sh-accent, #2ee0c4); }
+.dash-guides-name { font-size: 13.5px; color: var(--sh-ink, #f2ede4); min-width: 0; }
+.dash-guides-name small { display: block; font-size: 11.5px; color: var(--sh-ink3, #75706a); margin-top: 2px; }
+.dash-guides-list button { background: transparent; color: var(--sh-ink, #f2ede4); border: 1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.2); border-radius: 999px;
+  padding: 7px 14px; min-height: 34px; font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer; }
+.dash-guides-list button:hover { border-color: var(--sh-accent, #2ee0c4); }
+.dash-guides-list button:focus-visible { outline: 2px solid var(--sh-accent, #2ee0c4); outline-offset: 2px; }
+.dash-guides-hint { font-size: 11.5px; color: var(--sh-ink3, #75706a); max-width: 160px; text-align: right; }
+
+/* While a tour or guide is open (spotlightTour.js stamps html[data-guide-open]) the chat launcher
+   sits under its dim, not over the card: at phone width the card docks to the bottom, where the
+   launcher's 2147483000 put it on top of Next. A step that points at the launcher lights it
+   through the cut-out. */
+html[data-guide-open] #shape-global-chat-button { z-index: 99990 !important; }
+
+/* The one-time "New: a guide for every page" line for a coach who saw the old tour (dashTour.js). */
+.dash-guide-new { position: fixed; left: 24px; bottom: 24px; z-index: 8000; max-width: min(380px, calc(100vw - 48px)); box-sizing: border-box;
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 12px; padding: 14px 14px 14px 16px; border-radius: 12px;
+  background: var(--sh-card, #25211d); color: var(--sh-ink, #f2ede4); border: 1px solid rgba(var(--sh-accent-rgb, 46,224,196), 0.35); box-shadow: 0 18px 40px -18px rgba(0,0,0,.6); }
+.dash-guide-new-k { grid-column: 1 / -1; font-family: var(--sh-font-mono, 'JetBrains Mono', 'JetBrains Mono Fallback', monospace); font-size: 10px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; color: var(--sh-accent, #2ee0c4); }
+.dash-guide-new-t { font-size: 13.5px; line-height: 1.45; }
+.dash-guide-new-a { display: flex; align-items: flex-start; gap: 6px; }
+.dash-guide-new-a button { background: transparent; color: var(--sh-ink, #f2ede4); border: 1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.2); border-radius: 999px; padding: 7px 12px; min-height: 32px; font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+.dash-guide-new-a button[data-a="x"] { border: 0; font-size: 18px; padding: 4px 8px; opacity: .7; }
+
 .dash-appbar-title { position: absolute; left: 32px; top: 0; height: 60px; display: flex; align-items: center; z-index: 61;
   pointer-events: none; font-family: var(--sh-font-display, 'Fraunces', 'Fraunces Fallback', 'Instrument Serif', serif); font-weight: 650;
   font-variation-settings: 'wdth' 112; font-size: 17px; letter-spacing: -0.005em; color: var(--sh-ink, #f2ede4); }
@@ -1252,6 +1297,8 @@ section.dash-lib-top, section.dash-lib-list { padding-left:20px !important; padd
   .dash-rail-brand, .dash-rail-heading, .dash-rail-site, .dash-rail .shape-dash-payout { display: none !important; }
   .dash-rail-link { flex: 0 0 auto; min-height: 38px; padding: 0 12px; }
   .dash-appbar-title { display: none; }
+  .dash-appbar-lead { display: none; }
+  .dash-guide-btn--rail { display: inline-flex; flex: 0 0 auto; height: 34px; margin-left: 4px; }
   .dash-appbar .shape-header-inner { padding: 0 16px !important; }
   .dash-appbar .shape-nav-logo { display: inline-flex !important; }
 }
