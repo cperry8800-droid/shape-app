@@ -123,6 +123,13 @@ function mapProgram(payload: Record<string, unknown> | null): { id: string; name
   };
 }
 
+// A day's playlist ({ id?, name, meta }): the id only when the builder saved one (a day saved before ids
+// has none), so the shape a day without one has is unchanged.
+function playlistOf(o: Record<string, unknown>): { id?: string; name: string; meta: string } {
+  const id = o.id == null ? '' : String(o.id).trim();
+  return { ...(id ? { id } : {}), name: String(o.name ?? ''), meta: String(o.meta ?? '') };
+}
+
 // Weekly-repeat weekdays (0=Mon..6=Sun) for a self session that recurs each week.
 function mapRepeatDow(payload: Record<string, unknown> | null): number[] | null {
   const r = payload?.repeatDow;
@@ -182,8 +189,10 @@ export async function GET(request: Request) {
       scheduledDate: w.scheduled_date ?? null,
       time: /^\d{1,2}:\d{2}$/.test(timeRaw) ? timeRaw : null,
       durationMin: durMatch ? Number(durMatch[0]) : null,
+      // The day's playlist as the builder saved it (DbuDayChips): its saved soundtrack's id when it has one, so
+      // Train's Playlists tells two playlists of one name apart; a day saved before ids has only the name.
       playlist: payload?.playlist && typeof payload.playlist === 'object'
-        ? { name: String((payload.playlist as Record<string, unknown>).name ?? ''), meta: String((payload.playlist as Record<string, unknown>).meta ?? '') }
+        ? playlistOf(payload.playlist as Record<string, unknown>)
         : null,
       // Builder snapshot stamp ({id, name, version, week, day}) — the client
       // Workouts tab groups the program into weeks with it.

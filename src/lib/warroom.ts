@@ -625,6 +625,20 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
 
   return [
     {
+      section: 'App Train: playlists say which workout they play with, On deck previews the sessions, Full plan opens the week as a sheet (#2669); a visitor\'s intro console scrolls with a coach\'s page (#2668). No migration',
+      items: [
+        { label: 'Owner, 2026-11-10, of a coach\'s page from the marketplace: "this free intro pop up is still staying present and too high on screen when i scroll … Also make the profile picture a little smaller"; of Train: "remove the music from joran box and have the music assigned to workouts down in the playlist section, just make it more clear which workout its assigned to. also the full plan and on deck just brings you to the monthly calendar page, there should be a better preview of what actually is "on deck" and a pop up of the actual full place"', status: 'done' },
+        { label: '#2668 a visitor\'s Free intro console sits in the Climb\'s head under Message · Work with and scrolls away (it was sticky, and BSPage\'s bottom padding put the tab bar\'s height in twice, ~90px too high); the summit keeps its Book; the prism portrait 168 × 214 → 144 × 184, trainers and nutritionists alike. Codex clean, CI green', status: 'done' },
+        { label: '#2669 Train: the Music from {coach} row gone; Playlists\' cards carry "For Today · Upper Pull — Peak", matched to the coach\'s per-day playlist by its soundtrack id (the plan route now carries it), by name only when one card has it; a workout\'s playlist the member\'s list lacks is a bare card (no service, nothing to open); this week\'s lead', status: 'done' },
+        { label: '#2669 Train: On deck previews each next day (Tomorrow, time, length, first three moves with swaps, playlist) and opens the full plan on it; Full plan (BSTrainPlan.jsx) is a sheet of the week, every move with its cue and the member\'s swaps, today framed, Month view at its foot', status: 'done' },
+        { label: '#2669 the full plan is a modal: focus stays in it (Tab and Shift+Tab wrap, bsDialogFocus.mjs) and goes back to what opened it', status: 'done' },
+        { label: 'Review: five of Codex\'s six findings fixed (two playlists of one name, also with an unsent one; an Apple Music playlist drawn as Spotify\'s; On deck without the swaps; focus leaving the sheet); one declined (Sunday\'s sheet marking last Monday Tomorrow: the sheet prints this week\'s dates); Codex clean on e7fb41b; CI green on the final head', status: 'done' },
+        { label: 'A workout\'s playlist the coach never sent to the member has no link: the plan carries its soundtrack id and name, not its URL or service (a server read of coach_soundtracks by id would carry them)', status: 'pending' },
+        { label: 'The full plan shows this week, which is what the plan read slots; a program\'s later weeks have no view', status: 'pending' },
+        { label: 'Unused since #2669: session:train.musicFrom, session:train.music, session:train.forToday', status: 'pending' },
+      ],
+    },
+    {
       section: 'App: coach Clients and Programs A, the Coaches tab, the coach application in short steps (#2667). No migration',
       items: [
         { label: 'Owner, 2026-11-09: "the layout/design and look for clients and programs page on app for coaches needs to be reviewed and changed"; a plan for "where to put marketplace on the app and the look"; "improve the application process on the app and where that can be accessed"; picks: Clients A, Programs and Plans A ("but do this for playlists"), Coaches as its own tab (option 1), Browse list look (B) with filters option 1, application A "but also have Nora as an option", all three doors; "make sure to fix any bugs that were found during review"', status: 'done' },

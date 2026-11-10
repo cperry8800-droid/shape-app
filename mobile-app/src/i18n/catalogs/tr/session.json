@@ -170,6 +170,8 @@
   "train.onDeck": "Sırada",
   "train.openSession": "Serbest seans",
   "train.plan": "Plan",
+  "train.moreMoves": "+{count} daha",
+  "train.playlistFor": "{workouts} için",
   "train.previewEyebrow": "Önizleme · Salt okunur",
   "train.programKicker": "Program",
   "train.programWeek": "{name} · {week}. hafta",

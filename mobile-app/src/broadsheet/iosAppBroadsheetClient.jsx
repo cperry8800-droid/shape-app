@@ -97,6 +97,8 @@ import { BSEatMacroPage, bsEatSwapDelta, bsEatSwappedMeal } from './BSEatFuel.js
 import { BSEatDay } from './BSEatDay.jsx';
 import { BSTrainBurnPage } from './BSTrainBurn.jsx';
 import { BSTrainDay } from './BSTrainDay.jsx';
+import { BSTrainPlanSheet } from './BSTrainPlan.jsx';
+import { bsTrainPlaylistCards } from './bsTrainPlaylists.mjs';
 import { BSPlanReadFailed } from './BSPlanReadFailed.jsx';
 import { BSWallTrainingNow } from './BSWallLive.jsx';
 import { BSLiveBoostSheet } from './BSLiveBoost.jsx';
@@ -4263,8 +4265,10 @@ function bsBuildTrainProgram(workouts, t, tr) {
       // ("Chips on the client card") and the plan route has always delivered it, but
       // this mapping dropped it, so the app's Train hero never showed what the website
       // card does. Owner, 2026-10-07. Only a playlist with a name is one.
+      // Its saved soundtrack's id rides along when the builder saved one, so Train's Playlists tells two
+      // playlists of one name apart (Codex on #2669).
       playlist: w.playlist && String(w.playlist.name || '').trim()
-        ? { name: String(w.playlist.name).trim(), meta: String(w.playlist.meta || '').trim() }
+        ? { ...(w.playlist.id != null && String(w.playlist.id).trim() ? { id: String(w.playlist.id).trim() } : {}), name: String(w.playlist.name).trim(), meta: String(w.playlist.meta || '').trim() }
         : null,
       meta: [w.durationMin ? T('session:train.minutes', `${w.durationMin} min`, { min: w.durationMin }) : null, movesLabel].filter(Boolean).join(' · '),
       copy: w.description || (isSelf ? selfByline : T('session:train.programmedByCoach', 'Programmed by your coach.')),
@@ -4432,6 +4436,10 @@ const bsAppleGlyph = (size = 22, fill = '#fff') => (
 // of that role sent them (ShapePlaylists.fromMyCoaches → get_my_coach_playlists);
 // none sent, or the read failed, renders nothing — never the sample. Signed
 // out, the preview's sample playlists (`demo`).
+// On Train (`program`, the page's week), each card says which workouts it plays
+// with, and a playlist the coach set on a workout but did not send is a card too
+// (bsTrainPlaylistCards; owner, 2026-11-10: "just make it more clear which
+// workout its assigned to").
 function useBSCoachPlaylists(role) {
   const [list, setList] = useStateBSC(null);
   React.useEffect(() => {
@@ -4442,10 +4450,14 @@ function useBSCoachPlaylists(role) {
   }, [role]);
   return list;
 }
-function BSCoachPlaylists({ role, signedIn, demo }) {
+function BSCoachPlaylists({ role, signedIn, demo, program = null, todayIdx = 0 }) {
   const t = useBS();
   const tr = useShapeTr();
   const live = useBSCoachPlaylists(signedIn ? role : null);
+  const byOf = (name) => (role === 'nutritionist'
+    ? tr('nutrition:eat.playlistBy', { defaultValue: '{who} · Your nutritionist', who: name || '' })
+    : tr('session:train.playlistBy', { defaultValue: '{who} · Your trainer', who: name || '' }));
+  const firstName = (name) => String(name || '').replace(/^Dr\.?\s+/i, '').split(' ')[0];
   let who;
   let items;
   if (!signedIn) {
@@ -4453,33 +4465,57 @@ function BSCoachPlaylists({ role, signedIn, demo }) {
     who = demo.who;
     items = demo.items;
   } else {
-    if (!Array.isArray(live) || !live.length) return null;
-    const first = String(live[0].coach_name || '').replace(/^Dr\.?\s+/i, '').split(' ')[0];
-    who = first || (role === 'nutritionist' ? tr('nutrition:eat.yourNutritionist', { defaultValue: 'Your nutritionist' }) : tr('session:train.yourTrainer', { defaultValue: 'Your trainer' }));
+    // Unread is not none: nothing shows until the list has been read.
+    if (!Array.isArray(live)) return null;
+    who = firstName(live[0] && live[0].coach_name);
     items = live.map((p) => ({
       k: role === 'nutritionist'
         ? tr('nutrition:eat.playlistBy', { defaultValue: '{who} · Your nutritionist', who: p.coach_name || '' })
         : tr('session:train.playlistBy', { defaultValue: '{who} · Your trainer', who: p.coach_name || '' }),
+      id: p.id,
       title: p.name,
       meta: [p.tracks ? tr('coach:sound.tracksCount', { defaultValue: '{count} tracks', count: p.tracks }) : null, p.duration && p.duration !== '—' ? p.duration : null, p.bpm && p.bpm !== '—' ? `${p.bpm} BPM` : null, p.tag || null].filter(Boolean).join(' · '),
       url: p.url,
       provider: p.provider,
     }));
   }
+  // Train: which workouts each plays with, soonest first, and a card for a workout's playlist the list
+  // does not carry. "For Today · Upper Pull — Peak / Sat · Long run".
+  let cards = items.map((p) => ({ ...p, uses: [] }));
+  if (Array.isArray(program)) {
+    // A workout's own card names the coach who set it, or nobody (never " · Your trainer" with no name). The
+    // plan names it and nothing more: no link, no service, so it is drawn bare, never as Spotify's (Codex on
+    // #2669: an Apple Music playlist read "Open in Spotify").
+    cards = bsTrainPlaylistCards(items, program, todayIdx).map((c) => (c.onlyOnDay ? { ...c, k: c.coach ? byOf(c.coach) : null, bare: true } : c));
+    if (!who) who = firstName(cards.find((c) => c.coach) && cards.find((c) => c.coach).coach);
+  }
+  if (!cards.length) return null;
+  if (!who) who = role === 'nutritionist' ? tr('nutrition:eat.yourNutritionist', { defaultValue: 'Your nutritionist' }) : tr('session:train.yourTrainer', { defaultValue: 'Your trainer' });
+  const whenOf = (idx) => (idx === todayIdx ? tr('home:when.today', { defaultValue: 'Today' })
+    : idx === (todayIdx + 1) % 7 ? tr('home:when.tomorrow', { defaultValue: 'Tomorrow' })
+    : bsWeekdayName(idx, 'short'));
+  const forLine = (uses) => (uses && uses.length
+    ? tr('session:train.playlistFor', { defaultValue: 'For {workouts}', workouts: uses.slice(0, 2).map((u) => [whenOf(u.idx), u.title].filter(Boolean).join(' · ')).join(' / ') + (uses.length > 2 ? ` +${uses.length - 2}` : '') })
+    : null);
   return (
     <>
       <BSFocusTitle kicker={tr('nutrition:eat.playlistsFrom', { defaultValue: 'From {who}', who })} title={tr('profile:playlists.playlists', { defaultValue: 'Playlists' })} />
-      <div style={{ padding: `12px ${t.padX}px 0`, display: 'flex', flexDirection: 'column', gap: 8 }}>
-        {items.map((p, i) => (
-          <BSPlaylistCard key={i} kicker={p.k} title={p.title} meta={p.meta} color={p.provider === 'apple' ? '#fa243c' : '#1db954'} provider={p.provider} url={p.url} tracks={p.tracks} />
+      <div data-coach-playlists={role} style={{ padding: `12px ${t.padX}px 0`, display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {cards.map((p, i) => (
+          <BSPlaylistCard key={i} kicker={p.k} title={p.title} meta={p.meta} forLine={forLine(p.uses)} bare={!!p.bare} color={p.provider === 'apple' ? '#fa243c' : '#1db954'} provider={p.provider} url={p.url} tracks={p.tracks} />
         ))}
       </div>
     </>
   );
 }
 
-function BSPlaylistCard({ kicker, title, meta, color, spotifyUrl, url, provider, tracks }) {
+function BSPlaylistCard({ kicker, title, meta, color, spotifyUrl, url, provider, tracks, forLine = null, bare = false }) {
   const t = useBS();
+  // The workouts it plays with (Train), set apart from the meta in Train's rust, so which workout a
+  // playlist is for reads at a glance (owner, 2026-11-10).
+  const forChip = forLine ? (
+    <div data-playlist-for="" style={{ display: 'inline-block', maxWidth: '100%', boxSizing: 'border-box', marginTop: 5, padding: '4px 8px', border: `1px solid ${t.RULE}`, borderLeft: `3px solid ${t.RUST || '#c0533b'}`, borderRadius: 3, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK, lineHeight: 1.4, overflowWrap: 'anywhere' }}>{forLine}</div>
+  ) : null;
   const [open, setOpen] = useStateBSC(false);
   const [saveState, setSaveState] = useStateBSC('idle'); // idle | saving | saved | error
   const [saveMsg, setSaveMsg] = useStateBSC('');
@@ -4554,6 +4590,7 @@ function BSPlaylistCard({ kicker, title, meta, color, spotifyUrl, url, provider,
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.14em', textTransform: 'uppercase', color, fontWeight: 700, marginBottom: 2 }}>{kicker}</div>
             <div style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 19, color: t.INK, letterSpacing: '-0.02em' }}>{title}</div>
+            {forChip}
             <div style={{ fontFamily: t.MONO, fontSize: 8.5, color: t.INK50, marginTop: 2, letterSpacing: '0.04em' }}>{meta}</div>
           </div>
         </div>
@@ -4604,6 +4641,23 @@ function BSPlaylistCard({ kicker, title, meta, color, spotifyUrl, url, provider,
     (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || document.body
   ) : null;
 
+  // Bare: a playlist the plan names and nothing more (a coach set it on a workout without sending it). No
+  // service is known and no link, so it wears no service's mark and offers nothing to open: its name, its
+  // workouts and its meta. (After the hooks, so a card that turns bare keeps its hook order.)
+  if (bare) {
+    return (
+      <div data-playlist-bare="" style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '10px 0', width: '100%' }}>
+        <div aria-hidden="true" style={{ width: 38, height: 38, flexShrink: 0, borderRadius: 10, border: `1px solid ${t.RULE}`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: t.INK70, fontSize: 17 }}>♪</div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          {kicker ? <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700, marginBottom: 2 }}>{kicker}</div> : null}
+          <div style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 15, color: t.INK, letterSpacing: '-0.01em' }}>{title}</div>
+          {forChip}
+          {meta ? <div style={{ fontFamily: t.MONO, fontSize: 8.5, color: t.INK50, marginTop: forChip ? 4 : 2, letterSpacing: '0.04em', lineHeight: 1.35 }}>{meta}</div> : null}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <>
       <div role="button" tabIndex={0} aria-label={`Preview ${title}`}
@@ -4614,7 +4668,8 @@ function BSPlaylistCard({ kicker, title, meta, color, spotifyUrl, url, provider,
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.14em', textTransform: 'uppercase', color, fontWeight: 700, marginBottom: 2 }}>{kicker}</div>
           <div style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 15, color: t.INK, letterSpacing: '-0.01em' }}>{title}</div>
-          <div style={{ fontFamily: t.MONO, fontSize: 8.5, color: t.INK50, marginTop: 2, letterSpacing: '0.04em', lineHeight: 1.35 }}>{meta}</div>
+          {forChip}
+          <div style={{ fontFamily: t.MONO, fontSize: 8.5, color: t.INK50, marginTop: forChip ? 4 : 2, letterSpacing: '0.04em', lineHeight: 1.35 }}>{meta}</div>
         </div>
         <button onClick={(e) => { e.stopPropagation(); openProvider(); }} aria-label={`Open in ${pName}`} style={{ width: 32, height: 32, flexShrink: 0, borderRadius: 999, border: `1px solid ${color}`, background: 'transparent', color, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11 }}>▶</button>
       </div>
@@ -5079,6 +5134,8 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
   const [previewing, setPreviewing] = useStateBSC(false);
   // Burned this week, day by day (BSTrainBurnPage), opened from the row under the week (owner, 2026-10-24).
   const [burnOpen, setBurnOpen] = useStateBSC(false);
+  // The full plan sheet (BSTrainPlan.jsx): the weekday it opens on, or null when closed.
+  const [planAt, setPlanAt] = useStateBSC(null);
   // Auto-launch the live session ONLY when arriving from the calendar's "Start
   // session" (a one-shot pending flag), then clear it so returning to Train from
   // the calendar overlay — which remounts this screen — never re-launches.
@@ -5249,12 +5306,17 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
   const _trainNorm = (s) => String(s || '').trim().replace(/\.$/, '').toLowerCase();
   const _trainHead = _trainNorm(cur.headline) && _trainNorm(cur.headline) !== _trainNorm(cur.title) ? cur.headline : cur.title;
 
-  // The page's links, in order: the coach's music for today (Shape Radio), the full plan, then building or
-  // opening a session. Finding a coach follows as its bar (BSFindCoachBar); a member who pays a trainer is
-  // not sent to find one (Codex on #2378).
+  // The page's links, in order: the full plan, then building or opening a session. Finding a coach follows
+  // as its bar (BSFindCoachBar); a member who pays a trainer is not sent to find one (Codex on #2378). The
+  // coach's music is no link of its own (owner, 2026-11-10: "remove the music from jordan box"): each
+  // playlist sits in Playlists below, under the workouts it plays with.
+  // Full plan opens the week as a sheet, every day with its moves (owner, 2026-11-10: "a pop up of the
+  // actual full plan … showing the actual plan"); the calendar stays the week's Month view.
+  const _trainWeekLabel = `${bsTrainProgram.trainingPhase || 'Build'} · ${tr('common:unit.weekN', { defaultValue: 'Week {n}', n: bsProgramWeek() })}`;
+  // A day's moves with the member's swaps on, for On deck and the full plan alike.
+  const _trainMovesOf = (i) => ((PROGRAM[i] && PROGRAM[i].moves) || []).map((r, j) => bsApplyMoveSwap(r, moveOverrides[`${i}:${j}`]));
   const _trainLinks = [
-    { color: t.ACCENT, glyph: '♪', label: coachDayName ? tr('session:train.musicFrom', { defaultValue: 'Music from {name}', name: String(coachDayName).split(' ')[0] }) : tr('session:train.music', { defaultValue: 'Music' }), tag: tr('session:train.forToday', { defaultValue: 'For today' }), onOpen: goRadio },
-    { color: t.INK70, glyph: '▤', label: tr('session:train.fullPlan', { defaultValue: 'Full plan' }), tag: `${bsTrainProgram.trainingPhase || 'Build'} · ${tr('common:unit.weekN', { defaultValue: 'Week {n}', n: bsProgramWeek() })}`, onOpen: goCalendar },
+    { color: t.INK70, glyph: '▤', label: tr('session:train.fullPlan', { defaultValue: 'Full plan' }), tag: _trainWeekLabel, onOpen: () => setPlanAt(bsWeekdayIdx()) },
     ...(bsTrainSignedIn ? [
       { color: t.ACCENT, glyph: '＋', label: tr('session:train.buildWorkoutLink', { defaultValue: 'Build a workout' }), onOpen: () => setBuilder({ mode: 'session' }) },
       { color: t.INK50, glyph: '▷', label: tr('session:train.openSession', { defaultValue: 'Open session' }), onOpen: () => { setOpenSession(true); setSession(true); } },
@@ -5278,7 +5340,7 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
           only what the page hands it; every door is the page's own. Edit · Yours, on a repeating day the
           member wrote, opens the builder on it with its moves as rows. */}
       <BSTrainDay
-        program={PROGRAM} day={day} onDay={setDay} onMonth={goCalendar} cur={cur} moves={effMoves}
+        program={PROGRAM} day={day} onDay={setDay} onMonth={goCalendar} onPlan={(idx) => setPlanAt(Number.isInteger(idx) ? idx : bsWeekdayIdx())} movesOf={_trainMovesOf} cur={cur} moves={effMoves}
         swapped={effMoves.map((_, i) => !!moveOverrides[`${day}:${i}`])} isRest={isRestDay} when={_trainWhen} head={_trainHead}
         until={_trainUntil} weekN={bsProgramWeek()} coach={coachDayName} onRadio={goRadio} onBurn={() => setBurnOpen(true)}
         onStart={() => { try { window.ShapeAnalytics?.track?.('workout_started'); } catch (e) {} setSession(true); }}
@@ -5294,11 +5356,21 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
       {(() => {
         const all = Array.isArray(window.BS_COACH_PLAYLISTS) ? window.BS_COACH_PLAYLISTS : [];
         const lists = all.filter(p => p.role === 'Coach');
-        const items = lists.length ? lists.map(p => ({ k: tr('session:train.playlistBy', { defaultValue: '{who} · Your trainer', who: p.by }), title: p.name, meta: tr('nutrition:eat.playlistMeta', { defaultValue: '{len} · {bpm} BPM · {tracks, plural, one {# track} other {# tracks}}', len: p.len, bpm: p.bpm, tracks: p.tracks }) + (p.attached ? ` · ${p.attached}` : ''), url: p.url, provider: p.provider, tracks: p.songs }))
+        // Which workout a sample plays with is the sample week's own (bsBuildDemoTrainProgram's
+        // `playlist`), matched as a coach's is, so `attached` no longer rides in its meta.
+        const items = lists.length ? lists.map(p => ({ k: tr('session:train.playlistBy', { defaultValue: '{who} · Your trainer', who: p.by }), title: p.name, meta: tr('nutrition:eat.playlistMeta', { defaultValue: '{len} · {bpm} BPM · {tracks, plural, one {# track} other {# tracks}}', len: p.len, bpm: p.bpm, tracks: p.tracks }), url: p.url, provider: p.provider, tracks: p.songs }))
           : [{ k: 'Jordan Chen · Your trainer', title: 'Pull heavy.', meta: '52m · 95-138 BPM · 14 tracks' }];
         const who = lists.length ? String(lists[0].by || '').split(' ')[0] : 'Jordan';
-        return <BSCoachPlaylists role="trainer" signedIn={bsTrainSignedIn} demo={{ who, items }} />;
+        return <BSCoachPlaylists role="trainer" signedIn={bsTrainSignedIn} demo={{ who, items }} program={PROGRAM} todayIdx={bsWeekdayIdx()} />;
       })()}
+
+      {/* The full plan: the week as a sheet, each day with its moves (swaps applied) and its playlist. It
+          portals out of the clean area and keeps its type (bsCleanSheet). */}
+      {planAt != null && (
+        <BSTrainPlanSheet program={PROGRAM} focusIdx={planAt} weekLabel={_trainWeekLabel} coach={bsTrainSignedIn ? (liveTrainCoach || null) : 'Jordan Chen'}
+          movesOf={_trainMovesOf}
+          onClose={() => setPlanAt(null)} onMonth={() => { setPlanAt(null); goCalendar(); }} />
+      )}
       </BSCleanType>
 
       {/* Exercise swap sheet — pick which move, then a coach-approved alternate. */}

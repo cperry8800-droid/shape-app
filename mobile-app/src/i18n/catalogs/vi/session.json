@@ -170,6 +170,8 @@
   "train.onDeck": "Sắp tới",
   "train.openSession": "Buổi tập tự do",
   "train.plan": "Lịch",
+  "train.moreMoves": "+{count} nữa",
+  "train.playlistFor": "Cho {workouts}",
   "train.previewEyebrow": "Xem trước · Chỉ đọc",
   "train.programKicker": "Chương trình",
   "train.programWeek": "{name} · Tuần {week}",
