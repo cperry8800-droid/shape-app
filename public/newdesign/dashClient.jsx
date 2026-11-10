@@ -25,6 +25,46 @@ const DCL_GREEN = "var(--sh-green, #7bbf5a)";
 const DCL_RED = "var(--sh-rust, #e0644b)";
 const DCL_MONO = "'JetBrains Mono', monospace";
 
+// ── A playlist chip opens the playlist (owner, 2026-11-10: "make the playlist chip open the playlist") ──
+// The workout card and the meals card say a coach's playlist as "♪ name · meta". Where the coach saved a
+// link for it, the chip opens it in a new tab: the member's plan carries it (/api/client/plan sets `url`
+// from the coach's own saved playlist, src/lib/plan-playlist-links.mjs), and a coach's preview looks it up
+// in the playlists the builder already read (dclWithPlaylistLink), so the preview opens what the member's
+// card opens.
+// ⚠ ONLY AN HTTPS SPOTIFY OR APPLE MUSIC LINK OPENS, the rule the route sets it by and the coach's
+// Playlists page holds a link to (trainerPlaylistsPage.jsx plSafeUrl). Anything else is a name.
+const DCL_PLAYLIST_HOSTS = /(^|\.)(spotify\.com|spotify\.link|music\.apple\.com)$/i;
+function dclPlaylistHref(p) {
+  const url = p && typeof p.url === "string" ? p.url.trim() : "";
+  if (!url) return null;
+  try {
+    const u = new URL(url);
+    return u.protocol === "https:" && DCL_PLAYLIST_HOSTS.test(u.hostname) ? u.href : null;
+  } catch (e) { return null; }
+}
+// The service a link opens, for the chip's accessible name.
+function dclPlaylistService(href) {
+  try { return /(^|\.)music\.apple\.com$/i.test(new URL(href).hostname) ? "Apple Music" : "Spotify"; } catch (e) { return "Spotify"; }
+}
+// A day's or meal's playlist with the link its coach saved, for the coach's own preview: matched in the
+// builder's list of their saved playlists by id, or, for one saved before ids, by a name only one has (as
+// the route matches). A `url` the plan itself carries is never opened.
+function dclWithPlaylistLink(p, saved) {
+  if (!p || typeof p !== "object" || !p.name) return p || null;
+  const { url, ...rest } = p;
+  const list = Array.isArray(saved) ? saved.filter(Boolean) : [];
+  const id = p.id != null && String(p.id).trim() ? String(p.id).trim() : "";
+  const key = (n) => String(n || "").trim().toLowerCase();
+  const named = id ? [] : list.filter((x) => key(x.name) === key(p.name));
+  const hit = id ? list.find((x) => x.id != null && String(x.id).trim() === id) : (named.length === 1 ? named[0] : null);
+  const href = hit ? dclPlaylistHref(hit) : null;
+  return href ? { ...rest, url: href } : rest;
+}
+// The chip's look, at the card's padding.
+const dclPlaylistChipStyle = (padding) => ({ display: "inline-flex", alignItems: "center", gap: 8, textDecoration: "none", fontFamily: DCL_MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--sh-spotify-ink, #1db954)", background: "rgba(29,185,84,0.08)", border: "1px solid rgba(29,185,84,0.35)", borderLeft: "3px solid #1DB954", borderRadius: 4, padding });
+// The open link's own props: a new tab, no opener, named for what it opens.
+const dclPlaylistLinkProps = (p, href) => ({ href, target: "_blank", rel: "noopener noreferrer", "aria-label": "Open " + p.name + " in " + dclPlaylistService(href), "data-playlist-open": "" });
+
 // ── Demo dataset (signed-out / API unavailable) ─────────────────────────────
 const DCL_DEMO = {
   firstName: "Priya",
@@ -191,8 +231,10 @@ function DashWorkoutCard({ workout, accent = "var(--sh-rust2, #c0533b)", startHr
       {rows.length > maxRows && <div style={{ fontFamily: mono, fontSize: 9, color: ink50, padding: "6px 0 0 36px" }}>+ {rows.length - maxRows} more</div>}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginTop: 12, flexWrap: "wrap" }}>
         {workout.playlist && workout.playlist.name ? (
-          <a href={interactive ? "ClientPlaylists.html" : undefined} style={{ display: "inline-flex", alignItems: "center", gap: 8, textDecoration: "none", fontFamily: mono, fontSize: 8.5, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--sh-spotify-ink, #1db954)", background: "rgba(29,185,84,0.08)", border: "1px solid rgba(29,185,84,0.35)", borderLeft: "3px solid #1DB954", borderRadius: 4, padding: "6px 10px" }}>
-            ♪ {workout.playlist.name}{workout.playlist.meta ? " · " + workout.playlist.meta : ""}
+          // Opens the playlist where its coach saved a link (in the builder's preview too); else, on the
+          // member's own card, their Playlists page, as before.
+          <a {...(dclPlaylistHref(workout.playlist) ? dclPlaylistLinkProps(workout.playlist, dclPlaylistHref(workout.playlist)) : { href: interactive ? "ClientPlaylists.html" : undefined })} style={dclPlaylistChipStyle("6px 10px")}>
+            ♪ {workout.playlist.name}{workout.playlist.meta ? " · " + workout.playlist.meta : ""}{dclPlaylistHref(workout.playlist) ? " ↗" : ""}
           </a>
         ) : (
           <a href={interactive ? "ClientPlaylists.html" : undefined} style={{ display: "inline-flex", alignItems: "center", gap: 8, textDecoration: "none", fontFamily: mono, fontSize: 8.5, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: ink50, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.16)", borderRadius: 4, padding: "6px 10px" }}>♪ Shape Radio</a>
@@ -238,7 +280,15 @@ function DashMealLedgerCard({ meals = [], targets, ledger, logged = {}, onLog, h
     return alt ? { ...m, title: alt.name, kcal: alt.kcal, p: alt.p, c: alt.c, f: alt.f, _swapped: true } : m;
   };
   const remaining = targets.kcal - ledger.kcal;
-  const chip = (p, key) => (p && p.name ? <span data-meal-card-playlist={key} style={{ display: "inline-flex", alignItems: "center", gap: 8, fontFamily: mono, fontSize: 8.5, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--sh-spotify-ink, #1db954)", background: "rgba(29,185,84,0.08)", border: "1px solid rgba(29,185,84,0.35)", borderLeft: "3px solid #1DB954", borderRadius: 4, padding: "5px 9px" }}>♪ {p.name}{p.meta ? " · " + p.meta : ""}</span> : null);
+  // A playlist with a link its coach saved opens it (a new tab); one without is its name.
+  const chip = (p, key) => {
+    if (!p || !p.name) return null;
+    const href = dclPlaylistHref(p);
+    const words = "♪ " + p.name + (p.meta ? " · " + p.meta : "");
+    return href
+      ? <a data-meal-card-playlist={key} {...dclPlaylistLinkProps(p, href)} style={dclPlaylistChipStyle("5px 9px")}>{words + " ↗"}</a>
+      : <span data-meal-card-playlist={key} style={dclPlaylistChipStyle("5px 9px")}>{words}</span>;
+  };
   const ghost = { fontFamily: mono, fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.7)", background: "transparent", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.18)", borderRadius: 4, padding: "8px 13px", cursor: "pointer" };
   return (
     <div>

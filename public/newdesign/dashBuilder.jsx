@@ -1643,9 +1643,12 @@ function DbuDayEditor({ day, onChange, onWeekday, takenBy, playlists, clips, onU
 // A saved playlist as the day's playlist picker lists it. ⚠ THE COLUMN IS `tracks`
 // (coach_soundtracks, 2026-06-13-coach-soundtracks.sql). This read `track_count`, which no row
 // has, so every playlist in the picker came with no count at all.
+// Its saved link rides along for the Client view's chip (dclWithPlaylistLink); the day stores id, name
+// and meta only (DbuDayChips), never the link.
 function dbuPlaylistChoice(x) {
   const n = Number(x && x.tracks);
-  return { ...(x && x.id != null && x.id !== '' ? { id: x.id } : {}), name: x && x.name, meta: Number.isFinite(n) && n > 0 ? n + (n === 1 ? ' track' : ' tracks') : '' };
+  const url = x && typeof x.url === 'string' && x.url.trim() ? x.url.trim() : '';
+  return { ...(x && x.id != null && x.id !== '' ? { id: x.id } : {}), name: x && x.name, meta: Number.isFinite(n) && n > 0 ? n + (n === 1 ? ' track' : ' tracks') : '', ...(url ? { url } : {}) };
 }
 
 function DbuDialog({title,onClose,busy,children}) {
@@ -2928,7 +2931,10 @@ function DbuBuilder({ template, preselectId, clients, queue, live, playlists, ow
   }));
   const rule = ShapeWorkoutDocument.normalizeProgression(doc.progression);
 
-  const previewCard = day ? DashBuilder.dayToClientCard(day, { coach: "you", programVideo:doc.video }) : null;
+  // The day's playlist opens what the member's card opens: the link the coach saved for it, found in the
+  // playlists this page read (dclWithPlaylistLink, dashClient.jsx).
+  const previewBase = day ? DashBuilder.dayToClientCard(day, { coach: "you", programVideo:doc.video }) : null;
+  const previewCard = previewBase && previewBase.playlist && typeof dclWithPlaylistLink === "function" ? { ...previewBase, playlist: dclWithPlaylistLink(previewBase.playlist, playlists) } : previewBase;
   const saveLabel = saveState === "saving" ? "Saving…" : saveState === "dirty" ? "Draft on this device" : saveState === "error" ? "Save failed · draft retained" : live ? (persisted.current ? dbuSavedWords(savedAt, clock) : "New · not saved yet") : savedAt ? "Draft saved locally · " + dbuSavedWords(savedAt, clock).replace(/^Saved /, "") : "Draft saved locally";
   // The reference Monday the dates on this page are drawn for. It lives ON the document
   // (`detail.builder.previewStart`) so it survives a reload, and it is a REFERENCE only —

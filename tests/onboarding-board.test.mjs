@@ -608,6 +608,7 @@ test('the plan read names the coach the member pays, their thread and their week
       ['next/server', { NextResponse: { json: (body, init) => ({ body, init }) } }],
       ['@/lib/request-auth', { clientForRequest: async () => db, currentUser: async () => ({ id: U }) }],
       ['@/lib/require-membership', { requireMembership: async () => null }],
+      ['@/lib/supabase/admin', { createAdminClient: () => { throw new Error('no service role in this test'); } }],
     ]),
   });
   const tables = {
@@ -640,6 +641,7 @@ test('the plan read names every coach of a role, and credits each workout to the
       ['next/server', { NextResponse: { json: (body, init) => ({ body, init }) } }],
       ['@/lib/request-auth', { clientForRequest: async () => db, currentUser: async () => ({ id: U }) }],
       ['@/lib/require-membership', { requireMembership: async () => null }],
+      ['@/lib/supabase/admin', { createAdminClient: () => { throw new Error('no service role in this test'); } }],
     ]),
   });
   const tables = {
@@ -698,6 +700,7 @@ test("the plan read carries each paid coach's face: the listing portrait, else t
       ['next/server', { NextResponse: { json: (body, init) => ({ body, init }) } }],
       ['@/lib/request-auth', { clientForRequest: async () => db, currentUser: async () => ({ id: U }) }],
       ['@/lib/require-membership', { requireMembership: async () => null }],
+      ['@/lib/supabase/admin', { createAdminClient: () => { throw new Error('no service role in this test'); } }],
     ]),
   });
   const tables = {
@@ -1101,6 +1104,7 @@ test('a nutritionist\'s week-one target is at most seven days logged, everywhere
       ['next/server', { NextResponse: { json: (body, init) => ({ body, init }) } }],
       ['@/lib/request-auth', { clientForRequest: async () => db, currentUser: async () => ({ id: U }) }],
       ['@/lib/require-membership', { requireMembership: async () => null }],
+      ['@/lib/supabase/admin', { createAdminClient: () => { throw new Error('no service role in this test'); } }],
     ]),
   });
   const planWith = async (count) => (await (await load(fakeSupabase({ tables: {
@@ -1156,6 +1160,7 @@ test('week one starts inside the board\'s 30 days, and a target from before this
       ['next/server', { NextResponse: { json: (body, init) => ({ body, init }) } }],
       ['@/lib/request-auth', { clientForRequest: async () => db, currentUser: async () => ({ id: U }) }],
       ['@/lib/require-membership', { requireMembership: async () => null }],
+      ['@/lib/supabase/admin', { createAdminClient: () => { throw new Error('no service role in this test'); } }],
     ]),
   });
   const planWith = async (setAt) => (await (await load(fakeSupabase({ tables: {
