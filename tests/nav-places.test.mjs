@@ -308,6 +308,22 @@ test('Eat\'s meal preview is recorded with its day, and its id keeps its type', 
   assert.deepEqual(bsEatStart('meal:2:{bad'), { view: 'eat', day: 2, mealId: null }, 'an unreadable id opens Eat on that day');
 });
 
+test('a start a Back replays onto an open page is spent, so the next mount opens the page fresh', () => {
+  // The shell sets a page's start on every Back that replays onto its tab, and the page spends it. Eat and
+  // Me spent theirs on mount only, so a Back onto the open page (Search closing over Eat's meal or Me's
+  // Record) left it set, and the next Eat or Me from the tab bar opened that meal or the Record again.
+  // Each spends it whenever it changes now, as Home does.
+  const eat = between(CLIENT, 'function BSClientEat({', '\n}\n');
+  assert.match(eat, /React\.useEffect\(\(\) => \{ if \(initialView\) onStartConsumed\(\); \}, \[initialView\]\);/);
+  const me = between(CLIENT, 'function BSClientMe(props) {', '\n}\n');
+  assert.match(me, /React\.useEffect\(\(\) => \{ if \(initialPage\) onStartConsumed\(\); \}, \[initialPage\]\);/);
+  const home = between(CLIENT, 'function BSClientHome({', '\n}\n');
+  assert.match(home, /    onStartConsumed\(\);\n  \}, \[initialPage\]\);/);
+  for (const [name, body] of [['Eat', eat], ['Me', me], ['Home', home]]) {
+    assert.doesNotMatch(body, /onStartConsumed\(\); \}, \[\]\)/, name + ' spends its start on mount only');
+  }
+});
+
 test('Settings names every page it draws, in the order it draws them, over its pane', () => {
   const settings = between(CLIENT, 'function BSSettings({', '\n}\n');
   assert.match(settings, /const \{ page: startPage, pane: startPane \} = bsSettingsStart\(initialPage\);\n\s+const landedOn = landed \? startPage : '';/);
@@ -335,6 +351,12 @@ test('Eat reopens a meal\'s preview on a Back; Home\'s has no door to record', (
   assert.match(eat, /const eatAt = bsEatStart\(initialView\);\n\s+const \[view, setView\] = useStateBSC\(eatAt\.view\);/);
   assert.match(eat, /const \[previewMealId, setPreviewMealId\] = useStateBSC\(eatAt\.mealId\);/);
   assert.match(eat, /const \[day, setDay\] = useStateBSC\(eatAt\.day != null \? eatAt\.day : bsWeekdayIdx\(\)\);/);
+  // The plan loads after the restore and used to set today, so the meal was looked up on the wrong day
+  // (Codex P2 on #2689): a restored day stays, and only an unrestored Eat lands on today.
+  assert.match(eat, /const eatDayRestored = React\.useRef\(eatAt\.day != null\);/);
+  const planLoad = between(eat, 'const p = await window.ShapePlan?.get?.();', '} catch (e)');
+  assert.match(planLoad, /setLiveMealDays\(p\.meals\.days\);[\s\S]*if \(!eatDayRestored\.current\) setDay\(bsWeekdayIdx\(\)\);/);
+  assert.equal([...eat.matchAll(/setDay\(bsWeekdayIdx\(\)\)/g)].length, 1, 'no other reset to today in Eat');
   assert.match(eat, /const eatNavSub = bsEatSub\(view, day, previewMealId\);\n\s+React\.useEffect\(\(\) => \{\n\s+window\.ShapeNav\?\.announce\?\.\(\{ sub: eatNavSub \}, 'eat'\);/);
   assert.ok(eat.indexOf('const eatNavSub') < eat.search(/\n  if \(/), 'above every early return');
   // Home draws a meal's preview, but nothing opens it any more (previewMeal is only ever cleared), so

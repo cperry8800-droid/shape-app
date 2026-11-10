@@ -11355,7 +11355,10 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
     setCookViaNav(true);
     onPrepTonightConsumed();
   }, [prepTonight && prepTonight.nonce]);
-  React.useEffect(() => { if (initialView) onStartConsumed(); }, []);
+  // Spent whenever it changes, not only on mount (as Home's is): a Back that replays onto Eat while it is
+  // open (Search closing over a meal) sets it again, and one left unspent opened that meal the next time
+  // Eat mounted, from the tab bar or any door. The open Eat is already where the Back recorded it.
+  React.useEffect(() => { if (initialView) onStartConsumed(); }, [initialView]); // eslint-disable-line react-hooks/exhaustive-deps
   // Keyed on the nonce rather than on the cookable: tapping the same dish's door
   // twice is two requests, and an identity comparison would swallow the second.
   React.useEffect(() => {
@@ -11394,6 +11397,9 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
   const [saveTarget, setSaveTarget] = useStateBSC(null); // grocery list pending "save to library"
   const [saveName, setSaveName] = useStateBSC('');
   const [day, setDay] = useStateBSC(eatAt.day != null ? eatAt.day : bsWeekdayIdx()); // default to today (0=Mon..6=Sun)
+  // A day a Back restored stays when the plan arrives after it, or the meal recorded on it is looked up on
+  // today and the member lands on Eat, not the meal they left (Codex P2 on #2689).
+  const eatDayRestored = React.useRef(eatAt.day != null);
   // Eat's view, or the meal preview open on it (2026-11-10, "complete war room items": a jump from the
   // meal, its cook-with door or Search, comes back to that meal on that day).
   const eatNavSub = bsEatSub(view, day, previewMealId);
@@ -11578,7 +11584,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
         setLiveMealDays(p.meals.days);
         setLiveMealCoach(p.meals.coach || null);
         setLiveMealTitle(p.meals.title || null);
-        setDay(bsWeekdayIdx());
+        if (!eatDayRestored.current) setDay(bsWeekdayIdx());
       } catch (e) { /* keep demo menu */ } finally {
         if (!cancelled) { setEatPlanRead(read); setEatPlanFailed(!read); setEatPlanRetrying(false); }
       }
@@ -29636,7 +29642,9 @@ function BSClientMe(props) {
   // replayable sub-page so a cross-jump push carries it: the Score, its Record (the Score page reports it
   // through onRecord, since the page has other parents) and the Store. Reconcile lives under Settings →
   // Integrations, which Settings announces.
-  React.useEffect(() => { if (initialPage) onStartConsumed(); }, []);
+  // Spent whenever it changes, as Eat's is: a Back replayed onto an open Me left it unspent, and the next
+  // Me from the tab bar opened the Record again.
+  React.useEffect(() => { if (initialPage) onStartConsumed(); }, [initialPage]); // eslint-disable-line react-hooks/exhaustive-deps
   const meNavSub = showScore ? (scoreRecord ? 'record' : 'score') : showStore ? 'store' : '';
   React.useEffect(() => {
     window.ShapeNav?.announce?.({ sub: meNavSub }, 'me');
