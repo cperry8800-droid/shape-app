@@ -286,6 +286,13 @@ test('5: the station runs the door beside Icecast, inside the machine; Icecast n
   assert.doesNotMatch(read('services/station/caddy/Caddyfile').replace(/^\s*#.*$/gm, ''), /admin/);
 });
 
+test('5: the door clears a connection\'s account as the station says the listener left', () => {
+  const door = stripComments(read('src/app/api/radio/pass/route.ts'));
+  const leave = door.slice(door.indexOf("if (form.get('action') === 'listener_remove') {"), door.indexOf('const verdict = checkListener('));
+  assert.match(leave, /const gone = await leaveConnection\(createAdminClient\(\), \{ boot: boot\.boot, client \}\);/);
+  assert.match(leave, /if \(!gone\.ok\) console\.error/);
+});
+
 test('5: Stripe\'s word that a membership stopped paying drops the account\'s streams; the migration keeps the account only while it listens', () => {
   const hook = stripComments(read('src/app/api/stripe/webhook/route.ts'));
   assert.match(hook, /if \(!platformError && status !== 'active'\) \{\n\s+for \(const row of/);

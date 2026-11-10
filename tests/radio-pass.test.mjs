@@ -263,7 +263,9 @@ test('⚠ the players: a spent pass is no source, and a region refusal is said a
   assert.ok(web.indexOf('passExpiresRef.current - Date.now() < 20000') < web.indexOf('if (!audio.src) {'), 'dropped before the fetch that replaces it');
   assert.match(web, /passExpiresRef\.current = Number\.isFinite\(passEnds\) \? passEnds : null;/);
   const app = read('mobile-app/src/services/shapeBackend.js');
-  assert.match(app, /if \(r\.status === 451\) return \{ configured: false, refusal: 'region' \};/);
+  // The player's own read (station()), not only the schedule's peek, says a region refusal as such.
+  const stationRead = app.slice(app.indexOf('async function station() {'), app.indexOf('// Why the last play() did not start'));
+  assert.match(stationRead, /if \(r\.status === 451\) return \{ configured: false, refusal: 'region' \};/);
   assert.match(app, /if \(stationCache && !passFresh\(stationCache\)\) stationCache = null;/);
   const radio = read('mobile-app/src/broadsheet/iosAppBroadsheetRadio.jsx');
   assert.match(radio, /if \(ok !== true && window\.ShapeRadioLive\?\.lastRefusal === 'region' && !regionToldRef\.current\) \{\n\s+regionToldRef\.current = true;/);
