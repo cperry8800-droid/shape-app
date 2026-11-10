@@ -119,7 +119,9 @@ test('the exemptions are the eleven that were checked, and each is deliberate', 
   // subscription is on a program or meal plan (the owner), so it walks the open subscriptions by the
   // same readAllById, as coach/score does. client/weekly-recap/route.ts joined on 2026-11-10: the
   // recap's streak reads every completed session back past its cap by the same readAllById walk,
-  // where one read cut at 1,000 shortened a long streak (Codex on #2675).)
+  // where one read cut at 1,000 shortened a long streak (Codex on #2675). trainer/console/route.ts and
+  // nutritionist/console/route.ts joined on 2026-11-10: each walks the 90-day trajectory by the same
+  // readAllById, where one oldest-first read cut at 1,000 lost a busy roster's newest days (#2686).)
   const marked = capped().filter((r) => r.exempt).map((r) => r.where.replace(/:\d+$/, ''));
   assert.deepEqual([...new Set(marked)].sort(), [
     'client/onboarding/route.ts',
@@ -132,17 +134,19 @@ test('the exemptions are the eleven that were checked, and each is deliberate', 
     'cron/prep-reminders/route.ts',
     'cron/push-held/route.ts',
     'nutritionist/analytics/route.ts',
+    'nutritionist/console/route.ts',
     'nutritionist/dashboard/route.ts',
     'radio/rooms/route.ts',
     'stripe/connect-account/route.ts',
     'trainer/adjust/route.ts',
     'trainer/analytics/route.ts',
+    'trainer/console/route.ts',
     'trainer/dashboard/route.ts',
   ]);
   // The marker counts for every read up to 16 lines below it, so in a dashboard route it must sit
   // with the subscriptions walk alone: a session read it reached would be exempt unseen, ascending or not.
   // The usage route's walk too: its plan and workout reads are not covered by it.
-  for (const f of ['trainer/dashboard/route.ts', 'nutritionist/dashboard/route.ts', 'coach/plans/usage/route.ts']) {
+  for (const f of ['trainer/dashboard/route.ts', 'nutritionist/dashboard/route.ts', 'coach/plans/usage/route.ts', 'trainer/console/route.ts', 'nutritionist/console/route.ts']) {
     assert.deepEqual(capped().filter((r) => r.where.startsWith(f + ':') && r.exempt).map((r) => r.col), ['id'], f);
   }
 });

@@ -41,6 +41,7 @@ function fakeDb(tables, { fail = null, onClient = true } = {}) {
     if (op === 'in') return v.map(String).includes(String(row[col]))
     if (op === 'is') return v === null ? row[col] == null : row[col] === v
     if (op === 'gte') return String(row[col]) >= String(v)
+    if (op === 'gt') return String(row[col]) > String(v)
     return true
   })
   const from = (table) => {
@@ -58,6 +59,7 @@ function fakeDb(tables, { fail = null, onClient = true } = {}) {
         const dir = o && o.ascending === false ? -1 : 1
         out = out.slice().sort((a, b) => (String(a[col]) < String(b[col]) ? -dir : String(a[col]) > String(b[col]) ? dir : 0))
       }
+      for (const [op, n] of call.ops) if (op === 'limit') out = out.slice(0, n) // PostgREST's cap: a read stops here, silently
       return { data: single ? (out[0] ?? null) : out, error: null }
     }
     const q = new Proxy({}, {
@@ -81,7 +83,7 @@ async function libs() {
   const time = await ts('src/lib/time.ts')
   const workoutDays = await ts('src/lib/workout-days.ts', new Map([['@/lib/time', time]]))
   const exercises = await ts('src/lib/coach-exercises.ts', new Map([['@/lib/workout-days', workoutDays]]))
-  return { time, workoutDays, exercises, names: await ts('src/lib/client-names.ts'), utils: await ts('src/lib/request-utils.ts', new Map([['next/server', nextServer]])) }
+  return { time, workoutDays, exercises, names: await ts('src/lib/client-names.ts'), utils: await ts('src/lib/request-utils.ts', new Map([['next/server', nextServer]])), readAll: await ts('src/lib/read-all-by-id.ts') }
 }
 const LIBS = await libs()
 
@@ -105,6 +107,7 @@ async function route(role, db) {
       ['@/lib/time', LIBS.time],
       ['@/lib/workout-days', LIBS.workoutDays],
       ['@/lib/coach-exercises', LIBS.exercises],
+      ['@/lib/read-all-by-id', LIBS.readAll],
     ]),
   })
 }
@@ -209,6 +212,34 @@ for (const role of ['trainer', 'nutritionist']) {
     assert.match(traj.select, /\bworkout_minutes\b/)
     // 45 workout minutes (10) + 120 g protein (5) + calories logged (2); 6 h of sleep scores nothing.
     assert.equal(body.seriesByClient[A].score[0], 17)
+  })
+
+  test(`${role} console: the 90-day trajectory reads every row, newest days included (left by #2686)`, async () => {
+    // 1,500 rows for A, more than one page: one capped select, oldest first, stopped at 1,000 and lost
+    // the newest days, so the chart ended early and the "latest" snapshot was weeks old.
+    const w = world(role)
+    // 75 days inside the 90-day window, 20 August to 2 November.
+    const days = Array.from({ length: 75 }, (_, i) => new Date(Date.parse('2026-08-20T00:00:00Z') + i * 86_400_000).toISOString().slice(0, 10))
+    const many = []
+    for (let n = 0; n < 1500; n += 1) many.push({ id: `r${String(n).padStart(5, '0')}`, user_id: A, snapshot_date: days[(n * 7) % days.length], protein_g: 100 })
+    // The newest day has the lowest id, so only the date sort makes it the latest.
+    w.daily_health_snapshot = [...many, { id: 'a00000', user_id: A, snapshot_date: '2026-11-09', calories: 1800, protein_g: 120, sleep_hours: 6, workout_minutes: 45 }]
+    const db = fakeDb(w)
+    const { body } = await get(role, db)
+    assert.equal(body.seriesByClient[A].protein.length, 1501, 'every row is in the trajectory')
+    assert.equal(body.snapshotByClient[A].snapshot_date, '2026-11-09', 'the latest snapshot is the newest day')
+    assert.equal(body.snapshotByClient[A].id, undefined, 'the cursor id stays in the route')
+    assert.equal(body.trajectoryUnread, false)
+    const walks = db.calls.filter((c) => c.table === 'daily_health_snapshot' && c.ops.some(([op]) => op === 'gte'))
+    assert.equal(walks.length, 2, 'two pages')
+    assert.ok(walks.every((c) => c.ops.some(([op, col]) => op === 'order' && col === 'id')), 'a keyset walk on id')
+  })
+
+  test(`${role} console: a failed trajectory read is unread, never an empty chart`, async () => {
+    const fail = (call) => call.table === 'daily_health_snapshot' && call.ops.some(([op]) => op === 'gte')
+    const { body } = await get(role, fakeDb(world(role), { fail }))
+    assert.equal(body.trajectoryUnread, true)
+    assert.deepEqual(body.seriesByClient, {})
   })
 
   test(`${role} console: a cue is its own row, never the focus banner`, async () => {
