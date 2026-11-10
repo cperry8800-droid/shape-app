@@ -125,7 +125,7 @@ async function evaluateSnapshot(admin: ReturnType<typeof createAdminClient>, use
   // the roster the same thresholds produce on their dashboard.
   // …and their dismissals and check-in reviews read fresh (P2), so one made since the snapshot holds.
   const [thresholds, coachContext] = isCoach
-    ? await Promise.all([loadCoachThresholds(admin, userId), loadCoachContext(admin, userId)])
+    ? await Promise.all([loadCoachThresholds(admin, userId, snapshot.role), loadCoachContext(admin, userId)])
     : [null, null];
   // The reader's language: a member's notices, and a coach's alert titles and digest.
   const copy = memberCopy(localeDoc, settings);

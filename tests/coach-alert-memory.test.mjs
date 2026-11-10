@@ -39,23 +39,25 @@ function run(records, last, now = NOON, prefs = PREFS) {
 const client = (over) => ({ userId: 'c1', profile: { id: 'c1', name: 'Sam R.' }, checkIn: { lastWeekOf: '2026-11-02' }, progressRead: { state: 'ready' }, foodLogs: { lastLoggedOn: '2026-11-03', daysLogged7d: 6 }, ...over });
 const quiet = (days) => client({ lastContact: { trainer: new Date(NOON.getTime() - days * DAY).toISOString() } });
 const fine = client({ lastContact: { trainer: new Date(NOON.getTime() - DAY).toISOString() } });
-const red = client({ lastContact: { trainer: new Date(NOON.getTime() - 6 * DAY).toISOString() }, streaks: { current: 0, best: 9 } });
+// Quiet past the week a contact gap waits (2026-11-10), and red with sessions missed too: two areas (a
+// broken streak is no coach's flag since then).
+const red = client({ lastContact: { trainer: new Date(NOON.getTime() - 8 * DAY).toISOString() }, bookedSessions: { trainer: { done: 4, planned: 9 } } });
 
 test('amber → recovers → amber again: the second slip alerts', () => {
-  const a = run([quiet(6)], {});
+  const a = run([quiet(8)], {});
   assert.deepEqual(a.sent, ['client_amber:c1']);
-  const again = run([quiet(6)], a.state);
+  const again = run([quiet(8)], a.state);
   assert.deepEqual(again.sent, [], 'still amber: no re-nag');
   const ok = run([fine], again.state);
   assert.equal('c1' in ok.state.coachClients, false, 'recovered: forgotten');
-  const slip = run([quiet(6)], ok.state);
+  const slip = run([quiet(8)], ok.state);
   assert.deepEqual(slip.sent, ['client_amber:c1'], 'the same reason again is a new event');
 });
 
 test('red → recovers → red again alerts; red → eases to amber → red again alerts', () => {
   const r1 = run([red], {});
   assert.deepEqual(r1.sent, ['client_red:c1']);
-  const eased = run([quiet(6)], r1.state);
+  const eased = run([quiet(8)], r1.state);
   assert.deepEqual(eased.sent, [], 'easing is not news');
   assert.equal(eased.state.coachClients.c1, 'amber', 'but it is remembered as amber');
   assert.deepEqual(run([red], eased.state).sent, ['client_red:c1'], 'worse again: alerted');
@@ -82,7 +84,7 @@ test('a row whose only flags are routed to the other coach reads as clear for th
 
 test('an alert held for the digest is dropped when the client recovers before it goes', () => {
   const night = new Date('2026-11-05T04:00:00Z'); // 11 pm in New York: quiet hours
-  const held = run([quiet(6)], {}, night);
+  const held = run([quiet(8)], {}, night);
   assert.deepEqual(held.sent, []);
   assert.deepEqual(held.held, ['quiet_hours'], 'quiet hours hold a coach alert');
   assert.equal(held.state.pendingDigest.length, 1);
@@ -90,22 +92,24 @@ test('an alert held for the digest is dropped when the client recovers before it
   assert.equal(ok.digest, null, 'not delivered after they recovered');
   assert.equal(ok.state.pendingDigest.length, 0);
   // Still slipping by morning: the held alert goes out in the digest, as before.
-  assert.ok(run([quiet(6)], held.state).digest, 'a client still amber gets the held alert');
+  assert.ok(run([quiet(8)], held.state).digest, 'a client still amber gets the held alert');
 });
 
 test("the alert switches hold: a coach who turned 'Client went amber' off is not sent one", () => {
   const off = { ...PREFS, matrix: { client_amber: { inapp: false, push: false, email: false } } };
-  const r = run([quiet(6)], {}, NOON, off);
+  const r = run([quiet(8)], {}, NOON, off);
   assert.deepEqual(r.sent, []);
   assert.deepEqual(r.held, ['opted_out']);
 });
 
 test('the push says the lead the website leads with', () => {
-  // Contact (80) outranks the streak (40); the old push took the first owned flag in rule order.
-  const rows = E.getTriageFeed('trainer', [red], NOON).map((r) => ({ clientId: 'c1', clientName: 'Sam', severity: r.severity, reason: r.reasons[0], flags: r.flags, lead: r.lead }));
-  assert.equal(E.getTriageFeed('trainer', [red], NOON)[0].flags[0].key, 'streak_broken', 'rule order puts the streak first');
+  // Contact (80) outranks the food-log gap (55) of a trainer who is the client's only coach; the old push
+  // took the first owned flag in rule order.
+  const solo = client({ pros: { trainer: true, nutritionist: false }, lastContact: { trainer: new Date(NOON.getTime() - 8 * DAY).toISOString() }, foodLogs: { lastLoggedOn: '2026-10-29', daysLogged7d: 1 } });
+  const rows = E.getTriageFeed('trainer', [solo], NOON).map((r) => ({ clientId: 'c1', clientName: 'Sam', severity: r.severity, reason: r.reasons[0], flags: r.flags, lead: r.lead }));
+  assert.equal(E.getTriageFeed('trainer', [solo], NOON)[0].flags[0].key, 'food_gap', 'rule order puts the food-log gap first');
   const [alert] = coachCandidates({ triageRows: rows, lastSeverity: {} });
-  assert.equal(alert.body, 'No contact in 6 days');
+  assert.equal(alert.body, 'No contact in 8 days');
   assert.equal(alert.data.reasonKey, 'contact_gap');
 });
 
@@ -252,8 +256,8 @@ test("the live route keeps each role's roster and alert memory, and takes a diet
   db = notifyDb(tables);
   actor = { user: { id: 'coach-1' }, role: 'trainer', roles: ['trainer', 'dietitian'], supabase: db };
   delivered.length = 0;
-  assert.equal((await postRoster({ role: 'nutritionist', clients: [rosterClient('n1', { nutritionist: daysAgo(6) })] })).status, 200);
-  assert.equal((await postRoster({ role: 'trainer', clients: [rosterClient('t1', { trainer: daysAgo(6) })] })).status, 200);
+  assert.equal((await postRoster({ role: 'nutritionist', clients: [rosterClient('n1', { nutritionist: daysAgo(8) })] })).status, 200);
+  assert.equal((await postRoster({ role: 'trainer', clients: [rosterClient('t1', { trainer: daysAgo(8) })] })).status, 200);
   assert.equal(docOf(tables, 'notify_snapshot:nutritionist').role, 'nutritionist', 'evaluated as the nutritionist, not the profile\'s trainer');
   assert.deepEqual(docOf(tables, 'notify_snapshot:nutritionist').clients.map((c) => c.userId), ['n1']);
   assert.deepEqual(docOf(tables, 'notify_snapshot:trainer').clients.map((c) => c.userId), ['t1'], 'the second page did not replace the first');
@@ -262,7 +266,7 @@ test("the live route keeps each role's roster and alert memory, and takes a diet
   assert.deepEqual(sentAs(), ['nutritionist:n1', 'trainer:t1']);
   // A role the caller does not hold is evaluated as the profile's.
   actor = { ...actor, roles: ['trainer'] };
-  await postRoster({ role: 'nutritionist', clients: [rosterClient('n2', { trainer: daysAgo(6) })] });
+  await postRoster({ role: 'nutritionist', clients: [rosterClient('n2', { trainer: daysAgo(8) })] });
   assert.deepEqual(docOf(tables, 'notify_snapshot:trainer').clients.map((c) => c.userId), ['n2']);
   assert.deepEqual(docOf(tables, 'notify_snapshot:nutritionist').clients.map((c) => c.userId), ['n1']);
 });
@@ -270,8 +274,8 @@ test("the live route keeps each role's roster and alert memory, and takes a diet
 test('the hourly run evaluates both rosters, each on its own memory: a client on both is not alerted every hour', async () => {
   const tables = { user_goals: [
     // s1 is on both rosters: clear for the trainer, amber for the nutritionist.
-    { user_id: 'coach-1', kind: 'notify_snapshot:trainer', data: { role: 'trainer', at: Date.now(), clients: [rosterClient('t1', { trainer: daysAgo(6) }), rosterClient('s1', { trainer: daysAgo(1) })] } },
-    { user_id: 'coach-1', kind: 'notify_snapshot:nutritionist', data: { role: 'nutritionist', at: Date.now(), clients: [rosterClient('s1', { nutritionist: daysAgo(6) })] } },
+    { user_id: 'coach-1', kind: 'notify_snapshot:trainer', data: { role: 'trainer', at: Date.now(), clients: [rosterClient('t1', { trainer: daysAgo(8) }), rosterClient('s1', { trainer: daysAgo(1) })] } },
+    { user_id: 'coach-1', kind: 'notify_snapshot:nutritionist', data: { role: 'nutritionist', at: Date.now(), clients: [rosterClient('s1', { nutritionist: daysAgo(8) })] } },
   ] };
   db = notifyDb(tables);
   delivered.length = 0;
@@ -290,7 +294,7 @@ test('the run still reads the one snapshot from before the split, until that rol
     // A held member notice (the account is also a member): no provider role, so no coach role's (Codex on #2622).
     { type: 'checkin_due', key: 'm1', sig: 'due:w', data: {} }] };
   const tables = { user_goals: [
-    { user_id: 'coach-1', kind: 'notify_snapshot', data: { role: 'trainer', at: Date.now(), clients: [rosterClient('t1', { trainer: daysAgo(6) }), rosterClient('t2', { trainer: daysAgo(6) })] } },
+    { user_id: 'coach-1', kind: 'notify_snapshot', data: { role: 'trainer', at: Date.now(), clients: [rosterClient('t1', { trainer: daysAgo(8) }), rosterClient('t2', { trainer: daysAgo(8) })] } },
     { user_id: 'coach-1', kind: 'notify_state', data: legacyState },
   ] };
   db = notifyDb(tables);

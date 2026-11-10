@@ -93,7 +93,7 @@ export async function POST(request: Request) {
   // The coach's office-settings tuning drives the same engine these candidates come
   // from, so the alerts agree with the roster that produced them (R14).
   const [thresholds, coachContext] = isCoach
-    ? await Promise.all([loadCoachThresholds(actor.supabase, actor.user.id), loadCoachContext(actor.supabase, actor.user.id)])
+    ? await Promise.all([loadCoachThresholds(actor.supabase, actor.user.id, role), loadCoachContext(actor.supabase, actor.user.id)])
     : [null, null];
   // The reader's language: a member's notices, and a coach's alert titles and digest.
   const copy = memberCopy(localeDoc, settings);

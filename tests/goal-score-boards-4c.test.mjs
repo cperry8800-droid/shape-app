@@ -294,7 +294,8 @@ test('goal ids are the goal\'s identity: kept when saved, positional and unique 
 const mockFeed = (role, now = new Date()) => DashSignals.getTriageFeed(role, DashSignals.buildMockClients(now), now);
 test('an adherence goal names the clients pulling it down, from real reads only', () => {
   const t = C.cgsNudgeModel({ role: 'trainer', roster: { source: 'demo', triage: mockFeed('trainer') }, sample: true });
-  assert.deepEqual(t.clients.map((c) => c.name), ['Sam R.', 'Jonah W.'], 'a trainer\'s session adherence: the missed sessions');
+  // The demo's three with missed sessions (Marcus's since 2026-11-10: the joint case's training side).
+  assert.deepEqual(t.clients.map((c) => c.name), ['Marcus T.', 'Jonah W.', 'Sam R.'], 'a trainer\'s session adherence: the missed sessions');
   assert.equal(t.clients.every((c) => typeof c.reason === 'string' && /weren't completed/.test(c.reason)), true);
   const n = C.cgsNudgeModel({ role: 'nutritionist', roster: { source: 'demo', triage: mockFeed('nutritionist') }, sample: true });
   assert.deepEqual(n.clients.map((c) => c.name), ['Priya S.'], 'a nutritionist\'s protein adherence');
@@ -307,19 +308,19 @@ test('an adherence goal names the clients pulling it down, from real reads only'
   assert.equal(C.cgsNudgeModel({ role: 'trainer', roster: { source: 'live', triage: mockFeed('trainer') }, sample: true }).state, 'unread');
   assert.equal(C.cgsNudgeModel({ role: 'trainer', roster: undefined, sample: false }).state, 'loading');
   // A client whose progress is still loading, or couldn't be read, or who is off plan, is not named.
-  const feed = mockFeed('trainer').map((r) => (r.client.profile.name === 'Sam R.' ? { ...r, client: { ...r.client, progressRead: { state: 'loading' } } }
+  const feed = mockFeed('trainer').map((r) => (['Sam R.', 'Marcus T.'].includes(r.client.profile.name) ? { ...r, client: { ...r.client, progressRead: { state: 'loading' } } }
     : r.client.profile.name === 'Jonah W.' ? { ...r, client: { ...r.client, progressRead: { state: 'unavailable' } } } : r));
   const partial = C.cgsNudgeModel({ role: 'trainer', roster: { source: 'live', triage: feed }, sample: false });
-  assert.deepEqual([partial.clients.length, partial.pending], [0, 1]);
+  assert.deepEqual([partial.clients.length, partial.pending], [0, 2]);
   // A client whose plan the roster couldn't read (onPlan null) is neither on a plan nor off one, so is
   // not named (Business · Retention's rule, #2636); one with no onPlan at all (the preview's) still is.
   const planUnread = mockFeed('trainer').map((r) => (r.client.profile.name === 'Sam R.' ? { ...r, client: { ...r.client, payments: { ...(r.client.payments || {}), onPlan: null } } } : r));
-  assert.deepEqual(C.cgsNudgeModel({ role: 'trainer', roster: { source: 'live', triage: planUnread }, sample: false }).clients.map((c) => c.name), ['Jonah W.']);
+  assert.deepEqual(C.cgsNudgeModel({ role: 'trainer', roster: { source: 'live', triage: planUnread }, sample: false }).clients.map((c) => c.name), ['Marcus T.', 'Jonah W.']);
   const noField = mockFeed('trainer').map((r) => ({ ...r, client: { ...r.client, payments: { ...(r.client.payments || {}), onPlan: undefined } } }));
-  assert.deepEqual(C.cgsNudgeModel({ role: 'trainer', roster: { source: 'live', triage: noField }, sample: false }).clients.map((c) => c.name), ['Sam R.', 'Jonah W.']);
+  assert.deepEqual(C.cgsNudgeModel({ role: 'trainer', roster: { source: 'live', triage: noField }, sample: false }).clients.map((c) => c.name), ['Marcus T.', 'Jonah W.', 'Sam R.']);
   // The action, by kind, and only when there is someone to name.
   const p = { status: 'atrisk' };
-  assert.equal(C.cgsGoalAction({ metric: 'adherencePct' }, p, { role: 'trainer', nudge: t }).label, 'Nudge Sam R. and Jonah W.');
+  assert.equal(C.cgsGoalAction({ metric: 'adherencePct' }, p, { role: 'trainer', nudge: t }).label, 'Nudge Marcus T., Jonah W. and Sam R.');
   assert.equal(C.cgsGoalAction({ metric: 'adherencePct' }, p, { role: 'nutritionist', nudge: n }).label, 'Nudge Priya S.');
   assert.equal(C.cgsGoalAction({ metric: 'adherencePct' }, p, { role: 'trainer', nudge: partial }), null);
   assert.equal(C.cgsGoalAction({ metric: 'adherencePct' }, p, { role: 'trainer', nudge: { state: 'unread' } }), null);
@@ -356,7 +357,7 @@ test('signed out: the sample board, dated from today, with one goal raised, open
       assert.equal(!!focus.querySelector('[data-cgs-chart]'), true, 'it opens on its pace chart');
       assert.equal(focus.querySelector('[data-cgs-status]').getAttribute('data-cgs-status'), 'atrisk');
       assert.match(textOf(focus), /At risk/);
-      assert.equal(filled(m.div).map((b) => b.textContent).join('|'), role === 'trainer' ? 'Nudge Sam R. and Jonah W.' : 'Nudge Priya S.', 'one filled action on the board');
+      assert.equal(filled(m.div).map((b) => b.textContent).join('|'), role === 'trainer' ? 'Nudge Marcus T., Jonah W. and Sam R.' : 'Nudge Priya S.', 'one filled action on the board');
       // The others rest closed, each on track, with its one action.
       for (const k of ['goal-sample-clients', 'goal-sample-revenue', 'goal-sample-programs']) {
         const c = card(m, k);
@@ -391,7 +392,7 @@ test('the nudge names each client, with their tier mark, and messages the one ta
     const focus = card(m, 'goal-sample-adherence');
     await click(focus.querySelector('[data-cgs-action]'));
     const rows = [...focus.querySelectorAll('[data-cgs-nudge] [data-cgs-message]')];
-    assert.deepEqual(rows.map((b) => b.textContent), ['Message Sam', 'Message Jonah']);
+    assert.deepEqual(rows.map((b) => b.textContent), ['Message Marcus', 'Message Jonah', 'Message Sam']);
     assert.equal(focus.querySelectorAll('[data-cgs-nudge] [aria-label]').length >= 2 || focus.querySelectorAll('[data-cgs-nudge] span').length >= 2, true, 'each with a tier mark');
     await click(rows[1]);
     assert.deepEqual(messages.map((x) => x.name + ':' + x.role), ['Jonah W.:trainer']);
@@ -497,7 +498,7 @@ test('while a bound goal\'s figures load, the board waits; a live roster names w
   account({ goals: { goals: [adh] } });
   const { m } = await goalPage('trainer', { live, roster: { source: 'live', triage: feed } });
   try {
-    assert.equal(textOf(card(m, 'goal-g-adh').querySelector('[data-cgs-action]')), 'Nudge Sam R. and Jonah W.');
+    assert.equal(textOf(card(m, 'goal-g-adh').querySelector('[data-cgs-action]')), 'Nudge Marcus T., Jonah W. and Sam R.');
     assert.equal(card(m, 'goal-g-adh').querySelector('section').getAttribute('data-dash-lift'), '2');
   } finally { await m.unmount(); }
 });

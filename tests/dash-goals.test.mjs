@@ -78,9 +78,13 @@ test("slip: a flat week moves the ETA exactly 16 days later", () => {
   // This week's point holds at 176 → fit flattens to −0.2/day → ETA Jul 12.
   const g = goal({ start: 180, history: hist([[21, 180], [14, 178], [7, 176], [0, 176]]) });
   assert.equal(goalSlipDays(g, NOW), 16);
-  const r = evaluateClient({ profile: { id: "x", name: "X" }, goals: [g] }, NOW, "trainer");
+  // A weight goal's slip is the nutritionist's (2026-11-10): amber on its own for them; a trainer
+  // with a nutritionist on the client sees it as context.
+  const r = evaluateClient({ profile: { id: "x", name: "X" }, goals: [g] }, NOW, "nutritionist");
   assert.deepEqual(r.flags.map((f) => f.key), ["goal_slip"]);
   assert.equal(r.severity, "amber", "the slip alone reads amber");
+  assert.equal(evaluateClient({ profile: { id: "x", name: "X" }, goals: [g] }, NOW, "trainer").severity, "green");
+  assert.equal(evaluateClient({ profile: { id: "x", name: "X" }, goals: [g], pros: { trainer: true, nutritionist: false } }, NOW, "trainer").severity, "amber", "the trainer's as the only coach");
   assert.equal(r.flags[0].label, "Goal ETA +16d");
   assert.match(r.flags[0].reason, /moved 16 days later this week/);
 });
@@ -196,8 +200,8 @@ test("Jordan: steady collinear goals — exact ETAs, zero slip, still green", ()
   for (const g of jordan.goals) assert.ok((goalSlipDays(g, NOW) ?? 0) === 0 || g === jordan.goals[2]);
   assert.equal(evaluateClient(jordan, NOW, "trainer").severity, "green");
 });
-test("Nadia: the plateau slips her ETA +15d — amber on goal_slip alone", () => {
-  const feed = getTriageFeed("trainer", buildMockClients(NOW), NOW);
+test("Nadia: the plateau slips her ETA +15d — amber on goal_slip alone, for her nutritionist", () => {
+  const feed = getTriageFeed("nutritionist", buildMockClients(NOW), NOW);
   const nadia = feed.find((r) => r.client.profile.name === "Nadia P.");
   assert.equal(nadia.severity, "amber");
   assert.deepEqual(nadia.flags.map((f) => f.key), ["goal_slip"]);
