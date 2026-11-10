@@ -827,12 +827,14 @@ function cgsTierOf(total) {
   return i;
 }
 // The coach's place on the five tiers, as a share of one line: each tier an equal fifth, and the score's
-// way through its own tier (Icon's fifth runs to twice its floor).
+// way through its own tier (Icon's fifth runs to twice its floor). `frac` is that way through the tier
+// alone: how much of the current tier's segment the bar fills.
 function cgsLadderPlace(total) {
   const i = cgsTierOf(total);
   const lo = CGS_TIERS[i][1];
   const hi = CGS_TIERS[i + 1] ? CGS_TIERS[i + 1][1] : lo * 2;
-  return { index: i, at: (i + Math.max(0, Math.min(1, (total - lo) / (hi - lo)))) / CGS_TIERS.length };
+  const frac = Math.max(0, Math.min(1, (total - lo) / (hi - lo)));
+  return { index: i, at: (i + frac) / CGS_TIERS.length, frac };
 }
 
 // The score as its parts. ⚠ EACH TERM'S COUNT IS ITS POINTS OVER WHAT ONE IS WORTH, never the sub-line's
@@ -921,9 +923,15 @@ function CgsScoreCard({ model, state }) {
         <div style={{ display: "grid", gridTemplateColumns: "repeat(5, minmax(0, 1fr))", gap: 4 }}>
           {CGS_TIERS.map(([t, floor], i) => {
             const cur = i === place.index, past = i < place.index;
+            // ⚠ THE BAR IS THE SCORE (owner, 2026-11-10: "Im at 80 but the bar is filled"): a tier
+            // passed is full, the current one fills as far as the score has come through it, and the
+            // ones ahead are empty track. It never fills a tier just for being the one you are in.
+            const fill = past ? 1 : cur ? place.frac : 0;
             return (
               <div key={t} data-cgs-tier={t} data-cgs-current={cur ? "" : undefined} style={{ minWidth: 0 }}>
-                <div style={{ height: 6, borderRadius: 3, background: cur ? "var(--sh-accent, #2ee0c4)" : past ? "rgba(var(--sh-ink-rgb, 242,237,228),0.35)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.10)" }} />
+                <div style={{ height: 6, borderRadius: 3, overflow: "hidden", background: "rgba(var(--sh-ink-rgb, 242,237,228),0.10)" }}>
+                  <div data-cgs-fill={Math.round(fill * 1000) / 10} style={{ width: (fill * 100) + "%", height: "100%", borderRadius: 3, background: "var(--sh-accent, #2ee0c4)" }} />
+                </div>
                 <div style={{ fontSize: 12.5, marginTop: 7, fontWeight: cur ? 600 : 400, color: cur ? DBZ_INK : DBZ_INK50, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{t}</div>
                 <div style={{ ...DBZ_LBL, fontSize: 8.5, marginTop: 2 }}>{cgsPts(floor)}</div>
               </div>

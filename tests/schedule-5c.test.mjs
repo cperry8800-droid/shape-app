@@ -52,7 +52,7 @@ const ROSTER = [
   rec('member-7', 'Dana K.', 100),               // Raw, booked nowhere on screen
 ];
 
-function server({ events = WEEK(), zone = NY, calendar = 'ok', answers = {}, plans = null, timeOff = [] } = {}) {
+function server({ events = WEEK(), zone = NY, calendar = 'ok', answers = {}, plans = null, timeOff = [], hours = HOURS } = {}) {
   const posts = [];
   let release = null;
   const held = calendar === 'held' ? new Promise((r) => { release = r; }) : null;
@@ -63,7 +63,7 @@ function server({ events = WEEK(), zone = NY, calendar = 'ok', answers = {}, pla
     if (u.pathname === '/api/my-availability') {
       if (calendar === 'signedout') return json(401, { error: 'unauthorized' });
       if (method === 'POST') return json(200, { ok: true, count: body.slots.length, timezone: NY });
-      return json(200, { slots: HOURS, timezone: NY });
+      return json(200, { slots: hours, timezone: NY });
     }
     if (u.pathname === '/api/coach/to-schedule') return json(200, { items: [] });
     if (u.pathname === '/api/my-time-off') return calendar === 'fail' ? json(503, {}) : json(200, { timeOff, ready: true });
@@ -579,4 +579,88 @@ test('while a signed-in coach\'s calendar loads, and before the page knows who i
     assert.ok(!unknown.page.doc.querySelector('[data-time-off]'), 'the preview\'s time off before the page knew it was the preview');
     assert.ok(!unknown.page.doc.querySelector('[data-plans-row]'), 'the preview\'s plans before the page knew it was the preview');
   } finally { await unknown.page.unmount(); }
+});
+
+// ── 5 · the sheet fills the screen, and the hours editor says how it works ───────────────────────
+// Owner, 2026-11-10: "This pop up should fill more of screen, its very small and constrained. Also how
+// does this work? How do I choose when im available".
+
+test('the sheet is wide, time off sits beside the rules, and an empty week says what that means', async () => {
+  const { page } = await open({ hours: [] });
+  try {
+    await page.click(page.doc.querySelector('[data-settings-tab]'));
+    const sheet = page.doc.querySelector('[data-settings-sheet]');
+    // JSDOM drops a CSS min(), so the width is read from the source the page runs.
+    assert.match(SCHEDULE_SRC, /data-settings-sheet=""\n\s+style=\{\{ position: "absolute", top: 0, right: 0, bottom: 0, boxSizing: "border-box", width: "min\(1120px, 100vw\)"/, 'the sheet is still a 560px strip');
+    const pair = sheet.querySelector('[data-settings-pair]');
+    assert.ok(pair.querySelector('[data-time-off-list]') && pair.querySelector('[data-rules-plate]'), 'time off and the rules are not side by side');
+    assert.equal(pair.style.flexWrap, 'wrap', 'the pair cannot stack where the sheet is narrow');
+    assert.match(sheet.querySelector('[data-hours-empty]').textContent, /^No open hours yet, so members can't book you\./);
+  } finally { await page.unmount(); }
+  // A coach with hours is not told they have none.
+  const withHours = await open();
+  try {
+    await withHours.page.click(withHours.page.doc.querySelector('[data-settings-tab]'));
+    assert.ok(!withHours.page.doc.querySelector('[data-hours-empty]'), 'a coach with hours is told they have none');
+  } finally { await withHours.page.unmount(); }
+});
+
+test('the hours editor says how it works: the steps, the drag read out, each day\'s hours, the week in words, Mon–Fri 9–5 in one press', async () => {
+  const { page, srv } = await open({ hours: [] });
+  try {
+    await page.click(page.doc.querySelector('[data-settings-tab]'));
+    await page.click(page.doc.querySelector('[data-edit-hours]'));
+    const ed = page.doc.querySelector('[data-hours-editor]');
+    const q = (k) => ed.querySelector(k);
+    const cell = (c, r) => ed.querySelector('[data-hcell="' + c + ':' + r + '"]');
+    const words = () => [...q('[data-hours-words]').children].map((n) => n.textContent).join('|');
+    const dayHours = () => [1, 2, 3, 4, 5, 6, 0].map((wd) => q('[data-day-hours="' + wd + '"]').textContent);
+    assert.match(q('[data-hours-howto]').textContent, /Press on the time you start and drag down to the time you stop\./);
+    assert.match(q('[data-hours-howto]').textContent, /Save hours\. They repeat every week/);
+    assert.equal(q('[data-hours-readout]').textContent, 'Your week is empty: press on a start time and drag down to open it.');
+    assert.deepEqual(dayHours(), ['closed', 'closed', 'closed', 'closed', 'closed', 'closed', 'closed']);
+    assert.equal(q('[data-clear-week]').disabled, true, 'nothing to clear');
+    // The cells answer the pointer before they are pressed.
+    assert.match(q('style').textContent, /\[data-hcell\]\[aria-pressed="false"\]:hover/);
+
+    // Monday 9:00 dragged to Friday 4:30, read out while the pointer is down.
+    page.doc.elementFromPoint = (x, y) => cell(x, y);
+    await page.drag(cell(0, 18), [[0, 18], [2, 25], [4, 33]], { release: false });
+    assert.equal(q('[data-hours-readout]').textContent, 'Opening Mon–Fri · 9:00 AM–5:00 PM');
+    await page.act(async () => page.dom.window.dispatchEvent(Object.assign(new page.dom.window.MouseEvent('pointerup', { bubbles: true }), { pointerId: 1 })));
+    await page.settle();
+    assert.equal(q('[data-hours-readout]').textContent, 'Shaded is open. Drag over shaded time to close it.', 'the readout outlived the drag');
+    // Never a colour's name: the accent is teal on one paper and amber on another.
+    assert.doesNotMatch(ed.textContent, /\bteal\b/i);
+    assert.deepEqual(dayHours(), ['8h', '8h', '8h', '8h', '8h', 'closed', 'closed']);
+    assert.match(words(), /^Mon\|9:00 AM–5:00 PM\|Tue\|9:00 AM–5:00 PM/);
+    assert.match(words(), /Sat\|Closed\|Sun\|Closed$/);
+    // Closing reads out as closing.
+    await page.drag(cell(2, 24), [[2, 24], [2, 25]], { release: false });
+    assert.equal(q('[data-hours-readout]').textContent, 'Closing Wed · 12:00 PM–1:00 PM');
+    await page.act(async () => page.dom.window.dispatchEvent(Object.assign(new page.dom.window.MouseEvent('pointerup', { bubbles: true }), { pointerId: 1 })));
+    await page.settle();
+    assert.match(words(), /Wed\|9:00 AM–12:00 PM, 1:00 PM–5:00 PM/);
+
+    // Clear week empties it; Mon–Fri 9–5 fills the working week and leaves the weekend as it was.
+    await page.click(cell(5, 20));
+    await page.act(async () => cell(5, 20).dispatchEvent(new page.dom.window.MouseEvent('click', { bubbles: true, detail: 0 })));
+    await page.settle();
+    await page.click(q('[data-clear-week]'));
+    assert.deepEqual(dayHours(), ['closed', 'closed', 'closed', 'closed', 'closed', 'closed', 'closed']);
+    await page.act(async () => cell(5, 20).dispatchEvent(new page.dom.window.MouseEvent('click', { bubbles: true, detail: 0 })));
+    await page.settle();
+    await page.click(q('[data-fill-workweek]'));
+    assert.deepEqual(dayHours(), ['8h', '8h', '8h', '8h', '8h', '0.5h', 'closed'], 'the weekend was not left as it was');
+    assert.equal(cell(0, 17).getAttribute('aria-pressed'), 'false', '8:30 opened');
+    assert.equal(cell(0, 18).getAttribute('aria-pressed'), 'true', '9:00 not opened');
+    assert.equal(cell(4, 33).getAttribute('aria-pressed'), 'true', '4:30 not opened');
+    assert.equal(cell(4, 34).getAttribute('aria-pressed'), 'false', '5:00 opened');
+
+    // Nothing was written until Save, and Save writes the week in one go.
+    assert.ok(!srv.posts.some((p) => p.path === '/api/my-availability'), 'a quick start saved on its own');
+    await page.click(q('[data-save-hours]'));
+    const post = srv.posts.find((p) => p.path === '/api/my-availability');
+    assert.deepEqual(post.body.slots, [1, 2, 3, 4, 5].map((weekday) => ({ weekday, start_minute: 540, duration_min: 480 })).concat([{ weekday: 6, start_minute: 600, duration_min: 30 }]));
+  } finally { await page.unmount(); }
 });
