@@ -103,7 +103,8 @@ test('the install is BY TAB ID, waits for the hydrate, and never clobbers a draf
   assert.match(merge, /const key = \(t\) => \(t && \(t\.conversationId \|\| \(t\.channelId \? "ch:" \+ t\.channelId : null\)\)\) \|\| null;/);
   assert.match(merge, /const add = live\.filter\(\(t\) => key\(t\) && !have\.has\(key\(t\)\)\);/, 'the typed-in copy only gains the missing conversations and channels');
   // Only on Channels does a sample thread (no id) go, and not one the member wrote in (Codex P2 on #2676).
-  assert.match(merge, /const kept = tabId === "community" \? base\.filter\(\(t\) => key\(t\) \|\| \(t && \(t\.messages \|\| \[\]\)\.some\(\(x\) => x && x\.me\)\)\) : base;/, 'the typed-in copy drops what was here');
+  assert.match(merge, /const kept = tabId === "community"\n\s+\? base\.filter\(\(t\) => key\(t\) \|\| \(t && \(t\.messages \|\| \[\]\)\.some\(\(x\) => x && x\.me\)\)\)\.map\(/, 'the typed-in copy drops what was here');
+  assert.match(merge, /\n\s+: base;\n/, 'a coach or friend thread is changed by the typed-in merge');
 });
 
 test('the hydrate publishes its completion as STATE, not only a ref', () => {

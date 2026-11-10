@@ -531,3 +531,29 @@ test('a pin the account refuses puts the row back as it was', async () => {
     assert.doesNotMatch(row.textContent, /PINNED/, 'a refused pin is still drawn');
   } finally { await m.done(); }
 });
+
+// Codex P2 on #2676: with something typed before the reads landed, a channel already in the saved copy
+// kept its saved row, so what changed since (read-only, Shape's own, joined, the picture) never showed.
+test('typed before the reads land: a saved channel takes the live fields and keeps what was typed', () => {
+  const at = SRC.indexOf('function cwMergeTyped(');
+  assert.ok(at > 0, 'the typed-in merge moved');
+  const S = {};
+  new Function('S', `${SRC.slice(at, SRC.indexOf('\n}\n', at) + 3)}\nS.merge = cwMergeTyped;`)(S);
+  const saved = [{ channelId: 'hq', name: 'Shape HQ', readOnly: false, official: false, joined: false, picture: null, memberCount: 3, messages: [{ who: 'You', t: 'hi', me: true }], last: 'You: hi', time: 'now' }];
+  const live = [
+    { channelId: 'hq', name: 'Shape HQ', readOnly: true, official: true, joined: true, picture: 'https://cdn.test/p.jpg', memberCount: 40, messages: [], last: 'Welcome', time: '2h', pinned: true },
+    { channelId: 'run', name: 'run', messages: [] },
+  ];
+  const out = S.merge(saved, live, 'community');
+  const hq = out.find((t) => t.channelId === 'hq');
+  assert.equal(out.length, 2, 'the live channel this copy lacks is not added');
+  assert.ok(hq.readOnly && hq.official && hq.joined && hq.pinned, 'the saved row hid what changed since');
+  assert.equal(hq.picture, 'https://cdn.test/p.jpg');
+  assert.equal(hq.memberCount, 40);
+  assert.deepEqual(hq.messages, saved[0].messages, 'what was typed here is lost');
+  assert.equal(hq.last, 'You: hi');
+  // Coach and friend threads keep what was here (#2391).
+  const coach = [{ conversationId: 'c1', who: 'Coach', note: 'mine', messages: [] }];
+  const same = S.merge(coach, [{ conversationId: 'c1', who: 'Coach Live', messages: [] }], 'circle');
+  assert.equal(same, coach, 'a coach thread was replaced');
+});

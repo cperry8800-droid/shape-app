@@ -607,14 +607,23 @@ function cwChannelRole(n, desc) {
 // and the live ones this copy lacks are added, a thread known by its conversation and a channel by
 // its id (Codex, #2391). ⚠ ON CHANNELS, the sample set has no ids, so nothing could ever match it:
 // once the real channels arrive a sample channel goes, unless the member wrote in it (Codex P2 on
-// #2676). Coach and friend threads keep what was here.
+// #2676). ⚠ AND A CHANNEL IN BOTH TAKES THE LIVE FIELDS (Codex P2 on #2676): read-only, Shape's own,
+// joined, host, its picture, counts and pin as they are now, keeping only what the member did here
+// (its messages and last line). Coach and friend threads keep what was here.
 function cwMergeTyped(list, live, tabId) {
   const key = (t) => (t && (t.conversationId || (t.channelId ? "ch:" + t.channelId : null))) || null;
   const base = list || [];
   const have = new Set(base.map(key).filter(Boolean));
   const add = live.filter((t) => key(t) && !have.has(key(t)));
-  const kept = tabId === "community" ? base.filter((t) => key(t) || (t && (t.messages || []).some((x) => x && x.me))) : base;
-  return add.length || kept.length !== base.length ? [...kept, ...add] : list;
+  const liveBy = new Map(live.filter((t) => key(t)).map((t) => [key(t), t]));
+  const kept = tabId === "community"
+    ? base.filter((t) => key(t) || (t && (t.messages || []).some((x) => x && x.me))).map((t) => {
+      const now = key(t) ? liveBy.get(key(t)) : null;
+      return now ? { ...now, messages: t.messages || [], last: t.last || now.last, time: t.time || now.time } : t;
+    })
+    : base;
+  const changed = kept.length !== base.length || kept.some((t, i) => t !== base[i]);
+  return add.length || changed ? [...kept, ...add] : list;
 }
 
 // Every membership row of these channels, a page at a time. The API answers at most 1,000 rows a
