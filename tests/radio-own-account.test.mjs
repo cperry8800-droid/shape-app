@@ -170,18 +170,20 @@ test('1: ⚠ a membership that stops paying drops the account: at once on Stripe
 });
 
 test('1: a plan that stopped paying is asked again at the next ask, and only the membership\'s check drops it', async () => {
+  // On the real clock: what the re-check is measured against is a stamp taken now.
+  const T = Date.now();
   const db = fakeDb();
-  const sa = await openStream(db, { userId: ANA, now: NOW });
-  await admitConnection(db, { streamId: sa, boot: BOOT, bootAt: BOOT_AT, client: 5, now: NOW });
-  const sb = await openStream(db, { userId: BEN, now: NOW });
-  await admitConnection(db, { streamId: sb, boot: BOOT, bootAt: BOOT_AT, client: 6, now: NOW });
+  const sa = await openStream(db, { userId: ANA, now: T });
+  await admitConnection(db, { streamId: sa, boot: BOOT, bootAt: BOOT_AT, client: 5, now: T });
+  const sb = await openStream(db, { userId: BEN, now: T });
+  await admitConnection(db, { streamId: sb, boot: BOOT, bootAt: BOOT_AT, client: 6, now: T });
   assert.deepEqual(await recheckAccount(db, { userId: ANA }), { ok: true, rechecked: 1 });
   assert.deepEqual(await recheckAccount(db, { userId: BEN }), { ok: true, rechecked: 1 });
   assert.deepEqual(await recheckAccount(db, { userId: 'not-a-uuid' }), { ok: false, rechecked: 0 });
   // Seconds later, well inside the minute: both are confirmed again. Ana is still paid another way
   // (an admin, say), so she keeps listening; Ben is not, and his connection goes to the door.
   const asked = [];
-  const r = await kicksFor(db, { boot: BOOT, now: NOW + 3000, mayListen: async (u) => { asked.push(u); return u === ANA; } });
+  const r = await kicksFor(db, { boot: BOOT, now: T + 3000, mayListen: async (u) => { asked.push(u); return u === ANA; } });
   assert.deepEqual(asked.sort(), [ANA, BEN].sort(), 'both asked at once, not after the minute');
   assert.deepEqual(r.clients, [6]);
   assert.equal(live(db).find((x) => x.client === 5).kick_requested_at, null, 'still paid another way: still listening');
