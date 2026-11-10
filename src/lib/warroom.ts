@@ -625,6 +625,15 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
 
   return [
     {
+      section: 'Coach app workout editor: a trainer sets a session\'s playlist, as the website\'s program builder does (#2672). No migration',
+      items: [
+        { label: 'Owner, 2026-11-10, after the nutritionists\' picker in the coach app (#2670): "do trianers have this ability?" … "yes add the trainer picker too"', status: 'done' },
+        { label: '#2672 BSWorkoutDocumentEditor: "Playlist on the client\'s card" for each session, from the coach\'s saved playlists as dbuPlaylistChoice lists them; writes { id?, name, meta } on day.playlist as DbuDayChips does (the key gone when cleared); a playlist the list lacks stays selected; builderToAssignmentRows already carries it to the member\'s session card and Train\'s Playlists', status: 'done' },
+        { label: 'Review: Codex clean; CI green on the final head', status: 'done' },
+        { label: 'The trainer\'s list, like the website\'s, includes a playlist the coach marked as a nutritionist\'s; the member\'s Train list leaves those out, so one picked shows on Train as a bare card', status: 'pending' },
+      ],
+    },
+    {
       section: 'App Eat: Coming up and the week\'s meal plan as a sheet; nutritionists link a playlist to a prep day or a meal in the website builder and the coach app, and Eat labels it (#2670). No migration',
       items: [
         { label: 'Owner, 2026-11-10: "Smaller, app only: add a "Coming up" preview of the next days\' meals to Eat, and a pop-up of the full week\'s meal plan, the same way Train now works. Bigger: let nutritionists link a playlist to a meal or prep day in the builder, carry it through the plan, and show "For Sun prep" labels on Eat\'s playlists … - do both"', status: 'done' },
