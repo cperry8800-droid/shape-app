@@ -91,12 +91,12 @@ test('1: coaching includes the membership: an active coach subscription pays, pa
 });
 
 // ── 2 ──────────────────────────────────────────────────────────────────────────────────────
-async function gate(path, { user = { id: UID, email: 'm@example.invalid', email_confirmed_at: 'x' }, profile = ADULT, status = null, week = null } = {}) {
+async function gate(path, { user = { id: UID, email: 'm@example.invalid', email_confirmed_at: 'x' }, profile = ADULT, status = null, week = null, fail = [], missing = [] } = {}) {
   const mw = await loadRealModule(join(ROOT, 'src/lib/supabase/middleware.ts'), {
     typescript: true,
     registry: new Map([
       ['next/server', nextServer],
-      ['@supabase/ssr', { createServerClient: () => ({ auth: { getUser: async () => ({ data: { user } }) }, ...client({ profile, status, week }) }) }],
+      ['@supabase/ssr', { createServerClient: () => ({ auth: { getUser: async () => ({ data: { user } }) }, ...client({ profile, status, week, fail, missing }) }) }],
       ['@supabase/supabase-js', { createClient: () => ({}) }],
       ['@/lib/membership-core', core],
       ['@/lib/rate-limit', { checkRateLimit: async () => ({ allowed: true, remaining: 99, resetSeconds: 60, limit: 100 }), jwtSub: () => null }],
@@ -144,12 +144,12 @@ test('2: a member and a coach pass the paid paths, stamped as a member; signed o
 });
 
 // ── 3 ──────────────────────────────────────────────────────────────────────────────────────
-async function guards({ user = { id: UID, email: 'm@example.invalid', email_confirmed_at: 'x' }, profile = ADULT, status = null, week = null } = {}) {
+async function guards({ user = { id: UID, email: 'm@example.invalid', email_confirmed_at: 'x' }, profile = ADULT, status = null, week = null, fail = [], missing = [] } = {}) {
   return loadRealModule(join(ROOT, 'src/lib/require-membership.ts'), {
     typescript: true,
     registry: new Map([
       ['next/server', nextServer],
-      ['@/lib/request-auth', { currentUser: async () => user, clientForRequest: async () => client({ profile, status, week }) }],
+      ['@/lib/request-auth', { currentUser: async () => user, clientForRequest: async () => client({ profile, status, week, fail, missing }) }],
       ['@/lib/membership-core', core],
     ]),
   });
@@ -284,6 +284,25 @@ test('free week: requireNora takes the member and Nora stamps, and with none che
   assert.equal((await (await guards({ profile: MINOR, week: WEEK })).requireNora(stamped(null))).status, 403);
   assert.equal((await free.requireMembership(stamped('nora'))).status, 402, 'a free week is not the membership');
   assert.equal(await free.requireAccount(stamped('nora')), null);
+});
+
+// ⚠ A WEEK THAT COULD NOT BE READ IS NEVER A REFUSAL (Codex P2 ×2 on #2675). Read as "no week", the
+// edge gate and requireNora answered an account in its free week a 402 for as long as the table
+// could not be read; the read now throws, and each guard takes its fault path, as every other
+// read of the paid gate does.
+test('free week: a week that could not be read is no 402: the gate stamps nothing and requireNora fails open', async () => {
+  for (const p of NORA_PATHS) {
+    const r = await gate(p, { week: WEEK, fail: ['nora_previews'] });
+    assert.equal(r.status, 200, `${p}: the gate refused an unread week`);
+    assert.equal(r.stamp, null, `${p}: an unread week is stamped as something`);
+  }
+  assert.equal(await (await guards({ week: WEEK, fail: ['nora_previews'] })).requireNora(stamped(null)), null, 'requireNora refused an unread week');
+  // Before the migration there is no table, and so no week: refused, as a free account.
+  assert.equal((await gate(NORA_PATHS[0], { missing: ['nora_previews'] })).code, 'membership_required');
+  assert.equal((await (await guards({ missing: ['nora_previews'] })).requireNora(stamped(null))).status, 402);
+  // The read itself: a failure throws, a missing table is none.
+  await assert.rejects(core.readNoraPreview(client({ fail: ['nora_previews'] }), UID), (e) => /nora_previews/.test(e?.message));
+  assert.equal(await core.readNoraPreview(client({ missing: ['nora_previews'] }), UID), null);
 });
 
 test('free week: /api/me/membership says whether Nora is on, and the week itself', async () => {

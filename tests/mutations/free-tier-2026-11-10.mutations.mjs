@@ -94,6 +94,10 @@ export default {
     { name: "board: a free account sees past the top 10", file: BOARD,
       find: "  const entries = all.filter((e) => e.rank !== null && e.rank <= FREE_TOP).map(still);",
       replace: "  const entries = all.filter((e) => e.rank !== null).map(still);" },
+    // Codex P2 ×2 on #2675: a week that could not be read is unknown, everywhere.
+    { name: "r9: a failed read of the week is no week again", file: CORE,
+      find: "    if (code === 'PGRST205' || code === '42P01') return null;\n    throw error;\n",
+      replace: "    if (code === 'PGRST205' || code === '42P01') return null;\n    return null;\n" },
     // Codex P1 on #2675: the server reads the board, for the verified account.
     { name: "r7: the board is read under the caller's session again", file: BOARD,
       find: "  try { server = createAdminClient(); } catch { server = null; }",

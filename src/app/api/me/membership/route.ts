@@ -32,7 +32,7 @@ export async function GET(request: Request) {
       // The free week of Nora (2026-11-10-nora-free-week.sql); before that migration, none. ⚠ A read
       // that failed is no answer (Codex P2 on #2675): `nora: false` from it would take an active free
       // week away in the app, so it is the 503, and clients keep what they last knew.
-      readNoraPreview(client, user.id, { strict: true }),
+      readNoraPreview(client, user.id),
     ]);
     // `nora`: assistant Nora now, a member's or the free week's.
     return NextResponse.json(
