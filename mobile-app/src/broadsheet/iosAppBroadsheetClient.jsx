@@ -22716,7 +22716,8 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
     window.ShapeChannels.list().then(r => {
       const data = Array.isArray(r?.data) ? r.data : [];
       setChannels(data);
-      data.forEach(c => { if (c.joined) window.ShapeUnread?.noteChannel?.(c.id); });
+      // Shape HQ counts too: it is read, not joined (Codex P2 on #2676).
+      data.forEach(c => { if (c.joined || (c.official && c.readOnly)) window.ShapeUnread?.noteChannel?.(c.id); });
     }).catch(() => {});
   }, []);
   React.useEffect(() => { refreshChannels(); }, [refreshChannels]);

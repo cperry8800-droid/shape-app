@@ -233,6 +233,26 @@ test('the app opens a channel as the list has it, and Shape HQ without joining i
   assert.match(CLIENT, /\{openable\n\s*\? <button onClick=\{openOrJoin\} aria-label=\{tr\('feed:channels\.openChannel'/, 'Shape HQ\'s row offers Join');
 });
 
+// Codex P2 on #2676: Shape HQ has no members, and a channel's unread count and read mark were the
+// member's own row, so an announcement badged nobody. Run on a local Postgres against the live
+// definitions (17 cases; the PR's description).
+test('Shape HQ\'s unread: counted without a row, the reader\'s row made on first open, and both apps watch it', () => {
+  const sql = read('supabase-migrations/2026-11-10-shape-hq-unread.sql');
+  const unread = sql.slice(sql.indexOf('create or replace function public.channel_unread()'), sql.indexOf('create or replace function public.mark_channel_read('));
+  // As before, through the member's own row…
+  assert.match(unread, /join public\.channel_members cm on cm\.channel_id = m\.channel_id and cm\.user_id = auth\.uid\(\)\n  where m\.sender_id is distinct from auth\.uid\(\)\n    and \(cm\.last_read_at is null or m\.created_at > cm\.last_read_at\)/);
+  // …and, for a channel only Shape posts in, without one: what came after the account was made.
+  assert.match(unread, /union all\n  select m\.channel_id, count\(\*\)::bigint\n  from public\.channel_messages m\n  join public\.channels c on c\.id = m\.channel_id and c\.official and c\.read_only/, 'Shape HQ is not counted without a row');
+  assert.match(unread, /and not exists \(\n      select 1 from public\.channel_members cm where cm\.channel_id = m\.channel_id and cm\.user_id = auth\.uid\(\)\n    \)/, 'Shape HQ is counted twice for a reader');
+  assert.match(unread, /and m\.created_at > coalesce\(\(select u\.created_at from auth\.users u where u\.id = auth\.uid\(\)\), '-infinity'::timestamptz\)/, 'a new member is owed every announcement ever made');
+  const mark = sql.slice(sql.indexOf('create or replace function public.mark_channel_read('));
+  assert.match(mark, /if not found and exists \(\n    select 1 from public\.channels c where c\.id = p_channel_id and c\.official and c\.read_only\n  \) then\n    insert into public\.channel_members \(channel_id, user_id, role, last_read_at\)\n    values \(p_channel_id, auth\.uid\(\), 'member', now\(\)\)/, 'opening Shape HQ marks nothing read');
+  assert.doesNotMatch(sql, /revoke|grant /i, 'the grants changed');
+  // Both apps count its new messages.
+  assert.match(read('mobile-app/src/services/shapeBackend.js'), /\(ch\.data \|\| \[\]\)\.forEach\(c => \{ if \(c\.joined \|\| \(c\.official && c\.readOnly\)\) _unread\.myChannels\.add\(c\.id\); \}\);/, 'the app does not watch Shape HQ for new messages');
+  assert.match(CLIENT, /data\.forEach\(c => \{ if \(c\.joined \|\| \(c\.official && c\.readOnly\)\) window\.ShapeUnread\?\.noteChannel\?\.\(c\.id\); \}\);/, 'the channel list does not watch Shape HQ');
+});
+
 test('the app: Shape HQ has no composer, and only a member channel\'s host may change its picture', () => {
   assert.match(CLIENT, /\{thread\.readOnly \? \(\n\s*\/\/ A channel only Shape posts in \(Shape HQ\): no composer, and it says why\.\n\s*<div data-channel-readonly=""[^\n]*\n\s*\{tr\('feed:channels\.readOnly'[^\n]*\n\s*<\/div>\n\s*\) : \(\n\s*<BSMessageComposer /, 'the read-only note does not replace the composer');
   assert.match(CLIENT, /const canSetPicture = !!\(thread\.channelId && thread\.isHost && !thread\.official && !String\(thread\.channelId\)\.startsWith\('sample'\)/, 'the picture change is not for the host of a member channel alone');

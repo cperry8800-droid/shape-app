@@ -10,6 +10,7 @@ const MARK = 'public/newdesign/channelMark.mjs';
 const CLIENT = 'mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx';
 const BACKEND = 'mobile-app/src/services/shapeBackend.js';
 const SQL = 'supabase-migrations/2026-11-10-channel-pictures-and-shape-hq.sql';
+const UNREAD = 'supabase-migrations/2026-11-10-shape-hq-unread.sql';
 
 export default {
   test: 'node --test tests/website-chat-channels.test.mjs tests/channel-mark.test.mjs tests/chat-message-history.test.mjs',
@@ -98,6 +99,27 @@ export default {
     { name: 'review: the website\'s Shape HQ row asks to join', file: WIDGET,
       find: '{t.channelId && !t.joined && !t.readOnly && <span',
       replace: '{t.channelId && !t.joined && <span' },
+    { name: 'review: the website stores a pin only for a channel you are in', file: WIDGET,
+      find: '    if (real && db) {\n      try { db.rpc("set_channel_pinned"',
+      replace: '    if (real && th.joined && db) {\n      try { db.rpc("set_channel_pinned"' },
+    { name: 'review: a pinned channel still reads as not joined', file: WIDGET,
+      find: '...(real && next ? { joined: true } : {})',
+      replace: '...({})' },
+    { name: 'review: the app does not watch Shape HQ for new messages', file: BACKEND,
+      find: 'if (c.joined || (c.official && c.readOnly)) _unread.myChannels.add(c.id);',
+      replace: 'if (c.joined) _unread.myChannels.add(c.id);' },
+    { name: 'review: the channel list does not watch Shape HQ', file: CLIENT,
+      find: 'if (c.joined || (c.official && c.readOnly)) window.ShapeUnread?.noteChannel?.(c.id);',
+      replace: 'if (c.joined) window.ShapeUnread?.noteChannel?.(c.id);' },
+    { name: 'review: Shape HQ is not counted without a row', file: UNREAD,
+      find: '  join public.channels c on c.id = m.channel_id and c.official and c.read_only\n',
+      replace: '  join public.channels c on c.id = m.channel_id and false\n' },
+    { name: 'review: a new member is owed every announcement', file: UNREAD,
+      find: "    and m.created_at > coalesce((select u.created_at from auth.users u where u.id = auth.uid()), '-infinity'::timestamptz)\n",
+      replace: '' },
+    { name: 'review: opening Shape HQ marks nothing read', file: UNREAD,
+      find: "    insert into public.channel_members (channel_id, user_id, role, last_read_at)\n    values (p_channel_id, auth.uid(), 'member', now())\n    on conflict (channel_id, user_id) do update set last_read_at = excluded.last_read_at;\n",
+      replace: "    null;\n" },
     // ── what is in a channel's circle ──
     { name: 'a member\'s channel named Shape HQ wears Shape\'s triangles', file: MARK,
       find: "  if (c.official && key === 'shape hq') return { kind: 'shape' };",

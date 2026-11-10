@@ -2580,10 +2580,14 @@ function ChatWidget(props) {
     // Shape HQ and the PR Wall are pinned for everyone, as in the app.
     if (th && th.official) return;
     const next = !(th && th.pinned);
-    setThreadsByTab(prev => prev.map((ts, ti) => ti !== tabIdx ? ts : ts.map((t, j) => j === i ? { ...t, pinned: next } : t)));
-    // A real channel you belong to keeps the pin on your account (the app's `set_channel_pinned`).
+    const real = !!(th && th.channelId);
+    // A pin on a real channel joins you to it, as `set_channel_pinned` does for a public channel.
+    setThreadsByTab(prev => prev.map((ts, ti) => ti !== tabIdx ? ts : ts.map((t, j) => j === i ? { ...t, pinned: next, ...(real && next ? { joined: true } : {}) } : t)));
+    // A real channel keeps the pin on your account (the app's `set_channel_pinned`), joined or not: the
+    // function joins a public channel before it stores the pin (Codex P2 on #2676; the app calls it
+    // either way).
     const db = window.shapeDb && window.shapeDb.client;
-    if (th && th.channelId && th.joined && db) {
+    if (real && db) {
       try { db.rpc("set_channel_pinned", { p_channel_id: th.channelId, p_pinned: next }).then(() => {}, () => {}); } catch (err) {}
     }
   };

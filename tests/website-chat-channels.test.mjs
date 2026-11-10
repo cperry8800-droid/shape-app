@@ -330,6 +330,12 @@ test('a pin on a channel you are in is kept on your account', async () => {
   try {
     await m.click(m.row('macro-mondays').querySelector('.chw-pin'));
     assert.ok(log.some((x) => x[0] === 'rpc' && x[1] === 'set_channel_pinned' && x[2].p_channel_id === 'ch-mine' && x[2].p_pinned === false), 'the unpin was not stored');
+    // A channel you are not in: the pin is stored too (the function joins a public channel first), and
+    // the row reads as joined (Codex P2 on #2676).
+    assert.match(m.row('sunday-run-club').textContent, /JOIN/);
+    await m.click(m.row('sunday-run-club').querySelector('.chw-pin'));
+    assert.ok(log.some((x) => x[0] === 'rpc' && x[1] === 'set_channel_pinned' && x[2].p_channel_id === 'ch-run' && x[2].p_pinned === true), 'a pin on a channel you are not in stays on this page');
+    assert.doesNotMatch(m.row('sunday-run-club').textContent, /JOIN/, 'the pinned channel still asks to join');
   } finally { await m.done(); }
 });
 

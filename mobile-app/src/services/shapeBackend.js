@@ -8771,7 +8771,9 @@ async function startUnread() {
   const gen = _unread.gen;
   // Drop any demo seed once real data takes over.
   if (_unread.demoSeeded) { _unread.map = {}; _unread.demoSeeded = false; }
-  try { const ch = await listChannels(); if (gen !== _unread.gen) return; (ch.data || []).forEach(c => { if (c.joined) _unread.myChannels.add(c.id); }); } catch (e) {}
+  // The channels whose new messages count: the member's own, and a channel only Shape posts in (Shape
+  // HQ), which is read, not joined (2026-11-10-shape-hq-unread.sql; Codex P2 on #2676).
+  try { const ch = await listChannels(); if (gen !== _unread.gen) return; (ch.data || []).forEach(c => { if (c.joined || (c.official && c.readOnly)) _unread.myChannels.add(c.id); }); } catch (e) {}
   try { const { data } = await supabase.rpc('channel_unread'); if (gen !== _unread.gen) return; (data || []).forEach(r => { _unread.map['ch:' + r.channel_id] = Number(r.unread) || 0; }); } catch (e) {}
   try { const { data } = await supabase.rpc('dm_unread'); if (gen !== _unread.gen) return; (data || []).forEach(r => { _unread.map['dm:' + r.conversation_id] = Number(r.unread) || 0; }); } catch (e) {}
   if (gen !== _unread.gen) return; // a failed await lands here via its catch — never attach stale subs
