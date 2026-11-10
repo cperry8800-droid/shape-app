@@ -8392,11 +8392,7 @@ async function listChannels() {
     .order('created_at', { ascending: false });
   if (error) throw error;
   const ids = (channels || []).map(c => c.id);
-  let members = [];
-  if (ids.length) {
-    const { data: mem } = await supabase.from('channel_members').select('channel_id, user_id, role, pinned').in('channel_id', ids);
-    members = mem || [];
-  }
+  const members = ids.length ? await readChannelMembers(ids, uid) : [];
   const byChannel = {};
   members.forEach(m => { (byChannel[m.channel_id] = byChannel[m.channel_id] || []).push(m); });
   const rows = (channels || []).map(c => {
@@ -8421,6 +8417,31 @@ async function listChannels() {
   });
   rows.sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0)); // pinned first; stable otherwise
   return { stored: 'supabase', data: rows };
+}
+// Every membership row of these channels, a page at a time. The API answers at most 1,000 rows a
+// request, so one read cut the counts short past that and could drop the member's own row, showing
+// a member Join (Codex P2 on #2676). Past the last page read, the counts stop there and the
+// member's own rows are read on their own, so joined, host and pin stay exact. A failed page keeps
+// what was read, as the single read kept nothing.
+const CHANNEL_MEMBER_PAGE = 1000, CHANNEL_MEMBER_PAGES = 100;
+async function readChannelMembers(ids, uid) {
+  const cols = 'channel_id, user_id, role, pinned';
+  const all = [];
+  for (let p = 0; p < CHANNEL_MEMBER_PAGES; p++) {
+    const { data, error } = await supabase.from('channel_members').select(cols).in('channel_id', ids)
+      .order('channel_id', { ascending: true }).order('user_id', { ascending: true })
+      .range(p * CHANNEL_MEMBER_PAGE, (p + 1) * CHANNEL_MEMBER_PAGE - 1);
+    if (error) return all;
+    const rows = data || [];
+    for (const x of rows) all.push(x);
+    if (rows.length < CHANNEL_MEMBER_PAGE) return all;
+  }
+  const { data: own, error } = await supabase.from('channel_members').select(cols).in('channel_id', ids).eq('user_id', uid);
+  if (!error) {
+    const mine = new Set(all.filter(x => x.user_id === uid).map(x => x.channel_id));
+    for (const x of own || []) if (!mine.has(x.channel_id)) all.push(x);
+  }
+  return all;
 }
 // A channel's picture: its storage path in the public channel-pictures bucket, under the channel's
 // own id (the table's check holds it there), turned into an address by this client.

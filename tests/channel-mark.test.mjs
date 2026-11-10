@@ -133,17 +133,35 @@ test('the two sample channels the owner removed stay removed', () => {
 
 // The app's read (listChannels), lifted and run on a fake client: the picture's address is built
 // from the stored path, Shape HQ reads as read-only, and only a system-owned channel is Shape's.
-function liftAppRead(rows, uid = 'u1') {
+// `members` answer like the API: sorted, offset by `range`, at most 1,000 rows (PostgREST's max-rows);
+// `ignoreRange`, a server that answers every page with the first one. `log` counts the member reads.
+function liftAppRead(rows, uid = 'u1', { members = [], ignoreRange = false, log = [] } = {}) {
   const src = read('mobile-app/src/services/shapeBackend.js');
   const from = src.indexOf('async function listChannels()');
   const to = src.indexOf('async function setChannelPicture(');
   assert.ok(from > 0 && to > from, 'the app\'s channel read moved');
-  const q = (data) => {
-    const b = { select: () => b, order: () => b, in: () => b, then: (ok, ko) => Promise.resolve({ data, error: null }).then(ok, ko) };
+  const q = (table) => {
+    const st = { range: null, user: null };
+    const answer = () => {
+      if (table === 'channels') return rows;
+      if (table !== 'channel_members') return [];
+      log.push(st.user ? 'own' : 'page');
+      const all = members.filter((m) => !st.user || m.user_id === st.user)
+        .sort((a, b) => (a.channel_id + '|' + a.user_id).localeCompare(b.channel_id + '|' + b.user_id));
+      const at = st.range && !ignoreRange ? st.range[0] : 0;
+      const end = st.range && !ignoreRange ? st.range[1] + 1 : at + 1000;
+      return all.slice(at, Math.min(end, at + 1000));
+    };
+    const b = {
+      select: () => b, order: () => b, in: () => b,
+      eq: (col, v) => { if (col === 'user_id') st.user = v; return b; },
+      range: (a, z) => { st.range = [a, z]; return b; },
+      then: (ok, ko) => Promise.resolve({ data: answer(), error: null }).then(ok, ko),
+    };
     return b;
   };
   const supabase = {
-    from: (t) => q(t === 'channels' ? rows : []),
+    from: (t) => q(t),
     storage: { from: (bucket) => ({ getPublicUrl: (p) => ({ data: { publicUrl: `https://cdn.test/${bucket}/${p}` } }) }) },
   };
   const state = { user: { id: uid } };
@@ -171,6 +189,32 @@ test('the app reads a channel\'s picture, read-only and owner as the website doe
   assert.equal(by.mine.picture, 'https://cdn.test/channel-pictures/mine/a.jpg', 'the address is not built from the stored path');
   assert.equal(by.old.picture, null, 'a channel with no picture (or before the migration) shows one');
   assert.equal(by.old.readOnly, false, 'a channel read before the migration is closed to posts');
+});
+
+test('the app reads every membership a page at a time; a stuck server stops, and your own rows still count', async () => {
+  // 2,500 members of a channel, the member ('u1') sorted last (Codex P2 on #2676).
+  const members = [];
+  for (let i = 0; i < 2500; i++) members.push({ channel_id: 'run', user_id: 'm' + String(i).padStart(4, '0'), role: 'member', pinned: false });
+  members.push({ channel_id: 'run', user_id: 'u1', role: 'host', pinned: true });
+  const ch = [{ id: 'run', name: 'run club', created_by: 'u2', official: false, visibility: 'public' }];
+  const log = [];
+  const full = (await liftAppRead(ch, 'u1', { members, log })).data[0];
+  assert.equal(full.memberCount, 2501, 'the count stops at one answer');
+  assert.ok(full.joined && full.isHost && full.pinned, 'a member past the first answer reads as not in the channel');
+  assert.equal(log.filter((x) => x === 'page').length, 3, 'the rows were not read a page at a time');
+  const stuckLog = [];
+  const stuck = (await liftAppRead(ch, 'u1', { members, ignoreRange: true, log: stuckLog })).data[0];
+  assert.equal(stuckLog.filter((x) => x === 'page').length, 100, 'the read does not stop at its last page');
+  assert.equal(stuckLog.filter((x) => x === 'own').length, 1, 'your own rows are not read on their own past the last page');
+  assert.ok(stuck.joined && stuck.isHost && stuck.pinned, 'past the last page, the member reads as not in the channel');
+});
+
+test('a picture that failed to load is that address, not the circle: a new one gets its own try', () => {
+  for (const [name, src] of [['app', MARK], ['website', WIDGET]]) {
+    assert.match(src, /const \[brokenSrc, setBrokenSrc\] = React\.useState\(null\);\n\s*const broken = m\.kind === ['"]picture['"] && brokenSrc === m\.src;/, `the ${name}'s circle keeps a failure past a new picture`);
+    assert.match(src, /onError=\{\(\) => setBrokenSrc\(m\.src\)\}/, `the ${name}'s circle does not record which address failed`);
+    assert.doesNotMatch(src, /setBroken\(true\)/, `the ${name}'s circle has a failure flag again`);
+  }
 });
 
 test('the app: Shape HQ has no composer, and only a member channel\'s host may change its picture', () => {

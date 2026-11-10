@@ -566,10 +566,13 @@ function cwChannelMark(ch) {
 // The circle (owner, 2026-11-10: "you can leave them circle", "make them a little smaller").
 function CwChannelMark({ ch, size = 30 }) {
   const m = cwChannelMark(ch);
-  const [broken, setBroken] = React.useState(false);
+  // The address that failed to load, not a flag: a new picture, or another channel drawn by this
+  // same circle (the thread head's), gets its own try (Codex P2 on #2676).
+  const [brokenSrc, setBrokenSrc] = React.useState(null);
+  const broken = m.kind === "picture" && brokenSrc === m.src;
   const base = { flex: "none", width: size, height: size, borderRadius: 999, display: "grid", placeItems: "center", overflow: "hidden" };
   if (m.kind === "picture" && !broken) {
-    return <span aria-hidden data-channel-mark="picture" style={{ ...base, background: "rgba(var(--sh-accent2-rgb, 10,197,168),0.12)" }}><img src={m.src} alt="" onError={() => setBroken(true)} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} /></span>;
+    return <span aria-hidden data-channel-mark="picture" style={{ ...base, background: "rgba(var(--sh-accent2-rgb, 10,197,168),0.12)" }}><img src={m.src} alt="" onError={() => setBrokenSrc(m.src)} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} /></span>;
   }
   if (m.kind === "shape") {
     const g = CW_CHANNEL_MARK_TRIANGLES;
@@ -599,6 +602,33 @@ function CwChannelHash() {
 
 function cwChannelRole(n, desc) {
   return `${n} ${n === 1 ? "member" : "members"}${desc ? " · " + desc : ""}`;
+}
+// Every membership row of these channels, a page at a time. The API answers at most 1,000 rows a
+// request, so one read cut the counts short past that and could drop the member's own row, showing
+// a member Join instead of the composer (Codex P2 on #2676). Past the last page read (a server that
+// ignores the range, or a hundred thousand rows), the counts stop there and the member's own rows
+// are read on their own, so joined, host and pin stay exact.
+const CW_MEMBER_PAGE = 1000, CW_MEMBER_PAGES = 100;
+async function cwReadChannelMembers(db, ids, me) {
+  const cols = "channel_id, user_id, role, pinned";
+  const all = [];
+  for (let p = 0; p < CW_MEMBER_PAGES; p++) {
+    const r = await db.from("channel_members").select(cols).in("channel_id", ids)
+      .order("channel_id", { ascending: true }).order("user_id", { ascending: true })
+      .range(p * CW_MEMBER_PAGE, (p + 1) * CW_MEMBER_PAGE - 1);
+    if (!r || r.error) return { data: null, error: (r && r.error) || { message: "no answer" } };
+    const rows = r.data || [];
+    for (const x of rows) all.push(x);
+    if (rows.length < CW_MEMBER_PAGE) return { data: all, error: null };
+  }
+  if (me) {
+    const own = await db.from("channel_members").select(cols).in("channel_id", ids).eq("user_id", me);
+    if (own && !own.error) {
+      const mine = new Set(all.filter((x) => x.user_id === me).map((x) => x.channel_id));
+      for (const x of own.data || []) if (!mine.has(x.channel_id)) all.push(x);
+    }
+  }
+  return { data: all, error: null };
 }
 function cwChannelThreads(rows, members, me, unread, when, pictureUrl) {
   const by = {};
@@ -1626,7 +1656,7 @@ function ChatWidget(props) {
           if (chRes && !chRes.error) {
             const rows = chRes.data || [];
             const ids = rows.map((c) => c.id);
-            const memRes = ids.length ? await db.from("channel_members").select("channel_id, user_id, role, pinned").in("channel_id", ids) : { data: [] };
+            const memRes = ids.length ? await cwReadChannelMembers(db, ids, me) : { data: [] };
             if (cancelled) return;
             const unread = {};
             try {

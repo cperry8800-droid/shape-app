@@ -33,7 +33,9 @@ const WIDGET = babel.transformSync(`${SHELL_CONSTS}\n${SRC}`, {
 const settle = async (n = 8) => { for (let i = 0; i < n; i++) await React.act(async () => { await new Promise((r) => setTimeout(r, 5)); }); };
 
 // A query builder that records what it was asked and answers from `tables` when awaited.
-function fakeDb({ tables, log, failChannels = false, insertError = null }) {
+// `maxRows`: the API's ceiling on one answer (PostgREST's max-rows, 1,000 on Supabase); `ignoreRange`: a
+// server that answers every page with the first one.
+function fakeDb({ tables, log, failChannels = false, insertError = null, maxRows = 1000, ignoreRange = false }) {
   const answer = (state) => {
     const ops = state.ops;
     const has = (k) => ops.find((o) => o[0] === k);
@@ -57,7 +59,13 @@ function fakeDb({ tables, log, failChannels = false, insertError = null }) {
     if (state.table === 'channels') return failChannels ? { data: null, error: { message: 'down' } } : { data: tables.channels, error: null };
     if (state.table === 'channel_members') {
       const ids = (has('in') || [, [, []]])[1][1];
-      return { data: tables.channel_members.filter((m) => ids.includes(m.channel_id)), error: null };
+      const who = ops.find((o) => o[0] === 'eq' && o[1][0] === 'user_id');
+      let rows = tables.channel_members.filter((m) => ids.includes(m.channel_id) && (!who || m.user_id === who[1][1]));
+      if (has('order')) rows = rows.slice().sort((a, b) => (a.channel_id + '|' + a.user_id).localeCompare(b.channel_id + '|' + b.user_id));
+      const range = has('range');
+      const at = range && !ignoreRange ? range[1][0] : 0;
+      const to = range && !ignoreRange ? range[1][1] : at + maxRows - 1;
+      return { data: rows.slice(at, Math.min(to + 1, at + maxRows)), error: null };
     }
     if (state.table === 'channel_messages') {
       const ch = has('eq')[1][1];
@@ -371,6 +379,11 @@ test('the host changes the channel\'s picture: into its folder, then its path on
     await m.click(m.row('sunday-run-club'));
     assert.ok(!m.doc.querySelector('[data-channel-picture]'), 'a channel you do not host offers a picture change');
     await m.click(m.row('macro-mondays'));
+    // The old picture fails to load: the circle falls back to the initials…
+    const old = m.row('macro-mondays').querySelector('[data-channel-mark="picture"] img');
+    assert.ok(old, 'the stored picture is not drawn');
+    await React.act(async () => { old.dispatchEvent(new m.w.Event('error')); });
+    assert.equal(m.row('macro-mondays').querySelector('[data-channel-mark]').getAttribute('data-channel-mark'), 'initials', 'a picture that failed to load is still drawn');
     const btn = m.doc.querySelector('[data-channel-picture]');
     assert.ok(btn, 'the host is not offered a picture change');
     const input = btn.parentNode.querySelector('input[type="file"]');
@@ -385,7 +398,9 @@ test('the host changes the channel\'s picture: into its folder, then its path on
     assert.equal(up[3], 'image/png');
     const upd = log.find((x) => x[0] === 'update' && x[1] === 'channels');
     assert.deepEqual([upd[2], upd[3]], [{ picture_path: up[2] }, 'ch-mine'], 'the path was not stored on the channel');
+    // …and the new one gets its own try (Codex P2 on #2676).
     const img = m.row('macro-mondays').querySelector('[data-channel-mark="picture"] img');
+    assert.ok(img, 'the new picture is hidden because the old one failed to load');
     assert.equal(img.getAttribute('src'), `https://cdn.test/channel-pictures/${up[2]}`, 'the new picture is not drawn');
   } finally { await m.done(); }
 });
@@ -411,4 +426,43 @@ test('a picture that is not an image, or too large, is refused before anything i
     assert.ok(!log.some((x) => x[0] === 'upload'), 'a picture over 5 MB was uploaded');
     assert.match(m.doc.querySelector('[data-chat-panel]').textContent, /Use a picture under 5 MB/);
   } finally { await m.done(); }
+});
+
+// Every membership row, a page at a time (Codex P2 on #2676): one read past the API's 1,000-row
+// ceiling cut the counts short and could drop the member's own row, so a member was shown Join.
+test('a channel with more members than one answer holds: the full count, and you are still in it', async () => {
+  const tables = world();
+  // 2,500 members of sunday-run-club, the member ('u1') sorted last of them.
+  for (let i = 0; i < 2500; i++) tables.channel_members.push({ channel_id: 'ch-run', user_id: 'm' + String(i).padStart(4, '0'), role: 'member', pinned: false });
+  tables.channel_members.push({ channel_id: 'ch-run', user_id: 'u1', role: 'member', pinned: false });
+  const log = [];
+  const m = await mount({ db: fakeDb({ tables, log }) });
+  try {
+    assert.doesNotMatch(m.row('sunday-run-club').textContent, /JOIN/, 'a member past the first answer is asked to join');
+    await m.click(m.row('sunday-run-club'));
+    const panel = m.doc.querySelector('[data-chat-panel]').textContent;
+    assert.match(panel, /2502 members/, 'the count stops at one answer');
+    assert.ok(!m.doc.querySelector('[data-channel-join]'), 'a member past the first answer is asked to join');
+    assert.ok(m.doc.querySelector('.cw-composer'), 'a member past the first answer gets no composer');
+    assert.ok(log.filter((x) => x[0] === 'select' && x[1] === 'channel_members').length >= 3, 'the rows were not read a page at a time');
+  } finally { await m.done(); }
+});
+
+test('a server that answers every page with the first one: the read stops, and your own rows are read on their own', async () => {
+  const at = SRC.indexOf('const CW_MEMBER_PAGE = 1000');
+  const end = SRC.indexOf('function cwChannelThreads(');
+  assert.ok(at > 0 && end > at, 'the membership read moved');
+  const S = {};
+  new Function('S', `${SRC.slice(at, end)}\nS.read = cwReadChannelMembers;`)(S);
+  const tables = { channel_members: [] };
+  for (let i = 0; i < 1500; i++) tables.channel_members.push({ channel_id: 'ch-run', user_id: 'm' + String(i).padStart(4, '0'), role: 'member', pinned: false });
+  tables.channel_members.push({ channel_id: 'ch-run', user_id: 'u1', role: 'host', pinned: true });
+  const log = [];
+  const res = await S.read(fakeDb({ tables, log, ignoreRange: true }).client, ['ch-run'], 'u1');
+  const reads = log.filter((x) => x[0] === 'select' && x[1] === 'channel_members');
+  assert.equal(reads.length, 101, 'the read does not stop at its last page, then read your own rows once');
+  const mine = res.data.filter((x) => x.user_id === 'u1');
+  assert.equal(mine.length, 1, 'your own row is missing, or there twice');
+  assert.equal(mine[0].role, 'host');
+  assert.ok(mine[0].pinned);
 });

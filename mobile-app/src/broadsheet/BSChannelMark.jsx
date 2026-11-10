@@ -21,12 +21,15 @@ function hexA(hex, a) {
 // optional outer ring (the thread header's desk ring).
 export function BSChannelMark({ ch, size = 40, ink = '#f2ede4', accent = '#34d6c5', ring = null }) {
   const m = channelMark(ch);
-  const [broken, setBroken] = React.useState(false);
+  // The address that failed to load, not a flag: a new picture, or another channel drawn by this
+  // same circle, gets its own try (Codex P2 on #2676).
+  const [brokenSrc, setBrokenSrc] = React.useState(null);
+  const broken = m.kind === 'picture' && brokenSrc === m.src;
   const base = { flex: 'none', width: size, height: size, borderRadius: '50%', display: 'grid', placeItems: 'center', overflow: 'hidden', boxShadow: ring || undefined };
   if (m.kind === 'picture' && !broken) {
     return (
       <span aria-hidden data-channel-mark="picture" style={{ ...base, background: hexA(accent, 0.12) }}>
-        <img src={m.src} alt="" onError={() => setBroken(true)} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+        <img src={m.src} alt="" onError={() => setBrokenSrc(m.src)} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
       </span>
     );
   }
