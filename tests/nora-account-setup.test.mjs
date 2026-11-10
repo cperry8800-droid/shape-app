@@ -716,7 +716,7 @@ async function loadChat({ user = { id: ME, email: 'm@x' }, role = 'client', isMe
     ['@/lib/supportRequests.mjs', await import(join(ROOT, 'src/lib/supportRequests.mjs'))],
     ['@/lib/ai/adminLookup.mjs', await import(join(ROOT, 'src/lib/ai/adminLookup.mjs'))],
     ['@/lib/supabase/admin', { createAdminClient: () => { throw new Error('no service role'); } }],
-    ['@/lib/membership-core', { computeMembership: async () => ({ isMember, isCoach: ['trainer', 'nutritionist'].includes(role), isAdmin: false, isKnownMinor: false }) }],
+    ['@/lib/membership-core', { readNoraPreview: async () => null, computeMembership: async () => ({ isMember, isCoach: ['trainer', 'nutritionist'].includes(role), isAdmin: false, isKnownMinor: false }) }],
     ['@/lib/food-search-server', { searchFoodsServer: async () => ({ results: [], unavailable: true }) }],
     ['@/lib/ai', {
       hasOpenAIKey: () => true,
@@ -912,7 +912,8 @@ test('the app\'s card: Confirm and Undo carry the session\'s token at the tap, a
   assert.match(fn, /const token = await liveAccessToken\(\);/);
   assert.equal((fn.match(/headers: await noraCardHeaders\(\),/g) || []).length, 2, 'both Confirm and Undo');
   assert.doesNotMatch(fn, /headers: sessionsAuthHeaders\(/, 'never the cached token alone');
-  assert.match(fn, /if \(!res\.ok\) throw new Error\(payload\.message \|\| 'Could not undo that change\.'\);/);
+  // The route's reason, never its code; a paid refusal's status and code ride the error (bsNoraActionError, #2675).
+  assert.match(fn, /if \(!res\.ok\) throw bsNoraActionError\(res, payload, payload\.message \|\| 'Could not undo that change\.'\);/);
 });
 
 // ⚠ THE COACH DASHBOARD BOOTS THE CHAT LATE, and a request the widget took as it mounted was then

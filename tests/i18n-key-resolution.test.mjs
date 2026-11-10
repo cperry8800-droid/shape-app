@@ -148,12 +148,14 @@ deleting the assertion: ${unresolved.join(', ')}`);
 
 test('the paywall feature family is fully authored, not partially', () => {
   // `tr('paywall.feat.' + k)` maps a literal array; a missing member renders the
-  // raw key inside the members-wall list, mid-sentence.
+  // raw key inside the welcome's list, mid-sentence. Five since 2026-11-10: the welcome lists
+  // what a free account gets, and Radio moved to the membership's own line.
   const src = fs.readFileSync(FILES[0], 'utf8');
   const m = src.match(/\[([^\]]*)\]\s*\.map\(\(k\)\s*=>\s*tr\('paywall\.feat\.'/);
   assert.ok(m, 'the paywall feature list stopped being a mapped literal array');
   const suffixes = [...m[1].matchAll(/'([^']+)'/g)].map((x) => x[1]);
-  assert.ok(suffixes.length >= 6, `expected the full feature list, saw ${suffixes.length}`);
+  assert.ok(suffixes.length >= 5, `expected the full feature list, saw ${suffixes.length}`);
+  assert.ok(!suffixes.includes('radio'), 'Shape Radio is a paid feature: the welcome says so on the membership line');
   const cat = catalog('onboarding');
   const absent = suffixes.filter((s) => !(`paywall.feat.${s}` in cat));
   assert.deepEqual(absent, [], `paywall.feat.* missing from en: ${absent.join(', ')}`);

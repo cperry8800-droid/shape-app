@@ -38,7 +38,7 @@ test('Open their file asks for the booking\'s client by id, else by name, throug
   assert.match(open, /onWidgetOpen\('clients'\);/, 'with neither, the Clients list as before');
   // Both shells take a name-only request onto the Clients tab.
   assert.equal(PROS.split("if (!clientId && !clientName) return;").length - 1, 2, 'a shell drops a name-only request');
-  assert.equal(PROS.split("setOpenClientReq({ clientId: clientId || null, clientName, nonce: Date.now() }); setTab('clients');").length - 1, 2);
+  assert.equal(PROS.split("setOpenClientReq({ clientId: clientId || null, clientName, back: 'nav', nonce: Date.now() }); setTab('clients');").length - 1, 2);
   // Another listing's client is routed by id only.
   assert.match(PROS, /if \(clientId && \(other === 'trainer' \|\| other === 'nutritionist'\) && other !== 'trainer'\)/);
   // Both Clients tabs open by id, else by the one client of that name.

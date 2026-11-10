@@ -8,7 +8,7 @@ import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { epleyE1rm } from '@/lib/e1rm';
 import { clientLocalDay } from '@/lib/local-day';
 import { readinessFromSeries } from '@/lib/recovery-readiness';
-import { requireMembership } from '@/lib/require-membership';
+import { requireAccount } from '@/lib/require-membership';
 import { setLoadLb, setLoadUnit } from '@/lib/set-load';
 import { DAY_MS } from '@/lib/time';
 
@@ -36,7 +36,7 @@ function pnum(v: unknown): number {
 const HISTORY_CAP = 400;
 
 export async function GET(request: Request) {
-  const denied = await requireMembership(request);
+  const denied = await requireAccount(request);
   if (denied) return denied;
   const supabase = await clientForRequest(request);
   const user = await currentUser(request);

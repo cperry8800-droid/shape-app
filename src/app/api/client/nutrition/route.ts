@@ -5,7 +5,7 @@
 
 import { NextResponse } from 'next/server';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
-import { requireMembership } from '@/lib/require-membership';
+import { requireAccount } from '@/lib/require-membership';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,7 +16,7 @@ function num(value: unknown): number | null {
 }
 
 export async function GET(request: Request) {
-  const denied = await requireMembership(request);
+  const denied = await requireAccount(request);
   if (denied) return denied;
   const supabase = await clientForRequest(request);
   const user = await currentUser(request);

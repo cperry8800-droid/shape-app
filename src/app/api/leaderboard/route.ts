@@ -7,6 +7,9 @@
 //        me: entry | null,               the caller's own row, ranked or not in this window
 //        hidden: null | 'off' | 'private' | 'team_unasked' | 'team_off',
 //                                        why OTHER members do not see the caller here
+//        fullBoard: boolean,             the whole board, your exact rank and movement (paid)
+//        locked: null | 'free_account' | 'past_due' | 'unknown',   why it is not the full board
+//                                                     ('unknown': the membership could not be read)
 //        privacy: { leaderboard, teamBoard } | null,   the two switches (null: unread)
 //        hasCoach?: boolean | null,      team only
 //        following?: number | null }     following only
@@ -16,12 +19,23 @@
 // fields the app builds before this one read (userId, name, avatarUrl, points, rank, isMe), and
 // `me` keeps { points, rank, total }.
 //
+// ⚠ THE SERVER READS THE BOARD, FOR THE CALLER (Codex P1 on #2675). The full board is the
+// membership's, and only this route knows every way to be paid (computeMembership: the admin
+// allow-list too). While shape_member_board was executable by any signed-in account, a free one
+// could call it through the REST API with p_limit 200 and skip the cut below. Since
+// 2026-11-10-leaderboard-server-only.sql it is the server's alone: the route asks
+// shape_member_board_for with the service role, for the account getUser() verified, and the board
+// reads exactly as for that account. A database before that migration is read as before, under the
+// caller's own session.
+//
 // Auth: cookie session OR Bearer token (mobile bridges either).
 
 import { NextResponse } from 'next/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
+import { computeMembership } from '@/lib/membership-core';
 import { isMissingRelation } from '@/lib/owned-provider';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { OPEN_SUB_STATUSES } from '../../../lib/coach-trajectory.mjs';
 import {
   hiddenReason, memberEntry, parseLimit, parsePeriod, parseScope, readPrivacy, shortName,
@@ -67,8 +81,8 @@ export async function GET(request: Request) {
   const period = parsePeriod(url.searchParams.get('period'));
   const limit = parseLimit(url.searchParams.get('limit'));
 
-  const [board, own, hasCoach, following] = await Promise.all([
-    supabase.rpc('shape_member_board', { p_scope: scope, p_period: period, p_limit: limit }),
+  const [board, own, hasCoach, following, membership] = await Promise.all([
+    readBoard(supabase, user.id, scope, period, limit),
     readOwnSettings(supabase, user.id),
     scope === 'team'
       ? countOrNull(supabase.from('subscriptions').select('id', { count: 'exact', head: true })
@@ -78,10 +92,21 @@ export async function GET(request: Request) {
       ? countOrNull(supabase.from('user_follows').select('following_id', { count: 'exact', head: true })
           .eq('follower_id', user.id).eq('status', 'accepted'))
       : Promise.resolve(null),
+    // null: unread. The board still answers; only the reason it gives the caller is unknown.
+    computeMembership(supabase, user.id, user.email ?? null, { emailConfirmed: !!user.email_confirmed_at, strict: true }).catch(() => null),
   ]);
+  // ⚠ EVERY ACCOUNT IS RANKED; THE FULL BOARD IS THE MEMBERSHIP (owner, 2026-11-10, after Strava:
+  // free accounts are what fill the boards, so they compete; the full board, your exact rank and
+  // how you moved are paid). A free or past-due caller gets the top FREE_TOP, their own points,
+  // their rank only when it is in that top, and no movement. A membership that could not be read
+  // is the free board: nothing paid is shown on a guess.
+  const fullBoard = membership ? membership.isMember : false;
+  // ⚠ An unread membership is 'unknown', never a free account (Codex P2 on #2675): a paying member
+  // whose read failed is not told they are free, nor sent to a second checkout.
+  const locked: BoardLock = fullBoard ? null : !membership ? 'unknown' : membership.pastDue ? 'past_due' : 'free_account';
 
   if (board.error) {
-    if (isMissingRelation(board.error)) return legacyBoard(supabase, user.id, scope, period, limit, own);
+    if (isMissingRelation(board.error)) return legacyBoard(supabase, user.id, scope, period, limit, own, locked);
     return unavailable();
   }
 
@@ -100,9 +125,12 @@ export async function GET(request: Request) {
     scope,
     period,
     total,
-    entries,
-    me: mine ? { ...mine, total } : null,
+    ...(fullBoard
+      ? { entries, me: mine ? { ...mine, total } : null }
+      : freeBoard(all, mine, total)),
     hidden: own ? hiddenReason(scope, own.privacy, own.visibility) : null,
+    fullBoard,
+    locked,
     privacy: own ? own.privacy : null,
   };
   if (scope === 'team') body.hasCoach = hasCoach === null ? null : hasCoach > 0;
@@ -110,11 +138,48 @@ export async function GET(request: Request) {
   return NextResponse.json(body);
 }
 
+type BoardLock = 'free_account' | 'past_due' | 'unknown' | null;
+
+/**
+ * The board as `userId` sees it, read by the server (see the header). The service role asks
+ * shape_member_board_for; only a database without it yet (or no service key) reads the old way,
+ * under the caller's session. Any other error is the board's error, never a reason to try the
+ * session path, which the migration closes.
+ */
+async function readBoard(supabase: SupabaseClient, userId: string, scope: Scope, period: Period, limit: number) {
+  let server: SupabaseClient | null = null;
+  try { server = createAdminClient(); } catch { server = null; }
+  if (server) {
+    const read = await server.rpc('shape_member_board_for', { p_viewer: userId, p_scope: scope, p_period: period, p_limit: limit });
+    if (!read.error || !isMissingRelation(read.error)) return read;
+  }
+  return supabase.rpc('shape_member_board', { p_scope: scope, p_period: period, p_limit: limit });
+}
+
+/** How many places a free account sees at the top of a board (owner, 2026-11-10, after Strava). */
+const FREE_TOP = 10;
+
+type BoardEntry = { rank: number | null; isMe?: boolean; prevRank?: number | null; moved?: number | null; [k: string]: unknown };
+/**
+ * The free board: the top FREE_TOP places, with no movement on anyone's row (history is paid), and
+ * the caller's own row with their points but a rank only when it is in that top.
+ */
+function freeBoard(all: BoardEntry[], mine: BoardEntry | null, total: number) {
+  const still = (e: BoardEntry) => ({ ...e, prevRank: null, moved: null });
+  const entries = all.filter((e) => e.rank !== null && e.rank <= FREE_TOP).map(still);
+  const inTop = !!mine && mine.rank !== null && mine.rank <= FREE_TOP;
+  return {
+    entries,
+    me: mine ? { ...still(mine), rank: inTop ? mine.rank : null, inTop, total } : null,
+  };
+}
+
 // A database the leaderboard migration has not reached: the old board, Everyone only, names
 // shortened here. Following and the team board need the new function, so they say so.
 async function legacyBoard(
   supabase: SupabaseClient, userId: string, scope: Scope, period: Period, limit: number,
   own: { privacy: Privacy; visibility: unknown } | null,
+  locked: BoardLock = null,
 ) {
   if (scope !== 'everyone') return NextResponse.json({ error: 'This leaderboard is not switched on yet.' }, { status: 503 });
   const [{ data: rows, error }, { data: meRows, error: meError }] = await Promise.all([
@@ -145,9 +210,12 @@ async function legacyBoard(
         points: Number(meRow.points), rank: Number(meRow.rank), total }
     : null;
   return NextResponse.json({
-    scope, period, total, entries, me,
+    scope, period, total,
+    ...(locked ? freeBoard(entries, me, total) : { entries, me }),
     // The old board filters on the board switch only, not on a private profile.
     hidden: own && !own.privacy.leaderboard ? 'off' : null,
+    fullBoard: !locked,
+    locked,
     privacy: own ? own.privacy : null,
     legacy: true,
   });

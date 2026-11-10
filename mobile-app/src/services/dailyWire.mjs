@@ -10,13 +10,16 @@ import { bsSlotWeek } from './trainingBuilder.mjs';
 
 // ── Warm-relaunch route ───────────────────────────────────────────────────
 // The briefing is a morning ritual, not a toll: a same-local-day reopen by a
-// known member skips straight to the app. `stamp` is the persisted
-// "<uid>:<localDay>" seen-marker; `memberCached` is the cached membership flag
-// (window.ShapeMembership / localStorage 'shape.member'). Everything else → the
-// wire beat. The stamp is uid-scoped, so a same-day account switch never
-// inherits another member's skip.
-export function bsLaunchRoute({ stamp, uid, todayLocal, memberCached } = {}) {
-  if (!memberCached) return 'beat';
+// signed-in account skips straight to the app. `stamp` is the persisted
+// "<uid>:<localDay>" seen-marker; `signedIn` is whether this device holds an
+// account's session (the cached session, or 'shape.lastUid', cleared at sign-out).
+// ⚠ AN ACCOUNT, NOT A MEMBERSHIP (owner, 2026-11-10): a free account is in the
+// app, so it skips the same-day briefing like a member. Keyed on the cached
+// membership flag, a free account would sit through the beat on every reopen.
+// Everything else → the wire beat. The stamp is uid-scoped, so a same-day account
+// switch never inherits another account's skip.
+export function bsLaunchRoute({ stamp, uid, todayLocal, signedIn } = {}) {
+  if (!signedIn) return 'beat';
   if (!uid || !todayLocal) return 'beat';
   if (typeof stamp !== 'string' || stamp.indexOf(':') < 0) return 'beat';
   const sep = stamp.indexOf(':');
@@ -26,15 +29,15 @@ export function bsLaunchRoute({ stamp, uid, todayLocal, memberCached } = {}) {
   return su === String(uid) && sd === String(todayLocal) ? 'app' : 'beat';
 }
 
-// The seen-stamp value written when a member's telegram enters the app.
+// The seen-stamp value written when an account's telegram enters the app.
 export function bsDailyStamp(uid, todayLocal) {
   return String(uid == null ? '' : uid) + ':' + String(todayLocal == null ? '' : todayLocal);
 }
 
 // ── Post-beat routing ─────────────────────────────────────────────────────
-// First run (no stored locale) → the language picker; an allowed member → the
-// telegram; otherwise → the membership gate. Mirrors the cosmos splash's old
-// onDone routing plus the gate's member auto-advance.
+// First run (no stored locale) → the language picker; an admitted account → the
+// telegram; otherwise → the gate (the welcome, or the age message). Mirrors the
+// cosmos splash's old onDone routing plus the gate's auto-advance.
 export function bsAfterBeat({ allowed, hasLocale } = {}) {
   if (!hasLocale) return 'lang';
   return allowed ? 'daily' : 'gate';

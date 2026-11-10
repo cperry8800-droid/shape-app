@@ -14,12 +14,14 @@
 // both is refused: a session stored from anyone else would be a performance that never happened,
 // or a listener's end that never came.
 //
-// The ticket is checked by its signature alone, and a session is one row: this route does no work an
-// attacker could multiply. It is kept off the per-address rate limit
+// The ticket is checked by its signature, then its stream's account is read and its connection
+// written (src/lib/radio/streams.mjs); only the station's own signed-in calls get that far, so no
+// one else can make this route do work. It is kept off the per-address rate limit
 // (src/lib/supabase/middleware.ts), since every call comes from the one station server.
 import { NextResponse } from 'next/server';
 import { checkListener, leavingListener, passKey } from '@/lib/radio/pass.mjs';
 import { parseBoot, recordListen, stationCaller } from '@/lib/radio/listens.mjs';
+import { admitConnection, leaveConnection } from '@/lib/radio/streams.mjs';
 import { createAdminClient } from '@/lib/supabase/admin';
 
 export const runtime = 'nodejs';
@@ -46,6 +48,13 @@ export async function POST(request: Request) {
     const left = leavingListener(form, { key: passKey() });
     if (left.ok) {
       const { client, durationSec } = left as { client: number; durationSec: number };
+      // Their account's record of the connection goes as they leave (streams.mjs).
+      try {
+        const gone = await leaveConnection(createAdminClient(), { boot: boot.boot, client });
+        if (!gone.ok) console.error('[radio/pass] a listener left and their connection was not cleared');
+      } catch (e) {
+        console.error('[radio/pass] a listener left and their connection was not cleared:', (e as Error).message);
+      }
       try {
         const r = await recordListen(createAdminClient(), { action: 'leave', ...boot, client, durationSec, now });
         if (!r.ok) console.error('[radio/pass] a listener left and was not recorded:', r.error);
@@ -58,16 +67,31 @@ export async function POST(request: Request) {
 
   const verdict = checkListener(form, { now, key: passKey() });
   if (verdict.ok) {
-    headers['icecast-auth-user'] = '1';
-    // ⚠ LET IN EVEN WHEN THE JOIN IS NOT STORED: the station's word as they leave carries the
-    // whole session (its length), so a failed write here loses nothing but a moment's "listening
-    // now"; a member turned away for it would lose their radio.
-    const { client } = verdict as { client: number };
-    try {
-      const r = await recordListen(createAdminClient(), { action: 'join', ...boot, client, now });
-      if (!r.ok) console.error('[radio/pass] a listener joined and was not recorded:', r.error);
-    } catch (e) {
-      console.error('[radio/pass] a listener joined and was not recorded:', (e as Error).message);
+    const { client, streamId } = verdict as { client: number; streamId: string | null };
+    // ⚠ A STREAM IS LET IN ONLY WITH ITS ACCOUNT ON RECORD (owner, 2026-11-10: only "your own login
+    // with a your own paid membership"). The connection is recorded as the stream's account's, and
+    // that account's other connections are marked to drop: one device at a time. A record that
+    // cannot be read or written refuses (fail closed, as the licences ask). A ticket naming no
+    // stream is the dashboard's own probe of the station, let in without an account.
+    let admitted = streamId === null;
+    if (streamId !== null) {
+      try {
+        const r = await admitConnection(createAdminClient(), { streamId, ...boot, client, now });
+        admitted = r.ok;
+        if (!r.ok) headers['icecast-auth-message'] = (r as { reason: string }).reason;
+      } catch (e) {
+        console.error('[radio/pass] a listener could not be recorded, so was refused:', (e as Error).message);
+        headers['icecast-auth-message'] = 'write_failed';
+      }
+    }
+    if (admitted) {
+      headers['icecast-auth-user'] = '1';
+      try {
+        const r = await recordListen(createAdminClient(), { action: 'join', ...boot, client, now });
+        if (!r.ok) console.error('[radio/pass] a listener joined and was not recorded:', r.error);
+      } catch (e) {
+        console.error('[radio/pass] a listener joined and was not recorded:', (e as Error).message);
+      }
     }
   } else {
     headers['icecast-auth-message'] = String((verdict as { reason?: string }).reason ?? 'refused');

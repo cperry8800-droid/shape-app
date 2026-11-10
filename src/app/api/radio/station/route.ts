@@ -25,7 +25,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { refuseKnownMinor } from '@/lib/age-gate';
-import { computeMembership } from '@/lib/membership-core';
+import { computeMembership, paidRefusal } from '@/lib/membership-core';
 import { OWN_PROVIDER } from '@/lib/radio/station.mjs';
 import { listenUrl, makePass, passKey, regionAllowed } from '@/lib/radio/pass.mjs';
 
@@ -75,9 +75,11 @@ export async function GET(request: NextRequest) {
   // it too). Kept deliberately: it makes a minor's 403 outrank a non-member's
   // 402, so an under-18 account is told it is under 18 rather than asked to pay.
   let isMember = false;
+  let pastDue = false;
   try {
     const membership = await computeMembership(supabase, user.id, user.email ?? null, { emailConfirmed: !!user.email_confirmed_at });
     isMember = membership.isMember;
+    pastDue = membership.pastDue;
   } catch (e) {
     console.error('[radio/station] membership check faulted — failing CLOSED:', e);
     return NextResponse.json(
@@ -85,12 +87,9 @@ export async function GET(request: NextRequest) {
       { status: 503 }
     );
   }
-  if (!isMember) {
-    return NextResponse.json(
-      { error: 'Shape membership required.', code: 'membership_required' },
-      { status: 402 }
-    );
-  }
+  // ⚠ AN ACTIVE MEMBERSHIP ONLY (owner, 2026-11-10): no trial, and a past-due member is told to
+  // update their card (`payment_past_due`), not to join.
+  if (!isMember) return NextResponse.json(paidRefusal({ pastDue }), { status: 402 });
 
   // The territory: the country Vercel measured for this request.
   const region = regionAllowed(request.headers.get('x-vercel-ip-country'), { production: process.env.NODE_ENV === 'production' });
@@ -126,15 +125,19 @@ export async function GET(request: NextRequest) {
       { status: 503 }
     );
   }
-  // Shape's own station: the stream is Shape's own address, with this member's pass on it
-  // (/api/radio/listen checks the pass and the listener's country at every connection, and
-  // sends the player on to the station with a short ticket); the station's own address is
-  // never handed out. No key, no pass, and no stream either: the station would refuse it,
+  // Shape's own station: the stream is Shape's own address, with this member's start code on it
+  // (/api/radio/listen checks the code and the listener's country at every connection, records the
+  // stream as this member's, and sends the player on to the station with a short ticket naming it);
+  // the station's own address is never handed out. A player asks here again at every start. No key, no pass, and no stream either: the station would refuse it,
   // so the player says it could not reach the station rather than playing nothing.
   const own = data?.provider === OWN_PROVIDER && !!data?.stream_url;
+  // ⚠ `?peek=1` ASKS ONLY WHETHER THE STATION IS ON (a schedule that shows "on air"), after every
+  // check above: no start code is made. A start code is for a player about to connect, and it
+  // starts a stream for ninety seconds (src/lib/radio/pass.mjs), so nothing else should mint one.
+  const peek = new URL(request.url).searchParams.get('peek') === '1';
   let streamUrl: string | null = null;
   let passExpiresAt: string | null = null;
-  if (own) {
+  if (own && !peek) {
     const key = passKey();
     const issued = key ? makePass({ userId: user.id, now: Date.now(), key }) : null;
     if (!issued) {

@@ -216,8 +216,6 @@
   "support.voice.paused": "Đã tạm dừng. Chạm vào mình để nói.",
   "support.voice.noAnswer": "Mình chưa trả lời được lúc này. Chạm vào mình để thử lại.",
   "support.voice.unheard": "Câu trả lời của mình ở trong chat. Chạm vào mình để nói tiếp.",
-  "support.voice.memberOnly": "Giọng của Nora là tính năng dành cho thành viên.",
-  "support.voice.talkMembers": "Nói chuyện với Nora là tính năng dành cho thành viên.",
   "support.voice.micBlocked": "Hãy cho phép micro để nói chuyện với Nora.",
   "support.voice.done": "Nói xong rồi",
   "support.voice.interrupt": "Ngắt lời Nora",
@@ -413,5 +411,11 @@
   "thread.voiceUnplayable": "Không thể phát tin nhắn thoại này lúc này.",
   "thread.voiceNotSent": "Chưa gửi",
   "thread.voiceFailed": "Không gửi được tin nhắn thoại.",
-  "thread.voicePreview": "Tin nhắn thoại · {time}"
+  "thread.voicePreview": "Tin nhắn thoại · {time}",
+  "composer.signInToSend": "Đăng nhập để gửi tin nhắn",
+  "channels.changePicture": "Đổi ảnh kênh",
+  "channels.pictureSaved": "Đã lưu ảnh",
+  "channels.pictureError": "Không thể lưu ảnh — thử lại.",
+  "channels.openError": "Không thể mở kênh — thử lại.",
+  "channels.readOnly": "Chỉ Shape đăng bài ở đây"
 }

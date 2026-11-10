@@ -167,25 +167,44 @@ test('app Talk view: her face, the status in the member\'s language, End', async
   assert.deepEqual([taps, ends], [1, 1]);
   const says = (state, info) => drive(BSNoraTalk, { talk: talk(state, info), t: THEME, tint: '#0ac5a8', avatar: '/nora.png' }).text;
   assert.match(says('thinking'), /Thinking…/);
-  assert.match(says('error', { reason: 'members' }), /Talking to Nora is a member feature\./);
+  // Her voice is a paid feature (owner, 2026-11-10): a refusal says what membership adds, or for a
+  // membership whose renewal failed, the card line (window.ShapePastDue, the shell's flag).
+  assert.match(says('error', { reason: 'members' }), /Talking to Nora comes with membership\. (\$5|\{price\}) a month adds Nora, Shape Radio and the AI helpers\./); // this harness's translator does not interpolate
   assert.match(says('paused', { reason: 'quiet' }), /Paused\. Tap me to talk\./);
   // A reply that could not be spoken says why: signed out is not a membership question.
   assert.match(says('paused', { reason: 'signed_out' }), /Sign in to hear Nora's voice\./);
-  assert.match(says('paused', { reason: 'members' }), /Nora's voice is a member feature\./);
+  assert.match(says('paused', { reason: 'members' }), /Talking to Nora comes with membership\./);
+  // Her voice is assistant Nora's (window.ShapeNora), paid only: a free account is told what
+  // membership adds, never of a free week (owner, 2026-11-10: there is none).
+  const prev = { nora: globalThis.window.ShapeNora, due: globalThis.window.ShapePastDue };
+  try {
+    globalThis.window.ShapeNora = false; globalThis.window.ShapePastDue = true;
+    assert.match(says('paused', { reason: 'members' }), /Your payment didn’t go through\. Update your card to get Shape Radio and Nora back\./);
+    assert.match(bsNoraVoiceFail(tr, 'members'), /Your payment didn’t go through/);
+    // A free account (Nora false, not past due) meets the plain upgrade.
+    globalThis.window.ShapePastDue = false;
+    assert.match(says('error', { reason: 'members' }), /Talking to Nora comes with membership\./);
+    assert.doesNotMatch(says('error', { reason: 'members' }), /free week/i);
+    assert.match(bsNoraVoiceFail(tr, 'members'), /^Talking to Nora comes with membership\./);
+  } finally { globalThis.window.ShapeNora = prev.nora; globalThis.window.ShapePastDue = prev.due; }
   // Listen's failure note names the real reason; a signed-out member was told it was a member feature.
   assert.equal(bsNoraVoiceFail(tr, 'signed_out'), "Sign in to hear Nora's voice.");
   assert.equal(bsNoraVoiceFail(tr, 'playback_blocked'), 'Tap Listen again to hear Nora.');
-  assert.equal(bsNoraVoiceFail(tr, 'members'), "Nora's voice is a member feature.");
+  assert.match(bsNoraVoiceFail(tr, 'members'), /^Talking to Nora comes with membership\./);
   assert.equal(bsNoraVoiceFail(tr, 'unavailable'), 'Voice is unavailable right now.');
 });
 
 test('app sheet: Talk starts in the tap; Listen shows Loading and Stop and speaks inside the tap', () => {
   const sheet = between(APP, 'function BSNoraSheet(', '// Chat tab for ALL roles');
-  assert.match(sheet, /data-nora-talk-button onClick=\{\(\) => talk\.start\(\)\}/);
+  // Talk starts in the tap; a free or past-due account's tap opens the lock under it instead.
+  assert.match(sheet, /data-nora-talk-button aria-expanded=\{voiceLock \? talkLock : undefined\} onClick=\{\(\) => \{ if \(voiceLock\) setTalkLock\(\(v\) => !v\); else talk\.start\(\); \}\}/);
+  assert.match(sheet, /\{voiceLock && talkLock && <BSPaidLock lock=\{voiceLock\} feature="voice" compact/);
   assert.doesNotMatch(sheet, /voiceChat|holdToTalk|onVoiceComplete/, 'the Voice chat chip and hold-to-talk are gone');
   assert.match(sheet, /<BSNoraTalk talk=\{talk\} t=\{t\} tint=\{noraTint\} avatar=\{BS_NORA_AVATAR\} \/>/);
   const listen = between(sheet, 'const listenTo = (i, text) => {', '\n  };\n');
   assert.ok(listen.indexOf('window.ShapeVoice.speak(text') < listen.indexOf('.then('), 'speak() is called in the tap, not after an await');
+  assert.ok(listen.indexOf('if (voiceLock) { setListenLock(voiceLock); return; }') >= 0 && listen.indexOf('if (voiceLock)') < listen.indexOf('window.ShapeVoice.speak(text'), 'a locked Listen opens the lock, and asks for no audio');
+  assert.match(listen, /if \(r && r\.reason === 'members'\) \{ setListenLock\(r\.lock === 'pastDue' \? 'pastDue' : bsNoraLockFromCode\('membership_required'\)\); bsPaidRefused\(\); return; \}/);
   assert.match(listen, /window\.__bsToast\?\.\(bsNoraVoiceFail\(tr, r && r\.reason\), 'info'\)/);
   assert.match(sheet, /\{mine \? \(listening\.playing \? tr\('feed:support\.stop'/);
   // A typed send that will be read aloud primes the player in the tap; Talk's own sends do not read twice.

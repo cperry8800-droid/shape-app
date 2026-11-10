@@ -216,8 +216,6 @@
   "support.voice.paused": "En pause. Touche-moi pour parler.",
   "support.voice.noAnswer": "Je n'ai pas pu répondre. Touche-moi pour réessayer.",
   "support.voice.unheard": "Ma réponse est dans le chat. Touche-moi pour continuer.",
-  "support.voice.memberOnly": "La voix de Nora est réservée aux membres.",
-  "support.voice.talkMembers": "Parler à Nora est réservé aux membres.",
   "support.voice.micBlocked": "Autorise le micro pour parler à Nora.",
   "support.voice.done": "J'ai fini",
   "support.voice.interrupt": "Interrompre Nora",
@@ -413,5 +411,11 @@
   "thread.voiceUnplayable": "Ce message vocal ne peut pas être lu pour le moment.",
   "thread.voiceNotSent": "Non envoyé",
   "thread.voiceFailed": "Le message vocal n’a pas pu être envoyé.",
-  "thread.voicePreview": "Message vocal · {time}"
+  "thread.voicePreview": "Message vocal · {time}",
+  "composer.signInToSend": "Connectez-vous pour envoyer des messages",
+  "channels.changePicture": "Changer l’image du canal",
+  "channels.pictureSaved": "Image enregistrée",
+  "channels.pictureError": "Impossible d’enregistrer l’image — réessaie.",
+  "channels.openError": "Impossible d’ouvrir ce canal — réessaie.",
+  "channels.readOnly": "Seul Shape publie ici"
 }

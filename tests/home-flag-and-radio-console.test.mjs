@@ -87,7 +87,8 @@ test('the radio box runs almost the full width: 8px from each edge, live and mut
 test('the radio console: no speaker, a round play control, and a level that is a reading, still under Reduce Motion', () => {
   const live = body(RADIO, 'function BSNowPlaying({ onOpen }) {');
   assert.doesNotMatch(RADIO, /BSSpeakerGlyph/, 'the volume button is back');
-  assert.match(live, /<BSPlayGlyph playing=\{key === 'pause'\} size=\{16\} \/>/);
+  // The disc is the lock for an account that has not paid for the station (owner, 2026-11-10).
+  assert.match(live, /\{lock \? <BSLockGlyph size=\{16\} \/> : <BSPlayGlyph playing=\{key === 'pause'\} size=\{16\} \/>\}/);
   // The ON AIR ring only while sound is actually playing.
   assert.match(live, /\{playing && <span aria-hidden data-bs-np-onair=""/);
   assert.match(live, /@media \(prefers-reduced-motion: reduce\) \{ \[data-bs-np-onair\], \[data-bs-np-lamp\] \{ animation: none; \} \}/);
@@ -100,7 +101,8 @@ test('the radio console: no speaker, a round play control, and a level that is a
   // the stream goes quiet (Codex P2 on #2585). The tap that starts sound builds it.
   assert.match(level, /const an = playing && window\.ShapeRadioLive\?\.peekAnalyser \? window\.ShapeRadioLive\.peekAnalyser\(\) : null;/);
   assert.doesNotMatch(level, /ShapeRadioLive\.analyser\(/, 'the meter builds the analyser from an animation frame');
-  assert.match(live, /onClick=\{\(e\) => \{ e\.stopPropagation\(\); if \(!act\) return; if \(key !== 'pause'\) bsRadioWakeMeter\(\); act\(\); \}\}/, 'the play tap does not build the analyser');
+  assert.match(live, /onClick=\{\(e\) => \{ e\.stopPropagation\(\); if \(!tap\) return; if \(!lock && key !== 'pause'\) bsRadioWakeMeter\(\); tap\(\); \}\}/, 'the play tap does not build the analyser (and the lock\'s Join wakes no meter)');
+  assert.match(live, /const tap = lock \? \(\) => \{ bsPaidGo\(lock\); \} : act;/, 'a locked disc runs the lock\'s action, the measured key otherwise');
   const muted = body(RADIO, 'function BSNowPlayingMuted({ onTurnOn, onOpen }) {');
   assert.equal((muted.match(/bsRadioWakeMeter\(\); onTurnOn && onTurnOn\(\);/g) || []).length, 2, 'a muted bar\'s turn-on does not build the analyser in its tap');
   const BACKEND = readFileSync(new URL('../mobile-app/src/services/shapeBackend.js', import.meta.url), 'utf8');

@@ -31,6 +31,7 @@ import { isRetryableDbError } from '@/lib/db-retryable';
 import { coachPaid, startCoaching, welcomeMember } from '@/lib/coach-thread';
 import { cancelRefundedSession } from '@/lib/refund-session';
 import { announcePayment } from '@/lib/payment-notices';
+import { recheckAccount } from '../../../../lib/radio/streams.mjs';
 
 export const runtime = 'nodejs';
 
@@ -958,12 +959,31 @@ export async function POST(request: Request) {
           .eq('stripe_subscription_id', sub.id)));
         // The membership is Shape's own account's alone: a Connect event never touches it.
         if (acct) break;
-        const { error: platformError } = await notReopened(admin
+        const { data: platformRows, error: platformError } = await notReopened(admin
           .from('platform_subscriptions')
           .update({ status, current_period_end: currentPeriodEnd })
-          .eq('stripe_subscription_id', sub.id));
+          .eq('stripe_subscription_id', sub.id))
+          .select('client_id');
         if (platformError && platformError.code !== '42P01') {
           console.warn('[shape-app] platform subscription update failed:', platformError.message);
+        }
+        // ⚠ A MEMBERSHIP THAT STOPS PAYING STOPS THE RADIO NOW (owner, 2026-11-10: only "your own
+        // paid membership"; past due loses the paid features). The account's live streams are
+        // confirmed again at the station's next ask (every few seconds) and dropped there unless the
+        // account is still paid another way: an admin, a coach by role, or coaching that includes the
+        // membership. That is the membership's own check (src/lib/radio/may-listen.ts), never a copy
+        // of it here, which missed the admin (Codex P2 on #2675). Best-effort: the row is written,
+        // and the minute-by-minute re-check (src/lib/radio/streams.mjs kicksFor) is the backstop.
+        if (!platformError && status !== 'active') {
+          for (const row of (platformRows ?? []) as Array<{ client_id?: string | null }>) {
+            if (!row.client_id) continue;
+            try {
+              const asked = await recheckAccount(admin, { userId: row.client_id });
+              if (!asked.ok) console.warn('[stripe webhook] radio streams not asked again', { subscription: sub.id });
+            } catch (err) {
+              console.warn('[stripe webhook] radio streams not asked again', { subscription: sub.id, error: err instanceof Error ? err.message : String(err) });
+            }
+          }
         }
         break;
       }

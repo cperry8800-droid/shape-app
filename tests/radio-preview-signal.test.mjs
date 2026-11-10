@@ -191,16 +191,20 @@ test('the example label does not wear the reading face', () => {
   assert.match(block, /fontFamily: t\.MONO/);
 });
 
-test('only an explicit ShapeCanChat === false is a preview', () => {
+test('only an explicit ShapePaid === false is a preview', () => {
   // The direction is the safety property: `undefined` (the shell has not
   // published the flag yet) must read as MEMBER, so a real member is never
-  // shown a fabricated signal on the first frames of a cold launch.
+  // shown a fabricated signal on the first frames of a cold launch. Since
+  // 2026-11-10 the preview is an account that has not paid for Shape Radio (a
+  // free or past-due account: the station refuses it), not a signed-out visitor:
+  // the app needs an account, and messaging (ShapeCanChat) is free.
   const hook = slice(code, 'function useBSRadioPreview(');
   assert.ok(hook.length > 200, 'brace matcher returned a stub, not the hook');
-  assert.match(hook, /window\.ShapeCanChat === false/);
-  assert.ok(!/ShapeCanChat\s*!==\s*true/.test(hook), 'a !== true test would treat undefined as a preview');
-  assert.ok(!/!\s*window\.ShapeCanChat/.test(hook), 'a truthiness test would treat undefined as a preview');
-  assert.match(hook, /addEventListener\('shape:canchat'/, 'the flag arrives on an event; a one-shot read misses it');
+  assert.match(hook, /window\.ShapePaid === false/);
+  assert.doesNotMatch(hook, /ShapeCanChat/, 'messaging is free: it says nothing about the station');
+  assert.ok(!/ShapePaid\s*!==\s*true/.test(hook), 'a !== true test would treat undefined as a preview');
+  assert.ok(!/!\s*window\.ShapePaid/.test(hook), 'a truthiness test would treat undefined as a preview');
+  assert.match(hook, /addEventListener\('shape:paid'/, 'the flag arrives on an event; a one-shot read misses it');
 });
 
 // ── 4. the copy exists everywhere it renders ───────────────────────────────

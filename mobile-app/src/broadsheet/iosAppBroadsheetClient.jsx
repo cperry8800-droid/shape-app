@@ -76,6 +76,7 @@ import { BSNoraHint, bsNoraHintDone } from './BSNoraHint.jsx';
 import { bsNoraPhotoError } from './noraFace.mjs';
 import { BSNoraProfile } from './BSNoraProfile.jsx';
 import { BSLeaderboard } from './BSLeaderboard.jsx';
+import { BSChannelMark } from './BSChannelMark.jsx';
 import { BSTimezoneSetting } from './BSTimezone.jsx';
 import { BSScoreFixNote } from './BSScoreFixNote.jsx';
 import { BSWorkoutDetail } from './BSWorkoutDetail.jsx';
@@ -122,6 +123,9 @@ import { BSCoachHoursPage } from './BSCoachHours.jsx';
 import { BSTrainerProfile } from './BSTrainerProfile.jsx';
 import { BSNotifications } from './BSNotifications.jsx';
 import { BSNoraTalk, useNoraTalk, bsNoraVoiceFail } from './BSNoraTalk.jsx';
+import { BSPaidLock, BSPaidLockSheet, BSPastDueNotice, BSSignInToSend, BSLockGlyph, useBSPaidLock, useBSNoraLock, useBSIncludedWithCoach, bsNoraLockRead, bsNoraLockFromCode, bsPaidRefused, bsPaidSentence, bsPaidActionLabel, bsPaidGo, bsPickPlan, bsPlanPriceLabel, bsFreeWithAccountLine, bsOpenBillingPortal } from './BSPaidLock.jsx';
+import { BSWeekRecap, bsIsRecapDay } from './BSWeekRecap.jsx';
+import { bsPaidLockOf } from '../services/memberGate.mjs';
 import { BSVoiceRecorder, BSVoiceNotePlayer } from './BSVoiceNote.jsx';
 import { bsVoiceBody, bsVoiceFromMetadata, bsVoicePreview } from '../services/voiceNote.mjs';
 import { BSSearchKitchenRecipe } from './BSSearchKitchenRecipe.jsx';
@@ -739,6 +743,8 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
   const scoreProfile = SHAPE_SCORE_PROFILES.client;
   // ── Nav history (spec 2026-07-09): replay targets for popped descriptors ──
   const [eatStart, setEatStart] = useStateBSC('');
+  const [homeStart, setHomeStart] = useStateBSC('');
+  const [homeStartViaNav, setHomeStartViaNav] = useStateBSC(false);
   const [meStart, setMeStart] = useStateBSC('');
   // THE CYCLE (spec 2026-07-19) — the calendar rides the takeover pattern so
   // back returns to wherever the member opened it from.
@@ -775,6 +781,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
     // otherwise open again.
     if (loc.tab === 'chat') setChatRequest(loc.detail ? { ...loc.detail, nonce: Date.now() } : null);
     if (loc.tab === 'eat') setEatStart(loc.sub || '');
+    if (loc.tab === 'home') { setHomeStart(loc.sub || ''); setHomeStartViaNav(loc.back === 'nav'); }
     if (loc.tab === 'me') setMeStart(loc.sub || '');
     if (loc.tab) setTab(loc.tab);
   };
@@ -1383,7 +1390,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
     );
   }
   const screens = {
-    home:    <BSClientHome     onProfile={goSettings} sheet={sheet} goCalendar={goCalendar} goRadio={goRadio} goTrain={goTrain} goEat={(view) => { navPush(); if (typeof view === 'string') setEatStart(view); setTab('eat'); }} goMarket={goMarket} goScore={goScore} goChat={goChat} goIntegrations={goIntegrations} tweaks={tweaks} setTweak={setTweak} checkinOpen={checkinOpen} onCheckinOpenConsumed={() => setCheckinOpen(null)} />,
+    home:    <BSClientHome     onProfile={goSettings} sheet={sheet} goCalendar={goCalendar} goRadio={goRadio} goTrain={goTrain} goEat={(view) => { navPush(); if (typeof view === 'string') setEatStart(view); setTab('eat'); }} goMarket={goMarket} goScore={goScore} goChat={goChat} goIntegrations={goIntegrations} tweaks={tweaks} setTweak={setTweak} checkinOpen={checkinOpen} onCheckinOpenConsumed={() => setCheckinOpen(null)} initialPage={homeStart} initialViaNav={homeStartViaNav} onStartConsumed={() => { setHomeStart(''); setHomeStartViaNav(false); }} />,
     train:   <BSClientTrain    onProfile={goSettings} sheet={sheet} goCalendar={goCalendar} goRadio={goRadio} goMarket={goMarket} autoStart={pendingTrainStart} onAutoStartConsumed={() => setPendingTrainStart(false)} />,
     eat:     <BSClientEat      onProfile={goSettings} sheet={sheet} goCalendar={goCalendar} goRadio={goRadio} goMarket={goMarket} initialView={eatStart} onStartConsumed={() => setEatStart('')} cookWith={cookWith} onCookWithConsumed={() => setCookWith(null)} prepTonight={prepTonight} onPrepTonightConsumed={() => setPrepTonight(null)} />,
     chat:    <BSClientFeed     onProfile={goSettings} role={tweaks.role || 'client'} openRequest={chatRequest} />,
@@ -1972,32 +1979,9 @@ function useBSOnline() {
   return n;
 }
 
-// Shape membership status (drives the member-gated Shape Store + its Me-row
-// hint). `allowed` = an active subscription OR a coach account (providers).
-// Result cached on window.ShapeMembership so repeat reads don't re-fetch/flash.
-function useBSMembership() {
-  const initial = () => {
-    const auth = window.ShapeAuth?.getCachedState?.() || {};
-    const role = auth.profile?.role;
-    const isCoach = role === 'trainer' || role === 'nutritionist';
-    const signedIn = !!auth.user?.id;
-    if (!signedIn) return { loading: false, allowed: false, signedIn: false };
-    if (isCoach) return { loading: false, allowed: true, signedIn: true };
-    if (window.ShapeMembership && typeof window.ShapeMembership.active === 'boolean') return { loading: false, allowed: window.ShapeMembership.active, signedIn: true };
-    return { loading: true, allowed: false, signedIn: true };
-  };
-  const [m, setM] = useStateBSC(initial);
-  React.useEffect(() => {
-    if (!m.loading) return undefined;
-    let cancelled = false;
-    bsApi.fetch('/api/stripe/subscription', { credentials: 'same-origin', cache: 'no-store' })
-      .then(r => (r.ok ? r.json() : null))
-      .then(d => { const active = !!(d && d.active === true); try { window.ShapeMembership = { active }; } catch (e) {} if (!cancelled) setM({ loading: false, allowed: active, signedIn: true }); })
-      .catch(() => { if (!cancelled) setM({ loading: false, allowed: false, signedIn: true }); });
-    return () => { cancelled = true; };
-  }, []);
-  return m;
-}
+// (The Store's old membership read lived here, a second /api/stripe/subscription fetch that read
+// coaches as members by role alone. The paid features now read the shell's own flags, from
+// /api/me/membership: useBSPaidLock() in BSPaidLock.jsx.)
 
 // ── THE CYCLE — shared member settings state (spec 2026-07-19) ───────────────
 // ONE resolved truth for every cycle consumer (Settings pane · calendar page ·
@@ -2300,6 +2284,19 @@ function BSMyRecipeSheet({ onClose, onSaved }) {
   const [draft, setDraft] = useStateBSC(null);
   const [busy, setBusy] = useStateBSC(false);
   const [err, setErr] = useStateBSC(null);
+  // ⚠ READING A RECIPE (the paste's model read and the photo) IS AN AI HELPER, A PAID FEATURE (owner,
+  // 2026-11-10). A free or past-due account still keeps a recipe by hand: the paste is split on the
+  // phone (the structural floor below), and the photo button gives way to the lock. A 402 the flags
+  // had not caught locks the sheet the same way.
+  const flagLock = useBSPaidLock();
+  const [refusedLock, setRefusedLock] = useStateBSC(null);
+  React.useEffect(() => { if (!flagLock) setRefusedLock(null); }, [flagLock]); // joined (or updated the card): the refusal no longer holds
+  const importLock = flagLock || refusedLock;
+  const noteRefusal = (r) => {
+    const lk = r && bsPaidLockOf(r.reason);
+    if (lk) { setRefusedLock(lk); bsPaidRefused(); }
+    return lk;
+  };
   // ⚠ THE ACCOUNT THIS DRAFT BELONGS TO, captured when the sheet opened and
   // passed to the write. Every uid check inside the store is resolved at call
   // time, so they close the window inside one write and say nothing about the
@@ -2377,7 +2374,8 @@ function BSMyRecipeSheet({ onClose, onSaved }) {
       // parse client sends apiBaseUrl + the Bearer session (Codex on this PR;
       // the same shape transcribeVoice was fixed for in #1805).
       const api = window.ShapeRecipeImport && window.ShapeRecipeImport.parse;
-      const r = api ? await api(paste) : null;
+      const r = (api && !importLock) ? await api(paste) : null;
+      noteRefusal(r);
       const d = r && r.ok ? r.draft : null;
       if (d && ((d.ingredients && d.ingredients.length) || (d.steps && d.steps.length))) {
         next = { ingredients: d.ingredients || [], steps: d.steps || [], servings: d.servings ?? null, byAI: true };
@@ -2430,6 +2428,7 @@ function BSMyRecipeSheet({ onClose, onSaved }) {
       r = api ? await api(file) : { ok: false, reason: 'unavailable' };
     } catch (e2) { r = { ok: false, reason: 'unavailable' }; }
     const d = r && r.ok ? r.draft : null;
+    if (noteRefusal(r)) { setBusy(false); return; }
     if (d && ((d.ingredients && d.ingredients.length) || (d.steps && d.steps.length))) {
       setDraft({ ingredients: d.ingredients || [], steps: d.steps || [], servings: d.servings ?? null, byAI: true, fromPhoto: true });
       // The box may hold text they typed and then abandoned in favour of the
@@ -2592,6 +2591,7 @@ function BSMyRecipeSheet({ onClose, onSaved }) {
                   of each, behind two buttons; that pair is worth copying the day
                   this control earns a second button, and the attribute alone is
                   not it.) */}
+              {importLock ? <BSPaidLock lock={importLock} feature="recipeImport" compact style={{ marginTop: 8 }} /> : (<>
               <input ref={photoRef} type="file" accept="image/*" onChange={fromPhoto} style={{ display: 'none' }} />
               <button type="button" disabled={busy} onClick={() => photoRef.current && photoRef.current.click()}
                 style={{ marginTop: 6, width: '100%', minHeight: 40, background: 'transparent', border: `1px dashed ${bsTHexA(t.INK, 0.3)}`, borderRadius: 5, color: t.INK70, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: busy ? 'default' : 'pointer', opacity: busy ? 0.5 : 1 }}>
@@ -2610,6 +2610,7 @@ function BSMyRecipeSheet({ onClose, onSaved }) {
               <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.06em', color: t.INK50, lineHeight: 1.5 }}>
                 {tr('nutrition:myRecipe.photoNote', { defaultValue: 'The photo is sent to be read, then discarded — Shape never stores it.' })}
               </div>
+              </>)}
             </div>
             <div style={{ marginTop: 14, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.06em', color: t.INK50, lineHeight: 1.5 }}>
               {tr('nutrition:myRecipe.privacy', { defaultValue: 'Private to you. Your coaches do not see it.' })}
@@ -3455,7 +3456,7 @@ function BSMemberSetupStation({ onGoal, onTrain, onCheckin, onFindCoach }) {
   );
 }
 
-function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = () => {}, goMarket, goScore, goChat = () => {}, goIntegrations, tweaks = {}, setTweak = () => {}, checkinOpen = null, onCheckinOpenConsumed = () => {} }) {
+function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = () => {}, goMarket, goScore, goChat = () => {}, goIntegrations, tweaks = {}, setTweak = () => {}, checkinOpen = null, onCheckinOpenConsumed = () => {}, initialPage = '', initialViaNav = false, onStartConsumed = () => {} }) {
   // The coach Today's clean type (owner, 2026-10-28: "Member/client home page font needs to match
   // coaches"): Geist heads and Inter Tight words below the top bars, as the coach's (bsCleanType.jsx).
   const t = useBSClean();
@@ -3549,9 +3550,10 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
   // the tier's progress lives on the profile). The signed-out preview reads the sample's.
   const homeScore = _bsUseLiveScore(SHAPE_SCORE_PROFILES.client);
   const [showLogMeal, setShowLogMeal] = useStateBSC(false);
-  const [habitsPage, setHabitsPage] = useStateBSC(false);
-  const [goalsPage, setGoalsPage] = useStateBSC(false);
-  const [morningsPage, setMorningsPage] = useStateBSC(false); // Your mornings (BSYourMornings.jsx): the morning check-in over time
+  // Home's own pages open on a Back to them (initialPage, the shell's homeStart; announced below).
+  const [habitsPage, setHabitsPage] = useStateBSC(initialPage === 'habits');
+  const [goalsPage, setGoalsPage] = useStateBSC(initialPage === 'goals');
+  const [morningsPage, setMorningsPage] = useStateBSC(initialPage === 'mornings'); // Your mornings (BSYourMornings.jsx): the morning check-in over time
   // Engine-driven top move — the signal engine's single highest-value action for
   // the signed-in client today (check-in overdue · streak at risk · food gap ·
   // goal slip · score drop). Honest: only a real flag from the live self record;
@@ -3578,7 +3580,27 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
     })();
     return () => { on = false; };
   }, []);
-  const [homeProgressPage, setHomeProgressPage] = useStateBSC(false);
+  const [homeProgressPage, setHomeProgressPage] = useStateBSC(initialPage === 'progress');
+  // Home's pages ride on the nav history (owner, 2026-11-10: "Make sure back buttons are going back to
+  // previous page and location user was on"): a jump from Goals (Find a coach) or Your mornings (the cycle,
+  // Connect) comes back to that page, not to Home's own. A Back that lands while Home is mounted opens it too.
+  // Your mornings opened by a check-in reminder (the shell pushed where the member was) goes back there, and
+  // keeps that way back through a jump from it and the Back that returns (Codex P2 on #2683).
+  const [morningsViaNav, setMorningsViaNav] = useStateBSC(initialPage === 'mornings' && !!initialViaNav);
+  const homeSub = goalsPage ? 'goals' : morningsPage ? 'mornings' : habitsPage ? 'habits' : homeProgressPage ? 'progress' : '';
+  const homeBackViaNav = homeSub === 'mornings' && morningsViaNav;
+  React.useEffect(() => {
+    window.ShapeNav?.announce?.(homeBackViaNav ? { sub: homeSub, back: 'nav' } : { sub: homeSub }, 'home');
+    return () => window.ShapeNav?.announce?.(null, 'home');
+  }, [homeSub, homeBackViaNav]);
+  React.useEffect(() => {
+    if (!initialPage) return;
+    if (initialPage === 'goals') setGoalsPage(true);
+    else if (initialPage === 'mornings') { setMorningsPage(true); setMorningsViaNav(!!initialViaNav); }
+    else if (initialPage === 'habits') setHabitsPage(true);
+    else if (initialPage === 'progress') setHomeProgressPage(true);
+    onStartConsumed();
+  }, [initialPage]); // eslint-disable-line react-hooks/exhaustive-deps
   const [checkinPage, setCheckinPage] = useStateBSC(false);
   const [checkinDue, setCheckinDue] = useStateBSC(false);
   // ⚠ THE PREF GOVERNS EVERY CHECK-IN SURFACE, NOT JUST THE DAILY PROMPT (owner ruling
@@ -3609,6 +3631,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
     if (!checkinOpenReq || !checkinPrefSettled || checkinPrefOn) return;
     setCheckinOpenReq(null);
     setMorningsPage(true);
+    setMorningsViaNav(true);
   }, [checkinOpenReq, checkinPrefSettled, checkinPrefOn]);
   // Weekly check-in nudge — due when a signed-in client has no row this week.
   React.useEffect(() => {
@@ -3876,7 +3899,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
   // Your mornings (part 2): the card's done line and summary, the energy lead, and with Check-ins off
   // the quiet row and a reminder open it. The cycle chip rides on it, never on Home (doctrine).
   if (morningsPage) {
-    return <BSYourMornings onBack={() => setMorningsPage(false)} cycleChip={<BSCycleTodayChip />} checkinsOn={checkinPrefOn} />;
+    return <BSYourMornings onBack={() => { const v = morningsViaNav; setMorningsPage(false); setMorningsViaNav(false); if (v && window.ShapeNav?.canPop?.()) window.ShapeNav.back(); }} cycleChip={<BSCycleTodayChip />} checkinsOn={checkinPrefOn} />;
   }
 
   // ⚠ DRAWN AS THE MORNING PANEL'S "YOUR MOVE" ROW, AND ONLY WHEN THE ENGINE LEADS (owner, 2026-11-04: "ok
@@ -4019,6 +4042,11 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
           box, "B1", so Shape Radio is the only box up top; BSHomeScoreQuote.jsx). Signed in, only the
           member's own score once read. It opens the Score page. */}
       <BSHomeScoreQuote score={homeScore} tiers={SHAPE_SCORE_TIERS} signedIn={bsHomeSignedIn} onOpen={() => goScore && goScore()} locale={bsCkLocale()} />
+      {/* A membership whose renewal failed (owner, 2026-11-10): one row, put away for the day by its ×,
+          with Update your card (the Stripe billing portal). A row, not a plate: Home adds no plates. */}
+      <BSPastDueNotice />
+      {/* Last week's recap, one row on Mondays (the full card is on Progress). */}
+      {bsHomeSignedIn && bsIsRecapDay() ? <BSWeekRecap who={bsMyName()} variant="row" /> : null}
 
       {/* Below the top bars, Home is set in the clean type (bsCleanType.jsx), as the coach's Today. The
           pages Home opens keep their own type: they return above, and the steps history sits outside. */}
@@ -4873,11 +4901,20 @@ function BSWorkoutBuilder({ seed, onClose, onSaved }) {
   const [draft, setDraft] = useStateBSC(seed?.autoDraft ? { goal: '', days: 4, exp: 'intermediate' } : null);
   const [drafting, setDrafting] = useStateBSC(false);
   const [draftErr, setDraftErr] = useStateBSC('');
+  // ⚠ A PROGRAM DRAFTED BY NORA IS AN AI HELPER, A PAID FEATURE (owner, 2026-11-10). The sheet shows a
+  // free or past-due account the lock in place of Draft my plan; building it by hand stays free. A
+  // 402 the flags had not caught (ShapeTrainingAI.lastLock) locks the sheet the same way.
+  const flagLock = useBSPaidLock();
+  const [refusedLock, setRefusedLock] = useStateBSC(null);
+  React.useEffect(() => { if (!flagLock) setRefusedLock(null); }, [flagLock]); // joined (or updated the card): the refusal no longer holds
+  const draftLock = flagLock || refusedLock;
   const runDraft = async () => {
-    if (drafting) return;
+    if (drafting || draftLock) return;
     setDrafting(true); setDraftErr('');
     try {
       const prog = await window.ShapeTrainingAI?.draft?.({ goal: draft.goal, weeks, daysPerWeek: draft.days, discipline: progDiscipline, experience: draft.exp });
+      const refused = !prog && window.ShapeTrainingAI?.lastLock;
+      if (refused) { setRefusedLock(refused); bsPaidRefused(); setDrafting(false); return; }
       if (!prog || !Array.isArray(prog.weeks) || !prog.weeks.length) { setDraftErr(tr('session:build.err.draftUnavailable', { defaultValue: 'Drafting is unavailable right now — build manually or try again.' })); setDrafting(false); return; }
       setStarterId(null);
       // 'My program' is a record NAME default, not copy — it is written into the
@@ -5102,9 +5139,10 @@ function BSWorkoutBuilder({ seed, onClose, onSaved }) {
               {BS_BUILDER_EXPERIENCE.map((x) => chip(draft.exp === x, bsExperienceLabel(x, tr), () => setDraft({ ...draft, exp: x }), x))}
             </div>
             {draftErr && <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 9, color: '#c0533b' }}>{draftErr}</div>}
+            {draftLock && <BSPaidLock lock={draftLock} feature="draft" style={{ marginTop: 14 }} />}
             <div style={{ display: 'flex', gap: 12, marginTop: 16, alignItems: 'center' }}>
               <button onClick={() => !drafting && setDraft(null)} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: '13px 10px', minHeight: 44, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK }}><span style={{ borderBottom: `2px solid ${bsTHexA(t.INK, 0.35)}`, paddingBottom: 2 }}>{tr('session:build.cancel', { defaultValue: 'Cancel' })}</span></button>
-              <button onClick={runDraft} disabled={drafting} style={{ flex: 1, padding: '14px', borderRadius: 6, clipPath: 'polygon(0 0, calc(100% - 11px) 0, 100% 11px, 100% 100%, 0 100%)', border: 0, background: teal, color: t.isLight ? '#fff' : '#04201d', cursor: drafting ? 'default' : 'pointer', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>{drafting ? tr('session:build.drafting', { defaultValue: 'Drafting…' }) : tr('session:build.draftGo', { defaultValue: '✦ Draft my plan' })}</button>
+              {!draftLock && <button onClick={runDraft} disabled={drafting} style={{ flex: 1, padding: '14px', borderRadius: 6, clipPath: 'polygon(0 0, calc(100% - 11px) 0, 100% 11px, 100% 100%, 0 100%)', border: 0, background: teal, color: t.isLight ? '#fff' : '#04201d', cursor: drafting ? 'default' : 'pointer', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>{drafting ? tr('session:build.drafting', { defaultValue: 'Drafting…' }) : tr('session:build.draftGo', { defaultValue: '✦ Draft my plan' })}</button>}
             </div>
           </div>
         </div>
@@ -5173,7 +5211,16 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
   const [drafts, setDrafts] = useStateBSC(() => bsWorkoutDrafts(window.localStorage, draftUser));
   const [resumeDraft, setResumeDraft] = useStateBSC(null);
   const [openSession, setOpenSession] = useStateBSC(false);
-  const leaveSession = () => { setSession(false); setLaunchWorkout(null); setResumeDraft(null); setOpenSession(false); setDrafts(bsWorkoutDrafts(window.localStorage, draftUser)); };
+  // A session another page started (Calendar's, Home's or Search's Start: autoStart, after the jump pushed
+  // where the member was) goes back there when it is left (owner, 2026-11-10: "Make sure back buttons are
+  // going back to previous page and location user was on"); one started here returns to Train.
+  const [sessionViaNav, setSessionViaNav] = useStateBSC(false);
+  const leaveSession = () => {
+    const viaNav = sessionViaNav;
+    setSession(false); setLaunchWorkout(null); setResumeDraft(null); setOpenSession(false); setDrafts(bsWorkoutDrafts(window.localStorage, draftUser));
+    setSessionViaNav(false);
+    if (viaNav && window.ShapeNav?.canPop?.()) window.ShapeNav.back();
+  };
   const resumeBanner = drafts.length > 0 ? <div style={{ margin: `14px ${t.padX}px`, padding: 14, border: `1px solid ${t.ACCENT}`, borderRadius: 5 }}>
     <div style={{ fontFamily: t.DISPLAY, color: t.INK, fontSize: 16, fontWeight: 700 }}>{tr('session:player.unfinished')}</div>
     {drafts.map(d => <button key={d.sessionId} onClick={() => { setResumeDraft(d); setSession(true); }} style={{ display: 'block', minHeight: 44, width: '100%', textAlign: 'left', background: 'transparent', border: 0, color: t.ACCENT, cursor: 'pointer', padding: '10px 0' }}>{tr('session:player.resume')} · {d.title || tr('session:player.liveSession')}</button>)}
@@ -5186,7 +5233,7 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
   // Auto-launch the live session ONLY when arriving from the calendar's "Start
   // session" (a one-shot pending flag), then clear it so returning to Train from
   // the calendar overlay — which remounts this screen — never re-launches.
-  React.useEffect(() => { if (autoStart) { setLaunchWorkout(autoStart.workout || null); setDay(bsWeekdayIdx()); setSession(true); onAutoStartConsumed(); } }, [autoStart]);
+  React.useEffect(() => { if (autoStart) { setLaunchWorkout(autoStart.workout || null); setDay(bsWeekdayIdx()); setSession(true); setSessionViaNav(true); onAutoStartConsumed(); } }, [autoStart]);
   const [swapIdx, setSwapIdx] = useStateBSC(null);          // move to swap: number | 'pick' | null
   const [moveOverrides, setMoveOverrides] = useStateBSC({}); // `${day}:${i}` → { m, s }
   React.useEffect(() => {
@@ -6768,6 +6815,18 @@ function useBSCookReads() { return React.useSyncExternalStore(bsCookReadsSub, bs
 // failure reason. ⚠ 'idle' USED TO DRAW "Nora is reading this step": after a clip ended,
 // while a step was not due yet (no narration at all), and after a stop. The line was on
 // screen while she was silent, so it is now drawn only for 'loading' and 'playing'.
+// Cook Mode's voice — Nora reading the steps aloud and the hold-to-talk mic — needs an account and
+// is assistant Nora (owner, 2026-11-10), a paid feature. `voiceMember` is that; `lock` says which
+// lock a signed-in account meets ('free' | 'pastDue'), for what it says.
+function useBSCookVoiceGate() {
+  const signedIn = useBSCanChat();
+  const lock = useBSNoraLock();
+  return { voiceMember: signedIn && !lock, lock: signedIn ? lock : null };
+}
+// The paid lock's one action, as a cook note's button.
+function bsCkPaidAct(tr, lock) {
+  return lock ? { label: bsPaidActionLabel(tr, lock), onClick: () => { bsPaidGo(lock); } } : null;
+}
 function useBSCookVoice(text, allowed) {
   const readsOn = useBSCookReads();
   const [voiceStatus, setVoiceStatus] = React.useState('idle');
@@ -6788,7 +6847,13 @@ function useBSCookVoice(text, allowed) {
       // Superseded by something outside this hook (another speak or a stop): nothing of ours
       // is sounding, so the line must not stay up.
       if (result?.superseded) { setVoiceStatus('idle'); return; }
-      if (!result?.ok) { setVoiceStatus(result?.reason || 'unavailable'); return; }
+      if (!result?.ok) {
+        // A paid refusal names its lock: a membership whose renewal failed reads 'pastDue'.
+        const reason = result?.reason === 'members' && result?.lock === 'pastDue' ? 'pastDue' : (result?.reason || 'unavailable');
+        if (reason === 'members' || reason === 'pastDue') bsPaidRefused();
+        setVoiceStatus(reason);
+        return;
+      }
       setVoiceStatus('playing');
       await result.ended;
       if (request === generation.current) setVoiceStatus('idle');
@@ -6811,8 +6876,9 @@ function useBSCookVoice(text, allowed) {
 }
 // The voice switch the top bar draws, the same on every cook screen. A member flips it and is
 // told what changed (the setup screens read nothing aloud, so without the note the switch
-// would seem to do nothing there); anyone else is told how to hear her.
-function bsCkReadsProp({ tr, voiceCanSpeak, voiceMember, readsOn, toggle, say }) {
+// would seem to do nothing there); anyone else is told how to hear her: a free account that
+// membership adds her voice (Join), a past-due one to update the card, no account to sign in.
+function bsCkReadsProp({ tr, voiceCanSpeak, voiceMember, lock = null, readsOn, toggle, say }) {
   if (!voiceCanSpeak) return null;
   return {
     on: voiceMember && readsOn,
@@ -6823,7 +6889,9 @@ function bsCkReadsProp({ tr, voiceCanSpeak, voiceMember, readsOn, toggle, say })
           ? tr('cook:ck.readsOnToast', { defaultValue: 'Nora’s voice is on. She’ll read each step aloud.' })
           : tr('cook:ck.readsOffToast', { defaultValue: 'Nora’s voice is off. The steps stay on screen.' }));
       }
-      : () => say(tr('cook:voice.signIn', { defaultValue: 'Sign in with an active membership to hear Nora.' })),
+      : lock
+        ? () => say(bsPaidSentence(tr, lock, 'cookVoice'), bsCkPaidAct(tr, lock))
+        : () => say(tr('cook:voice.signIn', { defaultValue: 'Sign in with an active membership to hear Nora.' })),
   };
 }
 
@@ -7775,8 +7843,19 @@ function bsCkReading({ tr, readsOn, status, retry }) {
   if (status === 'loading' || status === 'playing') {
     return <span className="rdg" role="status"><span className="eq" aria-hidden="true"><i /><i /><i /><i /></span>{tr('cook:ck.reading', { defaultValue: 'Nora is reading this step' })}</span>;
   }
-  if (status === 'signed_out' || status === 'members') {
+  if (status === 'signed_out') {
     return <span className="rdg err" role="status">{tr('cook:voice.signIn', { defaultValue: 'Sign in with an active membership to hear Nora.' })}</span>;
+  }
+  // A paid refusal (owner, 2026-11-10): what membership adds and Join, or the past-due card line and
+  // Update your card. Playing again cannot buy a membership, so it offers no retry.
+  if (status === 'members' || status === 'pastDue') {
+    const lock = status === 'pastDue' ? 'pastDue' : bsNoraLockFromCode('membership_required');
+    return (
+      <span className="rdg err" role="status">
+        {bsPaidSentence(tr, lock, 'cookVoice')}
+        <button type="button" onClick={() => { bsPaidGo(lock); }}>{bsPaidActionLabel(tr, lock)}</button>
+      </span>
+    );
   }
   return (
     <span className="rdg err" role="status">
@@ -7919,6 +7998,8 @@ function bsCkToast({ tr, toast, onClose }) {
     <div className="toast" role="status">
       {bsCkIco('info')}
       <span className="tx">{toast.text}</span>
+      {/* A note may carry one action (a locked voice's Join or Update your card). */}
+      {toast.action ? <button type="button" onClick={toast.action.onClick} style={{ flex: 'none', minHeight: 44, padding: '0 10px', border: 0, background: 'transparent', color: 'inherit', font: 'inherit', fontWeight: 800, textDecoration: 'underline', textUnderlineOffset: 3, cursor: 'pointer', whiteSpace: 'nowrap' }}>{toast.action.label}</button> : null}
       <button type="button" className="x" onClick={onClose} aria-label={tr('cook:ck.dismiss', { defaultValue: 'Dismiss' })}>{bsCkIco('close')}</button>
     </div>
   );
@@ -8036,6 +8117,8 @@ function useBSCookTalk({ tr, runCommand, context, speak, stopSpeak }) {
             const d = await stt(blob, { filename: 'cook.webm', signal: ctrl.signal });
             if (myGen !== voiceGenRef.current) { /* superseded: drop it silently */ }
             else if (d.ok && d.transcript) onTranscript(d.transcript, myGen);
+            // A paid refusal says which lock it is, never "didn't catch that" (owner, 2026-11-10).
+            else if (d.status === 402) { const lk = bsNoraLockFromCode(d.code); bsPaidRefused(); setMicNote({ nora: bsPaidSentence(tr, lk, 'cookVoice') }); setMicState('idle'); }
             else { setMicNote({ nora: tr('cook:voice.transcribeErr', { defaultValue: "Didn't catch that — hold and try again." }) }); setMicState('idle'); }
           } catch (er) { if (myGen === voiceGenRef.current) { setMicNote({ nora: tr('cook:voice.transcribeErr', { defaultValue: "Didn't catch that — hold and try again." }) }); setMicState('idle'); } }
           clearTimeout(timer);
@@ -8427,7 +8510,7 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
     const id = setTimeout(() => setToast(null), 4500);
     return () => clearTimeout(id);
   }, [toast]);
-  const say = (text) => setToast({ text, at: Date.now() });
+  const say = (text, action = null) => setToast({ text, at: Date.now(), action });
   const signInNora = tr('cook:ck.signInNora', { defaultValue: 'Sign in with an active membership to talk to Nora.' });
   const toggleTracks = () => { const next = !tracksOn; bsCkTracksSave(next); setTracksOn(next); };
 
@@ -8527,10 +8610,11 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
     return next;
   });
 
-  // ── Nora (spec 2026-07-21 §7) — voice is OPT-IN, default OFF, and a MEMBER feature: both
-  // /api/ai/speak and /api/ai/transcribe are membership-gated, so a visitor who presses a Nora
-  // button is told how to get her instead of recording audio that can only dead-end.
-  const voiceMember = useBSCanChat();
+  // ── Nora (spec 2026-07-21 §7) — voice is OPT-IN, default OFF, and a PAID feature: both
+  // /api/ai/speak and /api/ai/transcribe are membership-gated, so a free account who presses a
+  // Nora button is told what membership adds (or a past-due one to update the card) instead of
+  // recording audio that can only dead-end; with no account, to sign in.
+  const { voiceMember, lock: voiceLock } = useBSCookVoiceGate();
   const narration = loggedState ? '' : phase === 'mise'
     ? [cookable.title, tr('cook:ck.getOut', { defaultValue: 'Get these out' }), ...miseRows.map((r) => [r.amt, r.label].filter(Boolean).join(' '))].join('. ')
     : phase === 'method' && hasMethod ? steps[stepIdx] : '';
@@ -8754,7 +8838,7 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
   const nextItem = inPrep && prep.items ? prep.items[prep.index + 1] : null;
 
   const top = (() => {
-    const reads = bsCkReadsProp({ tr, voiceCanSpeak, voiceMember, readsOn, toggle: toggleReads, say });
+    const reads = bsCkReadsProp({ tr, voiceCanSpeak, voiceMember, lock: voiceLock, readsOn, toggle: toggleReads, say });
     const leave = { kind: 'close', label: phase === 'method' ? tr('cook:ck.leave', { defaultValue: 'Leave cooking' }) : tr('cook:ck.close', { defaultValue: 'Close' }), onClick: exitCook };
     if (phase === 'mise') return bsCkTop({ tr, c: true, left: leave, title: bsCkShort(cookable.title), reads });
     if (phase === 'plated') return bsCkTop({ tr, left: leave, title: tierQuick ? tr('cook:quick.eyebrow', { defaultValue: 'Quick cook' }) : timers.length ? tr('cook:ck.timersOn', { defaultValue: 'Timers running' }) : tr('cook:ck.kitchenOff', { defaultValue: 'Kitchen off' }), reads });
@@ -8897,7 +8981,7 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
         : tr('cook:ck.lastStep', { defaultValue: 'Last step' }),
     mic: talk.voiceCanHear ? {
       live: talk.micState === 'listening',
-      onDown: voiceMember ? talk.micStart : (e) => { if (e && e.preventDefault) e.preventDefault(); say(signInNora); },
+      onDown: voiceMember ? talk.micStart : (e) => { if (e && e.preventDefault) e.preventDefault(); if (voiceLock) say(bsPaidSentence(tr, voiceLock, 'cookVoice'), bsCkPaidAct(tr, voiceLock)); else say(signInNora); },
       onUp: voiceMember ? talk.micEnd : () => {},
     } : null,
     back: { onClick: back, disabled: false },
@@ -9120,7 +9204,7 @@ function BSPrepCook({ items, timeline: plannedTimeline, anchor, kitchen = {}, se
   const boardPct = React.useMemo(() => bsProgressPct(timeline.map(minsOf), cursor, unearnedFor(null)), [timeline, cursor, timers, now]);
 
   const ev = timeline[cursor];
-  const voiceMember = useBSCanChat();
+  const { voiceMember, lock: voiceLock } = useBSCookVoiceGate();
   // ⚠ THE SCHEDULE IS ONLY REAL IF SOMETHING ENFORCES IT. Every timeline event carries
   // `at` — the minute it is planned to begin — and in Serve mode a dish deliberately
   // starts LATE so it lands with everything else. The board previously rendered
@@ -9292,7 +9376,7 @@ function BSPrepCook({ items, timeline: plannedTimeline, anchor, kitchen = {}, se
     const id = setTimeout(() => setToast(null), 4500);
     return () => clearTimeout(id);
   }, [toast]);
-  const say = (text) => setToast({ text, at: Date.now() });
+  const say = (text, action = null) => setToast({ text, at: Date.now(), action });
   const signInNora = tr('cook:ck.signInNora', { defaultValue: 'Sign in with an active membership to talk to Nora.' });
 
   const lanes = bsTrackLanes(timeline, cursor);
@@ -9462,7 +9546,7 @@ function BSPrepCook({ items, timeline: plannedTimeline, anchor, kitchen = {}, se
     up: nextEv ? bsCkUpNext({ tr, name: bsCkShort(titleOf(nextEv.recipe, nextEv.title)), text: nextEv.text }) : tr('cook:ck.lastStep', { defaultValue: 'Last step' }),
     mic: talk.voiceCanHear ? {
       live: talk.micState === 'listening',
-      onDown: voiceMember ? talk.micStart : (e) => { if (e && e.preventDefault) e.preventDefault(); say(signInNora); },
+      onDown: voiceMember ? talk.micStart : (e) => { if (e && e.preventDefault) e.preventDefault(); if (voiceLock) say(bsPaidSentence(tr, voiceLock, 'cookVoice'), bsCkPaidAct(tr, voiceLock)); else say(signInNora); },
       onUp: voiceMember ? talk.micEnd : () => {},
     } : null,
     back: { onClick: () => setCursor(Math.max(0, cursor - 1)), disabled: cursor === 0 },
@@ -9477,7 +9561,7 @@ function BSPrepCook({ items, timeline: plannedTimeline, anchor, kitchen = {}, se
     left: { kind: 'close', label: tr('cook:ck.leave', { defaultValue: 'Leave cooking' }), onClick: () => setSheet('exit') },
     finish: { at: finishAt, onOpen: () => setSheet('steps') },
     tracks: { on: tracksOn, onClick: toggleTracks },
-    reads: bsCkReadsProp({ tr, voiceCanSpeak, voiceMember, readsOn, toggle: toggleReads, say }),
+    reads: bsCkReadsProp({ tr, voiceCanSpeak, voiceMember, lock: voiceLock, readsOn, toggle: toggleReads, say }),
   });
   const card = ev ? <div className="card"><div className="in bsck-scroll">{cardInner}</div>{foot}</div> : null;
   const overlays = (<>
@@ -9618,15 +9702,15 @@ function BSPrepSession({ program, onClose, seed = null, catalog = false }) {
     const id = setTimeout(() => setToast(null), 4500);
     return () => clearTimeout(id);
   }, [toast]);
-  const say = (text) => setToast({ text, at: Date.now() });
+  const say = (text, action = null) => setToast({ text, at: Date.now(), action });
   // Nora reads each step aloud: the same remembered switch the cook screens carry, shown on
   // every top bar. Re-read when the session takes the screen back, since the cook screen may
   // have changed it.
-  const voiceMember = useBSCanChat();
+  const { voiceMember, lock: voiceLock } = useBSCookVoiceGate();
   const voiceCanSpeak = typeof window !== 'undefined' && typeof window.ShapeVoice?.speak === 'function';
   const readsOn = useBSCookReads();
   const toggleReads = () => { const next = !readsOn; if (!next) { try { window.ShapeVoice?.stop?.(); } catch (e) {} } bsCookReadsSet(next); return next; };
-  const reads = bsCkReadsProp({ tr, voiceCanSpeak, voiceMember, readsOn, toggle: toggleReads, say });
+  const reads = bsCkReadsProp({ tr, voiceCanSpeak, voiceMember, lock: voiceLock, readsOn, toggle: toggleReads, say });
   // Log each dish at the end of a cook-together (share-by-choice stays with the one-dish cook).
   const [logged, setLogged] = useStateBSC({});
   const [logBusy, setLogBusy] = useStateBSC(null);
@@ -11233,6 +11317,12 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
   // and finding last night's dish already ticked is the kind of stale state that
   // reads as the app having its own plans for you.
   const openPrep = React.useCallback((s = null) => { setPrepSeed(s); setPrepOpen(true); }, []);
+  // A cook screen another page opened (Home's cook-with, a prep reminder: the shell pushed where the
+  // member was) goes back there when it closes (2026-11-10); one opened here returns to Eat. Each flag is
+  // false whenever no such screen is up (its close resets it), so Eat's own doors leave it alone.
+  const [prepViaNav, setPrepViaNav] = useStateBSC(false);
+  const [cookViaNav, setCookViaNav] = useStateBSC(false);
+  const leaveViaNav = (viaNav) => { if (viaNav && window.ShapeNav?.canPop?.()) window.ShapeNav.back(); };
   // Tonight's prep on the cook screen: from the card below, or handed over by the shell when a
   // prep reminder is tapped ({ slug, nonce }, keyed on the nonce like cookWith). `group` is what
   // the card already knows is owed; a reminder's is read when the cook screen opens.
@@ -11240,6 +11330,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
   React.useEffect(() => {
     if (!prepTonight || !prepTonight.slug) return;
     setPrepCook({ slug: prepTonight.slug, group: null });
+    setCookViaNav(true);
     onPrepTonightConsumed();
   }, [prepTonight && prepTonight.nonce]);
   React.useEffect(() => { if (initialView) onStartConsumed(); }, []);
@@ -11248,11 +11339,12 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
   React.useEffect(() => {
     if (!cookWith || !cookWith.cookable) return;
     openPrep({ cookable: cookWith.cookable, mine: !!cookWith.mine });
+    setPrepViaNav(true);
     onCookWithConsumed();
   }, [cookWith && cookWith.nonce]);
   React.useEffect(() => {
-    window.ShapeNav?.announce?.({ sub: view });
-    return () => window.ShapeNav?.announce?.(null);
+    window.ShapeNav?.announce?.({ sub: view }, 'eat');
+    return () => window.ShapeNav?.announce?.(null, 'eat');
   }, [view]);
   const [skRecipe, setSkRecipe] = useStateBSC(null); // selected Shape Kitchen recipe
   const [previewMealId, setPreviewMealId] = useStateBSC(null);
@@ -12761,8 +12853,8 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
 
   // The Prep Session overlays EVERY eat view (its door lives on the menu AND
   // the grocery page) — entirely optional, a door never a gate.
-  if (prepCook) return <BSPrepTonightCook slug={prepCook.slug} group={prepCook.group} onClose={() => setPrepCook(null)} />;
-  if (prepOpen) return <BSPrepSession program={PROGRAM} seed={prepSeed} onClose={() => { setPrepOpen(false); setPrepSeed(null); }} />;
+  if (prepCook) return <BSPrepTonightCook slug={prepCook.slug} group={prepCook.group} onClose={() => { const v = cookViaNav; setPrepCook(null); setCookViaNav(false); leaveViaNav(v); }} />;
+  if (prepOpen) return <BSPrepSession program={PROGRAM} seed={prepSeed} onClose={() => { const v = prepViaNav; setPrepOpen(false); setPrepSeed(null); setPrepViaNav(false); leaveViaNav(v); }} />;
   if (view === 'grocery') return <>{newListSheet}{saveSheet}<BSGrocery list={activeGroceryList} planList={planGrocery} mealWhen={groceryMealWhen} onBack={() => setView('eat')} onLibrary={() => setView('library')} recipeLists={recipeLists} onChangeView={setView} editable={!!activeGroceryList.editable} onUpdate={persistGroceryList} onCreate={createGroceryList} onSaveToLibrary={openSaveToLibrary} onPickList={(l) => { if (!l) setSelectedGroceryList(null); else loadGroceryList(l); }} onProfile={onProfile} onPrep={() => openPrep()} /></>;
   if (view === 'library') return <>{newListSheet}<BSGroceryLibrary onLoad={loadGroceryList} recipeLists={recipeLists} onCreate={createGroceryList} onEdit={editGroceryList} onDuplicate={duplicateGroceryList} onDelete={deleteGroceryList} deletedIds={deletedGroceryIds} onChangeView={setView} onProfile={onProfile} /></>;
   if (view === 'build') return <BSGroceryBuilder onCancel={() => setView('grocery')} onCreate={createListFromBuilder} />;
@@ -13573,12 +13665,6 @@ const BS_SAMPLE_COACH_DMS = {
   ],
 };
 const BS_SAMPLE_CHANNELS = [
-  { id: 'sample-block3', name: 'strength-block-3', description: 'Week 9 · peaking. Top-set check-ins.', memberCount: 412, online: 38, joined: true, isHost: false, private: false, pinned: false, live: true, last: 'Top set check-in: 245×3 @ RPE 8', messages: [
-    { who: 'Priya Shah', tier: 'peak', t: 'Top set check-in: 245×3 @ RPE 8. Leaving Block 3 happy.', time: '9:04a', me: false },
-    { who: 'Maya Okafor', tier: 'legend', coach: true, role: 'trainer', t: "That's the strongest the group has looked all block. Whoever's on day 4 — keep the back-offs honest.", time: '9:12a', me: false },
-    { who: 'Casey Morgan', tier: 'form', t: 'On it. 5×5 @ 185 then mobility.', time: '9:20a', me: false },
-    { who: 'You', t: "Spotting Priya's PR — same scheme tomorrow, wish me luck.", time: '9:24a', me: true },
-  ] },
   { id: 'sample-shapehq', name: 'Shape HQ', description: '', memberCount: 2841, joined: true, isHost: false, private: false, pinned: false, last: 'Shape HQ updates', messages: [
     { who: 'Shape', t: '👋 Welcome to Shape HQ — product news, drops, and events live here.', time: 'Mon', me: false },
     { who: 'Shape', t: 'New this week: save a coach playlist straight to your own Spotify.', time: 'Tue', me: false },
@@ -13588,10 +13674,6 @@ const BS_SAMPLE_CHANNELS = [
     { who: 'Marcus J.', t: 'Saturday 6am long run is on! Coffee at Blackbird after.', time: '1d', me: false },
     { who: 'Diego A.', t: 'In. Holding ~8:00 if anyone wants company.', time: '1d', me: false },
     { who: 'You', t: "I'm in 🏃", time: '1d', me: true },
-  ] },
-  { id: 'sample-macros', name: 'Macro Mondays', description: '', memberCount: 312, joined: true, isHost: false, private: false, pinned: false, last: 'Protein-first, every day.', messages: [
-    { who: 'Dr. Maya Patel', t: 'Protein first, fill the rest with volume — 0.8–1g/lb, daily.', time: '2d', me: false },
-    { who: 'Owen H.', t: 'Adding: fiber is the most under-eaten macro I see.', time: '2d', me: false },
   ] },
   { id: 'sample-prwall', name: 'PR Wall', description: '', memberCount: 526, joined: true, isHost: false, private: false, pinned: false, last: '405 deadlift, no belt 🔥', messages: [
     { who: 'Tomás R.', t: '405 deadlift, conventional, no belt. Felt like nothing 🔥', time: '5h', me: false },
@@ -19034,7 +19116,9 @@ function BSUniversalSearch({ onClose, onLeave = onClose, initialQuery = '', onQu
     if (signedIn && window.ShapeChannels?.list) {
       window.ShapeChannels.list().then(r => {
         const list = (r && r.data) || [];
-        if (!dead) setChAll(list.map(c => ({ id: c.id, name: c.name, blurb: c.description || '', memberCount: c.memberCount || (Array.isArray(c.members) ? c.members.length : 0) })));
+        // The channel as listChannels gives it, so its circle and what opening it shows are the
+        // Channels tab's: its picture, Shape's own, read-only, host, joined (Codex P1 on #2676).
+        if (!dead) setChAll(list.map(c => ({ id: c.id, name: c.name, blurb: c.description || '', memberCount: c.memberCount || (Array.isArray(c.members) ? c.members.length : 0), picture: c.picture || null, official: !!c.official, readOnly: !!c.readOnly, isHost: !!c.isHost, joined: !!c.joined })));
       }).catch(() => {});
     }
     if (window.ShapeMarketPlans?.list) {
@@ -19138,10 +19222,10 @@ function BSUniversalSearch({ onClose, onLeave = onClose, initialQuery = '', onQu
 
   // Non-people result row — mono glyph tile + title + sub (channels / recipes /
   // workouts / coach plans).
-  const TileRow = ({ glyph, color, title, sub, onClick, first }) => (
+  const TileRow = ({ glyph, mark, color, title, sub, onClick, first }) => (
     <div style={{ borderTop: first ? 0 : `1px solid ${t.HAIR}` }}>
       <button onClick={onClick} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', background: 'transparent', border: 0, padding: '11px 2px', display: 'flex', alignItems: 'center', gap: 12 }}>
-        <span style={{ width: 38, height: 38, flexShrink: 0, borderRadius: 11, border: `1px solid ${color}55`, background: `${color}14`, color, display: 'grid', placeItems: 'center', fontFamily: t.MONO, fontSize: 15, fontWeight: 800 }}>{glyph}</span>
+        {mark || <span style={{ width: 38, height: 38, flexShrink: 0, borderRadius: 11, border: `1px solid ${color}55`, background: `${color}14`, color, display: 'grid', placeItems: 'center', fontFamily: t.MONO, fontSize: 15, fontWeight: 800 }}>{glyph}</span>}
         <span style={{ minWidth: 0, flex: 1 }}>
           <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, color: t.INK, letterSpacing: '-0.01em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{title}</span>
           <span style={{ display: 'block', marginTop: 2, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{sub}</span>
@@ -19186,7 +19270,7 @@ function BSUniversalSearch({ onClose, onLeave = onClose, initialQuery = '', onQu
           chHits.length ? (
             <>
               <div style={{ ...eyebrow, padding: '8px 0 2px' }}>{tr('feed:channels.count', { count: chHits.length, defaultValue: '{count, plural, one {# channel} other {# channels}}' })}</div>
-              {chHits.map((c, i) => <TileRow key={'ch' + c.id} first={i === 0} glyph="#" color={teal} title={c.name} sub={`${tr('feed:thread.memberCount', { count: c.memberCount || 0, defaultValue: '{count, plural, one {# member} other {# members}}' })}${c.blurb ? ' · ' + c.blurb : ''}`} onClick={() => { onLeave(); try { window.dispatchEvent(new CustomEvent('shape:openConversation', { detail: { channel: c } })); } catch (e) {} }} />)}
+              {chHits.map((c, i) => <TileRow key={'ch' + c.id} first={i === 0} glyph="#" mark={<BSChannelMark ch={{ name: c.name, picture: c.picture || null, official: !!c.official }} size={34} ink={t.INK} accent={teal} />} color={teal} title={c.name} sub={`${tr('feed:thread.memberCount', { count: c.memberCount || 0, defaultValue: '{count, plural, one {# member} other {# members}}' })}${c.blurb ? ' · ' + c.blurb : ''}`} onClick={() => { onLeave(); try { window.dispatchEvent(new CustomEvent('shape:openConversation', { detail: { channel: c } })); } catch (e) {} }} />)}
             </>
           ) : (
             <div style={{ padding: '18px 0', fontFamily: t.DISPLAY, fontSize: 15, color: t.INK50 }}>{needle ? tr('feed:channels.noneMatch', { q: q.trim(), defaultValue: 'No channels match “{q}”' })
@@ -19234,7 +19318,7 @@ function BSUniversalSearch({ onClose, onLeave = onClose, initialQuery = '', onQu
               {filter === 'all' && chHits.length > 0 && (
                 <>
                   <div style={{ ...eyebrow, padding: '16px 0 2px' }}>{tr('feed:tab.channels', { defaultValue: 'Channels' })}</div>
-                  {chHits.map((c, i) => <TileRow key={'ch' + c.id} first={i === 0} glyph="#" color={teal} title={c.name} sub={`${tr('feed:thread.memberCount', { count: c.memberCount || 0, defaultValue: '{count, plural, one {# member} other {# members}}' })}${c.blurb ? ' · ' + c.blurb : ''}`} onClick={() => { onLeave(); try { window.dispatchEvent(new CustomEvent('shape:openConversation', { detail: { channel: c } })); } catch (e) {} }} />)}
+                  {chHits.map((c, i) => <TileRow key={'ch' + c.id} first={i === 0} glyph="#" mark={<BSChannelMark ch={{ name: c.name, picture: c.picture || null, official: !!c.official }} size={34} ink={t.INK} accent={teal} />} color={teal} title={c.name} sub={`${tr('feed:thread.memberCount', { count: c.memberCount || 0, defaultValue: '{count, plural, one {# member} other {# members}}' })}${c.blurb ? ' · ' + c.blurb : ''}`} onClick={() => { onLeave(); try { window.dispatchEvent(new CustomEvent('shape:openConversation', { detail: { channel: c } })); } catch (e) {} }} />)}
                 </>
               )}
               {filter === 'all' && recHits.length > 0 && (
@@ -22327,10 +22411,11 @@ function BSWallYourBest({ loggedIn, onLogActivity, onPostedRecord }) {
   const tr = useShapeTr();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   const hair = t.RULE, muted = t.INK50;
-  // ⚠ "PREVIEWING" IS NOT "SIGNED OUT" — the distinction the retired segment
-  // already paid for. Someone who tapped PREVIEW THE APP FIRST from the paywall
-  // may well be signed in; they are simply not a member, and offering them a
-  // control that writes to a ledger they do not have is worse than hiding it.
+  // ⚠ "PREVIEWING" READS THE SHELL'S OWN WORD, NOT ONLY THE PROP. The signed-out Preview is gone
+  // (owner, 2026-11-10: an account is required, and a free account posts its records like a member),
+  // so ShapeCanChat === false now means one thing, a session the shell holds no account for; the
+  // `loggedIn` prop can lag it for a frame. Offering a control that writes to a ledger there is
+  // worse than hiding it.
   const canChat = useBSCanChat();
   const previewing = !loggedIn || canChat === false;
   // null = still reading · { error } = could not read · [] = read and empty.
@@ -22478,6 +22563,9 @@ const BS_CHAT_SIZES = Object.freeze({
   rowFace: 36, rowName: 16,
   senderFace: 24, senderName: 8.5,
   headFace: 48, headName: 25,
+  // A channel's circle in the head, a little smaller than a person's face (owner, 2026-11-10, of the
+  // channel header's circle: "also make them a little smaller").
+  headMark: 40,
 });
 
 function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
@@ -22623,8 +22711,8 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
     : openChat && openChat.channelId != null && !String(openChat.channelId).startsWith('sample') ? { channel: { id: openChat.channelId, name: openChat.n, memberCount: openChat.memberCount, isHost: openChat.isHost }, ...(backViaNav ? { back: 'nav' } : null) }
     : null;
   React.useEffect(() => {
-    window.ShapeNav?.announce?.(chatNavDetail ? { detail: chatNavDetail } : null);
-    return () => window.ShapeNav?.announce?.(null);
+    window.ShapeNav?.announce?.(chatNavDetail ? { detail: chatNavDetail } : null, 'chat');
+    return () => window.ShapeNav?.announce?.(null, 'chat');
   }, [JSON.stringify(chatNavDetail)]);
   const loadCoachThreads = React.useCallback(() => {
     if (!window.ShapeMessages?.listDirectCoachThreads) return;
@@ -22669,10 +22757,30 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
     }
     // Deep-link to a channel (e.g. from universal search): open it directly,
     // loading its messages exactly like a Channels-tab tap.
+    // ⚠ BY ITS ID, FROM THE LIST: a link carries a few of the channel's fields (a shared-channel card
+    // has its id, name and count), and opening on those alone dropped read-only, Shape's own, the
+    // picture and the host's controls (Codex P1 on #2676): Shape HQ opened with a composer whose
+    // every post the table refuses.
     if (openRequest.channel && openRequest.channel.id != null) {
       setTab('channels');
-      openChannelNow(openRequest.channel);
+      const asked = openRequest.channel;
       setNavBackKey(bsThreadNavKey(openRequest, { channelId: openRequest.channel.id }));
+      const sample = String(asked.id).startsWith('sample');
+      if (sample || !window.ShapeChannels?.list) { openChannelNow(asked); return; }
+      // ⚠ AND NEVER ON THE LINK ALONE: a list that fails, or that has no such channel, opened the
+      // link's few fields (Codex P2 on #2676), Shape HQ with a composer again. A failed read opens
+      // the row the list already holds; else nothing opens, and the member is told.
+      const cannotOpen = () => {
+        setNavBackKey(null);
+        window.__bsToast?.(tr('feed:channels.openError', { defaultValue: 'Couldn’t open that channel. Try again.' }), 'err');
+      };
+      window.ShapeChannels.list().then((r) => {
+        const full = ((r && r.data) || []).find((c) => c.id === asked.id);
+        if (full) openChannelNow({ ...asked, ...full }); else cannotOpen();
+      }).catch(() => {
+        const held = (channels || []).find((c) => c.id === asked.id);
+        if (held) openChannelNow({ ...asked, ...held }); else cannotOpen();
+      });
       return;
     }
     // Deep-link to the Wall (Home's "On the wall" card).
@@ -22775,7 +22883,8 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
     window.ShapeChannels.list().then(r => {
       const data = Array.isArray(r?.data) ? r.data : [];
       setChannels(data);
-      data.forEach(c => { if (c.joined) window.ShapeUnread?.noteChannel?.(c.id); });
+      // Shape HQ counts too: it is read, not joined (Codex P2 on #2676).
+      data.forEach(c => { if (c.joined || (c.official && c.readOnly)) window.ShapeUnread?.noteChannel?.(c.id); });
     }).catch(() => {});
   }, []);
   React.useEffect(() => { refreshChannels(); }, [refreshChannels]);
@@ -22811,7 +22920,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   const openChannelNow = (ch) => {
     window.ShapeUnread?.markChannelRead?.(ch.id);
     const mc = ch.memberCount || 0;
-    const finish = (msgs) => setOpenChat({ n: ch.name, s: tr('feed:thread.memberCount', { defaultValue: '{count, plural, one {# member} other {# members}}', count: mc }), channelId: ch.id, messages: msgs, isHost: ch.isHost, memberCount: mc });
+    const finish = (msgs) => setOpenChat({ n: ch.name, s: tr('feed:thread.memberCount', { defaultValue: '{count, plural, one {# member} other {# members}}', count: mc }), channelId: ch.id, messages: msgs, isHost: ch.isHost, memberCount: mc, picture: ch.picture || null, readOnly: !!ch.readOnly, official: !!ch.official });
     if (ch.messages && ch.messages.length) { finish(ch.messages); return; }   // demo/sample channel
     if (window.ShapeChannels?.listMessages) window.ShapeChannels.listMessages(ch.id).then(r => finish(r?.data || [])).catch(() => finish([]));
     else finish([]);
@@ -23336,11 +23445,12 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
       <>
         <BSChatThread
           key={openChat.conversation_id || (openChat.channelId != null ? 'ch:' + openChat.channelId : 'n:' + (openChat.n || ''))}
-          thread={{ who: isCh && !String(openChat.n || '').startsWith('#') ? `# ${openChat.n}` : openChat.n, role: openChat.s || (isCh ? tr('feed:thread.channel', { defaultValue: 'Channel' }) : tr('feed:thread.directMessage', { defaultValue: 'Direct message' })), last: openChat.last, time: '', at: openChat.at || null, messages: openChat.messages || [], group: isCh, conversationId: openChat.conversation_id, channelId: openChat.channelId }}
+          thread={{ who: isCh && !String(openChat.n || '').startsWith('#') ? `# ${openChat.n}` : openChat.n, role: openChat.s || (isCh ? tr('feed:thread.channel', { defaultValue: 'Channel' }) : tr('feed:thread.directMessage', { defaultValue: 'Direct message' })), last: openChat.last, time: '', at: openChat.at || null, messages: openChat.messages || [], group: isCh, conversationId: openChat.conversation_id, channelId: openChat.channelId, channelName: openChat.n, picture: openChat.picture || null, readOnly: !!openChat.readOnly, official: !!openChat.official, isHost: !!openChat.isHost }}
           eyebrow={openChat.channelId ? tr('feed:thread.channel', { defaultValue: 'Channel' }) : openChat.dm ? tr('feed:thread.privateThread', { defaultValue: 'Private thread' }) : tr('feed:thread.directMessage', { defaultValue: 'Direct message' })}
           onBack={closeThread}
           onOpenProfile={(person) => setOpenProfile(person)}
           onSendChannel={openChat.channelId && !String(openChat.channelId).startsWith('sample') ? () => setSendPostFor({ channel: { id: openChat.channelId, name: openChat.n, memberCount: openChat.memberCount || 0 } }) : null}
+          onChannelPicture={(url) => { setOpenChat((o) => (o ? { ...o, picture: url } : o)); refreshChannels(); }}
           grocerySaveTo={myRole === 'client' ? 'member' : bsIsCoachRole(myRole) ? 'coach' : null}
         />
         {sendPostFor && <BSPostSendSheet post={sendPostFor} onClose={() => setSendPostFor(null)} />}
@@ -23546,8 +23656,11 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
           // Shape HQ is the official channel — always pinned to the very top for
           // every profile. Use the member's real HQ channel if they have one
           // (so it opens), else a canonical entry.
-          const _isHQ = (c) => (c && (c.name || '').toLowerCase() === 'shape hq');
-          const _isPRWall = (c) => (c && (c.name || '').toLowerCase() === 'pr wall');
+          // Shape's own only (listChannels' `official`, or the sample's): a member's channel named
+          // "Shape HQ" or "PR Wall" is not pinned here as Shape's.
+          const _shapeOwn = (c) => !!c && (c.official === true || String(c.id || '').startsWith('sample-'));
+          const _isHQ = (c) => _shapeOwn(c) && (c.name || '').toLowerCase() === 'shape hq';
+          const _isPRWall = (c) => _shapeOwn(c) && (c.name || '').toLowerCase() === 'pr wall';
           const _realHQ = chList.find(_isHQ);
           const _hqSeed = BS_SAMPLE_CHANNELS.find(c => c.id === 'sample-shapehq') || {};
           const _shapeHQ = _realHQ
@@ -23591,12 +23704,15 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
           const chRow = (ch, i) => {
             const isSample = String(ch.id || '').startsWith('sample');
             const chN = (unread && unread['ch:' + ch.id]) || 0;
-            const openOrJoin = () => ch.joined ? openChannelNow(ch) : joinChannelNow(ch);
+            // A channel only Shape posts in (Shape HQ) opens for everyone: there is nothing to join for,
+            // and the migration seeds no members (Codex P2 on #2676; the website opens it too).
+            const openable = ch.joined || ch.readOnly;
+            const openOrJoin = () => openable ? openChannelNow(ch) : joinChannelNow(ch);
             return (
               <div key={ch.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 2px', borderTop: i ? `1px solid ${hair}66` : 0, ...(chReduced ? null : { animation: 'bsSdFadeUp 300ms ease both', animationDelay: `${Math.min(i, 10) * 26}ms` }) }}>
                 <button onClick={openOrJoin} style={{ flex: 1, minWidth: 0, background: 'transparent', border: 0, textAlign: 'left', cursor: 'pointer', color: cardInk, padding: 0 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-                    <span style={{ fontFamily: bsWsHead(t), fontWeight: 500, fontSize: BS_CHAT_SIZES.rowName, lineHeight: 1.1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>#{ch.name}</span>
+                    <span style={{ fontFamily: bsWsHead(t), fontWeight: 500, fontSize: BS_CHAT_SIZES.rowName, lineHeight: 1.1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}><BSChannelHash />{ch.name}</span>
                     {ch.live && (
                       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
                         <span aria-hidden style={{ width: 5, height: 5, borderRadius: 999, background: tealSig }} />
@@ -23615,7 +23731,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}>
                   {ch.isHost && !isSample && <button onClick={() => { setAddMemberFor(ch); setMemberQuery(''); }} aria-label={tr('feed:channels.addMember', { defaultValue: 'Add member' })} title={tr('feed:channels.addMember', { defaultValue: 'Add member' })} style={{ width: 28, height: 28, border: 0, background: 'transparent', color: muted, fontFamily: t.MONO, fontSize: 14, fontWeight: 700, lineHeight: 1, cursor: 'pointer', padding: 0 }}>＋</button>}
                   <button onClick={() => pinChannelNow(ch)} aria-label={ch.pinned ? tr('feed:channels.unpin', { defaultValue: 'Unpin' }) : tr('feed:channels.pinToTop', { defaultValue: 'Pin to top' })} title={ch.pinned ? tr('feed:channels.unpin', { defaultValue: 'Unpin' }) : tr('feed:channels.pinToTop', { defaultValue: 'Pin to top' })} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, border: 0, background: 'transparent', cursor: 'pointer', padding: 0, opacity: ch.pinned ? 1 : 0.3 }}><PinIcon filled={ch.pinned} size={15} /></button>
-                  {ch.joined
+                  {openable
                     ? <button onClick={openOrJoin} aria-label={tr('feed:channels.openChannel', { defaultValue: 'Open #{name}', name: ch.name })} style={{ width: 28, height: 28, border: 0, background: 'transparent', color: muted, fontFamily: t.MONO, fontSize: 15, lineHeight: 1, cursor: 'pointer', padding: 0 }}>›</button>
                     : <button onClick={openOrJoin} style={{ marginLeft: 4, padding: '8px 13px', borderRadius: 0, background: t.INK, color: t.PAPER, border: 0, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}>{tr('feed:channels.join', { defaultValue: 'Join' })}</button>}
                 </div>
@@ -24335,11 +24451,20 @@ function BSNoraSheet({ onClose }) {
   screenOffRef.current = screenOff;
   const sendRef = React.useRef(null);
   const talk = useNoraTalk((text) => sendRef.current(text, { voice: true, silent: true }));
+  // ⚠ HER VOICE IS A PAID FEATURE (owner, 2026-11-10): Talk to Nora, Listen and auto-speak. Typed
+  // questions to her help desk stay free (/api/support/chat tiers itself). A free or past-due
+  // account's Talk key shows the lock under it, and Listen opens the lock as a sheet, instead of
+  // starting audio the server refuses.
+  const voiceLock = useBSNoraLock();
+  const [talkLock, setTalkLock] = useStateBSC(false);
+  const [listenLock, setListenLock] = useStateBSC(null);
+  React.useEffect(() => { if (!voiceLock) setTalkLock(false); }, [voiceLock]);
   // No in-thread tone toggle — Nora's tone defaults to supportive (the ShapeVoice
   // default); the global voice on/off + tone still live in Settings → Nora voice.
   // (We do NOT force the tone here — that would overwrite the user's own setting
   // on every mount.) Auto-speak (Settings → Nora voice on) stays silent on failure.
   const speakReply = (text) => {
+    if (bsNoraLockRead()) return; // auto-speak is her voice too: nothing is asked of a route that refuses it
     try { const p = window.ShapeVoice && window.ShapeVoice.speak(text); if (p && p.catch) p.catch(() => {}); } catch (e) {}
   };
   // Listen under a reply: Loading while her audio is fetched, Stop while it plays, and an
@@ -24348,6 +24473,7 @@ function BSNoraSheet({ onClose }) {
   const [listening, setListening] = useStateBSC(null); // { i, playing }
   const listenGen = React.useRef(0);
   const listenTo = (i, text) => {
+    if (voiceLock) { setListenLock(voiceLock); return; }
     const gen = ++listenGen.current;
     if (listening && listening.i === i) { try { window.ShapeVoice?.stop?.(); } catch (e) {} setListening(null); return; }
     setListening({ i, playing: false });
@@ -24357,6 +24483,8 @@ function BSNoraSheet({ onClose }) {
       if (gen !== listenGen.current) return;
       if (!r || r.ok === false) {
         setListening(null);
+        // A paid refusal the flags had not caught (the membership changed under the session).
+        if (r && r.reason === 'members') { setListenLock(r.lock === 'pastDue' ? 'pastDue' : bsNoraLockFromCode('membership_required')); bsPaidRefused(); return; }
         if (!r || (!r.disabled && !r.superseded)) window.__bsToast?.(bsNoraVoiceFail(tr, r && r.reason), 'info');
         return;
       }
@@ -24511,11 +24639,13 @@ function BSNoraSheet({ onClose }) {
           <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
             {/* Talk to Nora: starts inside this tap (the mic and her player unlock only for
                 work a tap starts), then her face takes the sheet. */}
-            <button type="button" data-nora-talk-button onClick={() => talk.start()} style={{ flex: 1, minWidth: 0, minHeight: 44, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 9, padding: '0 12px', border: 0, borderRadius: 12, background: t.INK, color: t.PAPER, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer' }}>
+            <button type="button" data-nora-talk-button aria-expanded={voiceLock ? talkLock : undefined} onClick={() => { if (voiceLock) setTalkLock((v) => !v); else talk.start(); }} style={{ flex: 1, minWidth: 0, minHeight: 44, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 9, padding: '0 12px', border: 0, borderRadius: 12, background: t.INK, color: t.PAPER, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer' }}>
+              {voiceLock ? <BSLockGlyph size={12} /> : (
               <span aria-hidden style={{ display: 'inline-flex', alignItems: 'center', gap: 2, height: 14 }}>
                 {/* On the ink key the bars take the other theme's teal, so they read on it. */}
                 {[0.45, 0.85, 0.6, 1, 0.5].map((h, n) => <span key={n} style={{ width: 2.5, height: Math.round(14 * h), borderRadius: 2, background: t.isLight ? '#34d6c5' : '#0a7a72' }} />)}
               </span>
+              )}
               <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tr('feed:support.talk', { defaultValue: 'Talk to Nora' })}</span>
             </button>
             {/* "Talk to a person" (the Ask Nora plan, step 5): the second key, an outline, never the first. */}
@@ -24523,6 +24653,7 @@ function BSNoraSheet({ onClose }) {
               <button type="button" data-nora-person aria-expanded={!!personForm} disabled={!!(personForm && personForm.busy)} onClick={() => (personForm ? setPersonForm(null) : openPersonForm())} style={{ flex: 1, minWidth: 0, minHeight: 44, padding: '0 12px', border: `1px solid ${bsTHexA(t.INK, personForm ? 0.7 : 0.3)}`, borderRadius: 12, background: personForm ? bsTHexA(t.INK, 0.12) : 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tr('feed:support.person.button', { defaultValue: 'Talk to a person' })}</button>
             )}
           </div>
+          {voiceLock && talkLock && <BSPaidLock lock={voiceLock} feature="voice" compact style={{ marginTop: 12 }} />}
         </div>
 
         <div ref={scrollRef} className="bs-hide-scroll" style={{ flex: 1, minHeight: 0, overflowY: 'auto', scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
@@ -24634,6 +24765,7 @@ function BSNoraSheet({ onClose }) {
         </div>
         <BSNoraTalk talk={talk} t={t} tint={noraTint} avatar={BS_NORA_AVATAR} />
       </div>
+      {listenLock && <BSPaidLockSheet lock={listenLock} feature="voice" onClose={() => setListenLock(null)} />}
       {/* From the sheet, ✦ ⌕ ⚙ take the sheet down with her page, so what they open is not under it. */}
       {showNora && <BSNoraProfile avatar={BS_NORA_AVATAR} cover={BS_NORA_COVER} onClose={() => setShowNora(false)} onLeave={() => { setShowNora(false); onClose(); }} />}
     </div>,
@@ -24754,7 +24886,13 @@ function BSNoraProposal({ a, t }) {
   const [status, setStatus] = React.useState(kept ? kept.status : 'idle'); // idle | busy | done | undoing | undone | error
   const [err, setErr] = React.useState('');
   const [auditId, setAuditId] = React.useState(kept ? kept.auditId : null);
+  // ⚠ CONFIRM IS ASSISTANT NORA, A PAID FEATURE (owner, 2026-11-10). A free or past-due account is
+  // shown the lock (Join, or Update your card), never the route's English refusal.
+  const flagLock = useBSNoraLock();
+  const [lock, setLock] = React.useState(null);
+  React.useEffect(() => { if (!flagLock) setLock(null); }, [flagLock]); // joined (or updated the card): Confirm is back
   const keep = (st, id) => { if (a && a.token) _bsNoraCardDone.set(a.token, { status: st, auditId: id || null }); };
+  const lockOf = (e) => (e && (e.status === 402 || bsPaidLockOf(e.code)) ? bsNoraLockFromCode(e.code) : null);
   const mono = t.MONO, ink = t.INK, muted = t.INK50, hair = t.RULE;
   const ac = t.isLight ? '#0a8f87' : '#34d6c5';
   const diff = Array.isArray(a.diff) ? a.diff : [];
@@ -24766,22 +24904,31 @@ function BSNoraProposal({ a, t }) {
   const open = a.open && a.open.kind === 'coach_plan' && a.open.planId ? a.open : null;
   const confirm = async () => {
     if (status === 'busy' || status === 'done') return;
-    setStatus('busy'); setErr('');
+    if (flagLock) { setLock(flagLock); return; }
+    setStatus('busy'); setErr(''); setLock(null);
     try {
       if (!window.ShapeSupport?.confirm) throw new Error(tr('feed:support.proposal.unavailable', { defaultValue: 'Actions are unavailable right now.' }));
       const r = await window.ShapeSupport.confirm(a.token);
       setAuditId(r && r.auditId); setStatus('done'); keep('done', r && r.auditId);
       if (setupCard) bsAfterAccountSetup(false);
-    } catch (e) { setErr(String(e?.message || tr('feed:support.proposal.applyFailed', { defaultValue: 'Could not apply that change.' }))); setStatus('error'); }
+    } catch (e) {
+      const lk = lockOf(e);
+      if (lk) { setLock(lk); bsPaidRefused(); setStatus('idle'); return; }
+      setErr(String(e?.message || tr('feed:support.proposal.applyFailed', { defaultValue: 'Could not apply that change.' }))); setStatus('error');
+    }
   };
   const undo = async () => {
     if (!auditId || status === 'undoing' || status === 'undone') return;
-    setStatus('undoing'); setErr('');
+    setStatus('undoing'); setErr(''); setLock(null);
     try {
       if (!window.ShapeSupport?.undo) throw new Error(tr('feed:support.proposal.undoUnavailable', { defaultValue: 'Undo is unavailable right now.' }));
       await window.ShapeSupport.undo(auditId); setStatus('undone'); keep('undone', auditId);
       if (setupCard) bsAfterAccountSetup(true);
-    } catch (e) { setErr(String(e?.message || tr('feed:support.proposal.undoFailed', { defaultValue: 'Could not undo.' }))); setStatus('done'); }
+    } catch (e) {
+      const lk = lockOf(e);
+      if (lk) { setLock(lk); bsPaidRefused(); setStatus('done'); return; }
+      setErr(String(e?.message || tr('feed:support.proposal.undoFailed', { defaultValue: 'Could not undo.' }))); setStatus('done');
+    }
   };
   const openPlan = () => {
     // planKind says whose shell answers: a trainer's program, or a nutritionist's meal plan, program
@@ -24823,8 +24970,9 @@ function BSNoraProposal({ a, t }) {
         </div>
       )}
       {err && <div style={{ marginTop: 7, fontFamily: mono, fontSize: 9, color: t.RUST, lineHeight: 1.4 }}>{err}</div>}
+      {lock && <BSPaidLock lock={lock} feature="actions" compact style={{ marginTop: 10 }} />}
       <div style={{ marginTop: 10, display: 'flex', gap: 7, alignItems: 'center', flexWrap: 'wrap' }}>
-        {(status === 'idle' || status === 'error') && (
+        {(status === 'idle' || status === 'error') && !lock && (
           <button onClick={confirm} style={{ border: 0, background: ac, color: '#06231f', borderRadius: 999, padding: '7px 14px', fontFamily: mono, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>{status === 'error' ? tr('feed:support.proposal.tryAgain', { defaultValue: 'Try again' }) : tr('feed:support.proposal.confirm', { defaultValue: 'Confirm' })}</button>
         )}
         {status === 'busy' && <span style={{ fontFamily: mono, fontSize: 9, color: muted, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{tr('feed:support.proposal.applying', { defaultValue: 'Applying…' })}</span>}
@@ -24846,10 +24994,10 @@ function BSNoraProposal({ a, t }) {
   );
 }
 
-// Whether the signed-in account can actually send messages (member access incl.
-// coaches). Set by the app shell (window.ShapeCanChat); defaults to allow when
-// unknown so members are never wrongly blocked — only an explicit `false`
-// (a non-member previewing) locks the composer.
+// Whether this session can send messages: any signed-in account, paid or not (owner, 2026-11-10:
+// messaging your coaches is free). Set by the app shell (window.ShapeCanChat); defaults to allow
+// when unknown so an account is never wrongly blocked — only an explicit `false` (a session with
+// no account) locks the composer. The paid features read window.ShapePaid (useBSPaidLock).
 function useBSCanChat() {
   const [v, setV] = useStateBSC(() => (typeof window !== 'undefined' ? window.ShapeCanChat !== false : true));
   React.useEffect(() => {
@@ -24883,6 +25031,15 @@ function BSMessageComposer({ value, onChange, onSend, onPhoto, photoBusy = false
   const voiceOk = voice && (!!SpeechRec || (typeof navigator !== 'undefined' && !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia) && typeof window !== 'undefined' && !!window.MediaRecorder));
   const [voiceState, setVoiceState] = useStateBSC('idle'); // idle | listening | transcribing
   const [voiceErr, setVoiceErr] = useStateBSC(null);
+  // ⚠ DICTATION IS NORA'S VOICE, A PAID FEATURE (owner, 2026-11-10; /api/ai/transcribe). A free or
+  // past-due account's mic shows the lock above the field (Join, or Update your card) instead of
+  // recording; typing to her stays free. A 402 the flags had not caught shows the same lock.
+  // Only Nora's own composer (`voice`) has a mic; every other composer (a coach's thread, a DM, a
+  // community channel, the Wall) ignores the lock entirely: messaging and channels are free.
+  const noraLock = useBSNoraLock();
+  const paidLock = voice ? noraLock : null;
+  const [voiceLock, setVoiceLock] = useStateBSC(null);
+  React.useEffect(() => { if (voiceLock && value) setVoiceLock(null); }, [value]); // eslint-disable-line react-hooks/exhaustive-deps
   const recogRef = React.useRef(null);
   const recRef = React.useRef(null);
   const stopVoice = () => {
@@ -24942,7 +25099,8 @@ function BSMessageComposer({ value, onChange, onSend, onPhoto, photoBusy = false
               if (onVoiceComplete) onVoiceComplete(r.transcript);
               else onChange(r.transcript);
             }
-            else if (r.status === 401 || r.status === 402) setVoiceErr('Sign in to use voice — or type your question.');
+            else if (r.status === 402) { setVoiceErr(null); setVoiceLock(bsNoraLockFromCode(r.code)); bsPaidRefused(); }
+            else if (r.status === 401) setVoiceErr('Sign in to use voice — or type your question.');
             else setVoiceErr("Couldn't transcribe — type instead.");
           }
         } catch (e) { setVoiceErr("Couldn't transcribe — type instead."); }
@@ -24957,7 +25115,8 @@ function BSMessageComposer({ value, onChange, onSend, onPhoto, photoBusy = false
   const toggleVoice = () => {
     if (voiceState === 'transcribing') return;
     if (voiceState === 'listening') { stopVoice(); return; }
-    setVoiceErr(null);
+    if (paidLock) { setVoiceErr(null); setVoiceLock((v) => (v ? null : paidLock)); return; }
+    setVoiceErr(null); setVoiceLock(null);
     if (SpeechRec) startWebSpeech(); else startServerVoice();
   };
   // Hold-to-talk (conversation mode): press = start, release = stop → transcribe
@@ -24969,7 +25128,7 @@ function BSMessageComposer({ value, onChange, onSend, onPhoto, photoBusy = false
   // holdingRef guards re-entrancy too: voiceState is stale until React
   // re-renders, so a second same-frame pointerdown (multi-touch) would
   // otherwise double-start and orphan the first recorder/stream.
-  const holdStart = (e) => { e.preventDefault(); if (holdingRef.current || voiceState !== 'idle') return; holdingRef.current = true; setVoiceErr(null); if (SpeechRec) startWebSpeech(); else startServerVoice(); };
+  const holdStart = (e) => { e.preventDefault(); if (holdingRef.current || voiceState !== 'idle') return; if (paidLock) { setVoiceErr(null); setVoiceLock(paidLock); return; } holdingRef.current = true; setVoiceErr(null); setVoiceLock(null); if (SpeechRec) startWebSpeech(); else startServerVoice(); };
   // Unconditional stop — voiceState in this closure can lag the actual recorder
   // (React hasn't re-rendered yet on a fast press-release); stopVoice() is safe
   // to call in any state.
@@ -25071,25 +25230,10 @@ function BSMessageComposer({ value, onChange, onSend, onPhoto, photoBusy = false
     </div>
   );
 
-  // Non-members previewing the app can read the thread but not send — tapping
-  // the locked bar takes them back to the paywall to join (same idea as the
-  // website community preview, where the chat bubble is where you actually send).
-  const lockedField = (
-    <button
-      onClick={() => { try { window.dispatchEvent(new Event('shape:exitPreview')); } catch (e) {} }}
-      style={{
-        width: '100%', boxSizing: 'border-box', minHeight: 34,
-        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-        background: pinned ? t.SURFACE : t.PAPER, border: `1px solid ${t.SURFACE_BORDER}`,
-        borderRadius: mag ? 0 : 20, padding: '11px 15px', cursor: 'pointer',
-        fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em',
-        textTransform: 'uppercase', color: t.INK50,
-      }}
-    >
-      {/* No coloured emoji in the magazine's look or the tray's (a chat thread's, 2026-11-01). */}
-      {(mag || tray) ? null : <span aria-hidden>🔒</span>} Join Shape to send messages{(mag || tray) ? ' →' : ''}
-    </button>
-  );
+  // A session with no account can read a thread but not send. Messaging is free for every account
+  // (owner, 2026-11-10), so the bar asks for an account, never a membership; the signed-out Preview
+  // it used to send back to the paywall is gone.
+  const lockedField = <BSSignInToSend t={t} pinned={pinned} square={mag} arrow={mag || tray} />;
   // Optional photo-attach button (community feed). Sits to the left of the field.
   const photoBtn = onPhoto ? (
     <button onClick={() => !photoBusy && onPhoto()} disabled={photoBusy} aria-label="Add photo" title="Add a photo" style={{
@@ -25139,8 +25283,10 @@ function BSMessageComposer({ value, onChange, onSend, onPhoto, photoBusy = false
     </button>
   ) : null;
   const leftBtns = (photoBtn || tagBtn || logBtn || micBtn) ? <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>{photoBtn}{tagBtn}{logBtn}{micBtn}</div> : null;
-  // Listening / transcribing / error status line above the field.
-  const voiceStatus = (voice && (voiceState !== 'idle' || voiceErr)) ? (
+  // Listening / transcribing / error status line above the field; a locked mic's lock in its place.
+  const voiceStatus = (voice && voiceLock) ? (
+    <BSPaidLock lock={voiceLock} feature="voice" compact style={{ marginBottom: 8 }} />
+  ) : (voice && (voiceState !== 'idle' || voiceErr)) ? (
     <div style={{ padding: '0 2px 6px', fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: voiceErr ? t.AMBER : (voiceState === 'listening' ? t.RUST : t.INK50) }}>
       {voiceState === 'listening' ? (holdToTalk ? '● Listening… release to send' : '● Listening… tap the mic to stop') : voiceState === 'transcribing' ? 'Transcribing…' : (voiceErr || '')}
     </div>
@@ -25348,11 +25494,40 @@ const BS_REPLY_GLYPH = (size = 14) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M9 14 4 9l5-5" /><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11" /></svg>
 );
 
-function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSendChannel = null, grocerySaveTo = 'member' }) {
+// The "#" before a channel's name, smaller than the name and a little lighter (owner, 2026-11-10:
+// "make the # smaller"). It marks the name as a channel without competing with it.
+function BSChannelHash() {
+  return <span aria-hidden="true" style={{ fontSize: '0.6em', opacity: 0.6, marginRight: '0.12em', verticalAlign: '0.18em', fontWeight: 600 }}>#</span>;
+}
+
+function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSendChannel = null, onChannelPicture = null, grocerySaveTo = 'member' }) {
   const t = useBS();
   const tr = useShapeTr();
   useBSPresence(); // refresh message-avatar dots as people start/stop a workout or cooking
   const [text, setText] = useStateBSC('');
+  // The channel's picture as shown here: the one it was opened with, or the one its host just set
+  // (owner, 2026-11-10: "have creators of channels upload custom pictures"). Its host only, on a real
+  // channel of theirs; Shape's own channels are Shape's to dress.
+  const [chPicture, setChPicture] = useStateBSC(thread.picture || null);
+  const [pictureBusy, setPictureBusy] = useStateBSC(false);
+  const pictureInputRef = React.useRef(null);
+  const canSetPicture = !!(thread.channelId && thread.isHost && !thread.official && !String(thread.channelId).startsWith('sample') && window.ShapeChannels?.setPicture);
+  const onPictureFile = async (e) => {
+    const file = e?.target?.files?.[0];
+    if (e?.target) e.target.value = '';
+    if (!file || !canSetPicture) return;
+    setPictureBusy(true);
+    try {
+      const res = await window.ShapeChannels.setPicture(thread.channelId, file);
+      const url = res?.data?.url || null;
+      if (url) { setChPicture(url); if (onChannelPicture) onChannelPicture(url); }
+      window.__bsToast?.(tr('feed:channels.pictureSaved', { defaultValue: 'Picture saved' }), 'ok');
+    } catch (err) {
+      window.__bsToast?.(tr('feed:channels.pictureError', { defaultValue: 'Couldn’t save the picture. Try again.' }), 'err');
+    } finally {
+      setPictureBusy(false);
+    }
+  };
   const [extras, setExtras] = useStateBSC([]);
   // Swipe to reply (2026-11-01): the message being answered, quoted over the composer until it is sent.
   const [replyTo, setReplyTo] = useStateBSC(null);
@@ -25814,7 +25989,10 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSen
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginTop: 6 }}>
           <button onClick={() => !thread.group && openP(thread.who)} style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 13, minWidth: 0, background: 'transparent', border: 0, padding: 0, textAlign: 'left', cursor: thread.group ? 'default' : 'pointer', color: 'inherit' }}>
             {thread.group ? (
-              <span aria-hidden style={{ flex: 'none', width: BS_CHAT_SIZES.headFace, height: BS_CHAT_SIZES.headFace, borderRadius: '50%', display: 'grid', placeItems: 'center', background: bsTHexA(deskTeal, 0.16), color: deskTeal, boxShadow: `0 0 0 2px ${DESK}, 0 0 0 3.5px ${deskTeal}`, fontFamily: t.MONO, fontSize: 20, fontWeight: 800 }}>#</span>
+              // The channel's circle (owner, 2026-11-10): its host's picture, Shape's triangles for Shape
+              // HQ, a trophy for the PR Wall, else its initials; a little smaller than a person's face (BS_CHAT_SIZES.headMark).
+              // Its host sets the picture from here (BSChannelPicture, below the header).
+              <BSChannelMark ch={{ name: thread.channelName || String(thread.who || '').replace(/^#\s*/, ''), picture: chPicture, official: thread.official }} size={BS_CHAT_SIZES.headMark} ink={DESK_INK} accent={deskTeal} ring={`0 0 0 2px ${DESK}, 0 0 0 3.5px ${bsTHexA(deskTeal, 0.6)}`} />
             ) : (
               <span style={{ position: 'relative', flex: 'none' }}>
                 {roundFace(BS_CHAT_SIZES.headFace, headPhoto, bsInitials(thread.who) || (thread.who.match(/[A-Z]/) || ['?'])[0], `0 0 0 2px ${DESK}, 0 0 0 3.5px ${deskTeal}`)}
@@ -25822,7 +26000,7 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSen
               </span>
             )}
             <span style={{ minWidth: 0 }}>
-              <span data-thread-name="" style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: BS_CHAT_SIZES.headName, fontWeight: 600, lineHeight: 1, letterSpacing: '-0.01em', color: DESK_INK, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{thread.who}</span>
+              <span data-thread-name="" style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: BS_CHAT_SIZES.headName, fontWeight: 600, lineHeight: 1, letterSpacing: '-0.01em', color: DESK_INK, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{thread.group && /^#\s*/.test(String(thread.who || '')) ? <><BSChannelHash />{String(thread.who).replace(/^#\s*/, '')}</> : thread.who}</span>
               <span style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: deskMuted, whiteSpace: 'nowrap', overflow: 'hidden' }}>
                 <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{thread.role}</span>
                 {headOnline && <><span aria-hidden>·</span><span style={{ color: deskTeal }}>{tr('profile:trainer.online', { defaultValue: 'Online now' })}</span></>}
@@ -25832,6 +26010,14 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSen
           {/* Channel actions live HERE (not on every index row): send to a member + share */}
           {thread.channelId && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+              {canSetPicture && (
+                <>
+                  <button onClick={() => pictureInputRef.current?.click()} disabled={pictureBusy} aria-label={tr('feed:channels.changePicture', { defaultValue: 'Change the channel’s picture' })} title={tr('feed:channels.changePicture', { defaultValue: 'Change the channel’s picture' })} data-channel-picture="" style={{ ...deskBtn, opacity: pictureBusy ? 0.5 : 1 }}>
+                    <svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M4 8h3l1.6-2.4h6.8L17 8h3v11H4Z" /><circle cx="12" cy="13" r="3.4" /></svg>
+                  </button>
+                  <input ref={pictureInputRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={onPictureFile} style={{ display: 'none' }} />
+                </>
+              )}
               {onSendChannel && <button onClick={onSendChannel} aria-label="Send channel to a member" title="Send to a member" style={deskBtn}>{bsFeedIcon('send', 15)}</button>}
               <button onClick={() => bsSharePostExternal({ who: '', title: `Join ${thread.who} on Shape`, body: thread.role || '', postId: null })} aria-label="Share channel" title="Share" style={deskBtn}>{bsFeedIcon('share', 15)}</button>
             </div>
@@ -25923,9 +26109,9 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSen
                     {m.sharedChannel && (
                       <button onClick={(e) => { e.stopPropagation(); try { window.dispatchEvent(new CustomEvent('shape:openConversation', { detail: { channel: m.sharedChannel } })); } catch (e2) {} }}
                         style={{ display: 'flex', alignItems: 'center', gap: 9, width: '100%', minWidth: 190, textAlign: 'left', marginTop: 9, padding: '9px 11px', background: t.PAPER, border: `1px solid ${teal}66`, borderRadius: 10, cursor: 'pointer' }}>
-                        <span style={{ width: 30, height: 30, flexShrink: 0, borderRadius: 8, background: `${teal}1f`, border: `1px solid ${teal}55`, color: teal, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontFamily: t.MONO, fontSize: 14, fontWeight: 800 }}>#</span>
+                        <BSChannelMark ch={{ name: m.sharedChannel.name, picture: m.sharedChannel.picture || null, official: !!m.sharedChannel.official }} size={28} ink={t.INK} accent={teal} />
                         <span style={{ minWidth: 0, flex: 1 }}>
-                          <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 700, color: t.INK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>#{m.sharedChannel.name}</span>
+                          <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 700, color: t.INK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}><BSChannelHash />{m.sharedChannel.name}</span>
                           <span style={{ display: 'block', marginTop: 1, fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{m.sharedChannel.memberCount || 0} member{m.sharedChannel.memberCount === 1 ? '' : 's'} · Channel</span>
                         </span>
                         <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: teal }}>Open →</span>
@@ -25995,9 +26181,9 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSen
                   {m.sharedChannel && (
                     <button onClick={(e) => { e.stopPropagation(); try { window.dispatchEvent(new CustomEvent('shape:openConversation', { detail: { channel: m.sharedChannel } })); } catch (e2) {} }}
                       style={{ display: 'flex', alignItems: 'center', gap: 9, width: '100%', minWidth: 190, textAlign: 'left', marginTop: 9, padding: '9px 11px', background: t.PAPER, border: `1px solid ${teal}66`, borderRadius: 10, cursor: 'pointer' }}>
-                      <span style={{ width: 30, height: 30, flexShrink: 0, borderRadius: 8, background: `${teal}1f`, border: `1px solid ${teal}55`, color: teal, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontFamily: t.MONO, fontSize: 14, fontWeight: 800 }}>#</span>
+                      <BSChannelMark ch={{ name: m.sharedChannel.name, picture: m.sharedChannel.picture || null, official: !!m.sharedChannel.official }} size={28} ink={t.INK} accent={teal} />
                       <span style={{ minWidth: 0, flex: 1 }}>
-                        <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 700, color: t.INK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>#{m.sharedChannel.name}</span>
+                        <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 700, color: t.INK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}><BSChannelHash />{m.sharedChannel.name}</span>
                         <span style={{ display: 'block', marginTop: 1, fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{m.sharedChannel.memberCount || 0} member{m.sharedChannel.memberCount === 1 ? '' : 's'} · Channel</span>
                       </span>
                       <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: teal }}>Open →</span>
@@ -26041,7 +26227,14 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSen
 
       {/* The tray composer, as Nora's sheet docks it, pinned to the foot of the screen; a reply's quote
           rides over its field. */}
-      <BSMessageComposer value={text} onChange={onType} onSend={send} pinned tray above={quoteBar} voiceNote={voiceNote} />
+      {thread.readOnly ? (
+        // A channel only Shape posts in (Shape HQ): no composer, and it says why.
+        <div data-channel-readonly="" style={{ position: 'fixed', left: 0, right: 0, bottom: 0, padding: `14px ${t.padX}px calc(18px + env(safe-area-inset-bottom, 0px))`, background: t.PAPER, borderTop: `1px solid ${t.HAIR}`, fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, textAlign: 'center' }}>
+          {tr('feed:channels.readOnly', { defaultValue: 'Only Shape posts here' })}
+        </div>
+      ) : (
+        <BSMessageComposer value={text} onChange={onType} onSend={send} pinned tray above={quoteBar} voiceNote={voiceNote} />
+      )}
     </BSPage>
   );
 }
@@ -29401,8 +29594,8 @@ function BSClientMe(props) {
   React.useEffect(() => { if (initialPage) onStartConsumed(); }, []);
   const meNavSub = showScore ? 'score' : showStore ? 'store' : '';
   React.useEffect(() => {
-    window.ShapeNav?.announce?.({ sub: meNavSub });
-    return () => window.ShapeNav?.announce?.(null);
+    window.ShapeNav?.announce?.({ sub: meNavSub }, 'me');
+    return () => window.ShapeNav?.announce?.(null, 'me');
   }, [meNavSub]);
   const scoreProfile = _bsUseLiveScore(SHAPE_SCORE_PROFILES.client);
   const auth = (typeof window !== 'undefined' && window.ShapeAuth && window.ShapeAuth.getCachedState && window.ShapeAuth.getCachedState()) || {};
@@ -30612,10 +30805,19 @@ function BSShapeStorePage({ onBack, onOpenScore, profile = SHAPE_SCORE_PROFILES.
       if (Array.isArray(rs)) setTierRewards(rs);
     } catch (e) {}
   }, []);
-  // Membership gate — the Shape Store (redeeming points for gear/rewards) is a
-  // Shape member perk. Coaches (providers) and active members get in; free or
-  // signed-out users see an upgrade prompt instead of the catalogue.
-  const memberGate = useBSMembership();
+  // ⚠ THE STORE IS A PAID FEATURE (owner, 2026-11-10): redeeming points. Anyone can browse the
+  // catalogue; a free account's redeem keys and the lock under the dek offer Join, a past-due one's
+  // Update your card. The lock is the shell's own (window.ShapePaid / ShapePastDue), and a
+  // refusal the flags had not caught (a 402) locks the page too.
+  const flagLock = useBSPaidLock();
+  const [refusedLock, setRefusedLock] = useStateBSC(null);
+  React.useEffect(() => { if (!flagLock) setRefusedLock(null); }, [flagLock]); // joined (or updated the card): the refusal no longer holds
+  const storeLock = flagLock || refusedLock;
+  const lockFromError = (e) => {
+    const lk = e && (e.status === 402 || bsPaidLockOf(e.code)) ? (bsPaidLockOf(e.code) || 'free') : null;
+    if (lk) { setRefusedLock(lk); bsPaidRefused(); }
+    return lk;
+  };
   const products = BS_STORE_PRODUCTS;
   const SHAPE_PTS_PER_USD = BS_SHAPE_PTS_PER_USD; // costs derive at module scope
   // Live redemption locker → falls back to demo codes for signed-out preview.
@@ -30639,11 +30841,14 @@ function BSShapeStorePage({ onBack, onOpenScore, profile = SHAPE_SCORE_PROFILES.
     return true;
   });
 
-  // Anyone can browse the catalogue; only redeeming is members-only. Coaches +
-  // active members can redeem; free / signed-out users see a "join to redeem" CTA.
-  const purchasesLocked = !memberGate.allowed && !memberGate.loading;
+  // Anyone can browse the catalogue; only redeeming is paid. A member or an approved coach
+  // redeems; a free or past-due account's keys run the lock's one action.
+  const purchasesLocked = !!storeLock;
+  const unlockStore = () => { bsPaidGo(storeLock); };
+  // A locked key's word: Members (Join) for a free account, Past due (Update your card) for a failed renewal.
+  const storeKeyLabel = storeLock === 'pastDue' ? `${tr('settings:account.metaPastDue', { defaultValue: 'Past due' })} →` : tr('store:members.cta', { defaultValue: 'Members →' });
 
-  React.useEffect(() => { if (memberGate.allowed) reloadStore(); }, [memberGate.allowed, reloadStore]);
+  React.useEffect(() => { if (!flagLock) reloadStore(); }, [flagLock, reloadStore]);
 
   // Open Ledger chrome: heat = the viewer's tier (line-only); teal = commerce
   // actions only; the balance + registers count up on first view.
@@ -30675,7 +30880,8 @@ function BSShapeStorePage({ onBack, onOpenScore, profile = SHAPE_SCORE_PROFILES.
       await reloadStore();
     } catch (e) {
       const m = String((e && e.message) || '');
-      if (m.includes('insufficient_points')) setNotice(tr('store:notice.notEnough', { defaultValue: 'Not enough points for that yet — keep earning!' }));
+      if (lockFromError(e)) setNotice('');
+      else if (m.includes('insufficient_points')) setNotice(tr('store:notice.notEnough', { defaultValue: 'Not enough points for that yet — keep earning!' }));
       else if (m.includes('membership_required')) setNotice(tr('store:notice.memberRequired', { defaultValue: 'Become a Shape member to redeem your points.' }));
       else setNotice(tr('store:notice.redeemFailed', { defaultValue: 'Redemption failed. Please try again.' }));
       setConfirmFor(null);
@@ -30686,7 +30892,7 @@ function BSShapeStorePage({ onBack, onOpenScore, profile = SHAPE_SCORE_PROFILES.
 
   // Merch goes through the cart (one shipment); credit/service open a confirm.
   function handleRedeem(p) {
-    if (purchasesLocked) { bsStartPlatformCheckout(); return; }
+    if (purchasesLocked) { unlockStore(); return; }
     if (p.locked || busyId) return;
     if (p.cost > balance) { setNotice(tr('store:notice.notEnough', { defaultValue: 'Not enough points for that yet — keep earning!' })); return; }
     setConfirmFor(p);
@@ -30695,7 +30901,7 @@ function BSShapeStorePage({ onBack, onOpenScore, profile = SHAPE_SCORE_PROFILES.
   // Checkout the whole merch cart as one order (atomic, one shipment).
   async function placeOrder(shipping) {
     if (checkoutBusy) return;
-    if (purchasesLocked) { bsStartPlatformCheckout(); return; }
+    if (purchasesLocked) { unlockStore(); return; }
     setCheckoutBusy(true); setNotice('');
     try {
       const items = cartLines.map((l) => ({ itemId: l.p.id, qty: l.qty }));
@@ -30706,7 +30912,8 @@ function BSShapeStorePage({ onBack, onOpenScore, profile = SHAPE_SCORE_PROFILES.
       await reloadStore();
     } catch (e) {
       const m = String((e && e.message) || '');
-      if (m.includes('insufficient_points')) setNotice(tr('store:notice.cartShort', { defaultValue: 'Not enough points to cover the cart — remove an item or earn more.' }));
+      if (lockFromError(e)) { setNotice(''); setCheckoutOpen(false); }
+      else if (m.includes('insufficient_points')) setNotice(tr('store:notice.cartShort', { defaultValue: 'Not enough points to cover the cart — remove an item or earn more.' }));
       else if (m.includes('membership_required')) setNotice(tr('store:notice.memberRequired', { defaultValue: 'Become a Shape member to redeem your points.' }));
       else setNotice(tr('store:notice.checkoutFailed', { defaultValue: 'Checkout failed. Please try again.' }));
     } finally {
@@ -30717,7 +30924,7 @@ function BSShapeStorePage({ onBack, onOpenScore, profile = SHAPE_SCORE_PROFILES.
   // Claim a free tier reward. Merch needs an address first (the server rejects
   // a shipped reward without one); a voucher claims straight through.
   async function claimReward(reward, choice, shipping) {
-    if (purchasesLocked) { bsStartPlatformCheckout(); return; }
+    if (purchasesLocked) { unlockStore(); return; }
     if (claimKey) return;
     const needsShip = reward.kind === 'merch';
     if (needsShip && !shipping) { setShipFor({ reward, choice }); setNotice(''); return; }
@@ -30731,7 +30938,8 @@ function BSShapeStorePage({ onBack, onOpenScore, profile = SHAPE_SCORE_PROFILES.
       await reloadStore();
     } catch (e) {
       const m = String((e && e.message) || '');
-      if (m.includes('already_claimed')) setNotice(tr('store:unlocked.alreadyClaimed', { defaultValue: 'You already claimed that one — it is in your locker.' }));
+      if (lockFromError(e)) { setNotice(''); setShipFor(null); }
+      else if (m.includes('already_claimed')) setNotice(tr('store:unlocked.alreadyClaimed', { defaultValue: 'You already claimed that one — it is in your locker.' }));
       else if (m.includes('not_unlocked')) setNotice(tr('store:unlocked.notUnlocked', { defaultValue: 'That reward is not unlocked yet.' }));
       else if (m.includes('needs_shipping')) setNotice(tr('store:unlocked.needsShipping', { defaultValue: 'We need a full shipping address to send that.' }));
       else if (m.includes('bad_choice')) setNotice(tr('store:unlocked.badChoice', { defaultValue: 'Pick one of the options shown.' }));
@@ -30802,7 +31010,7 @@ function BSShapeStorePage({ onBack, onOpenScore, profile = SHAPE_SCORE_PROFILES.
     const inCart = cart[p.id] || 0;
     const canAfford = !p.locked && p.cost <= balance;
     const gap = Math.max(0, p.cost - balance);
-    if (purchasesLocked) return <button onClick={() => bsStartPlatformCheckout()} style={{ minHeight: 44, padding: '0 14px', background: 'transparent', border: `1px solid ${t.AMBER}`, color: t.AMBER, ...mono(8.5, t.AMBER, { letterSpacing: '0.1em' }), cursor: 'pointer' }}>{tr('store:members.cta', { defaultValue: 'Members →' })}</button>;
+    if (purchasesLocked) return <button onClick={unlockStore} style={{ minHeight: 44, padding: '0 14px', background: 'transparent', border: `1px solid ${t.AMBER}`, color: t.AMBER, ...mono(8.5, t.AMBER, { letterSpacing: '0.1em' }), cursor: 'pointer' }}>{storeKeyLabel}</button>;
     if (p.locked) return <span style={mono(8, bsTHexA(t.INK, 0.5), { letterSpacing: '0.1em' })}>{tr('store:item.tierLocked', { defaultValue: 'Tier locked' })}</span>;
     if (inCart > 0) return (
       <div style={{ display: 'inline-flex', alignItems: 'center', border: `1px solid ${teal}` }}>
@@ -30825,6 +31033,7 @@ function BSShapeStorePage({ onBack, onOpenScore, profile = SHAPE_SCORE_PROFILES.
 
       <div ref={storeRef} style={{ padding: `2px ${t.padX}px 0` }}>
         <p style={{ margin: 0, fontFamily: t.BODY, fontSize: 14.5, lineHeight: 1.45, color: t.INK70 }}>{tr('store:page.dek', { defaultValue: 'Everything here is bought with the points you earn training, eating and sleeping well.' })}</p>
+        {storeLock && <BSPaidLock lock={storeLock} feature="store" style={{ marginTop: 14 }} />}
         {/* The balance as a wallet card (the owner's pick, 2026-11-04: "option C for shape store but use this
             at top instead of 2 boxes"): what you have, large, with your rung named in its colour, and under
             a hairline what it's worth at the points rate. A dark card on either paper, warmed toward the
@@ -31009,8 +31218,8 @@ function BSShapeStorePage({ onBack, onOpenScore, profile = SHAPE_SCORE_PROFILES.
                       <div style={mono(7.5, bsTHexA(t.INK, 0.5), { marginTop: 4, letterSpacing: '0.06em', whiteSpace: 'normal', lineHeight: 1.45 })}>{p.brand} · {fmtPts(p.cost)} {tr('store:unit.pts', { defaultValue: 'pts' })}</div>
                     </div>
                     {purchasesLocked ? (
-                      <button onClick={() => bsStartPlatformCheckout()} style={{ flex: 'none', minHeight: 50, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', justifyContent: 'center', gap: 5, padding: '0 0 0 8px', background: 'transparent', border: 0, cursor: 'pointer' }}>
-                        {price}<span style={mono(7.5, t.AMBER, { letterSpacing: '0.08em' })}>{tr('store:members.cta', { defaultValue: 'Members →' })}</span>
+                      <button onClick={unlockStore} style={{ flex: 'none', minHeight: 50, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', justifyContent: 'center', gap: 5, padding: '0 0 0 8px', background: 'transparent', border: 0, cursor: 'pointer' }}>
+                        {price}<span style={mono(7.5, t.AMBER, { letterSpacing: '0.08em' })}>{storeKeyLabel}</span>
                       </button>
                     ) : p.locked ? (
                       <div style={{ flex: 'none', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 5 }}>
@@ -32615,7 +32824,8 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     const tm = setTimeout(() => setFxPreview(null), 6000);
     return () => clearTimeout(tm);
   }, [fxPreview]);
-  const [detail, setDetail] = useStateBSC(initialPage === 'practice' ? 'practice' : ''); // '' = settings page; else a drill-in card pane
+  // Library sits in More and Your hours in Your practice, so a Back to either reopens it over its own pane.
+  const [detail, setDetail] = useStateBSC(initialPage === 'practice' || initialPage === 'hours' ? 'practice' : initialPage === 'library' ? 'more' : ''); // '' = settings page; else a drill-in card pane
   // ⚠ A READ NEVER OVERWRITES A SAVE (Codex, #2371). The rows can be picked while the pane's read
   // is still out, and a save's answer is the newer document. So the read is dropped if a save was
   // in flight when it started, or one started before it answered.
@@ -32694,12 +32904,12 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   // from window at call time.
   const [showRates, setShowRates] = useStateBSC(false);
   // Your hours (Availability): the coach's weekly hours, booking rules and time off (BSCoachHours.jsx).
-  const [showHours, setShowHours] = useStateBSC(false);
+  const [showHours, setShowHours] = useStateBSC(initialPage === 'hours');
   const [listingSheet, setListingSheet] = useStateBSC(null);
   const [showGoals, setShowGoals] = useStateBSC(false);
   // Also → Coach on Shape: the application screen, full screen over Settings (and so over the nav).
   const [showApply, setShowApply] = useStateBSC(false);
-  const [showLibrary, setShowLibrary] = useStateBSC(false);
+  const [showLibrary, setShowLibrary] = useStateBSC(initialPage === 'library');
   const [showHabits, setShowHabits] = useStateBSC(initialPage === 'habits');
   const [showCheckin, setShowCheckin] = useStateBSC(false);
   const [showHealth, setShowHealth] = useStateBSC(false);
@@ -32791,8 +33001,19 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   };
 
   // Live subscription for the "Your plan" card. null until loaded; { active:false }
-  // when there's no active subscription (free) — then we show the upgrade copy.
+  // when there's no active subscription (free) — then we show the upgrade copy;
+  // { pastDue: true } when the renewal failed and Stripe is retrying.
   const [plan, setPlan] = useStateBSC(null);
+  const acctPaidLock = useBSPaidLock(); // the paid lock (BSPaidLock.jsx): the Radio row reads it
+  // A membership that comes with an active coaching subscription (owner, 2026-11-10): no Join, and
+  // the plan card says so. The plans (Monthly / Annual) name the interval the card prints.
+  const coachIncluded = useBSIncludedWithCoach();
+  const [memberPlans, setMemberPlans] = useStateBSC(null);
+  React.useEffect(() => {
+    let live = true;
+    Promise.resolve(window.ShapeMembershipApi?.plans?.()).then((p) => { if (live && p) setMemberPlans(p); }, () => {});
+    return () => { live = false; };
+  }, []);
   React.useEffect(() => {
     let cancelled = false;
     bsApi.fetch('/api/stripe/subscription', { credentials: 'same-origin', cache: 'no-store' })
@@ -33510,11 +33731,14 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   // whether it was landed on, so its ← still leaves Settings after that Back (2026-11-10).
   const navSub = editing ? 'edit-profile' : showIntegrations ? 'integrations' : showPricing ? 'pricing'
     : showNotifications ? 'notifications' : showSessions ? 'sessions' : showHabits ? 'habits'
-    : showBusiness ? 'business' : detail === 'practice' ? 'practice' : '';
+    // Library (Browse coaches) and Your hours (Open calendar) jump out too, and come back to themselves. A
+    // page is named before the pane it sits in: Your hours is open over Your practice (Codex P2 on #2683).
+    : showBusiness ? 'business' : showLibrary ? 'library' : showHours ? 'hours'
+    : detail === 'practice' ? 'practice' : '';
   const navLanded = !!navSub && navSub === landedOn;
   React.useEffect(() => {
-    window.ShapeNav?.announce?.(navLanded ? { sub: navSub, landed: true } : { sub: navSub });
-    return () => window.ShapeNav?.announce?.(null);
+    window.ShapeNav?.announce?.(navLanded ? { sub: navSub, landed: true } : { sub: navSub }, 'settings');
+    return () => window.ShapeNav?.announce?.(null, 'settings');
   }, [navSub, navLanded]);
   // Persist the profile identity across sessions/devices via user_goals. Read again when Nora's
   // account setup (or its Undo) changes the name from her sheet; a key typed into stays theirs.
@@ -33968,12 +34192,19 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     { l: tr('settings:practice.soundtracks', { defaultValue: 'Soundtracks' }), r: tr('settings:action.manage', { defaultValue: 'Manage' }), action: () => { try { window.dispatchEvent(new Event('shape:proSoundtracks')); } catch (e) {} } },
     { l: tr('settings:practice.certifications', { defaultValue: 'Certifications' }), r: tr('settings:action.edit', { defaultValue: 'Edit' }), action: () => setShowPublicProfile(true) },
   ];
+  // Shape Radio is a paid feature (owner, 2026-11-10): its row reads Members (a free account) or Past
+  // due instead of Listen, and the Radio page it opens shows the lock.
+  const radioRowMeta = acctPaidLock === 'pastDue'
+    ? tr('settings:account.metaPastDue', { defaultValue: 'Past due' })
+    : acctPaidLock
+      ? tr('common:paid.short', { defaultValue: 'Members' })
+      : tr('settings:more.listen', { defaultValue: 'Listen' });
   const moreRows = isCoachRole ? [
     { l: tr('settings:more.publicProfile', { defaultValue: 'Public profile' }), r: tr('settings:action.view', { defaultValue: 'View' }), action: () => setShowPublicProfile(true) },
     { l: 'Shape Score', r: tr('settings:more.standing', { defaultValue: 'Standing' }), action: () => setShowScore(true) },
     { l: tr('settings:more.leaderboard', { defaultValue: 'Leaderboard' }), r: tr('settings:more.leaderboardMeta', { defaultValue: 'Rank' }), action: () => setShowLeaderboard(true) },
     { l: 'Shape Store', r: tr('settings:more.redeem', { defaultValue: 'Redeem' }), action: () => setShowStore(true) },
-    { l: 'Shape Radio', r: tr('settings:more.listen', { defaultValue: 'Listen' }), action: () => setShowRadio(true) },
+    { l: 'Shape Radio', r: radioRowMeta, action: () => setShowRadio(true) },
   ] : [
     { l: tr('settings:more.publicProfile', { defaultValue: 'Public profile' }), r: tr('settings:action.view', { defaultValue: 'View' }), action: () => setShowPublicProfile(true) },
     { l: tr('settings:more.goals', { defaultValue: 'Goals' }), r: tr('settings:more.goalsMeta', { defaultValue: 'Track' }), action: () => setShowGoals(true) },
@@ -33984,7 +34215,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     { l: tr('settings:more.progress', { defaultValue: 'Progress & stats' }), r: tr('settings:action.view', { defaultValue: 'View' }), action: () => setShowProgress(true) },
     { l: 'Shape Score', r: tr('settings:more.standing', { defaultValue: 'Standing' }), action: () => setShowScore(true) },
     { l: 'Shape Store', r: tr('settings:more.redeem', { defaultValue: 'Redeem' }), action: () => setShowStore(true) },
-    { l: 'Shape Radio', r: tr('settings:more.listen', { defaultValue: 'Listen' }), action: () => setShowRadio(true) },
+    { l: 'Shape Radio', r: radioRowMeta, action: () => setShowRadio(true) },
     { l: tr('settings:more.leaderboard', { defaultValue: 'Leaderboard' }), r: tr('settings:more.leaderboardMeta', { defaultValue: 'Rank' }), action: () => setShowLeaderboard(true) },
     { l: tr('settings:more.sessions', { defaultValue: 'Sessions' }), r: tr('settings:more.sessionsMeta', { defaultValue: 'Booked' }), action: () => setShowSessions(true) },
   ];
@@ -34004,10 +34235,14 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       // the honest source already loaded in scope: `plan` from
       // /api/stripe/subscription, which the Your-plan card below renders from.
       // null (not loaded yet) renders no meta at all — absence, never a guess.
+      // Past due (owner, 2026-11-10) is its own reading: the renewal failed and Stripe is retrying,
+      // so the paid features are off until the card is updated.
       meta: plan
-        ? (plan.active
+        ? ((plan.active || coachIncluded)
             ? tr('settings:account.metaMember', { defaultValue: 'Member' })
-            : tr('settings:account.metaFree', { defaultValue: 'Free' }))
+            : plan.pastDue === true
+              ? tr('settings:account.metaPastDue', { defaultValue: 'Past due' })
+              : tr('settings:account.metaFree', { defaultValue: 'Free' }))
         : '',
       rows: [
         { l: tr('settings:account.email', { defaultValue: 'Email' }), r: account.email },
@@ -34238,33 +34473,59 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   // The body below is UNCHANGED from where it sat on the root; only its wrapper moved.
   // `!editing` is gone because the pane it now lives in is unreachable while editing.
   const planCard = isCoachRole ? null : (() => {
-        // Two states drive the card: signedIn (any logged-in member, no free
-        // tier) and hasSub (a real active Stripe subscription). Real subscribers
-        // → Manage (billing portal). Signed-in without a sub → Activate
-        // membership (checkout, never the dead portal). Browsing → Join now.
+        // Three states drive the card (owner, 2026-11-10: a free account is in the app; the
+        // membership adds Nora, Shape Radio and the AI helpers): hasSub (a real active Stripe
+        // subscription) → Manage (billing portal); pastDue (the renewal failed, Stripe retrying) →
+        // "Payment didn't go through" and Update your card (the portal: a new checkout would sell a
+        // second membership); a free account → what membership adds, and Join (checkout).
         const signedIn = !!(window.ShapeAuth?.getCachedState?.()?.user?.id);
         const hasSub = !!(plan && plan.active === true);
+        const planPastDue = !hasSub && !coachIncluded && !!(plan && plan.pastDue === true);
+        // Membership with the coaching (owner, 2026-11-10): no plan of its own needed, and no Join.
+        const viaCoach = coachIncluded && !hasSub;
         const cents = plan && typeof plan.priceCents === 'number' ? plan.priceCents : 500;
-        const priceLabel = `$${cents % 100 === 0 ? cents / 100 : (cents / 100).toFixed(2)}/mo`;
+        // The interval (owner, 2026-11-10: $5 a month or $48 a year). The subscription carries no
+        // interval, so it is the plan whose price it is: annual when it matches the annual price (and
+        // that price is not also the monthly one), monthly otherwise, as the website reads it.
+        const annualCents = memberPlans && memberPlans.annual ? memberPlans.annual.priceCents : null;
+        const monthlyCents = memberPlans && memberPlans.monthly ? memberPlans.monthly.priceCents : null;
+        const interval = annualCents != null && annualCents !== monthlyCents && cents === annualCents ? 'year' : 'month';
+        const priceLabel = bsPlanPriceLabel(tr, cents, interval) || `$${cents / 100}`;
         const renews = plan && plan.renewsAt ? new Date(plan.renewsAt) : null;
         const renewsLabel = renews && !isNaN(renews.getTime())
           ? tr('settings:plan.renews', { date: renews.toLocaleDateString(window.ShapeI18n?.current?.() || undefined, { month: 'short', day: 'numeric' }), defaultValue: 'Renews {date}' })
-          : tr('settings:plan.renewsMonthly', { defaultValue: 'Renews monthly' });
-        const cornerLabel = hasSub ? renewsLabel : (signedIn ? tr('settings:plan.inactive', { defaultValue: 'Membership inactive' }) : tr('settings:plan.notMember', { defaultValue: 'Not a member' }));
-        const btnLabel = hasSub ? tr('settings:plan.manage', { defaultValue: 'Manage →' }) : (signedIn ? tr('settings:plan.activate', { defaultValue: 'Activate membership →' }) : tr('settings:plan.join', { defaultValue: 'Join now →' }));
+          : interval === 'year'
+            ? tr('settings:plan.renewsYearly', { defaultValue: 'Renews yearly' })
+            : tr('settings:plan.renewsMonthly', { defaultValue: 'Renews monthly' });
+        const cornerLabel = hasSub ? renewsLabel
+          : viaCoach ? tr('settings:plan.includedCoach', { defaultValue: 'Included with your coaching' })
+            : planPastDue ? tr('settings:plan.pastDue', { defaultValue: 'Payment didn’t go through' })
+              : (signedIn ? tr('settings:plan.free', { defaultValue: 'Free account' }) : tr('settings:plan.notMember', { defaultValue: 'Not a member' }));
+        const btnLabel = hasSub ? tr('settings:plan.manage', { defaultValue: 'Manage →' })
+          : planPastDue ? tr('common:paid.updateCard', { defaultValue: 'Update your card →' })
+            : tr('onboarding:paywall.join', { price: '$5', defaultValue: 'Join · {price}/mo →' });
+        const member = hasSub || viaCoach;
         // The plan on the lit panel: the dotted plate the root's profile sits on, the plan's state in a
         // lit slot (amber until it is active), and its action as the plate's foot, as Edit profile is
         // the profile plate's.
-        const planC = hasSub ? sTeal : (t.AMBER || '#d8a23a');
+        const planC = member ? sTeal : (t.AMBER || '#d8a23a'); // past due and free both read amber: the paid features are off
         return (
           <div style={{ padding: `0 ${t.padX}px 14px` }}>
             <div data-settings-plan="" style={{ ...plate(18, true), overflow: 'hidden' }}>
               <div style={{ padding: '13px 14px 14px' }}>
-                <BSSetLabel t={t} meta={<span style={led(planC, hasSub)}>{lamp(planC, hasSub)}{cornerLabel}</span>}>{tr('settings:plan.your', { defaultValue: 'Your plan' })}</BSSetLabel>
-                <div style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: 22, fontWeight: 600, color: t.INK, letterSpacing: '-0.02em', lineHeight: 1.15 }}>Shape {hasSub ? tr('settings:plan.member', { defaultValue: 'Member.' }) : tr('settings:plan.membership', { defaultValue: 'Membership.' })}</div>
-                <div style={{ marginTop: 5, fontFamily: t.BODY, fontSize: 13, lineHeight: 1.45, color: t.INK70 }}>{hasSub ? tr('settings:plan.subActive', { price: priceLabel, defaultValue: '{price} · Radio · Community · Marketplace' }) : tr('settings:plan.subInactive', { defaultValue: 'Become a member to join the community' })}</div>
+                <BSSetLabel t={t} meta={<span style={led(planC, member)}>{lamp(planC, member)}{cornerLabel}</span>}>{tr('settings:plan.your', { defaultValue: 'Your plan' })}</BSSetLabel>
+                <div style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: 22, fontWeight: 600, color: t.INK, letterSpacing: '-0.02em', lineHeight: 1.15 }}>Shape {member ? tr('settings:plan.member', { defaultValue: 'Member.' }) : tr('settings:plan.membership', { defaultValue: 'Membership.' })}</div>
+                <div style={{ marginTop: 5, fontFamily: t.BODY, fontSize: 13, lineHeight: 1.45, color: t.INK70 }}>{hasSub
+                  ? tr('settings:plan.subPaid', { price: priceLabel, defaultValue: '{price} · Nora · Shape Radio · AI helpers' })
+                  : viaCoach
+                    ? tr('settings:plan.includedCoachBody', { defaultValue: 'Nora, Shape Radio and the AI helpers come with your coaching.' })
+                    : planPastDue
+                      ? tr('common:paid.pastDue', { defaultValue: 'Your payment didn’t go through. Update your card to get Shape Radio and Nora back.' })
+                      : tr('settings:plan.subFree', { price: '$5', defaultValue: 'Membership · {price}/mo adds Nora, Shape Radio and the AI helpers.' })}</div>
+                {member ? null : <div data-settings-plan-free="" style={{ marginTop: 6, fontFamily: t.BODY, fontSize: 12, lineHeight: 1.45, color: t.INK50 }}>{bsFreeWithAccountLine(tr)}</div>}
+                {hasSub && coachIncluded ? <div data-settings-plan-coach-own="" style={{ marginTop: 6, fontFamily: t.BODY, fontSize: 12, lineHeight: 1.45, color: t.INK50 }}>{tr('settings:plan.includedCoachOwn', { defaultValue: 'Your coaching includes membership; you can cancel your own plan.' })}</div> : null}
               </div>
-              <button type="button" onClick={hasSub ? openBillingPortal : openUpgradeCheckout} style={{ width: '100%', minHeight: 46, border: 0, borderTop: `1px solid ${t.HAIR}`, background: 'transparent', cursor: 'pointer', color: sTealInk, textShadow: t.isLight ? 'none' : `0 0 8px ${bsTHexA(sTeal, 0.6)}`, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase' }}>{btnLabel}</button>
+              {viaCoach ? null : <button type="button" data-settings-plan-action={hasSub ? 'manage' : planPastDue ? 'pastDue' : 'join'} onClick={(hasSub || planPastDue) ? openBillingPortal : openUpgradeCheckout} style={{ width: '100%', minHeight: 46, border: 0, borderTop: `1px solid ${t.HAIR}`, background: 'transparent', cursor: 'pointer', color: sTealInk, textShadow: t.isLight ? 'none' : `0 0 8px ${bsTHexA(sTeal, 0.6)}`, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase' }}>{btnLabel}</button>}
             </div>
           </div>
         );
@@ -34340,6 +34601,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   // Who you are: the identity line under the member's name.
   const signedIn = !!(window.ShapeAuth?.getCachedState?.()?.user?.id);
   const hasSub = !!(plan && plan.active === true);
+  const planPastDue = !hasSub && !coachIncluded && !!(plan && plan.pastDue === true);
   const renews = plan && plan.renewsAt ? new Date(plan.renewsAt) : null;
   // ⚠ THE STATUS LINE IS ROLE-GATED, LIKE THE CARD BEHIND IT. A coach reads
   // their role; only a member reads a membership state. Composed from the SAME
@@ -34363,7 +34625,9 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         ? (renews && !isNaN(renews.getTime())
             ? tr('settings:plan.renews', { date: renews.toLocaleDateString(window.ShapeI18n?.current?.() || undefined, { month: 'short', day: 'numeric' }), defaultValue: 'Renews {date}' })
             : tr('settings:plan.renewsMonthly', { defaultValue: 'Renews monthly' }))
-        : planKnown ? tr('settings:plan.inactive', { defaultValue: 'Membership inactive' }) : '';
+        : coachIncluded ? tr('settings:plan.includedCoach', { defaultValue: 'Included with your coaching' })
+          : planPastDue ? tr('settings:plan.pastDue', { defaultValue: 'Payment didn’t go through' })
+            : planKnown ? tr('settings:plan.free', { defaultValue: 'Free account' }) : '';
   // ⚠ THE HANDLE IS PRINTED ONLY WHEN IT IS THEIRS, THE `locationKnown` RULE
   // AGAIN. With no account username and no saved handle, the initializer
   // SYNTHESIZES one from the display name — and bsMyName() falls back to the
@@ -35406,17 +35670,25 @@ function bsOpenCheckout(url) {
   } catch (e) {}
   try { window.location.href = url; } catch (e) {}
 }
-// The membership checkout from the app's own screens (Settings' Activate, the Store), through
+// The membership checkout from the app's own screens (Settings' plan card, the reviews), through
 // the backend's one door (ShapeMembershipApi.startCheckout): the API base, the system browser
-// on native, the shell's re-check when it closes, no second membership for a member.
+// on native, the shell's re-check when it closes, no second membership for a member, and the
+// billing portal for a past-due one. A locked paid feature's Join is BSPaidLock.jsx's bsPaidJoin,
+// through the same door.
 async function bsStartPlatformCheckout() {
   if (window.bsRequireAccount && !window.bsRequireAccount('become a Shape member')) return;
   const t = window.ShapeI18n?.t;
   const fail = () => window.__bsToast?.(t?.('settings:toast.upgradeUnavailable') || 'Upgrade unavailable right now', 'err');
   const api = window.ShapeMembershipApi;
   if (!api || !api.startCheckout) { fail(); return; }
-  const r = await api.startCheckout();
+  // Monthly or Annual (owner, 2026-11-10), in the plan picker; closing it starts nothing.
+  const plan = await bsPickPlan();
+  if (!plan) return;
+  const r = await api.startCheckout({ plan });
   if (r.ok || r.code === 'already_member') return;
+  // A membership whose renewal failed is not sold a second one (409 payment_past_due): the card is
+  // updated in the Stripe billing portal.
+  if (r.code === 'payment_past_due') { if (!(await bsOpenBillingPortal())) fail(); return; }
   if (r.status === 401) {
     if (window.__bsGoAuth) window.__bsGoAuth('create');
     else window.__bsToast?.(t?.('settings:toast.createAccountMember') || 'Create an account to become a Shape member', 'info');
@@ -35962,14 +36234,23 @@ function BSWeeklyReadoutCard({ isSelf }) {
   // so the switch triggers a real refetch instead of only a blank.
   const uid = (typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id) || null;
   const [held, setHeld] = useStateBSC(null);
+  // ⚠ THE READOUT IS A PAID FEATURE (owner, 2026-11-10), and a locked one is a teaser, not nothing:
+  // the card's head and the lock (Join, or Update your card). Locked by the shell's flags before
+  // any request, or by the route's own 402 ({ locked } from ShapeReadout.get). It carries no
+  // insight, demo or otherwise, so the rule below (no fabricated readout) still holds.
+  const flagLock = useBSNoraLock();
   React.useEffect(() => {
-    if (!isSelf || !uid) { setHeld(null); return undefined; }
+    if (!isSelf || !uid || flagLock) { setHeld(null); return undefined; }
     let alive = true;
     window.ShapeReadout?.get?.()
-      .then((d) => { if (alive) setHeld(d ? { uid, data: d } : null); })
+      .then((d) => {
+        if (!alive) return;
+        if (d && d.locked) bsPaidRefused();
+        setHeld(d ? { uid, data: d } : null);
+      })
       .catch(() => { if (alive) setHeld(null); });
     return () => { alive = false; };
-  }, [isSelf, uid]);
+  }, [isSelf, uid, flagLock]);
 
   // ⚠ AND `isSelf` STAYS IN THE RENDER GUARD, for the frame the effect cannot
   // cover: React runs effects AFTER the commit, so a sign-out leaves exactly one
@@ -35979,6 +36260,15 @@ function BSWeeklyReadoutCard({ isSelf }) {
   // holds a readout under a truthy uid, so `held.uid === null` is never true and
   // a session that lost its user renders nothing without a separate clause.
   const data = held && held.uid === uid ? held.data : null;
+  const readoutLock = isSelf && uid ? (flagLock || (data && data.locked ? (data.locked === 'pastDue' ? 'pastDue' : bsNoraLockFromCode('membership_required')) : null)) : null;
+  if (readoutLock) {
+    return (
+      <BSDashCard as="section" style={{ marginBottom: 12 }}>
+        <BSTStationHead dash heat={bsDash(t).text.teal} INK={t.INK} label="The read" meta="This week" />
+        <BSPaidLock lock={readoutLock} feature="readout" compact />
+      </BSDashCard>
+    );
+  }
   if (!isSelf || !data || !data.readout) return null;
   const heat = bsDash(t).text.teal; // B (2026-10-25): a card under its name in teal
   const insights = Array.isArray(data.readout.insights) ? data.readout.insights : [];
@@ -36267,6 +36557,8 @@ function BSClientProgress({ onBack, initialTab = 'overall' }) {
               </div>
             ));
           })(), 'violet')}
+      {/* The free, shareable recap of last week (owner, 2026-11-10), above the paid readout. */}
+      {signedIn ? <BSWeekRecap who={bsMyName()} /> : null}
       <BSWeeklyReadoutCard isSelf={signedIn} />
       <BSWeekendsCard isSelf={signedIn} />
       <BSCrossoverCard isSelf={signedIn} />

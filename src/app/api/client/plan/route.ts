@@ -10,7 +10,7 @@
 
 import { NextResponse } from 'next/server';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
-import { requireMembership } from '@/lib/require-membership';
+import { requireAccount } from '@/lib/require-membership';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { supersetKey, blockKind, videoUrl } from '../../../../../public/newdesign/workoutDocument.mjs';
 // Relative, as workoutDocument.mjs above: the route's test harnesses resolve a relative module themselves.
@@ -142,7 +142,7 @@ function mapRepeatDow(payload: Record<string, unknown> | null): number[] | null 
 }
 
 export async function GET(request: Request) {
-  const denied = await requireMembership(request);
+  const denied = await requireAccount(request);
   if (denied) return denied;
   const user = await currentUser(request);
   if (!user) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });

@@ -22,7 +22,7 @@ import { NextResponse } from 'next/server';
 import { currentUser, clientForRequest } from '@/lib/request-auth';
 import { readJson } from '@/lib/request-utils';
 import { randomUUID } from 'node:crypto';
-import { requireMembership } from '@/lib/require-membership';
+import { requireAccount } from '@/lib/require-membership';
 import {
   BS_STARTER_SESSIONS,
   BS_STARTER_PROGRAMS,
@@ -86,7 +86,7 @@ function mineFromRow(r: SelfRow) {
 }
 
 export async function GET(request: Request) {
-  const denied = await requireMembership(request);
+  const denied = await requireAccount(request);
   if (denied) return denied;
   const user = await currentUser(request);
   if (!user) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
@@ -113,7 +113,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const denied = await requireMembership(request);
+  const denied = await requireAccount(request);
   if (denied) return denied;
   const user = await currentUser(request);
   if (!user) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });

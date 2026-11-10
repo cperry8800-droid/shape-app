@@ -6,7 +6,7 @@
 const SQL = 'supabase-migrations/2026-10-13-one-listing-per-account.sql';
 const ACTIONS = 'src/app/dashboard/applications/actions.ts';
 
-export default {
+const spec = {
   test: 'node --test tests/one-listing-per-account.test.mjs tests/coach-application-review.test.mjs',
   timeoutMs: 120_000,
   mutations: [
@@ -30,3 +30,14 @@ export default {
       replace: "        .order('id', { ascending: true })\n        .limit(1);\n      if (againError) throw againError;" },
   ],
 };
+
+// ── 2026-11-10: publishProviderRow moved to src/lib/coach-approval.ts ──
+const RETARGET = {
+  "approval fails on the listing that won": { file: 'src/lib/coach-approval.ts', find: "    if ((error as { code?: string }).code === '23505') {", replace: "    if (false) {" },
+  "approval takes any listing after a unique violation": { file: 'src/lib/coach-approval.ts', find: "        .eq('owner_id', ownerId)\n        .order('id', { ascending: true })\n        .limit(1);\n      if (againError) throw againError;", replace: "        .order('id', { ascending: true })\n        .limit(1);\n      if (againError) throw againError;" },
+};
+const DROP = [];
+const ADDED = [
+];
+spec.mutations = [...spec.mutations.filter((m) => !DROP.includes(m.name)).map((m) => (RETARGET[m.name] ? { ...m, ...RETARGET[m.name] } : m)), ...ADDED];
+export default spec;

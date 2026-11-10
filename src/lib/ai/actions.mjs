@@ -79,6 +79,10 @@ export const logMealAction = {
   roles: ['client', 'trainer', 'nutritionist', 'admin'], // you log your OWN meal
   source: 'nora',
   async buildPreview(ctx, input) {
+    // ⚠ NORA LOGGING FOR YOU IS THE ASSISTANT, A PAID FEATURE (owner, 2026-11-10). Logging a meal
+    // yourself is free, but this card's Confirm is /api/ai/proposals/confirm, which a free account
+    // is refused: the card would draw, then fail. Asked here, Nora says so before drawing it.
+    memberGate(ctx);
     input = input || {};
     var macros = {};
     [['kcal', 'kcal'], ['protein', 'protein'], ['carbs', 'carbs'], ['fat', 'fat'], ['hydrationL', 'hydrationL']].forEach(function (k) {

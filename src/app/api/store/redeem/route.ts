@@ -155,7 +155,7 @@ export async function POST(request: Request) {
 
   const membership = await computeMembership(supabase, user.id, user.email ?? null, { emailConfirmed: !!user.email_confirmed_at });
   if (!membership.isMember) {
-    return NextResponse.json({ error: 'membership_required' }, { status: 402 });
+    return NextResponse.json({ error: membership.pastDue ? 'payment_past_due' : 'membership_required', code: membership.pastDue ? 'payment_past_due' : 'membership_required' }, { status: 402 });
   }
 
   const cost = storeItemCost(item);

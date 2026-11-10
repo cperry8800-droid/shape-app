@@ -32,8 +32,12 @@ export default {
       find: "  if (!readsOn || status === 'idle') return null;\n  if (status === 'loading' || status === 'playing') {",
       replace: "  if (!readsOn) return null;\n  if (status === 'idle' || status === 'loading' || status === 'playing') {" },
     { name: 'a sign-in refusal offers Play voice again', file: CLIENT,
-      find: "  if (status === 'signed_out' || status === 'members') {\n    return <span className=\"rdg err\" role=\"status\">{tr('cook:voice.signIn'",
+      find: "  if (status === 'signed_out') {\n    return <span className=\"rdg err\" role=\"status\">{tr('cook:voice.signIn'",
       replace: "  if (false) {\n    return <span className=\"rdg err\" role=\"status\">{tr('cook:voice.signIn'" },
+    // A paid refusal (owner, 2026-11-10) says what membership adds instead of offering Play voice.
+    { name: 'a paid refusal offers Play voice again', file: CLIENT,
+      find: "  if (status === 'members' || status === 'pastDue') {\n    const lock = status === 'pastDue' ? 'pastDue' : bsNoraLockFromCode('membership_required');",
+      replace: "  if (false) {\n    const lock = status === 'pastDue' ? 'pastDue' : bsNoraLockFromCode('membership_required');" },
     { name: 'a superseded clip leaves the status where it was', file: CLIENT,
       find: "if (result?.superseded) { setVoiceStatus('idle'); return; }",
       replace: 'if (result?.superseded) return;' },

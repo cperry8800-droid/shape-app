@@ -11,9 +11,10 @@
 // caller isn't signed in the API returns 401 with a redirect hint to the website's
 // sign-up (the Pricing page sends a signed-out visitor to Landing on its own).
 //
-// Pricing: we use the STRIPE_PLATFORM_PRICE_ID env var. This should be set to
-// a recurring $5/month price you've created in the Stripe dashboard for the
-// "Shape Platform" product.
+// Pricing: STRIPE_PLATFORM_PRICE_ID is the recurring $5/month price for the "Shape Platform"
+// product, and STRIPE_PLATFORM_ANNUAL_PRICE_ID its $48/year price (owner, 2026-11-10: "Add an annual
+// price"). `plan: 'annual'` asks for the year; anything else is the month. With no annual price set,
+// a year is refused (`annual_unavailable`) and /api/membership/plans offers the month only.
 
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
@@ -29,11 +30,11 @@ export const runtime = 'nodejs';
 
 // `returnTo` is where the member goes once the membership is confirmed. `successPath` is its
 // older name, still sent by app builds already installed.
-type Body = { returnTo?: string; successPath?: string; cancelPath?: string };
+type Body = { returnTo?: string; successPath?: string; cancelPath?: string; plan?: string };
 
 export async function POST(request: Request) {
-  const priceId = process.env.STRIPE_PLATFORM_PRICE_ID;
-  if (!priceId) {
+  const monthly = process.env.STRIPE_PLATFORM_PRICE_ID;
+  if (!monthly) {
     return NextResponse.json(
       { error: 'Platform price is not configured. Set STRIPE_PLATFORM_PRICE_ID.' },
       { status: 500 }
@@ -43,6 +44,11 @@ export async function POST(request: Request) {
   const bodyResult = await readJson<Body>(request, { allowEmpty: true });
   if (!bodyResult.ok) return bodyResult.response;
   const body: Body = bodyResult.data || {};
+  const annual = body.plan === 'annual';
+  const priceId = annual ? process.env.STRIPE_PLATFORM_ANNUAL_PRICE_ID : monthly;
+  if (!priceId) {
+    return NextResponse.json({ error: 'The yearly membership is not available yet.', code: 'annual_unavailable' }, { status: 400 });
+  }
 
   const user = await currentUser(request);
   if (!user) {
@@ -62,8 +68,20 @@ export async function POST(request: Request) {
     if (m.isKnownMinor) {
       return NextResponse.json({ error: 'Shape is for adults 18 and over.', code: 'age_restricted' }, { status: 403 });
     }
+    // ⚠ A PAST-DUE MEMBER STILL HAS A MEMBERSHIP. It no longer counts as paid (isMember), but a new
+    // checkout would be a second subscription beside the one Stripe is retrying: the fix is the
+    // card, in the billing portal.
+    if (m.pastDue) {
+      return NextResponse.json({ error: "Your membership payment didn't go through. Update your card to keep it.", code: 'payment_past_due' }, { status: 409 });
+    }
     if (m.isMember) {
-      return NextResponse.json({ error: "You're already a Shape member.", code: 'already_member' }, { status: 409 });
+      // Coaching includes the membership (owner, 2026-11-10): nothing to buy while it lasts.
+      return NextResponse.json(
+        m.includedWithCoach
+          ? { error: 'Your membership is included with your coaching.', code: 'already_member', includedWithCoach: true }
+          : { error: "You're already a Shape member.", code: 'already_member' },
+        { status: 409 },
+      );
     }
     // The account's own customer is where the membership lands (stripe-customer.ts). Whether
     // Stripe already holds one (our row arrives with the webhook) is asked under the checkout

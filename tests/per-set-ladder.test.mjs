@@ -379,7 +379,7 @@ test('the member\'s plan route delivers the ladder, and only a ladder-shaped one
     registry: new Map([
       ['next/server', nextServer],
       ['@/lib/request-auth', { clientForRequest: async () => null, currentUser: async () => null }],
-      ['@/lib/require-membership', { requireMembership: async () => null }],
+      ['@/lib/require-membership', { requireMembership: async () => null, requireAccount: async () => null }],
       ['@/lib/supabase/admin', { createAdminClient: () => { throw new Error('no service role in this test'); } }],
     ]),
   });

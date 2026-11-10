@@ -107,7 +107,9 @@ test('the tray composer docks at the foot, pinned', () => {
   assert.ok(CLIENT.includes("if (pinned) return slot ? createPortal(<div style={{ pointerEvents: 'auto', background: t.PAPER, ") && CLIENT.includes('{trayBox}</div>, slot) : null;'), 'pinned, the tray goes through the composer slot');
 });
 
-test('a channel: a # in the ring, and each sender\'s tier on their byline', () => {
+// The ring held a "#" until the owner, 2026-11-10: "rethink these icons for the channels", "make shape
+// hq one be the triangles": it holds the channel's mark (BSChannelMark; tests/channel-mark.test.mjs).
+test('a channel: its mark in the ring, and each sender\'s tier on their byline', () => {
   const d = drive(BSChatThread, {
     thread: thread([
       { who: 'Ari', t: 'Who is in for Saturday?', time: '3h', me: false, tier: 'TEMPO' },
@@ -116,7 +118,11 @@ test('a channel: a # in the ring, and each sender\'s tier on their byline', () =
     eyebrow: 'Channels', onBack() {},
   });
   const text = d.text;
-  assert.match(text, /#/);
+  const mark = d.nodes().find((n) => typeof n.type === 'function' && n.type.name === 'BSChannelMark');
+  assert.ok(mark, 'the ring does not hold the channel\'s mark');
+  assert.equal(mark.props.ch.name, 'Saturday runs', 'the mark is not the channel\'s');
+  assert.equal(mark.props.size, 40);
+  assert.doesNotMatch(text, /#/, 'a "#" in the ring again');
   assert.match(text, /AriTEMPO/);
   assert.match(text, /SamPEAK/);
 });

@@ -216,8 +216,6 @@
   "support.voice.paused": "Пауза. Торкнися мене, щоб говорити.",
   "support.voice.noAnswer": "Зараз не вдалося відповісти. Торкнися мене, щоб спробувати ще раз.",
   "support.voice.unheard": "Моя відповідь у чаті. Торкнися мене, щоб продовжити розмову.",
-  "support.voice.memberOnly": "Голос Нори доступний учасникам.",
-  "support.voice.talkMembers": "Розмова з Норою доступна учасникам.",
   "support.voice.micBlocked": "Дозволь доступ до мікрофона, щоб поговорити з Норою.",
   "support.voice.done": "Я закінчив",
   "support.voice.interrupt": "Перебити Нору",
@@ -413,5 +411,11 @@
   "thread.voiceUnplayable": "Це голосове повідомлення зараз неможливо відтворити.",
   "thread.voiceNotSent": "Не надіслано",
   "thread.voiceFailed": "Не вдалося надіслати голосове повідомлення.",
-  "thread.voicePreview": "Голосове повідомлення · {time}"
+  "thread.voicePreview": "Голосове повідомлення · {time}",
+  "composer.signInToSend": "Увійдіть, щоб надсилати повідомлення",
+  "channels.changePicture": "Змінити зображення каналу",
+  "channels.pictureSaved": "Зображення збережено",
+  "channels.pictureError": "Не вдалося зберегти зображення — спробуйте ще раз.",
+  "channels.openError": "Не вдалося відкрити канал — спробуйте ще раз.",
+  "channels.readOnly": "Тут публікує лише Shape"
 }

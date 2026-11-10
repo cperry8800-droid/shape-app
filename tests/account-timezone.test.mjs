@@ -209,7 +209,7 @@ async function routeOf(file, db) {
       ['next/server', nextServer],
       ['@/lib/request-auth', { clientForRequest: async () => db, currentUser: async () => (await db.auth.getUser()).data.user }],
       ['@/lib/request-utils', requestUtils],
-      ['@/lib/require-membership', { requireMembership: async () => null }],
+      ['@/lib/require-membership', { requireMembership: async () => null, requireAccount: async () => null, requireNora: async () => null }],
       ['@/lib/time', time],
       ['@/lib/account-timezone', account],
     ]),

@@ -169,7 +169,8 @@ test('Channels: the masthead, the magazine\'s teal, the names in the Wall\'s fac
   // The register alone: THE CHANNELS head went (owner, 2026-11-04: "remove this channels").
   assert.match(ch, /<header data-bs-channels-head="">/);
   assert.doesNotMatch(ch, /<header data-bs-channels-head="">[\s\S]{0,300}<h2 /, 'no big head over the channels');
-  assert.match(ch, /fontFamily: bsWsHead\(t\), fontWeight: 500, fontSize: BS_CHAT_SIZES\.rowName[^}]*\}\}>#\{ch\.name\}/);
+  // The "#" is smaller than the name (owner, 2026-11-10: "make the # smaller"): BSChannelHash.
+  assert.match(ch, /fontFamily: bsWsHead\(t\), fontWeight: 500, fontSize: BS_CHAT_SIZES\.rowName[^}]*\}\}><BSChannelHash \/>\{ch\.name\}/);
   assert.doesNotMatch(ch, /bsSdPrBreath|background: TEAL|linear-gradient\(90deg, \$\{t\.INK\}, \$\{tealSig\}/, 'no breathing dot, teal button or gradient rule');
   assert.match(CLIENT, /<div style=\{\{ padding: '7px 12px 90px', display: 'flex', flexDirection: 'column', gap: 12 \}\}>/, 'on the Wall\'s 12px edge, as close under the tabs as Team');
 });
@@ -183,6 +184,9 @@ test('Chat: one size for faces and names, the list rows smaller, every thread al
   assert.match(table, /rowFace: 36, rowName: 16,/, 'a list row: Coaches, Friends and a channel');
   assert.match(table, /senderFace: 24, senderName: 8\.5,/, 'a message\'s sender and the typing row');
   assert.match(table, /headFace: 48, headName: 25,/, 'the open thread\'s head');
+  // A channel's circle in the head is a little smaller than a person's face (owner, 2026-11-10, of the
+  // channel header's circle: "also make them a little smaller"), and still read from the table.
+  assert.match(table, /headMark: 40,/, 'a channel\'s circle in the head');
   const team = CLIENT.slice(CLIENT.indexOf("          const Row = (f, i, arr) => {"), CLIENT.indexOf('          // Friends — now a sub-tab INSIDE Team'));
   // Coaches and Friends draw every row with the one Row, so a coach's row and a friend's are the same size.
   assert.match(CLIENT, /\{friends\.map\(Row\)\}/);
@@ -192,7 +196,7 @@ test('Chat: one size for faces and names, the list rows smaller, every thread al
   assert.equal((th.match(/roundFace\(BS_CHAT_SIZES\.senderFace,/g) || []).length, 2, 'the sender and the typing row');
   assert.equal((th.match(/roundFace\(BS_CHAT_SIZES\.headFace,/g) || []).length, 1, 'the head');
   assert.doesNotMatch(th, /roundFace\(\d/, 'a face sized on its own');
-  assert.match(th, /width: BS_CHAT_SIZES\.headFace, height: BS_CHAT_SIZES\.headFace, borderRadius: '50%'/, 'a channel\'s # at the head\'s size');
+  assert.match(th, /<BSChannelMark ch=\{\{ name: thread\.channelName[^\n]*size=\{BS_CHAT_SIZES\.headMark\}/, 'a channel\'s circle sized on its own');
   assert.match(th, /<span data-thread-name="" style=\{\{ display: 'block', fontFamily: t\.DISPLAY, fontSize: BS_CHAT_SIZES\.headName,/);
   assert.match(th, /fontSize: BS_CHAT_SIZES\.senderName, fontWeight: 800, letterSpacing: '0\.16em', textTransform: 'uppercase', color: teal \}\}>\{senderName\}/);
   // A channel's typing row names its typers at the sender's size (Codex P2 on #2674).
@@ -218,7 +222,10 @@ test('the composer is square with an ink send button on the chat page; Nora\'s s
   const comp = between(CLIENT, 'function BSMessageComposer({', '\n}\n');
   assert.match(comp, /onVoiceComplete, mag = false, tray = false, above = null, voiceNote = null \}\) \{/);
   assert.match(comp, /background: canSend \? \(mag \? t\.INK : t\.ACCENT\) : t\.SURFACE_BORDER/);
-  assert.match(comp, /\{\(mag \|\| tray\) \? null : <span aria-hidden>🔒<\/span>\}/);
+  // The locked bar (a session with no account: messaging is free since 2026-11-10) asks it to sign in,
+  // square on the chat page, with no coloured emoji anywhere (BSPaidLock.jsx's BSSignInToSend).
+  assert.match(comp, /const lockedField = <BSSignInToSend t=\{t\} pinned=\{pinned\} square=\{mag\} arrow=\{mag \|\| tray\} \/>;/);
+  assert.doesNotMatch(comp, /🔒/);
   assert.equal((comp.match(/borderRadius: 17,/g) || []).length, 0, 'every rounded control asks mag');
   assert.match(CLIENT, /<BSMessageComposer mag value=\{draft\}/, 'the chat page asks for it');
   // Nora's sheet has its own look again (owner, 2026-10-31: "dont use a previously used one"): the tray,

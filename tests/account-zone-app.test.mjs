@@ -488,8 +488,9 @@ test('wiring: the shell runs the check for every role, before the update gate; t
   const main = read('mobile-app/src/broadsheet/iosAppBroadsheetMain.jsx');
   assert.match(main, /^import \{ BSTimezoneCheck \} from '\.\/BSTimezone\.jsx';$/m);
   assert.match(main, /<BSTimezoneCheck uid=\{authUserId\} ready=\{authReady\} coach=\{isCoachRole\} canAsk=\{timezoneAsk\} \/>\n\s*\{\/\* Over every stage/);
-  // The question waits for the branch that renders <App> for a member or approved coach.
-  assert.match(main, /const timezoneAsk = stage === 'app' && !memberGateLoading && !ageBlocked && memberAllowed && !bundleError && !!App && !dobState\.needed;/);
+  // The question waits for the branch that renders <App> for a signed-in account or an approved coach
+  // (paid or not since 2026-11-10: a free account is in the app).
+  assert.match(main, /const timezoneAsk = stage === 'app' && !gateLoading && !ageBlocked && accountAllowed && !bundleError && !!App && !dobState\.needed;/);
   const client = read('mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx');
   assert.ok(!/setTimezone|\/api\/client\/timezone/.test(client), 'the client still posts the device zone');
   assert.match(client, /<BSLanguageSetting t=\{t\} \/>\n(\s*\{\/\*[\s\S]*?\*\/\}\n)?\s*<BSTimezoneSetting t=\{t\} coach=\{isCoachRole\} \/>/);

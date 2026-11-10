@@ -141,6 +141,10 @@ function fakeAdmin({ tables = {}, users = [], rpc = {}, fail = [], afterRead = n
     auth: {
       admin: {
         listUsers: async () => ({ data: { users }, error: null }),
+        getUserById: async (id) => {
+          const user = users.find((u) => u.id === id);
+          return user ? { data: { user }, error: null } : { data: { user: null }, error: { message: 'User not found' } };
+        },
         generateLink: async (params) => {
           generated.push(params);
           if (params.type === 'invite' && users.some((u) => u.email?.toLowerCase() === params.email.toLowerCase())) return { data: { user: null, properties: null }, error: { message: 'already registered' } };
@@ -162,21 +166,36 @@ function fakeAdmin({ tables = {}, users = [], rpc = {}, fail = [], afterRead = n
 const asRecord = (v) => (v && typeof v === 'object' ? v : {});
 const stmts = (calls, table, op) => calls.filter((c) => c.table === table && (!op || c.op === op));
 
-async function loadActions(admin, { emailOk = true } = {}) {
+async function loadActions(admin, { emailOk = true, signedIn = null, file = 'src/app/dashboard/applications/actions.ts' } = {}) {
   const sent = [];
   const revalidated = [];
-  const actions = await loadRealModule(join(ROOT, 'src/app/dashboard/applications/actions.ts'), {
+  const email = { sendEmail: async (m) => { sent.push(m); return emailOk ? { ok: true } : { ok: false, error: 'email_not_configured' }; } };
+  // The shared approval module, compiled for real against the same fakes.
+  const approval = await loadRealModule(join(ROOT, 'src/lib/coach-approval.ts'), {
+    typescript: true,
+    registry: new Map([
+      ['@/lib/email', email],
+      ['@/lib/age-derive.mjs', ageDerive],
+      ['@/lib/coach-application-emails', emails],
+      ['@/lib/provider-applications', pa],
+      ['@/lib/provider-experience.mjs', providerExperience],
+    ]),
+  });
+  const actions = await loadRealModule(join(ROOT, file), {
     typescript: true,
     registry: new Map([
       ['next/cache', { revalidatePath: (p) => revalidated.push(p) }],
       ['next/navigation', { redirect: (to) => { const e = new Error('REDIRECT'); e.to = to; throw e; } }],
       ['@/lib/supabase/admin', { createAdminClient: () => admin.client }],
+      // The applicant's own session, for /coach/confirm.
+      ['@/lib/supabase/server', { createClient: async () => ({ auth: { getUser: async () => ({ data: { user: signedIn }, error: null }) } }) }],
       ['@/lib/admin-access', { requireAdminUser: async () => ADMIN }],
-      ['@/lib/email', { sendEmail: async (m) => { sent.push(m); return emailOk ? { ok: true } : { ok: false, error: 'email_not_configured' }; } }],
+      ['@/lib/email', email],
       ['@/lib/age-derive.mjs', ageDerive],
       ['@/lib/coach-application-emails', emails],
       ['@/lib/provider-applications', pa],
       ['@/lib/provider-experience.mjs', providerExperience],
+      ['@/lib/coach-approval', approval],
     ]),
   });
   const run = async (name, fields) => {
@@ -348,19 +367,190 @@ test('experience: below the 5-year standard, Approve needs the reviewer\'s tick,
   assert.match(src, /belowExperienceStandard\(row\.years_experience\)/);
 });
 
-test('1: an existing account is reused and still gets the approval email, telling it to sign in', async () => {
-  const admin = fakeAdmin({ tables: { provider_applications: [application()], profiles: [{ id: COACH_UID, role: 'client', roles: ['client'], full_name: 'Dana R', date_of_birth: '1990-05-02' }], trainers: [] }, users: [{ id: COACH_UID, email: 'Dana@Example.invalid', last_sign_in_at: '2026-09-01T00:00:00Z' }] });
+// ── who an approval is for (2026-11-10) ─────────────────────────────────────────────────
+const STAMP = (id) => ({ ...application().details, account_id: id, account_source: 'session' });
+const MEMBER = { id: COACH_UID, email: 'Dana@Example.invalid', last_sign_in_at: '2026-09-01T00:00:00Z' };
+
+test('binding: an account in use at the address of an application sent signed out is NOT made a coach; it is emailed a confirm link', async () => {
+  const admin = fakeAdmin({ tables: { provider_applications: [application()], profiles: [{ id: COACH_UID, role: 'client', roles: ['client'], full_name: 'Dana R', date_of_birth: '1990-05-02' }], trainers: [] }, users: [MEMBER] });
   const { run, sent } = await loadActions(admin);
-  const to = await run('approveApplication', { application_id: APP_ID, applicant_note: 'Welcome aboard, great references.' });
-  assert.equal(to.searchParams.get('account'), 'existing');
-  assert.equal(admin.generated.length + admin.invited.length, 0, 'no new account, no invite');
+  const to = await run('approveApplication', { application_id: APP_ID, review_notes: 'INTERNAL ok', applicant_note: 'Welcome aboard, great references.' });
+  assert.equal(to.searchParams.get('updated'), 'awaiting_confirmation');
+  assert.equal(to.searchParams.get('account'), 'confirm');
+  assert.equal(to.searchParams.get('email'), 'sent');
+  assert.equal(admin.generated.length + admin.invited.length, 0, 'no new account, no link token');
+  assert.equal(stmts(admin.calls, 'trainers').length, 0, 'no listing is looked up or made');
+  assert.equal(stmts(admin.calls, 'profiles').length, 0, 'the account gets no coach role');
+  const app = admin.tables.provider_applications[0];
+  assert.equal(app.status, 'in_review', 'not approved until the account confirms');
+  assert.equal(app.admin_review.pending_confirmation.user_id, COACH_UID);
+  assert.equal(app.admin_review.pending_confirmation.email, 'dana@example.invalid');
+  assert.equal(app.admin_review.pending_confirmation.by, ADMIN.id);
+  assert.equal(app.admin_review.approval_claim, null, 'the claim is cleared with it');
+  assert.equal(app.admin_review.decision_email.kind, 'confirmation');
   assert.equal(sent.length, 1);
+  assert.equal(sent[0].to, 'Dana@Example.invalid');
+  assert.ok(sent[0].text.includes(`https://shape.test/coach/confirm?application=${APP_ID}`), sent[0].text);
+  assert.doesNotMatch(sent[0].text, /token_hash|auth\/confirm/, 'the link carries no sign-in token');
+  assert.match(sent[0].text, /didn't apply/);
+  assert.match(sent[0].text, /Welcome aboard, great references\./);
+  assert.doesNotMatch(sent[0].text + sent[0].html, /INTERNAL/);
+});
+
+test('binding: sent signed in, the approval goes to the stamped account and its own address, whatever the form says', async () => {
+  const own = { id: COACH_UID, email: 'coach-own@example.invalid', last_sign_in_at: '2026-09-01T00:00:00Z' };
+  // Someone else's account holds the address typed on the form.
+  const other = { id: NEW_UID, email: 'dana@example.invalid', last_sign_in_at: '2026-09-01T00:00:00Z' };
+  const admin = fakeAdmin({ tables: { provider_applications: [application({ details: STAMP(COACH_UID) })], profiles: [{ id: COACH_UID, role: 'client', roles: ['client'], full_name: 'Dana R', date_of_birth: '1990-05-02' }], trainers: [] }, users: [own, other] });
+  const { run, sent } = await loadActions(admin);
+  const to = await run('approveApplication', { application_id: APP_ID, applicant_note: 'Welcome aboard.' });
+  assert.equal(to.searchParams.get('updated'), 'approved');
+  assert.equal(to.searchParams.get('account'), 'stamped');
+  assert.equal(admin.generated.length, 0);
+  assert.equal(admin.tables.trainers[0].owner_id, COACH_UID, 'the listing is the sender\'s');
+  assert.deepEqual(admin.tables.profiles.find((p) => p.id === COACH_UID).roles, ['client', 'trainer']);
+  assert.equal(admin.tables.profiles.some((p) => p.id === NEW_UID), false, 'the account at the form\'s address is untouched');
+  assert.equal(admin.tables.provider_applications[0].admin_review.approved_provider.bound_by, 'stamped');
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0].to, 'coach-own@example.invalid', 'emailed at the account\'s own address');
   assert.match(sent[0].text, /account you already have/);
   assert.ok(sent[0].text.includes('https://shape.test/newdesign/Login.html'));
-  assert.doesNotMatch(sent[0].text, /auth\/confirm/);
-  assert.match(sent[0].text, /Welcome aboard, great references\./, 'the note written FOR the applicant is included');
-  const profile = admin.tables.profiles[0];
-  assert.deepEqual(profile.roles, ['client', 'trainer']);
+  assert.match(sent[0].text, /Welcome aboard\./);
+});
+
+test('binding: an account_id without the server\'s marker is not a stamp (before #2667 a client could send one)', async () => {
+  const victim = { id: COACH_UID, email: 'victim@example.invalid', last_sign_in_at: '2026-09-01T00:00:00Z' };
+  const admin = fakeAdmin({ tables: { provider_applications: [application({ details: { ...application().details, account_id: COACH_UID } })], profiles: [], trainers: [] }, users: [victim] });
+  const { run, sent } = await loadActions(admin);
+  const to = await run('approveApplication', { application_id: APP_ID });
+  assert.equal(to.searchParams.get('account'), 'new', 'treated as sent signed out: the form\'s address is invited');
+  assert.equal(admin.tables.trainers[0].owner_id, NEW_UID);
+  assert.equal(admin.tables.profiles.some((p) => p.id === COACH_UID), false, 'the named account is never made a coach');
+  assert.equal(sent[0].to, 'dana@example.invalid');
+  assert.equal(pa.REVIEW_HIDDEN_DETAIL_KEYS.includes('account_source'), true);
+});
+
+test('binding: a stamped account that no longer exists sets nothing up and releases the claim', async () => {
+  const admin = fakeAdmin({ tables: { provider_applications: [application({ details: STAMP(COACH_UID) })], profiles: [], trainers: [] }, users: [] });
+  const { run, sent } = await loadActions(admin);
+  const to = await run('approveApplication', { application_id: APP_ID });
+  assert.equal(to.searchParams.get('notice'), 'account_gone');
+  assert.equal(admin.generated.length, 0, 'the form\'s address is not invited instead');
+  assert.equal(admin.tables.trainers.length, 0);
+  assert.equal(admin.tables.provider_applications[0].status, 'pending');
+  assert.equal(admin.tables.provider_applications[0].admin_review.approval_claim, null);
+  assert.equal(sent.length, 0);
+});
+
+test('binding: a member whose roles list is empty keeps their own role beside the coach role', async () => {
+  const admin = fakeAdmin({ tables: { provider_applications: [application({ details: STAMP(COACH_UID) })], profiles: [{ id: COACH_UID, role: 'client', roles: [], full_name: 'Dana R', date_of_birth: '1990-05-02' }], trainers: [] }, users: [{ ...MEMBER, email: 'dana@example.invalid' }] });
+  await (await loadActions(admin)).run('approveApplication', { application_id: APP_ID });
+  const profile = admin.tables.profiles.find((p) => p.id === COACH_UID);
+  assert.deepEqual(profile.roles, ['client', 'trainer'], 'not just ["trainer"], which turned the member pages into the coach dashboard');
+  assert.equal(profile.role, 'client', 'the primary role is kept');
+});
+
+test('binding: a rejection of an application sent signed in goes to the account that sent it', async () => {
+  const own = { id: COACH_UID, email: 'coach-own@example.invalid' };
+  const admin = fakeAdmin({ tables: { provider_applications: [application({ details: STAMP(COACH_UID) })] }, users: [own] });
+  const { run, sent } = await loadActions(admin);
+  await run('rejectApplication', { application_id: APP_ID });
+  assert.equal(sent[0].to, 'coach-own@example.invalid');
+});
+
+// ── the account's Confirm (/coach/confirm) ───────────────────────────────────────────────
+async function pendingApp(over = {}) {
+  const admin = fakeAdmin({ tables: { provider_applications: [application(over)], profiles: [{ id: COACH_UID, role: 'client', roles: ['client'], full_name: 'Dana R', date_of_birth: '1990-05-02' }], trainers: [] }, users: [MEMBER] });
+  const approved = await (await loadActions(admin)).run('approveApplication', { application_id: APP_ID, review_notes: 'INTERNAL fine', applicant_note: 'Great to have you.' });
+  assert.equal(approved.searchParams.get('updated'), 'awaiting_confirmation');
+  return admin;
+}
+const confirmAs = async (admin, user, opts = {}) => loadActions(admin, { signedIn: user, file: 'src/app/coach/confirm/actions.ts', ...opts });
+
+test('confirm: the account the approval waits for, signed in, sets the coach up and is emailed the approval', async () => {
+  const admin = await pendingApp();
+  const { run, sent, revalidated } = await confirmAs(admin, { id: COACH_UID, email: 'dana@example.invalid' });
+  const to = await run('confirmCoachApproval', { application_id: APP_ID });
+  assert.equal(to.pathname, '/coach/confirm');
+  assert.equal(to.searchParams.get('state'), 'done');
+  const app = admin.tables.provider_applications[0];
+  assert.equal(app.status, 'approved');
+  assert.equal(app.reviewed_by, ADMIN.id, 'the admin decided');
+  assert.equal(app.admin_review.decision.by, ADMIN.id);
+  assert.equal(app.admin_review.decision.confirmed_by, COACH_UID, 'the account confirmed');
+  assert.equal(app.admin_review.pending_confirmation, null);
+  assert.equal(app.admin_review.approved_provider.owner_id, COACH_UID);
+  assert.equal(app.admin_review.approved_provider.bound_by, 'confirmed');
+  assert.equal(app.review_notes, 'INTERNAL fine', 'the admin\'s note is kept');
+  assert.equal(admin.tables.trainers[0].owner_id, COACH_UID);
+  assert.deepEqual(admin.tables.profiles[0].roles, ['client', 'trainer']);
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0].to, 'dana@example.invalid');
+  assert.match(sent[0].text, /has been approved/);
+  assert.match(sent[0].text, /Great to have you\./, 'the note the admin wrote for the applicant');
+  assert.ok(revalidated.includes('/dashboard/applications'));
+
+  // A second press does nothing more.
+  const again = await (await confirmAs(admin, { id: COACH_UID, email: 'dana@example.invalid' })).run('confirmCoachApproval', { application_id: APP_ID });
+  assert.equal(again.searchParams.get('state'), 'done');
+  assert.equal(admin.tables.trainers.length, 1);
+});
+
+test('confirm: another account, or no account, cannot confirm it', async () => {
+  const admin = await pendingApp();
+  const wrong = await (await confirmAs(admin, { id: NEW_UID, email: 'someone@example.invalid' })).run('confirmCoachApproval', { application_id: APP_ID });
+  assert.equal(wrong.searchParams.get('state'), 'wrong_account');
+  const out = await (await confirmAs(admin, null)).run('confirmCoachApproval', { application_id: APP_ID });
+  assert.equal(out.pathname, '/login');
+  assert.equal(out.searchParams.get('next'), `/coach/confirm?application=${APP_ID}`);
+  const junk = await (await confirmAs(admin, { id: COACH_UID })).run('confirmCoachApproval', { application_id: "x' or 1=1" });
+  assert.equal(junk.pathname, '/coach/confirm');
+  assert.equal(junk.search, '');
+  assert.equal(admin.tables.trainers.length, 0);
+  assert.equal(admin.tables.provider_applications[0].status, 'in_review');
+});
+
+test('confirm: a rejection or a reopening withdraws the approval; a changed background check holds it', async () => {
+  for (const action of ['rejectApplication', 'markApplicationInReview']) {
+    const admin = await pendingApp();
+    await (await loadActions(admin)).run(action, { application_id: APP_ID });
+    assert.equal(admin.tables.provider_applications[0].admin_review.pending_confirmation, null, action);
+    if (action === 'markApplicationInReview') assert.equal(admin.tables.provider_applications[0].status, 'in_review');
+    const to = await (await confirmAs(admin, { id: COACH_UID, email: 'dana@example.invalid' })).run('confirmCoachApproval', { application_id: APP_ID });
+    assert.equal(to.searchParams.get('state'), 'none', action);
+    assert.equal(admin.tables.trainers.length, 0, action);
+  }
+  const held = await pendingApp();
+  await (await loadActions(held)).run('markBackgroundCheckNeedsReview', { application_id: APP_ID });
+  assert.ok(held.tables.provider_applications[0].admin_review.pending_confirmation, 'the check does not withdraw it');
+  const to = await (await confirmAs(held, { id: COACH_UID, email: 'dana@example.invalid' })).run('confirmCoachApproval', { application_id: APP_ID });
+  assert.equal(to.searchParams.get('state'), 'unavailable');
+  assert.equal(held.tables.trainers.length, 0);
+});
+
+test('confirm: a Confirm while an Approve holds the claim waits, and Approve again resends the link', async () => {
+  const admin = await pendingApp();
+  admin.tables.provider_applications[0].admin_review.approval_claim = { at: new Date().toISOString(), by: ADMIN.id };
+  const to = await (await confirmAs(admin, { id: COACH_UID, email: 'dana@example.invalid' })).run('confirmCoachApproval', { application_id: APP_ID });
+  assert.equal(to.searchParams.get('state'), 'busy');
+  assert.equal(admin.tables.trainers.length, 0);
+
+  admin.tables.provider_applications[0].admin_review.approval_claim = null;
+  const { run, sent } = await loadActions(admin);
+  const resent = await run('approveApplication', { application_id: APP_ID });
+  assert.equal(resent.searchParams.get('updated'), 'awaiting_confirmation');
+  assert.equal(sent.length, 1);
+  assert.ok(sent[0].text.includes('/coach/confirm?application='));
+});
+
+test('confirm: the page only renders; the setup is the POSTed action, checked against the session', () => {
+  const page = stripComments(read('src/app/coach/confirm/page.tsx'));
+  const action = read('src/app/coach/confirm/actions.ts');
+  assert.match(action, /^'use server';/);
+  assert.doesNotMatch(page, /provisionApproval|claimForApproval|\.update\(|\.insert\(/, 'opening the link changes nothing');
+  assert.match(page, /<form action=\{confirmCoachApproval\}>/);
+  assert.match(page, /pending\.userId !== user\.id/, 'another account is shown nothing of the application');
+  assert.match(stripComments(action), /if \(pending\.userId !== user\.id\) backToConfirm\(applicationId, 'wrong_account'\);/);
 });
 
 test('1/9: an existing account that has never signed in gets a set-password link, not "sign in as usual"', async () => {
@@ -605,6 +795,66 @@ test('3: rejecting an approved application is refused, and so is rejecting twice
   const r2 = await loadActions(admin2);
   assert.equal((await r2.run('rejectApplication', { application_id: APP_ID })).searchParams.get('notice'), 'already_rejected');
   assert.equal(r2.sent.length, 0, 'no second email');
+});
+
+test('3: a reject cannot race an approval: refused while an Approve is setting the coach up, and a reject read before a claim landed matches nothing (Codex P1 on #2675)', async () => {
+  // An Approve's claim is live: the reject is refused, nothing is written and nobody is emailed.
+  const live = { ...CLEAR_REVIEW, approval_claim: { at: new Date(Date.now() - 20_000).toISOString(), by: ADMIN.id } };
+  const held = fakeAdmin({ tables: { provider_applications: [application({ admin_review: live })] } });
+  const h = await loadActions(held);
+  assert.equal((await h.run('rejectApplication', { application_id: APP_ID })).searchParams.get('notice'), 'reject_approval_in_progress');
+  assert.equal(held.tables.provider_applications[0].status, 'pending');
+  assert.equal(stmts(held.calls, 'provider_applications', 'update').length, 0);
+  assert.equal(h.sent.length, 0);
+  // The claim lands between the reject's read and its write: the reject's compare-and-set misses.
+  let raced = false;
+  const race = fakeAdmin({
+    tables: { provider_applications: [application()] },
+    afterRead: ({ table, tables }) => {
+      if (raced || table !== 'provider_applications') return;
+      raced = true;
+      tables.provider_applications[0].updated_at = '2026-10-12T21:00:00.000001+00:00';
+    },
+  });
+  const r = await loadActions(race);
+  assert.equal((await r.run('rejectApplication', { application_id: APP_ID })).searchParams.get('notice'), 'already_decided');
+  assert.equal(race.tables.provider_applications[0].status, 'pending', 'not rejected under the approval');
+  assert.equal(r.sent.length, 0, 'no rejection email');
+  // A claim older than the hold belongs to a request that died: the reject goes through.
+  const stale = { ...CLEAR_REVIEW, approval_claim: { at: new Date(Date.now() - 11 * 60_000).toISOString(), by: ADMIN.id } };
+  const late = fakeAdmin({ tables: { provider_applications: [application({ admin_review: stale })] } });
+  const l = await loadActions(late);
+  assert.equal((await l.run('rejectApplication', { application_id: APP_ID })).searchParams.get('updated'), 'rejected');
+  assert.equal(late.tables.provider_applications[0].status, 'rejected');
+});
+
+test('2: an approval never overwrites a rejection; one that lands after the claim ran out is said and logged (Codex P1 on #2675)', async () => {
+  // The reject lands while this Approve is publishing the listing (its claim had run out).
+  let rejected = false;
+  const admin = fakeAdmin({
+    tables: { provider_applications: [application()], profiles: [], trainers: [] },
+    afterRead: ({ table, tables }) => {
+      if (rejected || table !== 'trainers') return;
+      rejected = true;
+      tables.provider_applications[0].status = 'rejected';
+    },
+  });
+  const { run, sent } = await loadActions(admin);
+  const logged = [];
+  const prior = console.error;
+  console.error = (...a) => { logged.push(a.map(String).join(' ')); };
+  let to;
+  try { to = await run('approveApplication', { application_id: APP_ID, review_notes: '', applicant_note: '' }); }
+  finally { console.error = prior; }
+  assert.equal(to.searchParams.get('notice'), 'rejected_meanwhile');
+  assert.equal(admin.tables.provider_applications[0].status, 'rejected', 'the rejection stands');
+  assert.equal(sent.length, 0, 'no approval email');
+  assert.ok(logged.some((l) => /rejected meanwhile/.test(l)), 'the setup is logged for taking down');
+  // Every write that decides the application is limited to one still open.
+  const lib = stripComments(read('src/lib/coach-approval.ts'));
+  assert.doesNotMatch(lib, /\.neq\('status', 'approved'\)\n\s+\.select\('id'\)/, 'no decision write excludes only approved');
+  assert.match(read('src/app/dashboard/applications/page.tsx'), /rejected_meanwhile:/);
+  assert.match(read('src/app/dashboard/applications/page.tsx'), /reject_approval_in_progress:/);
 });
 
 test('2/3: the approved card has no Approve, Reject or status buttons', () => {
@@ -1005,4 +1255,81 @@ test('the migration adds admin_review in one re-runnable transaction, guarded, a
   assert.match(body, /do \$guard\$[^]*raise exception[^]*\$guard\$;/);
   assert.doesNotMatch(body, /alter table (public\.)?(trainers|nutritionists|provider_credentials)\b/i);
   assert.doesNotMatch(body, /create (or replace )?(function|policy)/i);
+});
+
+// ⚠ THE EMAIL'S RECORD GOES INTO THE ROW AS IT IS THEN (Codex P2 on #2675). A confirmation email
+// takes seconds; an applicant confirming from an earlier link in that time approved the
+// application, and the record of the email then wrote back the review as it was before it went
+// out, wiping approved_provider over a live coach.
+test('a decision email is recorded into the application as it is now, never over a newer decision', async () => {
+  const admin = fakeAdmin({ tables: { provider_applications: [application()], profiles: [], trainers: [] } });
+  const row = () => admin.tables.provider_applications[0];
+  // While the confirmation email is out, the applicant confirms: approved, with its provider.
+  const email = {
+    sendEmail: async () => {
+      Object.assign(row(), {
+        status: 'approved',
+        admin_review: { ...row().admin_review, pending_confirmation: null, approved_provider: { id: 101, role: 'trainer', bound_by: 'confirmed' } },
+        updated_at: 'touched-confirm',
+      });
+      return { ok: true };
+    },
+  };
+  const approval = await loadRealModule(join(ROOT, 'src/lib/coach-approval.ts'), {
+    typescript: true,
+    registry: new Map([
+      ['@/lib/email', email],
+      ['@/lib/age-derive.mjs', ageDerive],
+      ['@/lib/coach-application-emails', emails],
+      ['@/lib/provider-applications', pa],
+      ['@/lib/provider-experience.mjs', providerExperience],
+    ]),
+  });
+  const sent = await approval.requestConfirmation(admin.client, row(), { kind: 'confirm', user: MEMBER, mailTo: MEMBER.email },
+    { decidedBy: ADMIN.id, notes: '', applicantNote: '', experienceException: null });
+  assert.deepEqual(sent, { ok: true });
+  assert.equal(row().status, 'approved');
+  assert.deepEqual(row().admin_review.approved_provider, { id: 101, role: 'trainer', bound_by: 'confirmed' }, 'the confirmed approval was written over');
+  assert.equal(row().admin_review.pending_confirmation, null, 'the waiting confirmation came back');
+  assert.equal(row().admin_review.decision_email.kind, 'confirmation', 'and the email is still recorded');
+  // The record is compare-and-set on updated_at, against the row read after the email.
+  const record = admin.calls.filter((c) => c.table === 'provider_applications' && c.op === 'update').at(-1);
+  assert.ok(record.filters.includes('updated_at=touched-confirm'), record.filters.join(' '));
+  assert.deepEqual(Object.keys(record.payload), ['admin_review']);
+});
+
+// ⚠ "MARK IN REVIEW" NEVER WRITES OVER A LIVE APPROVAL CLAIM (Codex P1 on #2675), as Reject: it
+// wrote back the review it had read, so an Approve or the applicant's Confirm that claimed the
+// application after that read lost its claim, and a reject could then pass under the provisioning.
+test('Mark in review: a live approval claim refuses the reopen, and a claim landing after the read keeps its claim', async () => {
+  const live = { ...CLEAR_REVIEW, approval_claim: { at: new Date(Date.now() - 20_000).toISOString(), by: ADMIN.id } };
+  const held = fakeAdmin({ tables: { provider_applications: [application({ admin_review: live })] } });
+  const h = await loadActions(held);
+  assert.equal((await h.run('markApplicationInReview', { application_id: APP_ID })).searchParams.get('notice'), 'reopen_approval_in_progress');
+  assert.deepEqual(held.tables.provider_applications[0].admin_review.approval_claim, live.approval_claim);
+  assert.equal(stmts(held.calls, 'provider_applications', 'update').length, 0, 'a reopen was written under a live claim');
+  // The applicant's Confirm claims the application between the reopen's read and its write.
+  const waiting = { ...CLEAR_REVIEW, pending_confirmation: { user_id: COACH_UID, email: 'dana@example.invalid', at: '2026-11-10T00:00:00Z', by: ADMIN.id } };
+  let raced = false;
+  const race = fakeAdmin({
+    tables: { provider_applications: [application({ status: 'in_review', admin_review: waiting })] },
+    afterRead: ({ table, tables }) => {
+      if (raced || table !== 'provider_applications') return;
+      raced = true;
+      const row = tables.provider_applications[0];
+      row.admin_review = { ...row.admin_review, approval_claim: { at: new Date().toISOString(), by: COACH_UID } };
+      row.updated_at = '2026-11-10T21:00:00.000001+00:00';
+    },
+  });
+  const r = await loadActions(race);
+  assert.equal((await r.run('markApplicationInReview', { application_id: APP_ID })).searchParams.get('notice'), 'already_decided');
+  assert.ok(race.tables.provider_applications[0].admin_review.approval_claim, 'the reopen wiped the live claim');
+  assert.ok(race.tables.provider_applications[0].admin_review.pending_confirmation, 'the reopen wrote over the version it did not read');
+  // With no claim, the reopen goes through as before and withdraws the waiting confirmation.
+  const plain = fakeAdmin({ tables: { provider_applications: [application({ admin_review: waiting })] } });
+  const p = await loadActions(plain);
+  assert.equal((await p.run('markApplicationInReview', { application_id: APP_ID })).searchParams.get('updated'), 'in_review');
+  assert.equal(plain.tables.provider_applications[0].status, 'in_review');
+  assert.equal(plain.tables.provider_applications[0].admin_review.pending_confirmation, null);
+  assert.match(read('src/app/dashboard/applications/page.tsx'), /reopen_approval_in_progress:/);
 });

@@ -201,11 +201,49 @@ const cwCardDoneKeep = (token, status, auditId) => {
     localStorage.setItem(CW_CARD_DONE_KEY, JSON.stringify(m));
   } catch (e) {}
 };
+// The prompt at a paid feature in the chat (owner, 2026-11-10: an account is free; assistant Nora
+// is the membership's). pageShell.jsx's ShapePaidLock where the page has it; the same words and a
+// way in otherwise, so a page without the shell never draws nothing. Kinds: "join", "pastdue".
+const CW_PAST_DUE_LINE = "Your payment didn’t go through. Update your card to get Shape Radio and Nora back.";
+function CwPaidLock(props) {
+  if (typeof window !== "undefined" && typeof window.ShapePaidLock === "function") return React.createElement(window.ShapePaidLock, { compact: true, ...props });
+  const pastDue = props.kind === "pastdue";
+  const line = pastDue ? CW_PAST_DUE_LINE : (props.feature || "This") + " is part of Shape membership, $5 a month.";
+  const link = { color: "var(--sh-accent-ink, #2ee0c4)", fontWeight: 600, textDecoration: "none", background: "transparent", border: 0, padding: 0, font: "inherit", cursor: "pointer" };
+  return (
+    <div data-shape-lock={props.kind} style={{ fontFamily: sans, fontSize: 12, lineHeight: 1.45, color: "var(--sh-ink2, #a09b94)" }}>
+      {line} <button type="button" onClick={() => cwMembershipDoor(pastDue)} style={link}>{pastDue ? "Update your card" : "Join"} &rarr;</button>
+    </div>
+  );
+}
+// The way in from a paid feature in the chat: the membership checkout, or for a renewal that failed
+// Shape's billing portal, both pageShell.jsx's; without the shell, the portal request itself and
+// the Pricing page.
+async function cwMembershipDoor(pastDue) {
+  const M = typeof window !== "undefined" ? window.ShapeMembership : null;
+  if (M && M.start && M.portal) {
+    const r = pastDue ? await M.portal() : await M.start();
+    if (r && r.code === "already_member") { window.location.reload(); return; }
+    if (r && r.error) window.alert(r.error);
+    return;
+  }
+  if (!pastDue) { window.location.href = "/newdesign/Pricing.html"; return; }
+  try {
+    const r = await fetch("/api/stripe/billing-portal", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ returnPath: window.location.pathname + window.location.search + window.location.hash }) });
+    const d = r.ok ? await r.json() : null;
+    if (d && d.url) { window.location.href = d.url; return; }
+  } catch (e) {}
+  window.alert("Could not open billing. Try again.");
+}
 function CwProposalCard({ a }) {
   const token = a && a.token;
   const isSetup = !!a && a.action === "set_up_account";
   const [phase, setPhase] = React.useState(null); // null | busy | undoing | error: what is in flight here
   const [err, setErr] = React.useState("");
+  // A 402 from Confirm or Undo (owner, 2026-11-10: Nora's changes are part of the membership):
+  // "join" for a free account, "pastdue" for a renewal that failed. The card says so, with the way
+  // in, instead of the route's raw refusal and a Try again that can't work.
+  const [lock, setLock] = React.useState(null);
   const [, setSeen] = React.useState(0); // moved on when the kept outcome may have changed
   const kept = cwCardDoneRead(token);
   const status = phase === "busy" || phase === "undoing" ? phase : kept ? kept.status : phase === "error" ? "error" : "idle";
@@ -237,12 +275,16 @@ function CwProposalCard({ a }) {
   const post = async (url, payload) => {
     const res = await fetch(url, { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.message || data.error || "Something went wrong.");
+    if (!res.ok) {
+      const failed = new Error(data.message || data.error || "Something went wrong.");
+      failed.lock = res.status === 402 ? (data.code === "payment_past_due" ? "pastdue" : "join") : null;
+      throw failed;
+    }
     return data;
   };
   const confirm = async () => {
     if (status === "busy" || status === "done") return;
-    setPhase("busy"); setErr("");
+    setPhase("busy"); setErr(""); setLock(null);
     try {
       const r = await post("/api/ai/proposals/confirm", { token });
       cwCardDoneKeep(token, "done", r && r.auditId);
@@ -252,12 +294,13 @@ function CwProposalCard({ a }) {
       setPhase("error");
       // Lost to the same card confirmed in another tab: its kept outcome is this card's, Undo and all.
       if (adopt()) { setPhase(null); return; }
+      if (e && e.lock) { setLock(e.lock); return; }
       setErr(String(e && e.message || "Could not apply that change."));
     }
   };
   const undo = async () => {
     if (!auditId || status === "undoing" || status === "undone") return;
-    setPhase("undoing"); setErr("");
+    setPhase("undoing"); setErr(""); setLock(null);
     try {
       await post("/api/ai/audit/undo", { auditId });
       cwCardDoneKeep(token, "undone", auditId);
@@ -265,6 +308,7 @@ function CwProposalCard({ a }) {
       adopt();
     } catch (e) {
       setPhase(null);
+      if (e && e.lock) { setLock(e.lock); return; }
       setErr(String(e && e.message || "Could not undo."));
     }
   };
@@ -299,8 +343,9 @@ function CwProposalCard({ a }) {
         </div>
       )}
       {err && <div style={{ marginTop: 7, fontFamily: mono, fontSize: 10, color: "#e0463c", lineHeight: 1.4 }}>{err}</div>}
+      {lock && <div data-nora-card-locked={lock} style={{ marginTop: 8 }}><CwPaidLock kind={lock} feature="Nora making changes for you" /></div>}
       <div style={{ marginTop: 10, display: "flex", gap: 7, alignItems: "center", flexWrap: "wrap" }}>
-        {(status === "idle" || status === "error") && (
+        {(status === "idle" || status === "error") && !lock && (
           <button onClick={confirm} style={{ border: 0, background: TEAL, color: PAPER, borderRadius: 999, padding: "7px 15px", fontFamily: mono, fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", cursor: "pointer" }}>{status === "error" ? "Try again" : "Confirm"}</button>
         )}
         {status === "busy" && <span style={{ fontFamily: mono, fontSize: 9.5, color: muted, letterSpacing: "0.1em", textTransform: "uppercase" }}>Applying…</span>}
@@ -310,7 +355,7 @@ function CwProposalCard({ a }) {
         {status === "done" && openUrl && (
           <a href={openUrl} style={{ textDecoration: "none", border: 0, background: TEAL, color: PAPER, borderRadius: 999, padding: "7px 15px", fontFamily: mono, fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase" }}>Open in builder →</a>
         )}
-        {status === "done" && auditId && (
+        {status === "done" && auditId && !lock && (
           <button onClick={undo} style={{ border: `1px solid ${hair}`, background: "transparent", color: muted, borderRadius: 999, padding: "7px 13px", fontFamily: mono, fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", cursor: "pointer" }}>Undo</button>
         )}
         {status === "undoing" && <span style={{ fontFamily: mono, fontSize: 9.5, color: muted, letterSpacing: "0.1em", textTransform: "uppercase" }}>Undoing…</span>}
@@ -535,6 +580,156 @@ const CW_PLACE_SUBS = {
   community: "Group threads by topic",
   support: "Shape's concierge",
 };
+
+// ── Channels, as the app lists them (owner, 2026-11-10: "yes wire up the real channels next") ──
+// The app's `listChannels` (shapeBackend.js) and its chat page's ordering, from the same three
+// reads: the visible channels, their members, and the caller's unread counts. Shape HQ, then the
+// PR Wall, pinned for everyone; the rest with the member's own pins first. One difference: the
+// app draws a canned Shape HQ (sample "product news") when no real one exists, and a member's
+// view here carries no sample, so HQ shows only once there is a real channel by that name.
+// ── What sits in a channel's circle ──────────────────────────────────────────────────
+// An IDENTICAL copy of public/newdesign/channelMark.mjs (this classic script cannot import it);
+// tests/channel-mark.test.mjs runs both on the same names. The host's picture; Shape's triangles
+// for Shape HQ and a trophy for the PR Wall, Shape's own channels only; else the name's initials
+// on the name's colour.
+const CW_CHANNEL_MARK_HUES = ['#34d6c5', '#c0533b', '#d8b25a', '#5b8def', '#8a5cf6', '#5fa96e'];
+const CW_CHANNEL_MARK_TRIANGLES = { viewBox: '4 12 91 91', top: '43,39 82,15 82,63', bottom: '17,49 56,73 17,97' };
+const CW_CHANNEL_MARK_TROPHY = 'M8 4h8v5a4 4 0 0 1-8 0V4ZM8 6H5.5a2.5 2.5 0 0 0 2.5 3.5M16 6h2.5a2.5 2.5 0 0 1-2.5 3.5M12 13v3.5M9.5 16.5h5v3.5h-5Z';
+function cwChannelMark(ch) {
+  const c = ch || {};
+  const name = String(c.name || '').replace(/^#\s*/, '').trim();
+  const key = name.toLowerCase();
+  if (typeof c.picture === 'string' && c.picture.trim()) return { kind: 'picture', src: c.picture.trim() };
+  if (c.official && key === 'shape hq') return { kind: 'shape' };
+  if (c.official && key === 'pr wall') return { kind: 'trophy' };
+  const words = name.split(/[\s\-_.·]+/).map((w) => w.replace(/[^\p{L}\p{N}]/gu, '')).filter(Boolean);
+  const text = (words.length >= 2 ? words[0][0] + words[1][0] : (words[0] || '#').slice(0, 2)).toUpperCase();
+  let h = 0;
+  for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) >>> 0;
+  return { kind: 'initials', text, hue: CW_CHANNEL_MARK_HUES[h % CW_CHANNEL_MARK_HUES.length] };
+}
+// The circle (owner, 2026-11-10: "you can leave them circle", "make them a little smaller").
+function CwChannelMark({ ch, size = 30 }) {
+  const m = cwChannelMark(ch);
+  // The address that failed to load, not a flag: a new picture, or another channel drawn by this
+  // same circle (the thread head's), gets its own try (Codex P2 on #2676).
+  const [brokenSrc, setBrokenSrc] = React.useState(null);
+  const broken = m.kind === "picture" && brokenSrc === m.src;
+  const base = { flex: "none", width: size, height: size, borderRadius: 999, display: "grid", placeItems: "center", overflow: "hidden" };
+  if (m.kind === "picture" && !broken) {
+    return <span aria-hidden data-channel-mark="picture" style={{ ...base, background: "rgba(var(--sh-accent2-rgb, 10,197,168),0.12)" }}><img src={m.src} alt="" onError={() => setBrokenSrc(m.src)} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} /></span>;
+  }
+  if (m.kind === "shape") {
+    const g = CW_CHANNEL_MARK_TRIANGLES;
+    return (
+      <span aria-hidden data-channel-mark="shape" style={{ ...base, background: "rgba(var(--sh-accent2-rgb, 10,197,168),0.14)", border: "1px solid rgba(var(--sh-accent2-rgb, 10,197,168),0.45)" }}>
+        <svg viewBox={g.viewBox} width={size * 0.56} height={size * 0.56} style={{ display: "block" }}><polygon points={g.top} fill="var(--sh-ink, #f2ede4)" /><polygon points={g.bottom} fill="var(--sh-accent3, #34d6c5)" /></svg>
+      </span>
+    );
+  }
+  if (m.kind === "trophy") {
+    return (
+      <span aria-hidden data-channel-mark="trophy" style={{ ...base, background: cwHexA("#d8b25a", 0.14), border: "1px solid " + cwHexA("#d8b25a", 0.45), color: "#d8b25a" }}>
+        <svg viewBox="0 0 24 24" width={size * 0.52} height={size * 0.52} fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" style={{ display: "block" }}><path d={CW_CHANNEL_MARK_TROPHY} /></svg>
+      </span>
+    );
+  }
+  const fall = m.kind === "initials" ? m : cwChannelMark({ name: ch && ch.name });
+  return (
+    <span aria-hidden data-channel-mark="initials" style={{ ...base, background: cwHexA(fall.hue, 0.16), border: "1px solid " + cwHexA(fall.hue, 0.45), color: fall.hue, fontFamily: "'Saira', 'Space Grotesk', system-ui, sans-serif", fontWeight: 700, fontSize: Math.round(size * (fall.text.length > 1 ? 0.36 : 0.44)), letterSpacing: "0.02em", lineHeight: 1 }}>{fall.text}</span>
+  );
+}
+
+// The "#" before a channel's name, smaller and lighter than the name, as the app draws it.
+function CwChannelHash() {
+  return <span aria-hidden style={{ fontSize: "0.72em", opacity: 0.55, marginRight: "0.15em" }}>#</span>;
+}
+
+function cwChannelRole(n, desc) {
+  return `${n} ${n === 1 ? "member" : "members"}${desc ? " · " + desc : ""}`;
+}
+// What a read adds to a copy the member has typed in (the install, below): every thread here stays,
+// and the live ones this copy lacks are added, a thread known by its conversation and a channel by
+// its id (Codex, #2391). ⚠ ON CHANNELS, the sample set has no ids, so nothing could ever match it:
+// once the real channels arrive a sample channel goes, unless the member wrote in it (Codex P2 on
+// #2676). ⚠ AND A CHANNEL IN BOTH TAKES THE LIVE FIELDS (Codex P2 on #2676): read-only, Shape's own,
+// joined, host, its picture, counts and pin as they are now, keeping only what the member did here
+// (its messages and last line). Coach and friend threads keep what was here.
+function cwMergeTyped(list, live, tabId) {
+  const key = (t) => (t && (t.conversationId || (t.channelId ? "ch:" + t.channelId : null))) || null;
+  const base = list || [];
+  const have = new Set(base.map(key).filter(Boolean));
+  const add = live.filter((t) => key(t) && !have.has(key(t)));
+  const liveBy = new Map(live.filter((t) => key(t)).map((t) => [key(t), t]));
+  const kept = tabId === "community"
+    ? base.filter((t) => key(t) || (t && (t.messages || []).some((x) => x && x.me))).map((t) => {
+      const now = key(t) ? liveBy.get(key(t)) : null;
+      return now ? { ...now, messages: t.messages || [], last: t.last || now.last, time: t.time || now.time } : t;
+    })
+    : base;
+  const changed = kept.length !== base.length || kept.some((t, i) => t !== base[i]);
+  return add.length || changed ? [...kept, ...add] : list;
+}
+
+// Every membership row of these channels, a page at a time. The API answers at most 1,000 rows a
+// request, so one read cut the counts short past that and could drop the member's own row, showing
+// a member Join instead of the composer (Codex P2 on #2676). Past the last page read (a server that
+// ignores the range, or a hundred thousand rows), the counts stop there and the member's own rows
+// are read on their own, so joined, host and pin stay exact.
+const CW_MEMBER_PAGE = 1000, CW_MEMBER_PAGES = 100;
+async function cwReadChannelMembers(db, ids, me) {
+  const cols = "channel_id, user_id, role, pinned";
+  const all = [];
+  for (let p = 0; p < CW_MEMBER_PAGES; p++) {
+    const r = await db.from("channel_members").select(cols).in("channel_id", ids)
+      .order("channel_id", { ascending: true }).order("user_id", { ascending: true })
+      .range(p * CW_MEMBER_PAGE, (p + 1) * CW_MEMBER_PAGE - 1);
+    if (!r || r.error) return { data: null, error: (r && r.error) || { message: "no answer" } };
+    const rows = r.data || [];
+    for (const x of rows) all.push(x);
+    if (rows.length < CW_MEMBER_PAGE) return { data: all, error: null };
+  }
+  if (me) {
+    const own = await db.from("channel_members").select(cols).in("channel_id", ids).eq("user_id", me);
+    if (own && !own.error) {
+      const mine = new Set(all.filter((x) => x.user_id === me).map((x) => x.channel_id));
+      for (const x of own.data || []) if (!mine.has(x.channel_id)) all.push(x);
+    }
+  }
+  return { data: all, error: null };
+}
+function cwChannelThreads(rows, members, me, unread, when, pictureUrl) {
+  const by = {};
+  (members || []).forEach((m) => { if (m && m.channel_id) (by[m.channel_id] = by[m.channel_id] || []).push(m); });
+  const list = (rows || []).filter((c) => c && c.id).map((c) => {
+    const ms = by[c.id] || [];
+    const mine = ms.find((m) => m.user_id === me) || null;
+    const n = ms.length;
+    const desc = String(c.description || "").trim();
+    return {
+      channelId: c.id, name: String(c.name || "channel"), who: "# " + String(c.name || "channel"),
+      role: cwChannelRole(n, desc), memberCount: n, desc,
+      last: c.last_message || "", time: c.last_message_at ? when(c.last_message_at) : "",
+      unread: (unread && unread[c.id]) || 0, group: true,
+      joined: !!mine, host: !!((mine && mine.role === "host") || (me && c.created_by === me)),
+      private: c.visibility === "private", pinned: !!(mine && mine.pinned),
+      // Shape's own channel, by its flag (2026-11-10-channel-pictures-and-shape-hq.sql), which only
+      // Shape sets. Not "no owner": a deleted member's channel has none either. Before the
+      // migration has run there is no flag, and the ownerless channel (the PR Wall) is Shape's.
+      official: c.official === true || (c.official === undefined && !c.created_by),
+      // The host's picture, its address built by this client from the stored path.
+      picture: (c.picture_path && typeof pictureUrl === "function") ? (pictureUrl(c.picture_path) || null) : null,
+      // A channel only Shape posts in (Shape HQ).
+      readOnly: c.read_only === true,
+      messages: [],
+    };
+  });
+  const named = (t, n) => t.official && t.name.trim().toLowerCase() === n;
+  const hq = list.find((t) => named(t, "shape hq")) || null;
+  const prw = list.find((t) => named(t, "pr wall")) || null;
+  const rest = list.filter((t) => t !== hq && t !== prw).sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0));
+  return [hq, prw].filter(Boolean).map((t) => ({ ...t, pinned: true })).concat(rest);
+}
 
 // The tab ids of a thread record saved before records named their tabs. Those were
 // positional, and their LENGTH says which list wrote them: the Feed tab or not in front,
@@ -907,11 +1102,14 @@ function ChatWidget(props) {
         }
       } else {
         reason = res.status === 401 ? "signed_out" : (res.status === 402 || res.status === 403) ? "members" : "unavailable";
+        // A renewal that failed (402 payment_past_due) is said as that, with what fixes it.
+        if (res.status === 402) { const why = await res.json().catch(() => null); if (why && why.code === "payment_past_due") reason = "past_due"; }
       }
     } catch (e) { reason = "unavailable"; }
     if (gen === noraGenRef.current) setNoraPlaying(null);
     if (explicit) {
       flashSpeakNotice(reason === "playback_blocked" ? "Tap Listen again to hear Nora."
+        : reason === "past_due" ? CW_PAST_DUE_LINE
         : reason === "signed_out" ? "Sign in to hear Nora's voice."
         : reason === "members" ? "Nora's voice is a member feature."
         : "Voice is unavailable right now.");
@@ -1363,11 +1561,9 @@ function ChatWidget(props) {
   // (`participants read conversations` → `can_access_conversation(id)`), which is
   // the same path the app takes.
   //
-  // ⚠ SCOPE: coach threads and member DMs — the two surfaces that carry message
-  // history, both out of `conversations`/`messages`. CHANNELS ARE NOT HERE: they
-  // are a separate `channels` table with its own rows and their own message
-  // store, so they are a different read rather than one more bucket, and the
-  // Channels tab keeps its sample set until that lands.
+  // ⚠ SCOPE: coach threads and member DMs, out of `conversations`/`messages`, and the
+  // channels, out of their own `channels` table and `channel_messages` store (2026-11-10).
+  // A channel's messages are read on open by the channel poll below, not here.
   const [threadsLive, setThreadsLive] = React.useState(null); // null = not read yet
   React.useEffect(() => {
     // ⚠ A MEASURED SIGNED-OUT VISITOR IS THE ONLY ONE THIS REFUSES TO LOAD FOR.
@@ -1452,18 +1648,25 @@ function ChatWidget(props) {
         // gives a thread's client access only when it has a provider (owner,
         // 2026-10-15: "fix the privacy one first"), so this row no longer comes
         // back at all. The clause stays: it is still what this tab means.
-        const convRes = await db.from("conversations").select("*")
-          .eq("kind", "direct").is("dm_key", null).eq("client_id", me)
-          .not("provider_role", "is", null)
-          .order("last_message_at", { ascending: false, nullsFirst: false });
+        let convRes;
+        try {
+          convRes = await db.from("conversations").select("*")
+            .eq("kind", "direct").is("dm_key", null).eq("client_id", me)
+            .not("provider_role", "is", null)
+            .order("last_message_at", { ascending: false, nullsFirst: false });
+        } catch (e) { convRes = { error: e }; }
         if (cancelled) return;
         // ⚠ A FAILED READ IS NOT AN EMPTY INBOX. Falling through to `[]` here
         // would replace a member's real coach threads with "no conversations",
-        // which is a claim rather than an absence.
-        if (convRes && convRes.error) { setThreadsLive(false); return; }
-        const convs = (convRes && convRes.data) || [];
+        // which is a claim rather than an absence: the coach threads and DMs are
+        // left as they are (`inboxOk`). ⚠ AND IT DOES NOT STOP THE CHANNELS, which
+        // are another table: an early return here kept a member on the sample
+        // channels for the session (Codex P2 on #2676).
+        const inboxOk = !(convRes && convRes.error);
+        const convs = (inboxOk && convRes.data) || [];
 
-        const dmRes = await db.rpc("list_member_dm_threads");
+        let dmRes = null;
+        if (inboxOk) { try { dmRes = await db.rpc("list_member_dm_threads"); } catch (e) { dmRes = { error: e }; } }
         if (cancelled) return;
         // The DM leg failing is survivable on its own — the coach threads are
         // still real — so it degrades to no DMs rather than discarding both.
@@ -1515,7 +1718,45 @@ function ChatWidget(props) {
           unread: 0, conversationId: r.conversation_id, messages: [],
         }));
 
-        if (!cancelled) setThreadsLive({ circle: coachThreads, friends: dmThreads });
+        // Channels: the app's three reads (channels, channel_members, channel_unread). ⚠ A FAILED
+        // READ LEAVES THE CHANNELS AS THEY ARE rather than installing none: an empty list is a
+        // claim ("there are no channels"), and the coach threads above are real either way.
+        let channelThreads = null;
+        try {
+          const chRes = await db.from("channels")
+            // Every column: `picture_path` and `read_only` exist once
+            // 2026-11-10-channel-pictures-and-shape-hq.sql has run, and naming them before then
+            // would fail the whole read.
+            .select("*")
+            .order("last_message_at", { ascending: false, nullsFirst: false })
+            .order("created_at", { ascending: false });
+          if (cancelled) return;
+          if (chRes && !chRes.error) {
+            const rows = chRes.data || [];
+            const ids = rows.map((c) => c.id);
+            const memRes = ids.length ? await cwReadChannelMembers(db, ids, me) : { data: [] };
+            if (cancelled) return;
+            const unread = {};
+            let unreadOk = false;
+            try {
+              const ur = await db.rpc("channel_unread");
+              if (ur && !ur.error) { (ur.data || []).forEach((r) => { unread[r.channel_id] = Number(r.unread) || 0; }); unreadOk = true; }
+            } catch (e) { /* below */ }
+            // ⚠ A FAILED UNREAD READ IS NOT "NOTHING UNREAD" (Codex P2 on #2676): each channel keeps
+            // the count it had, and the list still stands.
+            if (!unreadOk) {
+              const ci = tabs.findIndex((t) => t && t.id === "community");
+              ((threadsRef.current || [])[ci] || []).forEach((t) => { if (t && t.channelId) unread[t.channelId] = t.unread || 0; });
+            }
+            if (cancelled) return;
+            const pictureUrl = (path) => { try { return db.storage.from("channel-pictures").getPublicUrl(path).data.publicUrl || null; } catch (e) { return null; } };
+            if (memRes && !memRes.error) channelThreads = cwChannelThreads(rows, memRes.data || [], me, unread, relTime, pictureUrl);
+          }
+        } catch (e) { /* channels stay as they were */ }
+
+        // What was read, and only that: a leg that failed leaves its tabs as they are.
+        const live = { ...(inboxOk ? { circle: coachThreads, friends: dmThreads } : {}), ...(channelThreads ? { community: channelThreads } : {}) };
+        if (!cancelled) setThreadsLive(Object.keys(live).length ? live : false);
       } catch (e) {
         if (!cancelled) setThreadsLive(false);
       }
@@ -1546,11 +1787,14 @@ function ChatWidget(props) {
       setThreadsByTab(prev => prev.map((list, i) => {
         const id = tabs[i] && tabs[i].id;
         const live = Object.prototype.hasOwnProperty.call(threadsLive, id) ? threadsLive[id] : null;
-        if (!live) return list;
-        const have = new Set((list || []).map((t) => t.conversationId).filter(Boolean));
-        const add = live.filter((t) => t.conversationId && !have.has(t.conversationId));
-        return add.length ? [...(list || []), ...add] : list;
+        return live ? cwMergeTyped(list, live, id) : list;
       }));
+      // The open channel stays open: the sample set going moves it up the list, and a thread is
+      // open by its place in it.
+      const ci = tabs.findIndex((t) => t && t.id === "community");
+      const was = ci >= 0 && Object.prototype.hasOwnProperty.call(threadsLive, "community") ? (threadsRef.current || [])[ci] : null;
+      const now = was ? cwMergeTyped(was, threadsLive.community, "community") : null;
+      if (was && now !== was) setActiveByTab(prev => prev.map((v, i) => { if (i !== ci) return v; const at = now.indexOf(was[v || 0]); return at >= 0 ? at : 0; }));
       return;
     }
     setThreadsByTab(prev => prev.map((list, i) => {
@@ -1856,6 +2100,25 @@ function ChatWidget(props) {
         .then((r) => settle(r.failed ? { failed: r.failed } : {}));
       return;
     }
+    // A channel: stored as the member, as the app's `sendChannelMessage` stores it. Members only
+    // (the table's insert policy); the composer offers Join first to someone who is not one.
+    const chId = activeThread && activeThread.channelId;
+    if (chId) {
+      (async () => {
+        const db = window.shapeDb && window.shapeDb.client;
+        if (!db) { settle({ failed: "No connection. Try again." }); return; }
+        let u = null;
+        try { const r = await db.auth.getUser(); u = r && r.data && r.data.user; } catch (e) {}
+        if (!u) { settle({ failed: "Sign in to post in channels." }); return; }
+        const meta = u.user_metadata || {};
+        const author = (myName && myName !== "You" ? myName : "") || meta.full_name || String(u.email || "Member").split("@")[0];
+        try {
+          const { error } = await db.from("channel_messages").insert({ channel_id: chId, sender_id: u.id, author_name: author, body: text });
+          settle(error ? { failed: "It didn\u2019t go through. Try again." } : {});
+        } catch (e) { settle({ failed: "No connection. Try again." }); }
+      })();
+      return;
+    }
     if (provider) {
       post("/api/messages/direct", { providerRole: provider.role, providerId: provider.id, message: text })
         .then((r) => settle(r.failed ? { failed: r.failed } : { conversationId: r.data && r.data.conversationId }));
@@ -2139,10 +2402,16 @@ function ChatWidget(props) {
     return () => { cancelled = true; };
   }, [active]);
 
-  // Shape is members-only — the chat bubble is where messages actually send, so
-  // gate the composer: approved coaches + active subscribers can type; everyone
-  // else (signed-out or free) sees a Join prompt. null = still resolving.
+  // Who is writing, for the composer, and what they have, for Nora's voice (owner, 2026-11-10: an
+  // account is free, and messaging coaches comes with it; voice is the membership's). `account`:
+  // null while it is read, "in", "out" (/api/me said nobody is signed in), or "unknown" (it did not
+  // answer: the composer stays open, and a send that fails says so). `member`: assistant Nora now,
+  // from /api/me/membership's `nora` (the membership, an approved coach's or an admin's, coaching on
+  // Shape; an answer without `nora` reads the paid features), null while read; `pastDue`: a renewal
+  // that failed, which is free until the card is updated.
+  const [account, setAccount] = React.useState(null);
   const [member, setMember] = React.useState(null);
+  const [pastDue, setPastDue] = React.useState(false);
   React.useEffect(() => {
     let cancelled = false;
     shapeReadPortalMe()
@@ -2155,17 +2424,23 @@ function ChatWidget(props) {
             if (pr && pr.full_name && !cancelled) setMyName(pr.full_name);
           } catch (e) {}
         }
-        if (!u) { if (!cancelled) setMember(false); return; }
-        const roles = Array.isArray(u.roles) ? u.roles : [];
-        const isCoach = u.role === "trainer" || u.role === "nutritionist" || roles.includes("trainer") || roles.includes("nutritionist");
-        if (isCoach) { if (!cancelled) setMember(true); return; }
+        if (!u) {
+          if (!cancelled) { setAccount(d && Object.prototype.hasOwnProperty.call(d, "user") ? "out" : "unknown"); setMember(false); }
+          return;
+        }
+        if (!cancelled) setAccount("in");
         try {
-          const sres = await fetch("/api/stripe/subscription", { credentials: "same-origin", cache: "no-store" });
-          const sd = sres.ok ? await sres.json() : null;
-          if (!cancelled) setMember(!!(sd && sd.active === true));
+          const md = window.ShapeMembership && window.ShapeMembership.read
+            ? await window.ShapeMembership.read()
+            : await fetch("/api/me/membership", { credentials: "same-origin", cache: "no-store" }).then((r) => (r.ok ? r.json() : null));
+          if (!cancelled) {
+            const paid = !!(md && (md.member === true || md.coach === true || md.includedWithCoach === true));
+            setMember(!!(md && md.signedIn === true && (typeof md.nora === "boolean" ? md.nora : paid)));
+            setPastDue(!!(md && md.signedIn === true && md.pastDue === true));
+          }
         } catch { if (!cancelled) setMember(false); }
       })
-      .catch(() => { if (!cancelled) setMember(false); });
+      .catch(() => { if (!cancelled) { setAccount("unknown"); setMember(false); } });
     return () => { cancelled = true; };
   }, []);
   // ⚠ VOICE ONLY WHERE IT WORKS. Speech (/api/ai/speak) and transcription
@@ -2173,15 +2448,22 @@ function ChatWidget(props) {
   // non-member was shown a mic and a read-aloud that could only fail (the Ask Nora
   // review, 2026-10-07). The controls show once this answers yes; typing to Nora is
   // open to everyone. A ref too, for the reply path that reads it after an await.
-  // ⚠ AND THE SERVER DECIDES THE REST. `member` knows coaches and subscribers only;
-  // the gate also admits a dietitian or an admin (Codex, #2241). So a signed-in
-  // account the member check says no to asks the gate itself (GET /api/ai/speak).
+  // ⚠ AND THE SERVER DECIDES THE REST. The gate may admit someone the membership answer did not
+  // (a dietitian, an admin: Codex, #2241), so a signed-in account it says no to asks the gate
+  // itself (GET /api/ai/speak), whose 402 also says whether the renewal failed.
   const [voiceGate, setVoiceGate] = React.useState(null);
   React.useEffect(() => {
     if (member !== false || !myUserIdRef.current) return undefined;
     let cancelled = false;
     fetch("/api/ai/speak", { method: "GET", credentials: "same-origin", cache: "no-store" })
-      .then((r) => { if (!cancelled) setVoiceGate(r.ok); })
+      .then(async (r) => {
+        if (cancelled) return;
+        setVoiceGate(r.ok);
+        if (r.status === 402 && r.json) {
+          const why = await r.json().catch(() => null);
+          if (!cancelled && why && why.code === "payment_past_due") setPastDue(true);
+        }
+      })
       .catch(() => { if (!cancelled) setVoiceGate(false); });
     return () => { cancelled = true; };
   }, [member]);
@@ -2312,6 +2594,68 @@ function ChatWidget(props) {
     return () => { cancelled = true; clearInterval(id); };
   }, [open, tabIdx, activeIdx, threadsByTab]);
 
+  // ── An open channel: its messages, then what is new every 8 seconds ──────────────
+  // Read straight from `channel_messages` (readable for a public channel, or a member's),
+  // as the app reads them. ⚠ THE NEWEST 200, NOT THE OLDEST: the app's read is ascending
+  // with a limit, which on a busy channel opens on its first 200 messages and never shows
+  // the latest; here the first read takes the newest and turns them round. Later reads take
+  // what came after the last one seen. Opening it marks it read (`mark_channel_read`).
+  const activeChannelId = (() => { const t = (threadsByTab[tabIdx] || [])[activeIdx]; return (t && t.channelId) || null; })();
+  React.useEffect(() => {
+    if (!open || !activeChannelId) return undefined;
+    const chId = activeChannelId;
+    const db = window.shapeDb && window.shapeDb.client;
+    if (!db) return undefined;
+    let cancelled = false;
+    // ⚠ THE ACCOUNT'S OWN CURSOR AND NAME (Codex P2 on #2676): an account switched in place
+    // (authWho) starts the channel afresh, not after the last account's messages, and "You" is
+    // that account's.
+    const acct = authWho && authWho !== "anon" ? authWho : null;
+    const seenKey = "ch:" + (acct || "") + ":" + chId;
+    try { db.rpc("mark_channel_read", { p_channel_id: chId }).then(() => {}, () => {}); } catch (e) {}
+    const fetchOnce = async () => {
+      const since = lastSeenRef.current[seenKey];
+      let rows = null;
+      try {
+        const q = db.from("channel_messages").select("*").eq("channel_id", chId);
+        const res = since
+          ? await q.gt("created_at", since).order("created_at", { ascending: true }).limit(200)
+          : await q.order("created_at", { ascending: false }).limit(200);
+        if (cancelled || !res || res.error) return;
+        rows = (res.data || []).slice();
+        if (!since) rows.reverse();
+      } catch (e) { return; }
+      if (!rows.length) return;
+      lastSeenRef.current[seenKey] = rows[rows.length - 1].created_at;
+      const me = acct || myUserIdRef.current;
+      const mapped = rows.map((m) => {
+        const mine = !!(me && m.sender_id === me);
+        return {
+          who: mine ? "You" : (m.author_name || "Member"), t: m.body, me: mine, userId: m.sender_id || null,
+          time: new Date(m.created_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }),
+        };
+      });
+      setThreadsByTab((prev) => prev.map((ts) => (ts || []).map((t) => {
+        if (!t || t.channelId !== chId) return t;
+        // A message this page sent is already on screen; its stored copy replaces it (once each).
+        let local = t.messages || [];
+        if (since) {
+          for (const row of mapped) {
+            if (!row.me) continue;
+            const k = local.findIndex((x) => x.me && x.lid && !x.failed && x.t === row.t);
+            if (k >= 0) local = local.slice(0, k).concat(local.slice(k + 1));
+          }
+        }
+        const last = mapped[mapped.length - 1];
+        return { ...t, messages: since ? [...local, ...mapped] : mapped, last: `${last.me ? "You" : last.who}: ${last.t}`, unread: 0 };
+      })));
+      if (since) { try { db.rpc("mark_channel_read", { p_channel_id: chId }).then(() => {}, () => {}); } catch (e) {} }
+    };
+    fetchOnce();
+    const id = setInterval(fetchOnce, 8000);
+    return () => { cancelled = true; clearInterval(id); };
+  }, [open, activeChannelId, authWho]);
+
   const selectThread = (i) => {
     setActiveByTab(prev => prev.map((v, ti) => ti === tabIdx ? i : v));
     setThreadsByTab(prev => prev.map((ts, ti) => ti !== tabIdx ? ts : ts.map((t, j) => j === i ? { ...t, unread: 0 } : t)));
@@ -2319,7 +2663,84 @@ function ChatWidget(props) {
 
   const togglePin = (i, e) => {
     e && e.stopPropagation();
-    setThreadsByTab(prev => prev.map((ts, ti) => ti !== tabIdx ? ts : ts.map((t, j) => j === i ? { ...t, pinned: !t.pinned } : t)));
+    const th = (threadsByTab[tabIdx] || [])[i];
+    // Shape HQ and the PR Wall are pinned for everyone, as in the app.
+    if (th && th.official) return;
+    const next = !(th && th.pinned);
+    const real = !!(th && th.channelId);
+    // A pin on a real channel joins you to it, as `set_channel_pinned` does for a public channel.
+    setThreadsByTab(prev => prev.map((ts, ti) => ti !== tabIdx ? ts : ts.map((t, j) => j === i ? { ...t, pinned: next, ...(real && next ? { joined: true } : {}) } : t)));
+    // A real channel keeps the pin on your account (the app's `set_channel_pinned`), joined or not: the
+    // function joins a public channel before it stores the pin (Codex P2 on #2676; the app calls it
+    // either way).
+    // ⚠ A REFUSED OR FAILED PIN PUTS THE ROW BACK (Codex P2 on #2676): left as drawn, an unjoined
+    // channel read as joined and offered a composer that could not post.
+    const db = window.shapeDb && window.shapeDb.client;
+    if (real && db) {
+      const undo = () => setThreadsByTab(prev => prev.map((ts, ti) => ti !== tabIdx ? ts : ts.map((t) => (t && t.channelId === th.channelId ? { ...t, pinned: !!th.pinned, joined: !!th.joined } : t))));
+      try { db.rpc("set_channel_pinned", { p_channel_id: th.channelId, p_pinned: next }).then((r) => { if (r && r.error) undo(); }, undo); } catch (err) { undo(); }
+    }
+  };
+
+  // A channel's picture, set by its host (owner, 2026-11-10: "have creators of channels upload custom
+  // pictures"): the file into the channel's folder of the channel-pictures bucket (only its host may
+  // write there), then its path onto the channel. The address is built here, never stored.
+  const pictureInputRef = React.useRef(null);
+  const [pictureBusy, setPictureBusy] = React.useState(false);
+  const [pictureErr, setPictureErr] = React.useState(null); // { id, text }
+  const onChannelPicture = async (e) => {
+    const file = e && e.target && e.target.files && e.target.files[0];
+    if (e && e.target) e.target.value = "";
+    const th = (threadsByTab[tabIdx] || [])[activeIdx];
+    const chId = th && th.channelId;
+    if (!file || !chId || !th.host || th.official) return;
+    const db = window.shapeDb && window.shapeDb.client;
+    const type = String(file.type || "").toLowerCase();
+    if (!db) { setPictureErr({ id: chId, text: "No connection. Try again." }); return; }
+    if (!/^image\/(jpeg|png|webp|gif)$/.test(type)) { setPictureErr({ id: chId, text: "Use a JPEG, PNG, WebP or GIF." }); return; }
+    if (file.size > 5 * 1024 * 1024) { setPictureErr({ id: chId, text: "Use a picture under 5 MB." }); return; }
+    setPictureBusy(true); setPictureErr(null);
+    try {
+      const ext = type === "image/jpeg" ? "jpg" : type.split("/")[1];
+      const path = `${chId}/${Date.now()}-${Math.random().toString(36).slice(2, 7)}.${ext}`;
+      const up = await db.storage.from("channel-pictures").upload(path, file, { contentType: type, upsert: false });
+      if (up && up.error) throw up.error;
+      const res = await db.from("channels").update({ picture_path: path }).eq("id", chId);
+      if (res && res.error) throw res.error;
+      const url = db.storage.from("channel-pictures").getPublicUrl(path).data.publicUrl || null;
+      setThreadsByTab(prev => prev.map((ts) => (ts || []).map((t) => (t && t.channelId === chId ? { ...t, picture: url } : t))));
+    } catch (err) {
+      setPictureErr({ id: chId, text: "Couldn\u2019t save the picture. Try again." });
+    } finally {
+      setPictureBusy(false);
+    }
+  };
+
+  // Joining a channel: a member row of your own, which a public channel allows (the app's
+  // `joinChannel`). Already a member reads as joined.
+  const [joinBusy, setJoinBusy] = React.useState(null);
+  const [joinErr, setJoinErr] = React.useState(null); // { id, text }
+  const joinChannel = async (chId) => {
+    const db = window.shapeDb && window.shapeDb.client;
+    if (!chId) return;
+    if (!db) { setJoinErr({ id: chId, text: "No connection. Try again." }); return; }
+    setJoinBusy(chId); setJoinErr(null);
+    try {
+      const r = await db.auth.getUser();
+      const uid = r && r.data && r.data.user && r.data.user.id;
+      if (!uid) { setJoinErr({ id: chId, text: "Sign in to join channels." }); return; }
+      const { error } = await db.from("channel_members").insert({ channel_id: chId, user_id: uid, role: "member" });
+      if (error && error.code !== "23505" && !/duplicate|conflict/i.test(error.message || "")) { setJoinErr({ id: chId, text: "Couldn\u2019t join this channel. Try again." }); return; }
+      setThreadsByTab(prev => prev.map((ts) => (ts || []).map((t) => {
+        if (!t || t.channelId !== chId || t.joined) return t;
+        const n = (Number(t.memberCount) || 0) + 1;
+        return { ...t, joined: true, memberCount: n, role: cwChannelRole(n, t.desc || "") };
+      })));
+    } catch (err) {
+      setJoinErr({ id: chId, text: "No connection. Try again." });
+    } finally {
+      setJoinBusy(null);
+    }
   };
 
   const selectTab = (i) => {
@@ -2328,9 +2749,30 @@ function ChatWidget(props) {
     setSearchQ("");
   };
 
+  const [createErr, setCreateErr] = React.useState("");
   const createChannel = () => {
     const slug = newName.trim().replace(/^#\s*/, "").replace(/\s+/g, "-").toLowerCase();
     if (!slug) return;
+    // A member whose channels are live makes a real one (the app's `create_channel`: public,
+    // with them as its host). A visitor's stays on this page, as the sample does.
+    const db = window.shapeDb && window.shapeDb.client;
+    if (threadsLive && typeof threadsLive === "object" && threadsLive.community && db) {
+      const desc = newDesc.trim();
+      const ti = tabIdx;
+      setCreateErr("");
+      (async () => {
+        try {
+          const { data: id, error } = await db.rpc("create_channel", { p_name: slug, p_description: desc || null, p_visibility: "public" });
+          if (error || !id) { setCreateErr("Couldn\u2019t create the channel. Try again."); return; }
+          dirtyRef.current = true;
+          const made = { channelId: id, name: slug, who: "# " + slug, role: cwChannelRole(1, desc), memberCount: 1, desc, last: "", time: "now", unread: 0, group: true, joined: true, host: true, private: false, pinned: false, official: false, messages: [] };
+          setThreadsByTab(prev => prev.map((ts, k) => k !== ti ? ts : [...(ts || []), made]));
+          setActiveByTab(prev => prev.map((v, k) => k === ti ? (threadsByTab[ti]?.length || 0) : v));
+          setCreating(false); setNewName(""); setNewDesc("");
+        } catch (err) { setCreateErr("No connection. Try again."); }
+      })();
+      return;
+    }
     dirtyRef.current = true;
     const newThread = {
       who: "# " + slug,
@@ -2623,7 +3065,7 @@ function ChatWidget(props) {
                     cursor: "pointer", color: "inherit", fontFamily: "inherit",
                   }}>
                   {t.group ? (
-                    <span aria-hidden style={{ flex: "none", width: 34, height: 34, borderRadius: 10, display: "grid", placeItems: "center", background: "rgba(var(--sh-accent2-rgb, 10,197,168),0.12)", border: "1px solid rgba(var(--sh-accent2-rgb, 10,197,168),0.3)", color: "var(--sh-accent-ink, #2ee0c4)", fontFamily: "'JetBrains Mono', monospace", fontSize: 14, fontWeight: 700 }}>#</span>
+                    <CwChannelMark ch={{ name: t.name || t.who, picture: t.picture, official: t.official }} size={30} />
                   ) : (
                     <CwFacetAvatar size={34} c={cwTierColor(t.tier || cwHashTier(t.who, !!t.coach || /trainer|coach|nutritionist/i.test(t.role || "")))} initial={cwInitials(t.who)} photo={t.conversationId ? undefined : (cwDemoFace(t.who) || undefined)} live={!!t.online} />
                   )}
@@ -2632,12 +3074,13 @@ function ChatWidget(props) {
                     <div style={{ minWidth: 0, flex: 1, fontSize: 13, fontWeight: 500, fontFamily: t.group ? "'JetBrains Mono', monospace" : sans, display: "flex", alignItems: "center", gap: 6, overflow: "hidden" }}>
                       <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", display: "inline-flex", alignItems: "center", gap: 6 }}>
                         {t.online && <span style={{ flex: "none", width: 7, height: 7, borderRadius: 999, background: "#3ddc84", boxShadow: "0 0 0 2px rgba(61,220,132,0.2)" }} />}
-                        {t.group ? String(t.who || "").replace(/^#\s*/, "") : t.who}
+                        {t.group ? <React.Fragment><CwChannelHash />{String(t.who || "").replace(/^#\s*/, "")}</React.Fragment> : t.who}
                       </span>
-                      {t.pinned && <span style={{ flex: "none", fontSize: 8.5, color: "var(--sh-accent-ink, #2ee0c4)", fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.08em", background: "rgba(var(--sh-accent2-rgb, 10,197,168),0.12)", padding: "1px 5px", borderRadius: 3 }}>PINNED</span>}
+                      {t.pinned && <span style={{ flex: "none", fontSize: 8.5, color: "var(--sh-accent-ink, #2ee0c4)", fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.08em", background: "rgba(var(--sh-accent2-rgb, 10,197,168),0.12)", padding: "1px 5px", borderRadius: 3 }}>{t.official ? "SHAPE" : "PINNED"}</span>}
+                      {t.channelId && !t.joined && !t.readOnly && <span style={{ flex: "none", fontSize: 8.5, color: "var(--sh-ink2, #a09b94)", fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.08em", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.18)", padding: "0 5px", borderRadius: 3 }}>JOIN</span>}
                     </div>
                     <div style={{ display: "flex", alignItems: "center", gap: 6, flex: "none" }}>
-                      <button
+                      {!t.official && <button
                         className="chw-pin"
                         onClick={(e) => togglePin(origIdx, e)}
                         title={t.pinned ? "Unpin" : "Pin to top"}
@@ -2650,7 +3093,7 @@ function ChatWidget(props) {
                           transition: "opacity 120ms",
                         }}>
                         {t.pinned ? "📌" : "📍"}
-                      </button>
+                      </button>}
                       <div style={{ fontSize: 10, color: "var(--sh-ink3, #75706a)", fontFamily: "'JetBrains Mono', monospace" }}>{t.time || ""}</div>
                     </div>
                   </div>
@@ -2709,6 +3152,7 @@ function ChatWidget(props) {
                       outline: "none", marginBottom: 10,
                     }}
                   />
+                  {createErr && <div role="alert" style={{ fontFamily: sans, fontSize: 12, color: "var(--sh-gold, #d8a23a)", marginBottom: 8 }}>{createErr}</div>}
                   <div style={{ display: "flex", gap: 6 }}>
                     <button onClick={createChannel} disabled={!newName.trim()}
                       style={{
@@ -2718,7 +3162,7 @@ function ChatWidget(props) {
                         fontFamily: sans, fontSize: 12, fontWeight: 500,
                         cursor: newName.trim() ? "pointer" : "not-allowed",
                       }}>Create</button>
-                    <button onClick={() => { setCreating(false); setNewName(""); setNewDesc(""); }}
+                    <button onClick={() => { setCreating(false); setNewName(""); setNewDesc(""); setCreateErr(""); }}
                       style={{
                         background: "transparent", color: "var(--sh-ink2, #a09b94)",
                         border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.12)", padding: "7px 10px", borderRadius: 6,
@@ -2858,19 +3302,38 @@ function ChatWidget(props) {
               style={{ padding: "12px 18px", borderBottom: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)", display: "flex", justifyContent: "space-between", alignItems: "center", cursor: docked ? "default" : "grab", userSelect: "none" }}>
               <div style={{ minWidth: 0, display: "flex", alignItems: "center", gap: 11 }}>
                 {active && (active.group
-                  ? <span aria-hidden style={{ flex: "none", width: 32, height: 32, borderRadius: 9, display: "grid", placeItems: "center", background: "rgba(var(--sh-accent2-rgb, 10,197,168),0.12)", border: "1px solid rgba(var(--sh-accent2-rgb, 10,197,168),0.3)", color: "var(--sh-accent-ink, #2ee0c4)", fontFamily: "'JetBrains Mono', monospace", fontSize: 13, fontWeight: 700 }}>#</span>
+                  ? <CwChannelMark ch={{ name: active.name || active.who, picture: active.picture, official: active.official }} size={32} />
                   : active.who === "Nora"
                   ? <img src="/nora-avatar.png" alt="" aria-hidden onError={cwPhotoError} data-fallback={CW_NORA_MARK} style={{ flex: "none", width: 32, height: 32, borderRadius: 999, objectFit: "cover", objectPosition: "50% 32%", boxShadow: `0 0 0 2px ${TEAL}` }} />
                   : <CwFacetAvatar size={32} c={cwTierColor(active.tier || cwHashTier(active.who, !!active.coach || /trainer|coach|nutritionist/i.test(active.role || "")))} initial={cwInitials(active.who)} photo={active.conversationId ? undefined : (cwDemoFace(active.who) || undefined)} live={!!active.online} />)}
                 <div style={{ minWidth: 0 }}>
-                  <div style={{ fontSize: 14.5, fontWeight: 600, letterSpacing: "-0.01em", fontFamily: active?.group ? "'JetBrains Mono', monospace" : sans, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{active?.group ? String(active.who || "").replace(/^#\s*/, "") : active?.who}</div>
-                  {active?.role && <div style={{ fontSize: 11.5, color: "var(--sh-ink2, #a09b94)", marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{active.role}</div>}
+                  <div style={{ fontSize: 14.5, fontWeight: 600, letterSpacing: "-0.01em", fontFamily: sans, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{active?.group ? <React.Fragment><CwChannelHash />{String(active.who || "").replace(/^#\s*/, "")}</React.Fragment> : active?.who}</div>
+                  {pictureErr && active && pictureErr.id === active.channelId
+                    ? <div role="alert" style={{ fontSize: 11.5, color: "var(--sh-gold, #d8a23a)", marginTop: 2 }}>{pictureErr.text}</div>
+                    : active?.role && <div style={{ fontSize: 11.5, color: "var(--sh-ink2, #a09b94)", marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{active.role}</div>}
                 </div>
               </div>
+              {active && active.channelId && active.host && !active.official && (
+                <React.Fragment>
+                  <button type="button" className="cw-icon-btn" data-channel-picture onClick={() => pictureInputRef.current && pictureInputRef.current.click()} disabled={pictureBusy}
+                    title="Change the channel\u2019s picture" aria-label="Change the channel\u2019s picture" style={{ opacity: pictureBusy ? 0.5 : 1 }}>
+                    <svg aria-hidden width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M4 8h3l1.6-2.4h6.8L17 8h3v11H4Z" /><circle cx="12" cy="13" r="3.4" /></svg>
+                  </button>
+                  <input ref={pictureInputRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={onChannelPicture} style={{ display: "none" }} />
+                </React.Fragment>
+              )}
             </div>
             )}
 
             <div ref={scrollRef} style={{ flex: 1, overflowY: "auto", padding: noraMode ? "20px 18px 16px" : "18px 20px", display: "flex", flexDirection: "column", gap: 12 }}>
+              {active && active.channelId && !(active.messages || []).length && (
+                // A real channel with nothing in it yet says what it is for, not a blank page.
+                <div data-channel-empty style={{ margin: "auto", maxWidth: 360, textAlign: "center", padding: "24px 8px" }}>
+                  <div style={{ fontFamily: serif, fontSize: 20, letterSpacing: "-0.015em", color: INK }}>#{active.name}</div>
+                  <div style={{ marginTop: 8, fontFamily: sans, fontSize: 13, lineHeight: 1.5, color: "var(--sh-ink2, #a09b94)" }}>{active.desc || "No messages yet."}</div>
+                  <div style={{ marginTop: 10, fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--sh-ink3, #75706a)" }}>{active.readOnly ? "Only Shape posts here" : active.joined ? "Say the first thing" : "Join to post"}</div>
+                </div>
+              )}
               {active?.messages?.map((m, i) => {
                 if (m && m.shape) {
                   return (
@@ -3065,27 +3528,36 @@ function ChatWidget(props) {
               )}
             </div>
 
-            {(member === false && !isSupport) ? (
-              <div style={{ margin: "0 14px 14px", padding: "12px 14px", borderRadius: 14, border: "1px solid rgba(var(--sh-accent2-rgb, 10,197,168),0.28)", background: "rgba(var(--sh-accent2-rgb, 10,197,168),0.06)", display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+            {/* Messaging comes with a free account (owner, 2026-11-10): only someone signed out is
+                asked to sign in. Nora's tab is open to everyone. */}
+            {(account === "out" && !isSupport) ? (
+              <div data-chat-signin style={{ margin: "0 14px 14px", padding: "12px 14px", borderRadius: 14, border: "1px solid rgba(var(--sh-accent2-rgb, 10,197,168),0.28)", background: "rgba(var(--sh-accent2-rgb, 10,197,168),0.06)", display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
                 <svg aria-hidden width="16" height="18" viewBox="0 0 16 18" fill="none" style={{ flex: "none", color: TEAL_BRIGHT }}>
                   <rect x="2" y="8" width="12" height="9" rx="2.5" stroke="currentColor" strokeWidth="1.5" />
                   <path d="M5 8V5.5a3 3 0 0 1 6 0V8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
                 </svg>
-                <div style={{ flex: 1, minWidth: 150, fontFamily: sans, fontSize: 13, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.78)", lineHeight: 1.4 }}>Become a Shape member to send messages.</div>
-                <a href="/pricing" style={{ fontFamily: sans, fontSize: 12.5, fontWeight: 600, background: TEAL, color: PAPER, borderRadius: 999, padding: "9px 16px", textDecoration: "none", whiteSpace: "nowrap" }}>Join · $5/mo</a>
+                <div style={{ flex: 1, minWidth: 150, fontFamily: sans, fontSize: 13, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.78)", lineHeight: 1.4 }}>Sign in to send messages. A Shape account is free.</div>
+                <a href={"/newdesign/Login.html?next=" + encodeURIComponent(typeof window !== "undefined" ? window.location.pathname + window.location.search + window.location.hash : "/")} style={{ fontFamily: sans, fontSize: 12.5, fontWeight: 600, background: TEAL, color: PAPER, borderRadius: 999, padding: "9px 16px", textDecoration: "none", whiteSpace: "nowrap" }}>Sign in</a>
               </div>
             ) : (
             <React.Fragment>
             {isSupport && (
               <div style={{ padding: "10px 16px 0", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                {/* A free account and a visitor: voice is part of the membership, and Join (the
+                    checkout for a signed-in account, Pricing for a visitor). A renewal that failed:
+                    the owner's past-due line and Update your card (the billing portal). */}
                 {voiceLocked && (
-                  <div data-nora-voice-locked style={{ flex: "1 1 100%", display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", borderRadius: 10, background: "rgba(var(--sh-ink-rgb, 242,237,228),0.04)", fontFamily: sans, fontSize: 12, lineHeight: 1.4, color: "var(--sh-ink2, #a09b94)" }}>
+                  <div data-nora-voice-locked={pastDue ? "pastdue" : account === "in" ? "join" : "signin"} style={{ flex: "1 1 100%", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", padding: "8px 12px", borderRadius: 10, background: "rgba(var(--sh-ink-rgb, 242,237,228),0.04)", fontFamily: sans, fontSize: 12, lineHeight: 1.4, color: "var(--sh-ink2, #a09b94)" }}>
                     <svg aria-hidden width="12" height="14" viewBox="0 0 12 14" style={{ flex: "none", color: TEAL_BRIGHT }}>
                       <rect x="3.5" y="0.75" width="5" height="8" rx="2.5" fill="none" stroke="currentColor" strokeWidth="1.3" />
                       <path d="M1.5 6.5a4.5 4.5 0 0 0 9 0M6 11v2.25" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
                     </svg>
-                    <span style={{ flex: 1 }}>Voice chat with Nora unlocks with membership.</span>
-                    <a href="/pricing" style={{ color: "var(--sh-accent-ink, #2ee0c4)", fontWeight: 600, textDecoration: "none", whiteSpace: "nowrap" }}>Join &rarr;</a>
+                    <span style={{ flex: 1 }}>{pastDue ? CW_PAST_DUE_LINE : "Voice chat with Nora unlocks with membership."}</span>
+                    {pastDue
+                      ? <button type="button" onClick={() => cwMembershipDoor(true)} style={{ border: 0, background: "transparent", padding: 0, font: "inherit", color: "var(--sh-accent-ink, #2ee0c4)", fontWeight: 600, whiteSpace: "nowrap", cursor: "pointer" }}>Update your card &rarr;</button>
+                      : account === "in"
+                        ? <button type="button" onClick={() => cwMembershipDoor(false)} style={{ border: 0, background: "transparent", padding: 0, font: "inherit", color: "var(--sh-accent-ink, #2ee0c4)", fontWeight: 600, whiteSpace: "nowrap", cursor: "pointer" }}>Join &rarr;</button>
+                        : <a href="/pricing" style={{ color: "var(--sh-accent-ink, #2ee0c4)", fontWeight: 600, textDecoration: "none", whiteSpace: "nowrap" }}>Join &rarr;</a>}
                   </div>
                 )}
                 {!noraScreenOff && typeof window !== "undefined" && window.__shapeNoraPageName && (
@@ -3142,6 +3614,20 @@ function ChatWidget(props) {
                   : (voiceErr || speakNotice)}
               </div>
             )}
+            {active && active.channelId && active.readOnly ? (
+              // A channel only Shape posts in (Shape HQ): no composer, and it says why.
+              <div data-channel-readonly style={{ margin: "10px 14px 14px", padding: "12px 14px", borderRadius: 14, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.1)", textAlign: "center", fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--sh-ink2, #a09b94)" }}>
+                Only Shape posts here
+              </div>
+            ) : active && active.channelId && !active.joined ? (
+              // Posting is for a channel's members (its insert policy), as in the app: Join first.
+              <div data-channel-join style={{ margin: "10px 14px 14px", padding: "12px 14px", borderRadius: 14, border: "1px solid rgba(var(--sh-accent2-rgb, 10,197,168),0.28)", background: "rgba(var(--sh-accent2-rgb, 10,197,168),0.06)", display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+                <div role={joinErr && joinErr.id === active.channelId ? "alert" : undefined} style={{ flex: 1, minWidth: 160, fontFamily: sans, fontSize: 13, lineHeight: 1.4, color: joinErr && joinErr.id === active.channelId ? "var(--sh-gold, #d8a23a)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.78)" }}>
+                  {joinErr && joinErr.id === active.channelId ? joinErr.text : `Join #${active.name || String(active.who || "").replace(/^#\s*/, "")} to post here.`}
+                </div>
+                <button type="button" className="cw-send" onClick={() => joinChannel(active.channelId)} disabled={joinBusy === active.channelId}>{joinBusy === active.channelId ? "Joining\u2026" : "Join"}</button>
+              </div>
+            ) : (
             <div style={{ padding: "10px 14px 14px" }}>
               <div className="cw-composer">
               <textarea
@@ -3171,6 +3657,7 @@ function ChatWidget(props) {
               </button>
               </div>
             </div>
+            )}
             </React.Fragment>
             )}
           </div>

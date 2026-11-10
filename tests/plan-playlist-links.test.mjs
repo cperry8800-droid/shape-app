@@ -81,7 +81,7 @@ async function loadRoute(db, admin) {
     registry: new Map([
       ['next/server', { NextResponse: { json: (body, init) => ({ body, init }) } }],
       ['@/lib/request-auth', { clientForRequest: async () => db, currentUser: async () => ({ id: U }) }],
-      ['@/lib/require-membership', { requireMembership: async () => null }],
+      ['@/lib/require-membership', { requireMembership: async () => null, requireAccount: async () => null }],
       ['@/lib/supabase/admin', { createAdminClient: () => { adminMade++; if (!admin) throw new Error('Missing SUPABASE_SERVICE_ROLE_KEY'); return admin; } }],
     ]),
   });

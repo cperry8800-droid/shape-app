@@ -78,7 +78,9 @@ function sentCodes() {
 test('every error code the checkout returns with has a line', () => {
   const codes = sentCodes();
   // Vacuity: the scan has to be reading the actions.
-  for (const known of ['purchase_cancelled', 'subscribe_cancelled', 'membership_cancelled', 'invalid_purchase', 'invalid_subscribe', 'provider_at_capacity', 'code_invalid', 'stripe_not_onboarded', 'membership_check_failed', 'checkout_in_progress']) {
+  // membership_cancelled is gone from what is SENT: hiring a coach no longer detours through the $5
+  // checkout (owner, 2026-11-10). Its line stays, for a link from before.
+  for (const known of ['purchase_cancelled', 'subscribe_cancelled', 'invalid_purchase', 'invalid_subscribe', 'provider_at_capacity', 'code_invalid', 'stripe_not_onboarded', 'membership_check_failed']) {
     assert.ok(codes.has(known), 'the scan no longer finds ' + known);
   }
   const missing = [...codes].filter((c) => !A.shapeCheckoutNotice(c));
@@ -95,7 +97,7 @@ test('no checkout comes back where nothing reads its code', () => {
   }
   assert.match(read('src/app/purchase/actions.ts'), /redirect\('\/newdesign\/Coaches\.html\?error=invalid_purchase'\)/);
   assert.match(read('src/app/subscribe/actions.ts'), /redirect\('\/newdesign\/Coaches\.html\?error=invalid_subscribe'\)/);
-  assert.match(read('src/lib/membership-detour.ts'), /cancelPath: `\$\{backHref\}&error=membership_cancelled`/);
+  assert.doesNotMatch(read('src/lib/membership-detour.ts'), /createPlatformCheckout/, 'hiring a coach never detours through the $5 checkout');
   const p = page('?error=invalid_purchase', { path: '/newdesign/Coaches.html' });
   assert.equal(p.box && p.box.attrs.role, 'alert');
   assert.match(p.text, /didn't start\. Nothing was charged\. Choose the coach again\./);

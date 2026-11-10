@@ -418,7 +418,7 @@ function dbzDemoOrigin() {
   } catch (e) { /* dashSignals not up yet — no roster, so no rows of it */ }
   return subs.concat(DBZ_DEMO_PURCHASES);
 }
-const DBZ_BYO_PITCH = "Clients you bring pay no Shape commission — you keep your full rate. They join Shape as members at $5/mo. Members already in your Shape waiting room count as Shape-found.";
+const DBZ_BYO_PITCH = "Clients you bring pay no Shape commission — you keep your full rate. They join Shape free; the $5/mo membership is theirs to add. Members already in your Shape waiting room count as Shape-found.";
 function DbzBringClientsZone({ live, role, providerId }) {
   // The link (null while it is made, or when it can't be), from the hook Growth's link card reads too
   // (useDbzReferralLink: the link names the role). A refused clipboard (an older browser, a page not

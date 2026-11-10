@@ -18,7 +18,7 @@ const WEB = 'public/newdesign/radioInstrument.jsx';
 const APP = 'mobile-app/src/services/shapeBackend.js';
 const RADIO = 'mobile-app/src/broadsheet/iosAppBroadsheetRadio.jsx';
 
-export default {
+const spec = {
   test: 'node --test tests/radio-pass.test.mjs tests/radio-station-config.test.mjs tests/radio-rest-state.test.mjs tests/radio-own-station.test.mjs',
   timeoutMs: 300_000,
   mutations: [
@@ -145,3 +145,21 @@ export default {
       find: "window.ShapeRadioLive?.lastRefusal === 'region' && !regionToldRef.current) {", replace: "window.ShapeRadioLive?.lastRefusal === 'region') {" },
   ],
 };
+
+// ── 2026-11-10: the pass is a 90-second start code, a ticket names a stream (t2) or nothing (the probe's t1), and the door admits only a stream whose account is on record (owner: no pass gives anyone else access) ──
+const RETARGET = {
+  "a ticket longer than any Shape issues is taken": { file: PASS, find: "  if (expMs > now + (TICKET_TTL_SEC + 60) * 1000) return { ok: false, reason: 'too_long' };\n  return { ok: true, expiresAt: new Date(expMs).toISOString(), streamId: signed.streamId };", replace: "  return { ok: true, expiresAt: new Date(expMs).toISOString(), streamId: signed.streamId };" },
+  "the app replays a pass in its last minute": { file: APP, find: "ends - Date.now() > 20000", replace: "ends - Date.now() > 0" },
+  "the passes last a day": { file: PASS, find: "export const PASS_TTL_SEC = 90;", replace: "export const PASS_TTL_SEC = 24 * 3600;" },
+  "the station is read for a refusal": { file: PASS, find: "export async function listenRedirect({ pass, country, production, readStation, openStream, now, key }) {\n  const p = verifyPass(pass, { now, key });", replace: "export async function listenRedirect({ pass, country, production, readStation, openStream, now, key }) {\n  await readStation();\n  const p = verifyPass(pass, { now, key });" },
+  "⚠ a pass's signature opens the station as a ticket": { file: PASS, find: "  const want = Buffer.from(sign(key, `${head}.${exp}`));", replace: "  const want = Buffer.from(sign(key, `${head.replace(/^t[12]/, 'v1')}.${exp}`));" },
+  "⚠ a ticket's signature is not checked": { file: PASS, find: "  const want = Buffer.from(sign(key, `${head}.${exp}`));\n  const got = Buffer.from(sig);\n  if (got.length !== want.length || !timingSafeEqual(got, want)) return { ok: false, reason: 'signature' };", replace: "  const want = Buffer.from(sign(key, `${head}.${exp}`));\n  const got = Buffer.from(sig);" },
+  "⚠ the app says a region refusal as a fault": { file: APP, find: "      const r = await fetch(api('/api/radio/station'), { cache: 'no-store', headers });\n      // 451: a country the licences do not reach (the US and the UK). Kept as the reason, so the\n      // radio can say so instead of a fault to retry (ShapeRadioLive.lastRefusal).\n      if (r.status === 451) return { configured: false, refusal: 'region' };\n", replace: "      const r = await fetch(api('/api/radio/station'), { cache: 'no-store', headers });\n" },
+  "⚠ the door admits every listener": { file: DOOR, find: "    if (admitted) {\n      headers['icecast-auth-user'] = '1';", replace: "    {\n      headers['icecast-auth-user'] = '1';" },
+  "⚠ the website resumes on a spent pass": { file: WEB, find: "passExpiresRef.current - Date.now() < 20000", replace: "passExpiresRef.current - Date.now() < 0" },
+};
+const DROP = [];
+const ADDED = [
+];
+spec.mutations = [...spec.mutations.filter((m) => !DROP.includes(m.name)).map((m) => (RETARGET[m.name] ? { ...m, ...RETARGET[m.name] } : m)), ...ADDED];
+export default spec;

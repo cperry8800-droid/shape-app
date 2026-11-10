@@ -798,7 +798,9 @@ test('the sidebar counts what is waiting, only on the pages the level opens, and
 test('the dashboard: staff get in without a membership, and each tab shows for its level', () => {
   const layout = stripComments(read('src/app/dashboard/layout.tsx'));
   assert.match(layout, /const signIn = await getStaffSignIn\(\);\n\s+const staff = signIn\?\.staff \?\? null;\n\s+const verified = signIn\?\.twoFactor === 'verified';/, 'the tabs read the level; the pages they open need two-factor');
-  assert.match(layout, /let isMember = isCoach \|\| Boolean\(staff\);/);
+  // No member gate on the dashboard at all since the free account (owner, 2026-11-10).
+  assert.doesNotMatch(layout, /isMember|platform_subscriptions|Shape is for members/);
+  assert.match(layout, /\{children\}/);
   assert.match(layout, /\{ href: '\/admin', label: 'Admin console', show: Boolean\(staff\) \}/);
   assert.match(layout, /\{ href: '\/dashboard\/support', label: 'Help requests', show: isSupport \}/);
   assert.match(layout, /const isAdmin = atLeast\(staff\?\.level, 'admin'\);/);
