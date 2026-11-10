@@ -17,6 +17,7 @@ import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { requireAccount } from '@/lib/require-membership';
 import { readAccountZone } from '@/lib/account-timezone';
 import { buildRecap, recapWeek, RECAP_HISTORY_DAYS, DAY_MS } from '../../../../lib/weekly-recap.mjs';
+import { readAllById, ROW_PAGE } from '@/lib/read-all-by-id';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -40,13 +41,16 @@ export async function GET(request: Request) {
   const zone = zoneRead.zone;
   const week = recapWeek({ now, zone, which });
   const [sessions, ledger] = await Promise.all([
-    supabase.from('workout_sessions')
-      .select('status, started_at, ended_at, created_at')
-      .eq('client_id', user.id)
-      .in('status', ['completed', 'reviewed'])
-      .gte('created_at', new Date(Math.min(week.startMs, now - RECAP_HISTORY_DAYS * DAY_MS)).toISOString())
-      .order('created_at', { ascending: false })
-      .limit(1000),
+    // Every page: one read stops at the API's 1,000 rows, which a long streak with two sessions a
+    // day passes (readAllById: keyset on id, and a read past its ceiling is unknown, not short).
+    readAllById<{ id: unknown; status: string; started_at: string | null; ended_at: string | null; created_at: string }>((after) => {
+      const q = supabase.from('workout_sessions')
+        .select('id, status, started_at, ended_at, created_at')
+        .eq('client_id', user.id)
+        .in('status', ['completed', 'reviewed'])
+        .gte('created_at', new Date(Math.min(week.startMs, now - RECAP_HISTORY_DAYS * DAY_MS)).toISOString());
+      return (after ? q.gt('id', after) : q).order('id', { ascending: true }).limit(ROW_PAGE);
+    }),
     supabase.from('score_ledger')
       .select('delta, earned_at, source_kind')
       .eq('user_id', user.id)

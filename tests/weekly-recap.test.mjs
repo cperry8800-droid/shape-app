@@ -12,7 +12,7 @@ import { createRequire } from 'node:module';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadRealModule } from './helpers/load-real-module.mjs';
-import { recapWeek, buildRecap } from '../src/lib/weekly-recap.mjs';
+import { recapWeek, buildRecap, RECAP_HISTORY_DAYS, STREAK_MAX_DAYS } from '../src/lib/weekly-recap.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const require_ = createRequire(join(ROOT, 'package.json'));
@@ -69,6 +69,11 @@ test('2: the figures are the member\'s own, and honest about what is not known',
     { status: 'abandoned', started_at: '2026-11-08T12:00:00Z' },
   ], ledger: [], week, zone: NY, now: NOW });
   assert.equal(streak.streak, 3, 'counted back from today, an abandoned one is no workout');
+  // ⚠ A long streak is counted whole (Codex P2 on #2675): 150 days in a row, read for 120, was 120.
+  const long = [];
+  for (let d = 0; d < 150; d += 1) long.push({ status: 'completed', started_at: new Date(Date.parse('2026-11-11T17:00:00Z') - d * 86400000).toISOString() });
+  assert.equal(buildRecap({ sessions: long, ledger: [], week, zone: NY, now: NOW }).streak, 150);
+  assert.ok(RECAP_HISTORY_DAYS > STREAK_MAX_DAYS, 'the read reaches back past the longest streak a recap counts');
 });
 
 async function recapRoute({ denied = null, user = { id: 'u1' }, fail = [], zone = NY, zoneFails = false } = {}) {
@@ -89,6 +94,7 @@ async function recapRoute({ denied = null, user = { id: 'u1' }, fail = [], zone 
       ['@/lib/request-auth', { currentUser: async () => user, clientForRequest: async () => supabase }],
       ['@/lib/require-membership', { requireAccount: async () => denied, requireNora: async () => denied }],
       ['@/lib/account-timezone', { readAccountZone: async () => (zoneFails ? { ready: false, zone: null, error: true } : { ready: true, zone, error: false }) }],
+      ['@/lib/read-all-by-id', await loadRealModule(join(ROOT, 'src/lib/read-all-by-id.ts'), { typescript: true })],
     ]),
   });
   return { route, reads };
@@ -102,6 +108,10 @@ test('3: the recap is free for any account, its own rows only, private; a failed
   const body = await res.json();
   assert.equal(typeof body.weekStart, 'string');
   assert.ok(reads.some((r) => r[0] === 'workout_sessions' && r[1] === 'eq' && r[2] === 'client_id' && r[3] === 'u1'), 'the member\'s own sessions');
+  // Back far enough for the longest streak, a page at a time in id order.
+  const since = reads.find((r) => r[0] === 'workout_sessions' && r[1] === 'gte');
+  assert.ok(since && Date.now() - Date.parse(since[3]) >= STREAK_MAX_DAYS * 86400000, 'sessions are read back past the longest streak');
+  assert.ok(reads.some((r) => r[0] === 'workout_sessions' && r[1] === 'order' && r[2] === 'id'), 'paged by id');
   assert.ok(reads.some((r) => r[0] === 'score_ledger' && r[1] === 'eq' && r[2] === 'user_id' && r[3] === 'u1'), 'and their own points');
   const refused = new nextServer.NextResponse(null, { status: 401 });
   assert.equal((await (await recapRoute({ denied: refused })).route.GET(new Request('https://shape.test/api/client/weekly-recap'))).status, 401);

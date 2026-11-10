@@ -387,6 +387,70 @@ test('a cached station read lets a retry reach audio.play() with no await in fro
   assert.equal(away.cache(), null);
 });
 
+test('⚠ a stopped player keeps its start code fresh, so a tap after a pause still plays inside the gesture (Codex P1 on #2675)', () => {
+  // shapeBackend's prime() and its renewal, lifted and RUN on a fake clock against a scripted
+  // station. A code lasts ninety seconds; passFresh drops a read within twenty seconds of its end.
+  const src = stripComments(readFileSync('mobile-app/src/services/shapeBackend.js', 'utf8'));
+  const start = src.indexOf('const PRIME_KEEP_MS');
+  const end = src.indexOf("if (typeof document !== 'undefined' && document.addEventListener) {", start);
+  assert.ok(start > 0 && end > start, 'the renewal is gone: a tap after a pause awaits the station, outside the gesture');
+  const block = src.slice(start, end);
+  const passFresh = braceBlock(src, 'const passFresh = (cfg) => {');
+  const make = ({ playing = false, hidden = false, signedIn = true } = {}) => {
+    let now = Date.parse('2026-11-10T12:00:00Z');
+    const timers = [];
+    const clock = {
+      setTimeout: (fn, ms) => { const t = { at: now + ms, fn }; timers.push(t); return t; },
+      clearTimeout: (t) => { const i = timers.indexOf(t); if (i >= 0) timers.splice(i, 1); },
+    };
+    const DateNow = { now: () => now, parse: Date.parse };
+    let reads = 0;
+    const station = () => { reads += 1; return Promise.resolve({ configured: true, streamUrl: 'https://radio.example/live?pass=' + reads, passExpiresAt: new Date(now + 90000).toISOString() }); };
+    const el = { paused: !playing, getAttribute: () => (playing ? 'https://radio.example/live?pass=0' : null) };
+    const document = { visibilityState: hidden ? 'hidden' : 'visible' };
+    const state = { user: signedIn ? { id: 'u1' } : null };
+    // eslint-disable-next-line no-new-func
+    const f = new Function('station', 'el', 'document', 'state', 'setTimeout', 'clearTimeout', 'Date',
+      `let stationCache = null;\n${passFresh};\n${block}\nreturn { prime, cache: () => stationCache };`)(station, el, document, state, clock.setTimeout, clock.clearTimeout, DateNow);
+    const flush = () => new Promise((r) => setImmediate(r));
+    const advance = async (ms) => {
+      const until = now + ms;
+      for (;;) {
+        timers.sort((a, b) => a.at - b.at);
+        const next = timers[0];
+        if (!next || next.at > until) break;
+        timers.shift(); now = next.at; next.fn(); await flush();
+      }
+      now = until;
+    };
+    return { ...f, advance, flush, reads: () => reads, fresh: () => { const c = f.cache(); return !!c && Date.parse(c.passExpiresAt) - now > 20000; } };
+  };
+  return (async () => {
+    // Stopped and on screen: a pause a minute and more long still finds a fresh code at the tap.
+    const p = make();
+    p.prime(); await p.flush();
+    assert.equal(p.reads(), 1);
+    // Every five seconds for three minutes, a tap would find a code with more than 20 s on it.
+    for (let s = 5; s <= 180; s += 5) {
+      await p.advance(5000);
+      assert.ok(p.fresh(), `a code is fresh ${s} s after the pause`);
+    }
+    assert.equal(p.reads(), 3, 'renewed at 65 s and 130 s, each before its code went stale');
+    // Not for ever: half an hour after the last ask, it stops renewing.
+    await p.advance(31 * 60 * 1000);
+    const after = p.reads();
+    await p.advance(10 * 60 * 1000);
+    assert.equal(p.reads(), after, 'no renewals past PRIME_KEEP_MS');
+    // Playing, off screen, or signed out: nothing is asked.
+    for (const opts of [{ playing: true }, { hidden: true }, { signedIn: false }]) {
+      const q = make(opts);
+      q.prime(); await q.flush();
+      await q.advance(5 * 60 * 1000);
+      assert.equal(q.reads(), 1, `${JSON.stringify(opts)}: only the first ask`);
+    }
+  })();
+});
+
 test('the figure is re-measured on the frame cadence, and a moved box forces a draw', () => {
   // ⚠ CODEX P2 ON #2088. With the measure counted AFTER the throttle it ran
   // every 12 DRAWS — ~3 s at rest — so a reflow that moved the figure without

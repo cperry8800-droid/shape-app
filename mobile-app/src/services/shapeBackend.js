@@ -10569,9 +10569,43 @@ window.ShapeProConsole = { fetch: fetchProConsole, post: postProConsole };
   // A fresh read kept ready, so the next tap's play() still reaches `a.play()` with no await in front
   // of it (Codex, P1 on #2088), now that a code lasts ninety seconds instead of six hours. Asked as
   // a stream stops, and by a screen that shows the play button (prime()).
+  // ⚠ AND KEPT READY WHILE STOPPED (Codex, P1 on #2675). A pause with time left on its code used to
+  // ask nothing more, so a tap a minute later found the read stale and had to await a new one before
+  // `a.play()`, outside WebKit's gesture window: the radio could not restart. While the stream is
+  // stopped and the app is on screen, the read is renewed just before it would go stale, for up to
+  // PRIME_KEEP_MS after the last ask; coming back to the front asks again.
+  const PRIME_KEEP_MS = 30 * 60 * 1000;
+  const PRIME_AHEAD_MS = 25000; // renewed this long before its code ends (passFresh drops it at 20 s)
+  let primeTimer = null;
+  let primeUntil = 0;
+  function radioStopped() { return !(el && !el.paused && el.getAttribute && el.getAttribute('src')); }
+  function onScreen() { return typeof document === 'undefined' || document.visibilityState !== 'hidden'; }
+  function primeLater(cfg) {
+    if (primeTimer) { clearTimeout(primeTimer); primeTimer = null; }
+    const ends = cfg && cfg.passExpiresAt ? Date.parse(cfg.passExpiresAt) : NaN;
+    if (!Number.isFinite(ends)) return;   // no code on it: it does not go stale
+    const wait = Math.max(1000, ends - Date.now() - PRIME_AHEAD_MS);
+    if (Date.now() + wait > primeUntil) return;
+    primeTimer = setTimeout(() => {
+      primeTimer = null;
+      if (!radioStopped() || !onScreen() || !state.user?.id) return;
+      renewStation();
+    }, wait);
+  }
+  function renewStation() {
+    station().then((fresh) => {
+      if (fresh && fresh.configured && fresh.streamUrl) { stationCache = fresh; primeLater(fresh); }
+    }).catch(() => { /* the tap asks */ });
+  }
   function prime() {
-    if (stationCache && passFresh(stationCache)) return;
-    station().then((fresh) => { if (fresh && fresh.configured && fresh.streamUrl) stationCache = fresh; }).catch(() => { /* the tap asks */ });
+    primeUntil = Date.now() + PRIME_KEEP_MS;
+    if (stationCache && passFresh(stationCache)) { primeLater(stationCache); return; }
+    renewStation();
+  }
+  if (typeof document !== 'undefined' && document.addEventListener) {
+    document.addEventListener('visibilitychange', () => {
+      if (primeUntil && onScreen() && radioStopped() && state.user?.id) prime();
+    });
   }
   // Whether the station is on, without a start code (a schedule's "on air"; /api/radio/station?peek=1).
   async function stationStatus() {

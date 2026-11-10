@@ -9,5 +9,6 @@ export function buildRecap(args: {
   zone?: string | null;
   now: number;
 }): Recap;
+export const STREAK_MAX_DAYS: number;
 export const RECAP_HISTORY_DAYS: number;
 export const DAY_MS: number;

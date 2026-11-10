@@ -91,7 +91,7 @@ export function buildRecap({ sessions = [], ledger = [], week, zone = null, now 
   const today = dayOf(now, zone);
   let cursor = workoutDays.has(today) ? today : addDays(today, -1);
   let streak = 0;
-  while (workoutDays.has(cursor) && streak < 400) { streak += 1; cursor = addDays(cursor, -1); }
+  while (workoutDays.has(cursor) && streak < STREAK_MAX_DAYS) { streak += 1; cursor = addDays(cursor, -1); }
   return {
     workouts: inWeek.length,
     activeMinutes: timed ? minutes : null,
@@ -102,6 +102,12 @@ export function buildRecap({ sessions = [], ledger = [], week, zone = null, now 
   };
 }
 
-/** How far back the sessions are read: enough for the streak a recap names. */
-export const RECAP_HISTORY_DAYS = 120;
+/** The longest streak a recap counts, in days. */
+export const STREAK_MAX_DAYS = 400;
+/**
+ * How far back the sessions are read: the whole streak a recap can name, and the day before today
+ * it may count back from. ⚠ One number with the cap above (Codex P2 on #2675): read for 120 days, a
+ * 150-day streak was reported as about 120.
+ */
+export const RECAP_HISTORY_DAYS = STREAK_MAX_DAYS + 2;
 export const DAY_MS = DAY;
