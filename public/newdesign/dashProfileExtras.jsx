@@ -753,6 +753,44 @@ function PxCloseAccount({ btn, note, deps }) {
   );
 }
 
+// Guides (dashTour.js, owner 2026-11-10: "have viewing the tutorial once initially, have the option
+// to go through it again at a later date"). The welcome tour again, and a minute's guide to each page,
+// ticked once finished. It replaced the App tour card, and takes the row's full width for its list.
+function DashGuidesCard({ plate, note, btn }) {
+  const [, bump] = React.useState(0);
+  React.useEffect(() => {
+    const again = () => bump((n) => n + 1);
+    window.addEventListener("shape:guides", again);
+    window.addEventListener("hashchange", again);
+    return () => { window.removeEventListener("shape:guides", again); window.removeEventListener("hashchange", again); };
+  }, []);
+  const T = typeof window !== "undefined" ? window.ShapeDashTour : null;
+  const guides = T && typeof T.list === "function" ? T.list() : [];
+  const done = guides.filter((g) => g.done).length;
+  const start = (key) => { try { T.startGuide(key); } catch (e) {} };
+  return (
+    <div className="dash-plate" data-tour="dash-guides" style={{ ...plate("var(--sh-accent, #2ee0c4)"), gridColumn: "1 / -1" }}>
+      <div className="dash-eyebrow">Guides{guides.length ? ` · ${done} of ${guides.length} done` : ""}</div>
+      <div className="dash-ledger" />
+      <p style={note}>A minute on each page and what you can do there. Start one here, or press Guide beside any page’s name. Skip one whenever you like; it stays here.</p>
+      <button type="button" style={btn(false)} onClick={() => { try { window.dispatchEvent(new Event("shape:startTour")); } catch (e) {} }}>Take the welcome tour again</button>
+      {guides.length > 0 && (
+        <ul className="dash-guides-list" aria-label="Guides">
+          {guides.map((g) => (
+            <li key={g.key} data-guide={g.key} data-done={g.done ? "" : undefined}>
+              <span aria-hidden className="dash-guides-mark">{g.done ? "✓" : "○"}</span>
+              <span className="dash-guides-name">{g.title}<small>{g.done ? "Done · " : ""}{g.steps} steps</small></span>
+              {g.startable
+                ? <button type="button" onClick={() => start(g.key)} aria-label={(g.done ? "Take again: " : "Start: ") + g.title}>{g.done ? "Again" : "Start"}</button>
+                : <small className="dash-guides-hint">{g.hint}</small>}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 function CoachAccountSettings({ accountId }) {
   const [details,setDetails]=React.useState(null);
   const [error,setError]=React.useState("");
@@ -791,12 +829,7 @@ function CoachAccountSettings({ accountId }) {
           <button type="button" disabled={!accountId || !details} style={{ ...btn(false), opacity: (!accountId || !details) ? 0.5 : 1 }} onClick={()=>setEditing(true)}>Edit profile details</button>
           {editing && <EditProfileModal initial={details} accountId={accountId} onClose={()=>setEditing(false)} onPersist={persist} onSaved={patch=>setDetails({...details,...patch})} />}
         </div>
-        <div className="dash-plate" style={plate("var(--sh-accent, #2ee0c4)")}>
-          <div className="dash-eyebrow">App tour</div>
-          <div className="dash-ledger" />
-          <p style={note}>A short walk through your dashboard and where everything lives.</p>
-          <button style={btn(false)} onClick={() => { try { window.dispatchEvent(new Event("shape:startTour")); } catch (e) {} }}>Take the tour</button>
-        </div>
+        <DashGuidesCard plate={plate} note={note} btn={btn} />
       </div>
       <div className="dash-plate" style={{ ...plate("var(--sh-danger, #e07856)"), marginTop: 16 }}>
         <div className="dash-eyebrow">Account · Danger zone</div>

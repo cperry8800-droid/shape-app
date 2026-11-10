@@ -658,7 +658,13 @@ function BSProOnboardingTour({ onClose, onNavigate, role = 'trainer', plansKey =
       { navigate: go('chat'), anchor: q('tab-chat'), fallback: q('tab-chat'), eyebrow: tr('coach:tour.chatEyebrow', { defaultValue: 'Chat' }), title: tr('coach:tour.chatTitle', { defaultValue: 'Stay in touch.' }), body: tr('coach:tour.chatBody', { defaultValue: 'Message clients and co-coaches; see the community.' }) },
       { navigate: go('me'), anchor: q('hero-me'), fallback: q('tab-me'), eyebrow: tr('coach:tour.meEyebrow', { defaultValue: 'You' }), title: tr('coach:tour.meTitle', { defaultValue: 'Your standing.' }), body: tr('coach:tour.meBody', { defaultValue: 'Your coach profile, payouts and Shape Score.' }) },
     ];
-    const tour = startTour(steps, { root, accent: bsProAccent(t, role), isLight: t.isLight, onDone: () => { bsMarkCoachTourSeen(); onClose && onClose(); } });
+    // The card's words and type come from the client module (read off window at call time), and the
+    // skip note says where to take the tour again: Settings → Take the tour, as for members.
+    const tour = startTour(steps, { root, accent: bsProAccent(t, role), isLight: t.isLight,
+      labels: window.bsTourLabels ? window.bsTourLabels(tr) : undefined, fonts: window.bsTourFonts ? window.bsTourFonts(t) : undefined,
+      skipNote: tr('onboarding:tour.ui.skipped', { defaultValue: 'Tour skipped. You can take it again any time from Settings.' }),
+      notify: (text) => { if (window.__bsToast) window.__bsToast(text, 'info'); else throw new Error('no toast'); },
+      onDone: () => { bsMarkCoachTourSeen(); onClose && onClose(); } });
     return () => tour.destroy();
   }, [role, plansKey]);
   return null;

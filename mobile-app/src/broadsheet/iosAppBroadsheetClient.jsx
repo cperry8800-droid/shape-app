@@ -553,6 +553,21 @@ function bsMarkScoreIntroSeen() {
   try { window.shapeDb?.saveUserGoals?.('client_score_intro', { seen: true, at: new Date().toISOString() }); } catch (e) {}
 }
 
+// The tour card's own words and type, shared by the member and coach tours (the coach module reads
+// them off window). The engine is English until it is handed these.
+function bsTourLabels(tr) {
+  return {
+    next: tr('onboarding:tour.ui.next', { defaultValue: 'Next →' }),
+    back: tr('onboarding:tour.ui.back', { defaultValue: 'Back' }),
+    done: tr('onboarding:tour.ui.done', { defaultValue: 'Done' }),
+    skip: tr('onboarding:tour.ui.skip', { defaultValue: 'Skip tour' }),
+    close: tr('onboarding:tour.ui.close', { defaultValue: 'Close the tour' }),
+    progress: (n, total) => tr('onboarding:tour.ui.progress', { defaultValue: '{n, number} of {total, number}', n, total }),
+  };
+}
+function bsTourFonts(t) { return { display: t.DISPLAY, mono: t.MONO, body: 'system-ui, -apple-system, BlinkMacSystemFont, sans-serif' }; }
+Object.assign(window, { bsTourLabels, bsTourFonts });
+
 function BSOnboardingTour({ onClose, onNavigate }) {
   const t = useBS();
   const tr = useShapeTr();
@@ -571,16 +586,23 @@ function BSOnboardingTour({ onClose, onNavigate }) {
       // configured goal, and spotlighting an unrelated tab under Goal copy would
       // mislead — the engine's no-target centered card is the honest state.
       { navigate: go('home'), anchor: q('hero-goal'), eyebrow: tr('onboarding:tour.goal.eyebrow', { defaultValue: 'Goal' }), title: tr('onboarding:tour.goal.title', { defaultValue: 'What you’re shaping toward.' }), body: tr('onboarding:tour.goal.body', { defaultValue: 'Targets, milestones and your ETA — the contract you set with yourself.' }) },
-      { navigate: go('train'), anchor: q('hero-train'), fallback: q('tab-train'), eyebrow: tr('onboarding:tour.train.eyebrow', { defaultValue: 'Train' }), title: tr('onboarding:tour.train.title', { defaultValue: 'Today’s session.' }), body: tr('onboarding:tour.train.body', { defaultValue: 'Your workout, ready to start — written by your coach, or built by you. Coach optional.' }) },
+      { navigate: go('train'), anchor: q('hero-train'), fallback: () => q('hero-build')() || q('tab-train')(), eyebrow: tr('onboarding:tour.train.eyebrow', { defaultValue: 'Train' }), title: tr('onboarding:tour.train.title', { defaultValue: 'Today’s session.' }), body: tr('onboarding:tour.train.body', { defaultValue: 'Your workout, ready to start — written by your coach, or built by you. Coach optional.' }) },
       { navigate: go('eat'), anchor: q('hero-eat'), fallback: q('tab-eat'), eyebrow: tr('onboarding:tour.eat.eyebrow', { defaultValue: 'Eat' }), title: tr('onboarding:tour.eat.title', { defaultValue: 'Meals & logging.' }), body: tr('onboarding:tour.eat.body', { defaultValue: 'Your plan for the day. Tap a meal to log it in one tap.' }) },
       { navigate: go('eat'), anchor: q('hero-grocery'), fallback: q('tab-eat'), eyebrow: tr('onboarding:tour.grocery.eyebrow', { defaultValue: 'Grocery' }), title: tr('onboarding:tour.grocery.title', { defaultValue: 'Grocery lists.' }), body: tr('onboarding:tour.grocery.body', { defaultValue: 'Your week’s meals become a shopping list, sorted by aisle — auto-built for you.' }) },
       { navigate: go('home'), anchor: q('hero-habits'), fallback: q('tab-home'), eyebrow: tr('onboarding:tour.habits.eyebrow', { defaultValue: 'Habits' }), title: tr('onboarding:tour.habits.title', { defaultValue: 'Daily habits.' }), body: tr('onboarding:tour.habits.body', { defaultValue: 'Check off the small things that add up — every one feeds your Shape Score.' }) },
-      { navigate: go('chat'), anchor: q('tab-chat'), fallback: q('tab-chat'), eyebrow: tr('onboarding:tour.chat.eyebrow', { defaultValue: 'Chat' }), title: tr('onboarding:tour.chat.title', { defaultValue: 'Coaches & community.' }), body: tr('onboarding:tour.chat.body', { defaultValue: 'Message your coaches and see the community feed.' }) },
+      // Coaches is its own tab (key 'market'); Chat is the Wall, the team and channels.
+      { navigate: go('market'), anchor: q('tab-market'), fallback: q('tab-market'), eyebrow: tr('onboarding:tour.coaches.eyebrow', { defaultValue: 'Coaches' }), title: tr('onboarding:tour.coaches.title', { defaultValue: 'Find a coach.' }), body: tr('onboarding:tour.coaches.body', { defaultValue: 'Trainers and nutritionists: read their profiles and reviews, and book an intro.' }) },
+      { navigate: go('chat'), anchor: q('tab-chat'), fallback: q('tab-chat'), eyebrow: tr('onboarding:tour.chat.eyebrow', { defaultValue: 'Chat' }), title: tr('onboarding:tour.chat.title', { defaultValue: 'Chat & the Wall.' }), body: tr('onboarding:tour.chat.body', { defaultValue: 'Message your coaches and friends, join channels, and see the Wall.' }) },
       { navigate: go('me'), anchor: q('hero-score'), fallback: q('tab-me'), eyebrow: tr('onboarding:tour.score.eyebrow', { defaultValue: 'Score' }), title: tr('onboarding:tour.score.title', { defaultValue: 'Your Shape Score.' }), body: tr('onboarding:tour.score.body', { defaultValue: 'The one number that tells the truth — earn it, spend it, climb the tiers.' }) },
       { navigate: go('me'), anchor: q('hero-me'), fallback: q('tab-me'), eyebrow: tr('onboarding:tour.you.eyebrow', { defaultValue: 'You' }), title: tr('onboarding:tour.you.title', { defaultValue: 'Your profile.' }), body: tr('onboarding:tour.you.body', { defaultValue: 'Your living profile — climb, signals and everything you’ve earned.' }) },
-      { navigate: go('home'), anchor: q('tab-home'), fallback: q('tab-home'), final: true, ctaLabel: tr('onboarding:tour.radio.cta', { defaultValue: 'Open Shape Radio →' }), eyebrow: tr('onboarding:tour.radio.eyebrow', { defaultValue: 'Last stop' }), title: tr('onboarding:tour.radio.title', { defaultValue: 'Shape Radio.' }), body: tr('onboarding:tour.radio.body', { defaultValue: 'Ad-free mixes. Free with your membership.' }), onCta: () => onNavigate && onNavigate('radio') },
+      // The Radio box on Home (iosAppBroadsheetRadio.jsx BSNowPlaying), not the Home tab it used to light.
+      { navigate: go('home'), anchor: () => root.querySelector('[data-bs-now-playing]'), fallback: q('tab-home'), final: true, ctaLabel: tr('onboarding:tour.radio.cta', { defaultValue: 'Open Shape Radio →' }), eyebrow: tr('onboarding:tour.radio.eyebrow', { defaultValue: 'Last stop' }), title: tr('onboarding:tour.radio.title', { defaultValue: 'Shape Radio.' }), body: tr('onboarding:tour.radio.body', { defaultValue: 'Ad-free mixes. Free with your membership.' }), onCta: () => onNavigate && onNavigate('radio') },
     ];
-    const tour = startTour(steps, { root, accent: t.ACCENT, isLight: t.isLight, onDone: () => { bsMarkTourSeen(); onClose && onClose(); } });
+    // Skip tour on every step; skipping says where to take it again (Settings → Take the tour).
+    const tour = startTour(steps, { root, accent: t.ACCENT, isLight: t.isLight, fonts: bsTourFonts(t), labels: bsTourLabels(tr),
+      skipNote: tr('onboarding:tour.ui.skipped', { defaultValue: 'Tour skipped. You can take it again any time from Settings.' }),
+      notify: (text) => { if (window.__bsToast) window.__bsToast(text, 'info'); else throw new Error('no toast'); },
+      onDone: () => { bsMarkTourSeen(); onClose && onClose(); } });
     return () => tour.destroy();
   }, []);
   return null;
@@ -5083,7 +5105,7 @@ function BSBuildDoor({ onBuild, onOpenSession, onStartTemplate, onStartProgram, 
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   const head = (txt) => <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, margin: '18px 0 9px' }}>{txt}</div>;
   return (
-    <div style={{ padding: `2px ${t.padX}px 40px` }}>
+    <div data-tour="hero-build" style={{ padding: `2px ${t.padX}px 40px` }}>
       <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: teal, fontWeight: 700, marginTop: 10 }}>{tr('session:train.door.eyebrow', { defaultValue: 'No plan yet' })}</div>
       <div style={{ fontFamily: t.HEAD || t.DISPLAY, fontWeight: 700, fontSize: 26, letterSpacing: '-0.03em', color: t.INK, margin: '5px 0 0', lineHeight: 1.02 }}>{tr('session:train.door.titlePre', { defaultValue: 'Build your' })} <span style={{ fontStyle: 'italic', color: teal }}>{tr('session:train.door.titleAccent', { defaultValue: 'week.' })}</span></div>
       <div style={{ marginTop: 7, fontFamily: t.DISPLAY, fontSize: 14, color: t.INK70, lineHeight: 1.5 }}>{tr('session:train.door.body', { defaultValue: 'Start from a template, build your own, or let Shape draft a plan for your goal — no coach required.' })}</div>
@@ -34050,6 +34072,9 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       rows: [
         { l: tr('settings:about.pricing', { defaultValue: 'Pricing' }),         r: tr('settings:about.pricingMeta', { defaultValue: '$5 / mo' }), action: () => setShowPricing(true) },
         { l: tr('settings:about.help', { defaultValue: 'Help center' }),     r: tr('settings:about.helpMeta', { defaultValue: 'Visit' }), action: () => setShowHelp(true) },
+        // The first-run tour again (owner, 2026-11-10: "the option to go through it again at a later
+        // date"). Each shell listens for shape:startTour, closes Settings and starts its own tour.
+        { l: tr('settings:about.tour', { defaultValue: 'Take the tour' }), r: tr('settings:about.tourMeta', { defaultValue: 'Start' }), action: () => { try { window.dispatchEvent(new Event('shape:startTour')); } catch (e) {} } },
         { l: tr('settings:about.contact', { defaultValue: 'Contact support' }), r: tr('settings:about.contactMeta', { defaultValue: '24h reply' }), action: () => setShowContact(true) },
         { l: tr('settings:about.terms', { defaultValue: 'Terms of service' }),r: tr('settings:about.legal', { defaultValue: 'Legal' }), action: () => setShowTerms(true) },
         { l: tr('settings:about.privacy', { defaultValue: 'Privacy policy' }),  r: tr('settings:about.legal', { defaultValue: 'Legal' }), action: () => setShowPrivacy(true) },

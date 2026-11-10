@@ -870,8 +870,9 @@ function BSRadioPrompt() {
 
   if (!r.showPrompt) return null;
 
+  // data-guide-wait: a tour started over it (Settings → Take the tour) shows first; this waits.
   return (
-    <div style={{
+    <div data-guide-wait="" style={{
       position: 'absolute', inset: 0, zIndex: 90,
       color: t.INK,
       // Plain black screen — no colour wash, no decorative glow.
