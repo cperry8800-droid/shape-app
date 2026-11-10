@@ -1680,10 +1680,17 @@ function ChatWidget(props) {
             const memRes = ids.length ? await cwReadChannelMembers(db, ids, me) : { data: [] };
             if (cancelled) return;
             const unread = {};
+            let unreadOk = false;
             try {
               const ur = await db.rpc("channel_unread");
-              ((ur && !ur.error && ur.data) || []).forEach((r) => { unread[r.channel_id] = Number(r.unread) || 0; });
-            } catch (e) { /* no badges, the list still stands */ }
+              if (ur && !ur.error) { (ur.data || []).forEach((r) => { unread[r.channel_id] = Number(r.unread) || 0; }); unreadOk = true; }
+            } catch (e) { /* below */ }
+            // ⚠ A FAILED UNREAD READ IS NOT "NOTHING UNREAD" (Codex P2 on #2676): each channel keeps
+            // the count it had, and the list still stands.
+            if (!unreadOk) {
+              const ci = tabs.findIndex((t) => t && t.id === "community");
+              ((threadsRef.current || [])[ci] || []).forEach((t) => { if (t && t.channelId) unread[t.channelId] = t.unread || 0; });
+            }
             if (cancelled) return;
             const pictureUrl = (path) => { try { return db.storage.from("channel-pictures").getPublicUrl(path).data.publicUrl || null; } catch (e) { return null; } };
             if (memRes && !memRes.error) channelThreads = cwChannelThreads(rows, memRes.data || [], me, unread, relTime, pictureUrl);
@@ -2524,7 +2531,11 @@ function ChatWidget(props) {
     const db = window.shapeDb && window.shapeDb.client;
     if (!db) return undefined;
     let cancelled = false;
-    const seenKey = "ch:" + chId;
+    // ⚠ THE ACCOUNT'S OWN CURSOR AND NAME (Codex P2 on #2676): an account switched in place
+    // (authWho) starts the channel afresh, not after the last account's messages, and "You" is
+    // that account's.
+    const acct = authWho && authWho !== "anon" ? authWho : null;
+    const seenKey = "ch:" + (acct || "") + ":" + chId;
     try { db.rpc("mark_channel_read", { p_channel_id: chId }).then(() => {}, () => {}); } catch (e) {}
     const fetchOnce = async () => {
       const since = lastSeenRef.current[seenKey];
@@ -2540,7 +2551,7 @@ function ChatWidget(props) {
       } catch (e) { return; }
       if (!rows.length) return;
       lastSeenRef.current[seenKey] = rows[rows.length - 1].created_at;
-      const me = myUserIdRef.current;
+      const me = acct || myUserIdRef.current;
       const mapped = rows.map((m) => {
         const mine = !!(me && m.sender_id === me);
         return {
@@ -2567,7 +2578,7 @@ function ChatWidget(props) {
     fetchOnce();
     const id = setInterval(fetchOnce, 8000);
     return () => { cancelled = true; clearInterval(id); };
-  }, [open, activeChannelId]);
+  }, [open, activeChannelId, authWho]);
 
   const selectThread = (i) => {
     setActiveByTab(prev => prev.map((v, ti) => ti === tabIdx ? i : v));

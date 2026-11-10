@@ -264,6 +264,18 @@ test('Shape HQ\'s unread: counted without a row, the reader\'s row made on first
   assert.match(CLIENT, /data\.forEach\(c => \{ if \(c\.joined \|\| \(c\.official && c\.readOnly\)\) window\.ShapeUnread\?\.noteChannel\?\.\(c\.id\); \}\);/, 'the channel list does not watch Shape HQ');
 });
 
+// Codex P2 on #2676: the website's channel poll kept one cursor per channel and the first account's id
+// across an in-place account switch; and a failed unread read installed every channel at 0.
+test('the website\'s channel reads: the account\'s own cursor and name; a failed unread read keeps the counts', () => {
+  const poll = WIDGET.slice(WIDGET.indexOf('  const activeChannelId = (() => {'), WIDGET.indexOf('  const selectThread = (i) => {'));
+  assert.ok(poll.length > 0, 'the channel poll moved');
+  assert.match(poll, /const acct = authWho && authWho !== "anon" \? authWho : null;\n\s*const seenKey = "ch:" \+ \(acct \|\| ""\) \+ ":" \+ chId;/, 'the cursor is not the account\'s');
+  assert.match(poll, /const me = acct \|\| myUserIdRef\.current;/, '"You" is not the account\'s');
+  assert.match(poll, /\}, \[open, activeChannelId, authWho\]\);/, 'an account switch does not start the channel afresh');
+  assert.match(WIDGET, /if \(!unreadOk\) \{\n\s*const ci = tabs\.findIndex\(\(t\) => t && t\.id === "community"\);\n\s*\(\(threadsRef\.current \|\| \[\]\)\[ci\] \|\| \[\]\)\.forEach\(\(t\) => \{ if \(t && t\.channelId\) unread\[t\.channelId\] = t\.unread \|\| 0; \}\);/, 'a failed unread read zeroes every badge');
+  assert.match(WIDGET, /if \(ur && !ur\.error\) \{ \(ur\.data \|\| \[\]\)\.forEach\(\(r\) => \{ unread\[r\.channel_id\] = Number\(r\.unread\) \|\| 0; \}\); unreadOk = true; \}/);
+});
+
 test('the app: Shape HQ has no composer, and only a member channel\'s host may change its picture', () => {
   assert.match(CLIENT, /\{thread\.readOnly \? \(\n\s*\/\/ A channel only Shape posts in \(Shape HQ\): no composer, and it says why\.\n\s*<div data-channel-readonly=""[^\n]*\n\s*\{tr\('feed:channels\.readOnly'[^\n]*\n\s*<\/div>\n\s*\) : \(\n\s*<BSMessageComposer /, 'the read-only note does not replace the composer');
   assert.match(CLIENT, /const canSetPicture = !!\(thread\.channelId && thread\.isHost && !thread\.official && !String\(thread\.channelId\)\.startsWith\('sample'\)/, 'the picture change is not for the host of a member channel alone');
