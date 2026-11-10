@@ -10,7 +10,7 @@ const MKT = 'mobile-app/src/broadsheet/iosAppBroadsheetMarketplace.jsx';
 const TRAINER = 'mobile-app/src/broadsheet/BSTrainerProfile.jsx';
 const WEB = 'public/newdesign/livingShared.jsx';
 
-export default {
+const spec = {
   test: 'node --test tests/coach-ratings-live.test.mjs tests/trainer-profile.test.mjs tests/review-abuse-hardening.test.mjs',
   timeoutMs: 300_000,
   mutations: [
@@ -109,3 +109,19 @@ export default {
       find: '      setRevLocked(j.locked === true);', replace: '      setRevLocked(false);' },
   ],
 };
+
+// ── 2026-11-10: every signed-in adult account reads the reviews (owner), through the service role; a visitor never does ──
+const RETARGET = {
+  "api: every signed-in reader counts as a member": { file: API, find: "    return { member: !m.isKnownMinor, admin: m.isAdmin };", replace: "    return { member: m.isMember, admin: m.isAdmin };" },
+  "api: an unknown membership is treated as \"not a member\"": { file: API, find: "    return { member: !m.isKnownMinor, admin: m.isAdmin };\n  } catch {\n    return null;\n  }", replace: "    return { member: !m.isKnownMinor, admin: m.isAdmin };\n  } catch {\n    return { member: false, admin: false };\n  }" },
+  "api: an admin reads with their own session": { file: API, find: "  if (!reader.member) return supabase;\n  try { return createAdminClient(); } catch { return supabase; }", replace: "  return supabase;" },
+  "api: everyone reads through the service role": { file: API, find: "  if (!reader.member) return supabase;", replace: "  if (false) return supabase;" },
+};
+const DROP = [];
+const ADDED = [
+  { name: "api: a known minor reads the words", file: API,
+    find: "    return { member: !m.isKnownMinor, admin: m.isAdmin };",
+    replace: "    return { member: true, admin: m.isAdmin };" },
+];
+spec.mutations = [...spec.mutations.filter((m) => !DROP.includes(m.name)).map((m) => (RETARGET[m.name] ? { ...m, ...RETARGET[m.name] } : m)), ...ADDED];
+export default spec;
