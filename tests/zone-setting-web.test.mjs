@@ -233,8 +233,11 @@ test('a device on another clock asks, naming both zones; Switch saves the device
     const card = m.travel();
     assert.ok(card, 'no travel question');
     assert.match(card.textContent, /This device is on another clock/);
-    assert.ok(card.textContent.includes(ShapeZone.zoneLabel(NY)), 'the account zone is not named');
-    assert.ok(card.textContent.includes(ShapeZone.zoneLabel(LONDON)), 'the device zone is not named');
+    assert.ok(card.textContent.includes(ShapeZone.zoneName(NY)), "the account zone is not named");
+    assert.ok(card.textContent.includes(ShapeZone.zoneName(LONDON)), "the device zone is not named");
+    // As a calendar names them (owner, 2026-11-10), never "New York · GMT-5".
+    assert.match(card.textContent, /Eastern (Standard|Daylight) Time/);
+    assert.doesNotMatch(card.textContent, /· GMT/);
     assert.doesNotMatch(card.textContent, /open hours/, 'a member was told about open hours');
     assert.equal(puts(m).length, 0, 'it switched before anyone answered');
     await m.click('Switch to London');
@@ -329,7 +332,7 @@ test('Settings: "Time zone", a picker with the account zone selected, and the de
     assert.equal(sel.value, NY);
     const values = [...sel.options].map((o) => o.value);
     assert.ok(values.includes(NY) && values.includes(LONDON) && values.includes(TOKYO), 'the picker is missing zones');
-    assert.ok(m.button("Use this device's time zone (" + ShapeZone.zoneLabel(LONDON) + ')'), 'no device button');
+    assert.ok(m.button("Use this device's time zone (" + ShapeZone.zoneName(LONDON) + ")"), 'no device button');
     await m.choose(TOKYO);
     assert.deepEqual(puts(m).map((c) => c.body), [{ timezone: TOKYO }]);
     assert.equal(ShapeZone.getAccountZone(), TOKYO);
@@ -345,7 +348,7 @@ test('Settings: the device button saves the device zone, and goes once the zones
   const m = await openPage({ device: LONDON, respond: (method, body) => (method === 'GET' ? zoneRead(NY) : reply(200, { timezone: body.timezone, changed: true })) });
   try {
     await m.renderSetting();
-    await m.click("Use this device's time zone (" + ShapeZone.zoneLabel(LONDON) + ')');
+    await m.click("Use this device's time zone (" + ShapeZone.zoneName(LONDON) + ")");
     assert.deepEqual(puts(m).map((c) => c.body), [{ timezone: LONDON }]);
     assert.equal(m.doc.querySelector('select').value, LONDON);
     assert.equal([...m.setting().querySelectorAll('button')].length, 0, 'the device button stayed for a matching zone');
@@ -361,7 +364,7 @@ test('Settings: a refused save says so and the picker shows the zone that stands
     assert.equal(gets(m).length, 1, 'a refusal is not an unknown outcome');
     assert.equal(m.doc.querySelector('select').value, NY);
     assert.equal(ShapeZone.getAccountZone(), NY);
-    assert.ok(m.setting().textContent.includes("Shape doesn't know that time zone. Your time zone is still " + ShapeZone.zoneLabel(NY) + '.'));
+    assert.ok(m.setting().textContent.includes("Shape doesn't know that time zone. Your time zone is still " + ShapeZone.zoneName(NY) + '.'));
   } finally { await m.close(); }
 });
 

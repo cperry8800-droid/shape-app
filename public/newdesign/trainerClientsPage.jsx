@@ -70,7 +70,11 @@ function TrainerClientsPage() {
       subtitle="Find a client, review their progress, and open their plan or private notes."
       actions={<>
         <a href="TrainerLiveConsole.html" style={{ background: "transparent", color: INK, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.25)", padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, textDecoration: "none", display: "inline-block" }}>Live console</a>
-        <a href="MemberProfile.html" title="Share your public page - how clients find and subscribe to you" style={{ background: INK, color: PAPER, border: 0, padding: "10px 22px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: "pointer", display: "inline-block", textDecoration: "none" }}>Invite client</a>
+        {/* ⚠ INVITE IS THE NO-FEE LINK (owner, 2026-11-10: "do these work properly?"). It opened
+            MemberProfile.html, whose Share copies the profile WITHOUT the `ref` token, so a client who
+            joined through it counted as found on Shape and the coach paid the fee. Business · Growth's
+            "Your profile link" card makes the referral link (create_coach_referral_link). */}
+        <a href={typeof dashLinkedTab === "function" ? dashLinkedTab("business", "trainer", { section: "growth" }) : "TrainerApp.html#business?section=growth"} data-invite-client="" title="Copy your profile link: clients who join through it pay no Shape fee" style={{ background: INK, color: PAPER, border: 0, padding: "10px 22px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: "pointer", display: "inline-block", textDecoration: "none" }}>Invite client</a>
       </>}
     >
       <div style={{ marginBottom: 16 }}>

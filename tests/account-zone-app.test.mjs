@@ -301,7 +301,8 @@ test('Settings row: the zone selected, the device offered when it differs, a cha
   const sel = v.host.querySelector('select');
   assert.equal(sel.value, 'America/New_York');
   assert.ok([...sel.options].some((o) => o.value === 'Asia/Tokyo'), 'the device zone is not offered');
-  assert.match(v.text(), /This device: Tokyo · GMT\+9/);
+  // A zone as a phone names it (owner, 2026-11-10: "just have it show normally"), never "Tokyo · GMT+9".
+  assert.match(v.text(), /This device: Japan Standard Time/);
   assert.match(v.text(), /Every time on Shape shows on this clock\./);
   assert.ok(!/Your hours stay/.test(v.text()), 'a member reads the coach hours line');
   // the device's zone, by its button
@@ -328,7 +329,7 @@ test('Settings row: a failed save says so and keeps the old zone selected', asyn
   const v = await mount(React.createElement(BSTimezoneSetting, { t: theme }));
   await pick(v.host.querySelector('select'), 'Europe/London');
   await flush();
-  assert.match(v.text(), /Couldn’t save\. Still New York · GMT-[45]\./);
+  assert.match(v.text(), /Couldn’t save\. Still Eastern (Standard|Daylight) Time\./);
   assert.equal(v.host.querySelector('select').value, 'America/New_York');
   assert.equal(zone.getAccountZone(), 'America/New_York');
   await v.unmount();
@@ -356,8 +357,8 @@ test('travel prompt: names both clocks; "Switch" writes and remembers the device
   const sheet = surface().querySelector('[data-bs-timezone="ask"]');
   assert.ok(sheet, 'the sheet does not portal into the phone surface');
   assert.match(sheet.textContent, /This device is on another clock/);
-  assert.match(sheet.textContent, /Your account\s*New York · GMT-[45]/);
-  assert.match(sheet.textContent, /This device\s*Tokyo · GMT\+9/);
+  assert.match(sheet.textContent, /Your account\s*Eastern (Standard|Daylight) Time/);
+  assert.match(sheet.textContent, /This device\s*Japan Standard Time/);
   assert.ok(!/Your hours stay/.test(sheet.textContent));
   await click(byText(sheet, 'button', /^Switch to Tokyo$/));
   await flush();

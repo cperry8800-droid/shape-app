@@ -250,7 +250,9 @@ const DSC_CELLS = 48;
 // The rows the editor draws: 5 AM to 10 PM, widened to any open half hour outside it.
 const DSC_EDIT_FROM = (5 * 60) / DSC_HALF;
 const DSC_EDIT_TO = (22 * 60) / DSC_HALF;
-const DSC_EDIT_PX = 14;
+// Tall enough to aim at with a finger or a trackpad (owner, 2026-11-10: the 14px rows in a 560px sheet
+// were "very small and constrained").
+const DSC_EDIT_PX = 20;
 // ⚠ THE LABEL STATES A FACT OR NOTHING. Live, it names the zone the hours are STORED
 // against (what members are actually booked in) and falls back to this browser's zone
 // only before the first save, marked as the one about to be stamped. In the demo preview
@@ -258,16 +260,26 @@ const DSC_EDIT_PX = 14;
 // coach who does not exist.
 // ⚠ THE HOURS ARE IN THE ACCOUNT'S ZONE (P9): the save stamps the account's own zone (the browser's
 // only as an account's first default), and the database copies it onto the listing, so the label
-// names it the way Settings does ("Tokyo · GMT+9", shapeZone.mjs zoneLabel) and says it is theirs.
+// names it the way a calendar does ("Eastern Standard Time", shapeZone.mjs zoneName; owner,
+// 2026-11-10: "just have it show normally") and says it is theirs.
 // Without shapeZone.mjs, the raw name and this browser's zone, as before.
 function dscZoneLabel(live, storedZone) {
   if (!live) return "";
   let Z = null;
   try { Z = window.ShapeZone && typeof window.ShapeZone.zoneLabel === "function" ? window.ShapeZone : null; } catch (e) { Z = null; }
-  const name = (z) => (Z && Z.zoneLabel(z)) || z;
+  const name = (z) => (Z && (typeof Z.zoneName === "function" ? Z.zoneName(z) : Z.zoneLabel(z))) || z;
   if (storedZone) return "times in " + name(storedZone) + (Z && Z.getAccountZone() === storedZone ? ", your time zone" : "");
   const b = Z ? Z.viewerZone() : dscBrowserZone();
   return b ? "times will be saved in " + name(b) : "";
+}
+// A zone as a sentence names it ("Eastern Standard Time"), or its IANA name without shapeZone.mjs.
+function dscZoneName(z) {
+  try {
+    const Z = window.ShapeZone;
+    if (Z && typeof Z.zoneName === "function") return Z.zoneName(z) || z;
+    if (Z && typeof Z.zoneLabel === "function") return Z.zoneLabel(z) || z;
+  } catch (e) { /* the name below */ }
+  return z;
 }
 // This browser's IANA zone. Resolved once per render rather than cached in a module
 // constant: a laptop that changes zone mid-session should stamp the new one on the next
@@ -330,11 +342,15 @@ function dscCopyTargets(to, from) {
 // cell to close it; a drag fills the rectangle between where it started and where it is, so
 // Monday 9:00 to Friday 5:00 opens the working week in one gesture. A cell is also a button:
 // click it, or Enter/Space. Nothing is saved until "Save hours".
+// ⚠ IT SAYS HOW IT WORKS (owner, 2026-11-10: "how does this work? How do I choose when im available"):
+// numbered steps beside the grid, a Mon–Fri 9–5 start, each day's hours over its column, the week in
+// words as it is painted, and the drag read out ("Opening Mon–Fri · 9:00 AM–5:00 PM") while it runs.
 function DscHoursEditor({ role, live, initial, storedZone, onCancel, onSaved, onDirty }) {
   const seed = React.useMemo(() => dscHoursModel(initial), [JSON.stringify(initial)]);
   const [cells, setCells] = React.useState(() => seed.cells.map((d) => d.slice()));
   const [saving, setSaving] = React.useState(false);
   const [err, setErr] = React.useState(null);
+  const [drag, setDrag] = React.useState(null);
   const [copyFrom, setCopyFrom] = React.useState(1);
   const [copyTo, setCopyTo] = React.useState("weekdays");
   const paintRef = React.useRef(null);
@@ -350,13 +366,15 @@ function DscHoursEditor({ role, live, initial, storedZone, onCancel, onSaved, on
   const zoneLabel = dscZoneLabel(live, storedZone);
 
   // The rectangle from the anchor to `to` (display column, row), painted over the cells as
-  // they were when the drag began — so dragging back shrinks it.
+  // they were when the drag began — so dragging back shrinks it. `drag` says it in words while
+  // the pointer is down ("Opening Mon–Fri · 9:00 AM–5:00 PM").
   const paint = (p, to) => {
     const next = p.base.map((d) => d.slice());
     const [c0, c1] = [Math.min(p.col, to.col), Math.max(p.col, to.col)];
     const [r0, r1] = [Math.min(p.row, to.row), Math.max(p.row, to.row)];
     for (let c = c0; c <= c1; c++) for (let r = r0; r <= r1; r++) next[DSC_AVAIL_DAYS[c][1]][r] = p.value;
     setCells(next);
+    setDrag({ value: p.value, c0, c1, r0, r1 });
   };
   const startPaint = (col, row, e) => {
     if (e.button != null && e.button > 0) return;
@@ -372,7 +390,7 @@ function DscHoursEditor({ role, live, initial, storedZone, onCancel, onSaved, on
       const [c, r] = cell.getAttribute("data-hcell").split(":").map(Number);
       paint(p, { col: c, row: r });
     };
-    const end = () => { p.cleanup(); paintRef.current = null; };
+    const end = () => { p.cleanup(); paintRef.current = null; setDrag(null); };
     p.cleanup = () => {
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", end);
@@ -400,6 +418,14 @@ function DscHoursEditor({ role, live, initial, storedZone, onCancel, onSaved, on
     next[copyFrom] = Array(DSC_CELLS).fill(false);
     setCells(next);
   };
+  // A start for a coach with an empty week: Monday to Friday, 9 to 5 (the weekend as it was), or
+  // nothing at all. Like every edit here, unsaved until "Save hours"; Cancel drops it.
+  const fillWorkweek = () => {
+    const next = cells.map((d) => d.slice());
+    for (const wd of [1, 2, 3, 4, 5]) next[wd] = Array.from({ length: DSC_CELLS }, (_, i) => i >= (9 * 60) / DSC_HALF && i < (17 * 60) / DSC_HALF);
+    setCells(next);
+  };
+  const clearWeek = () => setCells(Array.from({ length: 7 }, () => Array(DSC_CELLS).fill(false)));
   const save = async () => {
     const slots = dscHoursRows(cells);
     if (!live) { onSaved(slots, null); return; }
@@ -422,61 +448,121 @@ function DscHoursEditor({ role, live, initial, storedZone, onCancel, onSaved, on
       setSaving(false);
     }
   };
-  const sel = { ...dscInput, padding: "5px 6px", fontSize: 10.5 };
-  const cols = "40px " + DSC_AVAIL_DAYS.map(() => "minmax(0, 1fr)").join(" ");
+  const sel = { ...dscInput, padding: "6px 8px", fontSize: 11 };
+  const small = { ...dscBtn(), padding: "6px 10px" };
+  const cols = "52px " + DSC_AVAIL_DAYS.map(() => "minmax(0, 1fr)").join(" ");
+  const hrs = (min) => (window.ShapeScheduleRules ? window.ShapeScheduleRules.hoursLabel(min) : String(Math.round((min / 60) * 10) / 10));
+  const dayMin = (wd) => cells[wd].filter(Boolean).length * DSC_HALF;
+  const dragWords = drag
+    ? (drag.value ? "Opening " : "Closing ") + DSC_AVAIL_DAYS[drag.c0][0] + (drag.c1 > drag.c0 ? "–" + DSC_AVAIL_DAYS[drag.c1][0] : "")
+      + " · " + dscClock(drag.r0 * DSC_HALF) + "–" + dscClock((drag.r1 + 1) * DSC_HALF)
+    : null;
+  const head = { fontFamily: DSC_MONO, fontSize: 9, letterSpacing: "0.1em", textTransform: "uppercase", color: DSC_INK50, marginBottom: 8 };
   return (
     <div data-hours-editor="">
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 8 }}>
-        <div style={{ display: "grid", gap: 3 }}>
+      {/* ⚠ A CELL ANSWERS THE POINTER BEFORE IT IS PRESSED (owner, 2026-11-10: "how does this work?"):
+          a closed half hour washes in the accent under the pointer, an open one deepens, so the grid reads as
+          something to press. Inline styles can't say :hover, hence the rule here. */}
+      <style>{'[data-hours-editor] [data-hcell][aria-pressed="false"]:hover{background:rgba(var(--sh-accent-rgb, 46,224,196),0.16)!important}[data-hours-editor] [data-hcell][aria-pressed="true"]:hover{background:rgba(var(--sh-accent-rgb, 46,224,196),0.55)!important}[data-hours-editor] [data-hcell]:focus-visible{outline:2px solid var(--sh-accent, #2ee0c4);outline-offset:-2px}'}</style>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 14 }}>
+        <div style={{ display: "grid", gap: 4 }}>
           <span className="dash-eyebrow" style={{ color: DSC_GOLD }}>Edit hours · every week</span>
-          <span style={{ fontFamily: DSC_MONO, fontSize: 9, color: DSC_INK50 }}>{(window.ShapeScheduleRules ? window.ShapeScheduleRules.hoursLabel(openMin) : String(openMin / 60)) + " open hrs/wk" + (zoneLabel ? " · " + zoneLabel : "")}</span>
+          <span style={{ fontFamily: DSC_MONO, fontSize: 10, color: DSC_INK50 }}>{hrs(openMin) + " open hrs/wk" + (zoneLabel ? " · " + zoneLabel : "")}</span>
         </div>
         <div style={{ display: "flex", gap: 6 }}>
           <button type="button" onClick={onCancel} style={dscBtn()}>Cancel</button>
           <button type="button" data-save-hours="" onClick={save} disabled={saving || !dirty} style={{ ...dscBtn("on"), opacity: saving || !dirty ? 0.5 : 1 }}>{saving ? "Saving…" : "Save hours"}</button>
         </div>
       </div>
-      <div role="group" aria-label="Copy a day" style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginBottom: 8, fontSize: 12 }}>
-        <span style={{ color: DSC_INK50 }}>Copy</span>
-        <select aria-label="Copy from" value={copyFrom} onChange={(e) => setCopyFrom(Number(e.target.value))} style={sel}>
-          {DSC_AVAIL_DAYS.map(([lbl, wd]) => <option key={wd} value={wd}>{lbl}</option>)}
-        </select>
-        <span style={{ color: DSC_INK50 }}>to</span>
-        <select aria-label="Copy to" value={copyTo} onChange={(e) => setCopyTo(e.target.value)} style={sel}>
-          <option value="weekdays">Weekdays</option>
-          <option value="weekend">Weekend</option>
-          <option value="all">Every day</option>
-          {DSC_AVAIL_DAYS.filter(([, wd]) => wd !== copyFrom).map(([lbl, wd]) => <option key={wd} value={String(wd)}>{lbl}</option>)}
-        </select>
-        <button type="button" data-copy-day="" onClick={copy} style={{ ...dscBtn(), padding: "6px 10px" }}>Copy</button>
-        <button type="button" data-clear-day="" onClick={clearDay} style={{ ...dscBtn(), padding: "6px 10px" }}>Clear {DSC_AVAIL_DAYS.find(([, wd]) => wd === copyFrom)[0]}</button>
-      </div>
-      <div style={{ fontSize: 11.5, color: DSC_INK50, lineHeight: 1.5, marginBottom: 8 }}>
-        Drag across the grid to open time; start on an open half hour to close it. These hours repeat every week, and they're what members can book.
-      </div>
-      {seed.offGrid && <div style={{ fontSize: 11.5, color: DSC_GOLD, marginBottom: 8 }}>Some of your saved hours don't start or end on the half hour. Saving rounds them to the half hours shown.</div>}
-      {err && <div role="alert" style={{ fontSize: 12, color: DSC_RUST, marginBottom: 8 }}>{err}</div>}
-      <div style={{ border: "1px solid " + DSC_HAIR, borderRadius: 8, overflow: "hidden", touchAction: "none", userSelect: "none" }}>
-        <div style={{ display: "grid", gridTemplateColumns: cols, borderBottom: "1px solid " + DSC_HAIR }}>
-          <span />
-          {DSC_AVAIL_DAYS.map(([lbl]) => <span key={lbl} style={{ fontFamily: DSC_MONO, fontSize: 8.5, letterSpacing: "0.08em", textTransform: "uppercase", color: DSC_INK50, textAlign: "center", padding: "6px 0", borderLeft: "1px solid " + DSC_HAIR }}>{lbl}</span>)}
-        </div>
-        <div role="grid" aria-label="Weekly open hours" style={{ display: "grid", gridTemplateColumns: cols }}>
-          {rows.map((r) => (
-            <React.Fragment key={r}>
-              <span aria-hidden style={{ fontFamily: DSC_MONO, fontSize: 8, color: DSC_INK50, textAlign: "right", paddingRight: 6, height: DSC_EDIT_PX, lineHeight: DSC_EDIT_PX + "px", transform: "translateY(-50%)" }}>{r % 2 === 0 ? dscHourLabel(r / 2) : ""}</span>
-              {DSC_AVAIL_DAYS.map(([lbl, wd], c) => {
-                const on = cells[wd][r];
+      {seed.offGrid && <div style={{ fontSize: 12, color: DSC_GOLD, marginBottom: 10 }}>Some of your saved hours don't start or end on the half hour. Saving rounds them to the half hours shown.</div>}
+      {err && <div role="alert" style={{ fontSize: 12.5, color: DSC_RUST, marginBottom: 10 }}>{err}</div>}
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 24, alignItems: "flex-start" }}>
+        {/* The grid: as wide as the sheet allows, the steps and tools beside it (below it when narrow). */}
+        <div style={{ flex: "999 1 520px", minWidth: 0 }}>
+          <div data-hours-readout="" aria-hidden="true" style={{ minHeight: 18, marginBottom: 6, fontFamily: DSC_MONO, fontSize: 10.5, letterSpacing: "0.04em", color: drag ? (drag.value ? DSC_TEAL_INK : DSC_RUST) : DSC_INK50 }}>
+            {dragWords || (openMin === 0 ? "Your week is empty: press on a start time and drag down to open it." : "Shaded is open. Drag over shaded time to close it.")}
+          </div>
+          <div style={{ border: "1px solid " + DSC_HAIR, borderRadius: 8, overflow: "hidden", touchAction: "none", userSelect: "none" }}>
+            <div style={{ display: "grid", gridTemplateColumns: cols, borderBottom: "1px solid " + DSC_HAIR }}>
+              <span />
+              {DSC_AVAIL_DAYS.map(([lbl, wd]) => {
+                const m = dayMin(wd);
                 return (
-                  <button key={wd} type="button" data-hcell={c + ":" + r} aria-pressed={on} aria-label={lbl + " " + dscClock(r * DSC_HALF)}
-                    onPointerDown={(e) => startPaint(c, r, e)}
-                    // A pointer's click was the paint itself; only a keyboard's click (detail 0) toggles.
-                    onClick={(e) => { if (e.detail === 0) toggle(c, r); }}
-                    style={{ height: DSC_EDIT_PX, padding: 0, border: 0, borderLeft: "1px solid " + DSC_HAIR, borderTop: r % 2 === 0 ? "1px solid " + DSC_HAIR : "1px dashed rgba(var(--sh-ink-rgb, 242,237,228),0.04)", background: on ? "rgba(var(--sh-accent-rgb, 46,224,196),0.38)" : "transparent", cursor: "pointer" }} />
+                  <span key={lbl} style={{ display: "grid", gap: 2, textAlign: "center", padding: "8px 0 7px", borderLeft: "1px solid " + DSC_HAIR }}>
+                    <span style={{ fontFamily: DSC_MONO, fontSize: 10.5, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--sh-ink, #f2ede4)" }}>{lbl}</span>
+                    <span data-day-hours={wd} style={{ fontFamily: DSC_MONO, fontSize: 9, color: m ? DSC_TEAL_INK : DSC_INK50 }}>{m ? hrs(m) + "h" : "closed"}</span>
+                  </span>
                 );
               })}
-            </React.Fragment>
-          ))}
+            </div>
+            <div role="grid" aria-label="Weekly open hours" style={{ display: "grid", gridTemplateColumns: cols }}>
+              {rows.map((r) => (
+                <React.Fragment key={r}>
+                  <span aria-hidden style={{ fontFamily: DSC_MONO, fontSize: 10, color: DSC_INK50, textAlign: "right", paddingRight: 8, height: DSC_EDIT_PX, lineHeight: DSC_EDIT_PX + "px", transform: "translateY(-50%)" }}>{r % 2 === 0 ? dscHourLabel(r / 2) : ""}</span>
+                  {DSC_AVAIL_DAYS.map(([lbl, wd], c) => {
+                    const on = cells[wd][r];
+                    return (
+                      <button key={wd} type="button" data-hcell={c + ":" + r} aria-pressed={on} aria-label={lbl + " " + dscClock(r * DSC_HALF)}
+                        onPointerDown={(e) => startPaint(c, r, e)}
+                        // A pointer's click was the paint itself; only a keyboard's click (detail 0) toggles.
+                        onClick={(e) => { if (e.detail === 0) toggle(c, r); }}
+                        style={{ height: DSC_EDIT_PX, padding: 0, border: 0, borderLeft: "1px solid " + DSC_HAIR, borderTop: r % 2 === 0 ? "1px solid " + DSC_HAIR : "1px dashed rgba(var(--sh-ink-rgb, 242,237,228),0.04)", background: on ? "rgba(var(--sh-accent-rgb, 46,224,196),0.38)" : "transparent", cursor: "pointer" }} />
+                    );
+                  })}
+                </React.Fragment>
+              ))}
+            </div>
+          </div>
+        </div>
+        <div data-hours-aside="" style={{ flex: "1 1 240px", minWidth: 0, display: "grid", gap: 20, position: "sticky", top: 92, fontSize: 12.5, lineHeight: 1.5 }}>
+          <div data-hours-howto="">
+            <div style={head}>How it works</div>
+            <ol style={{ margin: 0, paddingLeft: 18, display: "grid", gap: 6 }}>
+              {/* ⚠ "SHADED", NEVER A COLOUR'S NAME: the accent is teal on one paper and amber on another. */}
+              <li>Press on the time you start and drag down to the time you stop. Shaded time <span aria-hidden="true" style={{ display: "inline-block", width: 10, height: 10, borderRadius: 2, verticalAlign: "-1px", background: "rgba(var(--sh-accent-rgb, 46,224,196),0.38)", border: "1px solid rgba(var(--sh-accent-rgb, 46,224,196),0.7)" }} /> is open: members can book it.</li>
+              <li>Drag sideways as well to open the same hours on several days at once, say Monday 9 AM across to Friday 5 PM.</li>
+              <li>Start a drag on shaded time to close it again. A single click works too, or Tab to a half hour and press Enter.</li>
+              <li><b>Save hours.</b> They repeat every week until you change them.</li>
+            </ol>
+          </div>
+          <div role="group" aria-label="Quick start">
+            <div style={head}>Quick start</div>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+              <button type="button" data-fill-workweek="" onClick={fillWorkweek} style={small}>Mon–Fri 9–5</button>
+              <button type="button" data-clear-week="" onClick={clearWeek} disabled={openMin === 0} style={{ ...small, opacity: openMin === 0 ? 0.5 : 1 }}>Clear week</button>
+            </div>
+          </div>
+          <div role="group" aria-label="Copy a day">
+            <div style={head}>Copy a day</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+              <select aria-label="Copy from" value={copyFrom} onChange={(e) => setCopyFrom(Number(e.target.value))} style={sel}>
+                {DSC_AVAIL_DAYS.map(([lbl, wd]) => <option key={wd} value={wd}>{lbl}</option>)}
+              </select>
+              <span style={{ color: DSC_INK50 }}>to</span>
+              <select aria-label="Copy to" value={copyTo} onChange={(e) => setCopyTo(e.target.value)} style={sel}>
+                <option value="weekdays">Weekdays</option>
+                <option value="weekend">Weekend</option>
+                <option value="all">Every day</option>
+                {DSC_AVAIL_DAYS.filter(([, wd]) => wd !== copyFrom).map(([lbl, wd]) => <option key={wd} value={String(wd)}>{lbl}</option>)}
+              </select>
+              <button type="button" data-copy-day="" onClick={copy} style={small}>Copy</button>
+              <button type="button" data-clear-day="" onClick={clearDay} style={small}>Clear {DSC_AVAIL_DAYS.find(([, wd]) => wd === copyFrom)[0]}</button>
+            </div>
+          </div>
+          <div>
+            <div style={head}>Your week</div>
+            <div data-hours-words="" style={{ display: "grid", gridTemplateColumns: "38px 1fr", gap: "4px 8px", fontSize: 12 }}>
+              {DSC_AVAIL_DAYS.map(([lbl, wd]) => {
+                const text = dscDaySummary(cells, wd);
+                return (
+                  <React.Fragment key={wd}>
+                    <span style={{ fontFamily: DSC_MONO, fontSize: 10, color: DSC_INK50, paddingTop: 1 }}>{lbl}</span>
+                    <span style={{ color: text === "Closed" ? DSC_INK50 : "var(--sh-ink, #f2ede4)" }}>{text}</span>
+                  </React.Fragment>
+                );
+              })}
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -503,6 +589,11 @@ function DscHoursPlate({ slots, live, storedZone, editing, state = "ready", onEd
           );
         })}
       </div>
+      {state === "ready" && openMin === 0 && (
+        <div data-hours-empty="" style={{ fontSize: 12.5, lineHeight: 1.5, color: DSC_GOLD, marginBottom: 12 }}>
+          No open hours yet, so members can't book you. Edit hours opens your week as a grid: press on a start time and drag down to open it, then save.
+        </div>
+      )}
       {state === "failed" && <div role="alert" style={{ fontSize: 11.5, color: DSC_RUST, marginBottom: 8 }}>Your hours couldn't load. Reload to edit them.</div>}
       <button type="button" data-edit-hours="" onClick={onEdit} disabled={editing || state !== "ready"} style={{ ...dscBtn(editing || state !== "ready" ? "" : "on"), opacity: editing || state !== "ready" ? 0.6 : 1 }}>
         {editing ? "Editing on the grid" : state === "loading" ? "Loading your hours…" : "Edit hours"}
@@ -700,6 +791,8 @@ function DscRulesPlate({ role, live, onToast, onDirty }) {
 }
 
 // ── Hours & rules: the settings slide-over (coach dashboard step 5c) ────────
+// ⚠ WIDE, NOT A SIDE STRIP (owner, 2026-11-10: "This pop up should fill more of screen, its very small
+// and constrained"): up to 1120px, the hours grid the full width and time off beside the booking rules.
 // ⚠ THE SETTINGS LEFT THE PAGE (the owner's review: "a third of the width spent on settings"). Open
 // hours, time off and booking rules sit behind ONE tab on the page's edge, in a slide-over that is a
 // MODAL like the client panel's (DashClientDrawer): focus is held inside it, Esc closes it, the page
@@ -781,7 +874,7 @@ function DscSettingsSheet({ onClose, unsaved, children }) {
     <div ref={overlayRef} data-settings-overlay="" style={{ position: "fixed", inset: 0, zIndex: 240 }}>
       <div aria-hidden="true" onPointerDown={(e) => { if (e.target === e.currentTarget) tryRef.current(); }} style={{ position: "absolute", inset: 0, background: "rgba(10,10,8,0.5)", backdropFilter: "blur(2px)" }} />
       <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby={headingId} tabIndex={-1} data-settings-sheet=""
-        style={{ position: "absolute", top: 0, right: 0, bottom: 0, boxSizing: "border-box", width: "min(560px, 100vw)", outline: "none", background: "var(--sh-ground2, #14110e)", borderLeft: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.12)", boxShadow: "var(--lift-3, 0 12px 32px rgba(0,0,0,0.18))", overflowY: "auto", overscrollBehavior: "contain", padding: "0 24px 40px", fontFamily: "var(--sh-font-body, 'Space Grotesk', 'Space Grotesk Fallback', sans-serif)", color: "var(--sh-ink, #f2ede4)" }}>
+        style={{ position: "absolute", top: 0, right: 0, bottom: 0, boxSizing: "border-box", width: "min(1120px, 100vw)", outline: "none", background: "var(--sh-ground2, #14110e)", borderLeft: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.12)", boxShadow: "var(--lift-3, 0 12px 32px rgba(0,0,0,0.18))", overflowY: "auto", overscrollBehavior: "contain", padding: "0 clamp(16px, 3vw, 36px) 40px", fontFamily: "var(--sh-font-body, 'Space Grotesk', 'Space Grotesk Fallback', sans-serif)", color: "var(--sh-ink, #f2ede4)" }}>
         <div style={{ position: "sticky", top: 0, zIndex: 2, background: "var(--sh-ground2, #14110e)", padding: "20px 0 12px", display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
           <div>
             <div className="dash-eyebrow" style={{ color: DSC_GOLD }}>Settings · what members can book</div>
@@ -2773,8 +2866,8 @@ function CoachSchedulePage({ role }) {
                 their calendar couldn't be read, never shown the preview's week). */}
             {(liveEvents || isLive || source === "live") && (calZone || loadNote) && (
               <div data-calendar-note={liveEvents ? "read" : loadNote || "loading"} style={{ fontFamily: DSC_MONO, fontSize: 8.5, letterSpacing: "0.06em", color: DSC_INK50, margin: "-4px 0 10px", display: "flex", gap: 10, flexWrap: "wrap", alignItems: "baseline" }}>
-                {calZone && <span>Times in {calZone}</span>}
-                {isLive && avail && avail.length > 0 && !shadeOk && <span>Open hours aren't shaded — they're saved in {availZone || "no time zone"}; re-save them in Hours &amp; rules</span>}
+                {calZone && <span>Times in {dscZoneName(calZone)}</span>}
+                {isLive && avail && avail.length > 0 && !shadeOk && <span>Open hours aren't shaded — they're saved in {availZone ? dscZoneName(availZone) : "no time zone"}; re-save them in Hours &amp; rules</span>}
                 {plansUnread && <span>Client plans couldn't load — the row is incomplete.</span>}
                 {loadNote === "loading" && <span>{liveEvents ? "Loading…" : "Reading your calendar…"}</span>}
                 {loadNote === "error" && <span role="alert">{liveEvents ? "Some dates couldn't load." : "Your calendar couldn't be read just now."} <button type="button" onClick={retryLoad} style={{ ...btn(false), padding: "2px 8px", fontSize: 8 }}>Retry</button></span>}
@@ -2824,12 +2917,15 @@ function CoachSchedulePage({ role }) {
                 onCancel={() => setEditingHours(false)} onSaved={hoursSaved} onDirty={markUnsaved("hours")} />
             : <DscHoursPlate slots={availSlots} live={isLive} storedZone={availZone} editing={editingHours} state={hoursState}
                 onEdit={() => { setSlot(null); setBooking(null); setEditingHours(true); }} />}
-          <div style={{ borderTop: "1px solid " + DSC_HAIR, paddingTop: 16 }}>
-            <DscTimeOffPlate list={timeOff} zone={offZone || availZone} adding={offAdding} busyId={offBusy} error={offErr}
-              onAdd={addTimeOff} onRemove={removeTimeOff} onDirty={markUnsaved("off")} />
-          </div>
-          <div style={{ borderTop: "1px solid " + DSC_HAIR, paddingTop: 16 }}>
-            <DscRulesPlate role={role} live={isLive} onToast={showToast} onDirty={markUnsaved("rules")} />
+          {/* Time off beside the booking rules where the sheet is wide; one above the other where not. */}
+          <div data-settings-pair="" style={{ borderTop: "1px solid " + DSC_HAIR, paddingTop: 16, display: "flex", flexWrap: "wrap", gap: "24px 48px" }}>
+            <div style={{ flex: "1 1 320px", minWidth: 0 }}>
+              <DscTimeOffPlate list={timeOff} zone={offZone || availZone} adding={offAdding} busyId={offBusy} error={offErr}
+                onAdd={addTimeOff} onRemove={removeTimeOff} onDirty={markUnsaved("off")} />
+            </div>
+            <div style={{ flex: "1 1 320px", minWidth: 0 }}>
+              <DscRulesPlate role={role} live={isLive} onToast={showToast} onDirty={markUnsaved("rules")} />
+            </div>
           </div>
         </DscSettingsSheet>
       )}

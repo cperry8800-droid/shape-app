@@ -225,6 +225,39 @@ export function zoneLabel(zone, { at = Date.now() } = {}) {
   return `${zoneCity(z)} · ${offsetLabel(z, at)}`;
 }
 
+/**
+ * "Eastern Standard Time": how a sentence names a zone, the way a calendar or a phone does (owner,
+ * 2026-11-10: "remove all of that and just have it show normally. Like Eastern/Standard Time"). The
+ * zone's own name at `at`, so New York reads "Eastern Daylight Time" in summer, in `locale` (the
+ * website's English by default; the app passes its own language, and English stands in where that
+ * language has no name for the zone). A zone Intl has no name for (it answers "GMT+3") reads as zoneLabel's
+ * "Istanbul · GMT+3". ⚠ A PICKER KEEPS zoneLabel: Detroit and New York are both "Eastern", and only
+ * the city tells them apart.
+ */
+export function zoneName(zone, { at = Date.now(), locale = 'en-US' } = {}) {
+  const z = normalizeZone(zone);
+  if (!z) return '';
+  for (const loc of locale && locale !== 'en-US' ? [locale, 'en-US'] : ['en-US']) {
+    try {
+      const part = new Intl.DateTimeFormat(loc, { timeZone: z, timeZoneName: 'long' }).formatToParts(toMs(at)).find((p) => p.type === 'timeZoneName');
+      const n = part ? part.value : '';
+      if (n && !/^(GMT|UTC)\s*[+\-\u2212]/.test(n)) return n;
+    } catch (e) { /* a language this runtime can't format in: English */ }
+  }
+  return zoneLabel(z, { at });
+}
+
+/**
+ * Two different zones named in one sentence ("saved in X, not your time zone, Y"): their plain names,
+ * or city · offset for both where the plain names are the same (Detroit and New York are both
+ * "Eastern Standard Time", and "saved in Eastern Standard Time, not Eastern Standard Time" says nothing).
+ */
+export function zoneNamesApart(a, b, opts = {}) {
+  const x = zoneName(a, opts), y = zoneName(b, opts);
+  if (x && x === y && normalizeZone(a) !== normalizeZone(b)) return [zoneLabel(a, opts), zoneLabel(b, opts)];
+  return [x, y];
+}
+
 // A short list for a runtime without Intl.supportedValuesOf (older WebViews): one city per
 // common offset, so a picker always has something real to offer.
 const FALLBACK_ZONES = [

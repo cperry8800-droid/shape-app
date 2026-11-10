@@ -607,7 +607,12 @@ test('the score follows the route\'s formula: its terms, its tiers, and the samp
   assert.equal(C.cgsScoreModel({ total: 900, current_tier: 'Tempo', next_tier: 'Form', points_to_next: 1100, breakdown: [] }, 'trainer').tier, 'Pro');
   assert.equal(C.cgsScoreModel(null, 'trainer'), null);
   // The coach's place on one line of five tiers.
-  assert.deepEqual(C.cgsLadderPlace(0), { index: 0, at: 0 });
+  assert.deepEqual(C.cgsLadderPlace(0), { index: 0, at: 0, frac: 0 });
+  // The current tier's segment fills only as far as the score has come through it (owner, 2026-11-10:
+  // 80 points in Certified drew the whole segment).
+  assert.equal(C.cgsLadderPlace(80).frac, 80 / 750);
+  assert.equal(C.cgsLadderPlace(1760).frac, (1760 - 750) / 1250);
+  assert.equal(C.cgsLadderPlace(40000).frac, 1);
   assert.equal(C.cgsLadderPlace(1760).index, 1);
   assert.equal(Math.round(C.cgsLadderPlace(1760).at * 1000), Math.round(((1 + (1760 - 750) / 1250) / 5) * 1000));
   assert.equal(C.cgsLadderPlace(2000).index, 2);
@@ -677,6 +682,9 @@ test('signed out (a 401): the sample board, labelled, with the fastest way up th
       assert.match(textOf(card(m, 'score')), new RegExp(total + 'Pro · ' + (role === 'trainer' ? '240' : '490') + ' to Elite'));
       assert.equal(m.div.querySelector('[data-cgs-current]').getAttribute('data-cgs-tier'), 'Pro', 'the coach\'s place on the five tiers');
       assert.equal(m.div.querySelectorAll('[data-cgs-tier]').length, 5);
+      // The bar is the score: Certified passed and full, Pro filled as far as the score is through it.
+      const pts = Number(total.replace(/,/g, ''));
+      assert.deepEqual([...m.div.querySelectorAll('[data-cgs-fill]')].map((f) => Number(f.getAttribute('data-cgs-fill'))), [100, Math.round(((pts - 750) / 1250) * 1000) / 10, 0, 0, 0]);
       // The only raised card, its one filled action.
       assert.deepEqual([...m.div.querySelectorAll('[data-dash-lift="2"]')].map((s) => s.getAttribute('aria-label')), ['Fastest way up']);
       assert.equal(textOf(m.div.querySelector('[data-cgs-step]')), lead);

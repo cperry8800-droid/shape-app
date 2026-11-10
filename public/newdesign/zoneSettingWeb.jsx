@@ -292,12 +292,18 @@ const ZSW_NOTE = { fontSize: 12, color: ZSW_INK2, lineHeight: 1.5, marginTop: 8 
 const ZSW_BTN = { fontFamily: "inherit", fontSize: 12.5, padding: "7px 12px", borderRadius: 999, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.25)", background: "transparent", color: ZSW_INK, cursor: "pointer" };
 const ZSW_BTN_MAIN = { ...ZSW_BTN, border: "1px solid " + ZSW_ACCENT, background: ZSW_ACCENT, color: "var(--sh-ground, #1a1612)", fontWeight: 600 };
 
+// A zone as a sentence names it ("Eastern Standard Time", shapeZone.mjs zoneName; owner, 2026-11-10:
+// "just have it show normally"), and two named apart where both read the same. The picker's options
+// keep zoneLabel's "New York · GMT-5": there, only the city tells Detroit from New York.
+function zswName(Z, z) { return typeof Z.zoneName === "function" ? Z.zoneName(z) : Z.zoneLabel(z); }
+function zswNamesApart(Z, a, b) { return typeof Z.zoneNamesApart === "function" ? Z.zoneNamesApart(a, b) : [Z.zoneLabel(a), Z.zoneLabel(b)]; }
+
 function zswStatus(s, Z) {
   const sv = s.save;
   if (!sv) return { text: "", tone: ZSW_INK2 };
   if (sv.kind === "saving") return { text: "Saving…", tone: ZSW_INK2 };
   if (sv.kind === "saved") return { text: "Saved. Times on Shape show in " + (Z.zoneCity(sv.zone) || sv.zone) + ".", tone: ZSW_ACCENT };
-  const still = s.zone ? "Your time zone is still " + (Z.zoneLabel(s.zone) || s.zone) + "." : "Nothing was changed.";
+  const still = s.zone ? "Your time zone is still " + (zswName(Z, s.zone) || s.zone) + "." : "Nothing was changed.";
   return { text: (sv.reason === "invalid" ? "Shape doesn't know that time zone. " : "Couldn't save that. ") + still, tone: ZSW_DANGER };
 }
 
@@ -357,7 +363,7 @@ function ZswZoneSetting({ coach, wrap, labelClassName, labelStyle, store }) {
         </select>
         {device && device !== zone && (
           <button type="button" disabled={saving} onClick={() => { st.save(device, "settings"); }} style={{ ...ZSW_BTN, opacity: saving ? 0.5 : 1 }}>
-            Use this device's time zone ({Z.zoneLabel(device) || device})
+            Use this device's time zone ({zswNamesApart(Z, device, zone)[0] || device})
           </button>
         )}
       </div>
@@ -439,7 +445,7 @@ function ZswTravelCard({ store }) {
         {close("Not now", () => st.later())}
       </div>
       <div style={{ marginTop: 8, color: ZSW_INK2 }}>
-        Your times on Shape show in {Z.zoneLabel(account) || account}. This device is set to {Z.zoneLabel(device) || device}.
+        Your times on Shape show in {zswNamesApart(Z, account, device)[0] || account}. This device is set to {zswNamesApart(Z, account, device)[1] || device}.
       </div>
       {coach && <div style={{ marginTop: 6, color: ZSW_INK2 }}>{ZSW_HOURS_LINE}</div>}
       {failed && <div role="alert" style={{ marginTop: 6, color: ZSW_DANGER }}>Couldn't switch. Your times stay in {cityA}.</div>}
