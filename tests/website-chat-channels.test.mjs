@@ -500,6 +500,10 @@ test('typed before the reads land: the sample channels go, the one you wrote in 
     assert.ok(r.some((x) => /Shape HQ/.test(x)), 'the real channels did not arrive: ' + r.join(' | '));
     assert.ok(!r.some((x) => /shape-community/.test(x)), 'a sample channel nobody wrote in stayed beside the real ones');
     assert.ok(r.some((x) => /sample-two/.test(x)), 'the channel the member wrote in was taken away');
-    assert.match(m.doc.querySelector('[data-chat-panel]').textContent, /First!/, 'the open channel is no longer the one the member wrote in');
+    // The open thread's row is the one drawn with the accent rule on its left (the row's preview says
+    // "First!" too, so the panel's text proves nothing).
+    const open = [...m.doc.querySelectorAll('.chw-row')].filter((x) => !/transparent/.test(x.style.borderLeft));
+    assert.equal(open.length, 1, 'not one open thread');
+    assert.match(open[0].textContent, /sample-two/, 'the open channel is no longer the one the member wrote in: ' + open[0].textContent);
   } finally { await m.done(); }
 });

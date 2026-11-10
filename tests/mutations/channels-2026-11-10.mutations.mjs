@@ -12,7 +12,7 @@ const BACKEND = 'mobile-app/src/services/shapeBackend.js';
 const SQL = 'supabase-migrations/2026-11-10-channel-pictures-and-shape-hq.sql';
 
 export default {
-  test: 'node --test tests/website-chat-channels.test.mjs tests/channel-mark.test.mjs',
+  test: 'node --test tests/website-chat-channels.test.mjs tests/channel-mark.test.mjs tests/chat-message-history.test.mjs',
   timeoutMs: 300_000,
   mutations: [
     // ── the website reads, joins, posts, creates and pins as the app does ──
