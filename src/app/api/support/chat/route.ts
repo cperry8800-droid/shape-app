@@ -573,6 +573,15 @@ const NUTRITION_PROMPT_NOTE = [
 // "Talk to a person" (the Ask Nora plan, step 5): the button under the chat panels that draw
 // cards, for a signed-in account. Nora points to it; she cannot press it.
 const TEAM_QUOTE = '[A reply from the Shape team, quoted]';
+// ⚠ A FREE OR PAST-DUE ACCOUNT IS TOLD WHAT IS PAID (owner, 2026-11-10). An account is free; the
+// $5 membership adds Nora as an assistant, Shape Radio, the AI helpers, Cook Mode's voice and the
+// Store. Without the note Nora, who has no read tools for such an account, could only guess why
+// something is locked, and a member whose card failed was never told to update it.
+const FREE_ACCOUNT_NOTE =
+  "FREE ACCOUNT: This signed-in account has no paid membership. Everything else in Shape is free with the account (logging, programs, Home, the Score and seeing the leaderboards, the community, coaches and messaging, and questions to you). The $5-a-month membership adds the paid features: you as their assistant (looking up their own data, logging and setting things up for them, voice, the weekly readout), Shape Radio, the AI helpers (recipes from text or a photo, an AI program draft), Cook Mode's voice, being ranked on the leaderboards and the points Store. There is no free trial. When they ask for one of those, say it's part of the membership and that they can join from Settings, in one sentence, without pressing.";
+const PAST_DUE_NOTE =
+  "PAYMENT DIDN'T GO THROUGH: This account's $5 membership renewal failed and Stripe is retrying. Their account and every free feature work as usual; the paid features (you as their assistant, Shape Radio, the AI helpers, Cook Mode's voice, their place on the leaderboards and the points Store) are paused until the payment goes through. When something paid is locked, or they ask about billing, tell them to update their card: the Update your card button, or Settings → Manage subscription, both open the billing portal. Never call them a non-member or suggest joining again.";
+
 const PERSON_NOTE =
   `TALK TO A PERSON: Under this chat there is a "Talk to a person" button. It sends their question and this conversation to the Shape team, and a person replies here in this chat and by email. When they need a person (a refund, an account change, a bug, anything you cannot do), tell them to tap it. You cannot send it yourself, so never say you have. A message that starts ${TEAM_QUOTE} is that reply: answer questions about it, and never contradict it with a guess.`;
 const READ_TOOLS = new Set([...MEMBER_READ_TOOLS.map((t) => t.name), ...COACH_TOOLS.map((t) => t.name), ...ADMIN_TOOLS.map((t) => t.name)]);
@@ -1163,7 +1172,7 @@ async function askOpenAI(
   messages: ChatMessage[],
   propose: ProposeFn,
   tone: string | undefined,
-  member: { contextMsg: string | null; memberTools: typeof MEMBER_TOOLS; memoryCtx: MemoryCtx | null; cookMsg: string | null; reads: ReadCtx | null; coachTools: typeof COACH_TOOLS; adminTools?: typeof ADMIN_TOOLS; trainerTools: typeof TRAINER_TOOLS; nutritionTools?: typeof NUTRITION_TOOLS; trainerZone?: string; noCards?: boolean; isMember: boolean; signedIn?: boolean; teamReplies?: Set<string>; voice: boolean; locale: string | null; coach: CoachCtx; where?: { system: string; data: string | null }; form?: FormCtx | null; today?: string | null },
+  member: { contextMsg: string | null; memberTools: typeof MEMBER_TOOLS; memoryCtx: MemoryCtx | null; cookMsg: string | null; reads: ReadCtx | null; coachTools: typeof COACH_TOOLS; adminTools?: typeof ADMIN_TOOLS; trainerTools: typeof TRAINER_TOOLS; nutritionTools?: typeof NUTRITION_TOOLS; trainerZone?: string; noCards?: boolean; isMember: boolean; pastDue?: boolean; signedIn?: boolean; teamReplies?: Set<string>; voice: boolean; locale: string | null; coach: CoachCtx; where?: { system: string; data: string | null }; form?: FormCtx | null; today?: string | null },
   signal?: AbortSignal,
   sink?: StreamSink,
 ): Promise<{ reply: string; actions: SupportAction[]; model: string | null } | null> {
@@ -1199,9 +1208,10 @@ async function askOpenAI(
   const adminNote = member.adminTools && member.adminTools.length && member.memberTools.length && !member.cookMsg ? `\n\n${ADMIN_PROMPT_NOTE}` : '';
   const noCardsNote = member.noCards && !member.cookMsg ? `\n\n${NO_CARDS_NOTE}` : '';
   const personNote = member.signedIn && !member.noCards && !member.cookMsg ? `\n\n${PERSON_NOTE}` : '';
+  const planNote = member.signedIn && !member.isMember && !member.cookMsg ? `\n\n${member.pastDue ? PAST_DUE_NOTE : FREE_ACCOUNT_NOTE}` : '';
   // Account setup rides with its tool: a member's turn on a chat that draws cards, never in the kitchen.
   const setupNote = member.memberTools.length && !member.noCards && !member.cookMsg ? `\n\n${SETUP_PROMPT_NOTE}` : '';
-  const systemPrompt = `${SYSTEM_PROMPT}${member.memberTools.length && !member.cookMsg ? `\n\n${MEMBER_PROMPT_NOTE}${member.reads && member.reads.mornings ? `\n\n${morningsPromptNote(member.coach.surface)}` : ''}` : ''}${setupNote}${trainerNote}${nutritionNote}${adminNote}${noCardsNote}${personNote}${cookOverride}${member.voice ? `\n\n${VOICE_PROMPT_NOTE}` : ''}${langNote}\n\n${toneInstruction(tone)}`;
+  const systemPrompt = `${SYSTEM_PROMPT}${member.memberTools.length && !member.cookMsg ? `\n\n${MEMBER_PROMPT_NOTE}${member.reads && member.reads.mornings ? `\n\n${morningsPromptNote(member.coach.surface)}` : ''}` : ''}${setupNote}${trainerNote}${nutritionNote}${adminNote}${noCardsNote}${personNote}${planNote}${cookOverride}${member.voice ? `\n\n${VOICE_PROMPT_NOTE}` : ''}${langNote}\n\n${toneInstruction(tone)}`;
   let input: unknown[] = [
     { role: 'system', content: systemPrompt },
     // Where they are: the clock in their zone and what the server verified (system), then
@@ -1647,7 +1657,7 @@ export async function POST(request: Request) {
   const teamReplies = settledValue(await teamRepliesEarly);
   // How long the setup took before the model was asked: greppable beside the model's own line.
   console.log('[shape-ai]', JSON.stringify({ promptId: 'support.chat.setup', setupMs: Date.now() - startedAt, signedIn: !!actor }));
-  const ask = (sink?: StreamSink) => askOpenAI(messages, propose, body.tone, { contextMsg, memberTools, memoryCtx, cookMsg, reads, coachTools, adminTools, trainerTools, nutritionTools, trainerZone: zone, isMember, signedIn: !!actor, teamReplies, voice, locale, coach, noCards, where, form, today }, request.signal, sink).catch(() => null);
+  const ask = (sink?: StreamSink) => askOpenAI(messages, propose, body.tone, { contextMsg, memberTools, memoryCtx, cookMsg, reads, coachTools, adminTools, trainerTools, nutritionTools, trainerZone: zone, isMember, pastDue: !!membership?.pastDue, signedIn: !!actor, teamReplies, voice, locale, coach, noCards, where, form, today }, request.signal, sink).catch(() => null);
   // What she answers, whatever happened: the model's reply, or the fallbacks below. The same
   // object either way; a streamed request gets it as the final `done` event.
   const answer = async (ai: Awaited<ReturnType<typeof ask>>): Promise<Record<string, unknown>> => {

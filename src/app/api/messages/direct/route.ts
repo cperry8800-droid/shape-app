@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { readJson, dbError, cleanText } from '@/lib/request-utils';
-import { requireMembership } from '@/lib/require-membership';
+import { requireAccount } from '@/lib/require-membership';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,7 +13,7 @@ function normalizeProviderRole(value: unknown): 'trainer' | 'nutritionist' | nul
 }
 
 export async function GET(request: Request) {
-  const denied = await requireMembership(request);
+  const denied = await requireAccount(request);
   if (denied) return denied;
   const supabase = await createClient();
   const {
@@ -54,7 +54,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(req: Request) {
-  const denied = await requireMembership(req);
+  const denied = await requireAccount(req);
   if (denied) return denied;
   const supabase = await createClient();
   const {

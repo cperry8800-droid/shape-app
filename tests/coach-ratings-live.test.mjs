@@ -132,7 +132,7 @@ test('the API averages each coach by ACCOUNT as well as by slug, from the rating
   }
 })
 
-test('members read the reviews; everyone else gets the rating and no words (owner, 2026-10-28)', async () => {
+test('every signed-in account reads the reviews; a visitor gets the rating and no words (owner, 2026-11-10)', async () => {
   const OWNER = '22222222-2222-4222-8222-222222222222'
   const REVIEW = '33333333-3333-4333-8333-333333333333'
   const rows = [
@@ -140,16 +140,21 @@ test('members read the reviews; everyone else gets the rating and no words (owne
     { id: '44444444-4444-4444-8444-444444444444', coach_slug: 'ada-coach', rating: 7, owner_id: OWNER, body: 'Good.', author_name: 'Ana P.', created_at: '2026-10-02' },
   ]
   for (const ratingsFn of [true, false]) {
-    // A guest, and a signed-in reader who isn't a member. After the migration neither reads a row.
-    for (const signedIn of [false, true]) {
-      const reader = await loadRoute(reviewsClient(rows, { ratingsFn, canReadRows: !ratingsFn }), { signedIn })
-      const who = `${signedIn ? 'signed-in non-member' : 'guest'}, ratings function ${ratingsFn}`
-      for (const q of [`?owner=${OWNER}`, '?coach=ada-coach']) {
-        const body = await (await reader.GET(new Request(`https://shape.test/api/coaches/reviews${q}`))).json()
-        assert.deepEqual(body, { reviews: [], locked: true, avg: 8, count: 2 }, `${q}, ${who}: the rating, no words or authors`)
-      }
-      const pins = await (await reader.GET(new Request(`https://shape.test/api/coaches/reviews?ids=${REVIEW}`))).json()
-      assert.deepEqual(pins, { reviews: [], locked: true }, `${who}: a pinned review is a review, members only`)
+    // A guest reads no row and gets the rating only.
+    const guest = await loadRoute(reviewsClient(rows, { ratingsFn, canReadRows: !ratingsFn }))
+    for (const q of [`?owner=${OWNER}`, '?coach=ada-coach']) {
+      const body = await (await guest.GET(new Request(`https://shape.test/api/coaches/reviews${q}`))).json()
+      assert.deepEqual(body, { reviews: [], locked: true, avg: 8, count: 2 }, `${q}, guest, ratings function ${ratingsFn}: the rating, no words or authors`)
+    }
+    const guestPins = await (await guest.GET(new Request(`https://shape.test/api/coaches/reviews?ids=${REVIEW}`))).json()
+    assert.deepEqual(guestPins, { reviews: [], locked: true }, 'a pinned review is a review: not for a visitor')
+    // A free account (signed in, no membership) reads the words, through the service role: before
+    // 2026-11-10-coach-reviews-accounts.sql its own session reads only its own rows.
+    const free = await loadRoute(reviewsClient(rows, { ratingsFn, canReadRows: false }), { signedIn: true, adminClient: reviewsClient(rows, { ratingsFn }) })
+    for (const q of [`?owner=${OWNER}`, '?coach=ada-coach']) {
+      const body = await (await free.GET(new Request(`https://shape.test/api/coaches/reviews${q}`))).json()
+      assert.equal(body.locked, undefined, `free account ${q}`)
+      assert.deepEqual(body.reviews.map((r) => [r.author, r.text]).sort(), [['Ana P.', 'Good.'], ['Sam R.', 'Clear plans.']], q)
     }
     const member = await loadRoute(reviewsClient(rows, { ratingsFn }), { member: true })
     for (const q of [`?owner=${OWNER}`, '?coach=ada-coach']) {
@@ -205,11 +210,16 @@ test('an admin on the allow-list reads every review, through the service role (C
   const pins = await (await route.GET(new Request(`https://shape.test/api/coaches/reviews?ids=${REVIEW}`))).json()
   assert.equal(pins.reviews.length, 1)
   assert.equal(seen.adminReads, 3, 'each list through the service role')
-  // A member who isn't an admin reads with their own session.
+  // Any signed-in reader's list goes through the service role now (an account reads every review);
+  // a visitor's never does.
   const memberSeen = {}
-  const member = await loadRoute(reviewsClient(rows), { member: true, adminClient: reviewsClient([]), seen: memberSeen })
+  const member = await loadRoute(reviewsClient(rows), { member: true, adminClient: reviewsClient(rows), seen: memberSeen })
   await member.GET(new Request('https://shape.test/api/coaches/reviews?coach=ada-coach'))
-  assert.equal(memberSeen.adminReads, undefined, 'never the service role for anyone else')
+  assert.equal(memberSeen.adminReads, 1)
+  const guestSeen = {}
+  const guest = await loadRoute(reviewsClient(rows), { adminClient: reviewsClient(rows), seen: guestSeen })
+  await guest.GET(new Request('https://shape.test/api/coaches/reviews?coach=ada-coach'))
+  assert.equal(guestSeen.adminReads, undefined, 'never the service role for a visitor')
 })
 
 test('a ratings function that fails, rather than is missing, gives no rating, never a partial one from the rows (Codex P2 on #2492)', async () => {
@@ -443,4 +453,14 @@ test('locked: each reviews list says members read them, with the rating, and off
   const web = read('public/newdesign/livingShared.jsx')
   assert.ok(web.includes('setRevLocked(j.locked === true);'))
   assert.match(web, /revLocked && revAgg && revAgg\.count > 0 \? \(\s+<div data-reviews-locked=""[\s\S]{0,300}Members read the reviews\.[\s\S]{0,300}href="Pricing\.html"/)
+})
+
+test('the 2026-11-10 migration opens review rows to every signed-in account, never to a visitor, in one re-runnable transaction', () => {
+  const sql = readFileSync(join(ROOT, 'supabase-migrations/2026-11-10-coach-reviews-accounts.sql'), 'utf8').replace(/^\s*--.*$/gm, '')
+  assert.match(sql, /^begin;$/m)
+  assert.match(sql, /^commit;\s*$/m)
+  assert.match(sql, /drop policy if exists "members read coach reviews" on public\.coach_reviews;/)
+  assert.match(sql, /drop policy if exists "accounts read coach reviews" on public\.coach_reviews;/)
+  assert.match(sql, /create policy "accounts read coach reviews" on public\.coach_reviews\s+for select to authenticated\s+using \(true\);/)
+  assert.doesNotMatch(sql, /to anon|to public/, 'a visitor reads the rating only, from coach_review_ratings()')
 })

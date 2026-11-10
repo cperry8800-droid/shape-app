@@ -42,7 +42,7 @@ const ROUTE = await loadRealModule(join(ROOT, 'src/app/api/client/analytics/rout
   typescript: true,
   registry: new Map([
     ['next/server', nextServer], ['@/lib/local-day', localDay], ['@/lib/time', time],
-    ['@/lib/require-membership', { requireMembership: async () => null }],
+    ['@/lib/require-membership', { requireMembership: async () => null, requireAccount: async () => null }],
     ['@/lib/request-auth', { clientForRequest: async () => stubClient, currentUser: async () => ({ id: 'u-1' }) }],
   ]),
 });

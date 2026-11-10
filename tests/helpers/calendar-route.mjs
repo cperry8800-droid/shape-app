@@ -33,7 +33,7 @@ export async function calendarRoute() {
       ['@/lib/access-guards.mjs', guards], ['@/lib/session-booking', booking], ['@/lib/session-series', series],
       ['@/lib/calendar-activities', activities], ['@/lib/workout-days', workoutDays], ['@/lib/member-menus', memberMenus],
       ['@/lib/paid-sessions', { openPaidSessions: async () => ({ ok: true, rows: [] }), linkPaidSession: async () => true }],
-      ['@/lib/require-membership', { requireMembership: async () => null }],
+      ['@/lib/require-membership', { requireMembership: async () => null, requireAccount: async () => null }],
       ['@/lib/request-auth', { clientForRequest: async () => client, currentUser: async () => ({ id: 'member-1' }) }],
       ['@/lib/supabase/admin', { createAdminClient: () => ({}) }],
       ['@/lib/video', { videoRoomUrl: () => null }],

@@ -6,8 +6,11 @@
 // approved coach or an admin reads as inactive, and it turns a failed read into
 // `{ active: false }`, which a screen cannot tell apart from a confirmed non-member.
 //
-// 200 { signedIn: false } signed out · 200 { signedIn: true, member, coach } · 503 when we could
-// not find out (callers then keep whatever they were showing).
+// 200 { signedIn: false } signed out · 200 { signedIn: true, member, coach, ageRestricted, pastDue,
+// status } · 503 when we could not find out (callers then keep whatever they were showing).
+// `member` is the PAID features (an active membership, an approved coach or an admin): every
+// signed-in adult account has the free ones (owner, 2026-11-10). `pastDue` says the membership's
+// renewal failed, so a screen can say "update your card" instead of "join".
 
 import { NextResponse } from 'next/server';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
@@ -25,7 +28,7 @@ export async function GET(request: Request) {
     const client = await clientForRequest(request);
     const m = await computeMembership(client, user.id, user.email ?? null, { emailConfirmed: !!user.email_confirmed_at, strict: true });
     return NextResponse.json(
-      { signedIn: true, member: m.isMember, coach: m.isCoach, ageRestricted: m.isKnownMinor },
+      { signedIn: true, member: m.isMember, coach: m.isCoach, ageRestricted: m.isKnownMinor, pastDue: m.pastDue, status: m.platformStatus },
       { headers: NO_STORE }
     );
   } catch (err) {

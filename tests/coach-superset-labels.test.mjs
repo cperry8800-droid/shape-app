@@ -235,7 +235,7 @@ test('the member\'s plan route delivers the key under the same rule', async () =
     registry: new Map([
       ['next/server', nextServer],
       ['@/lib/request-auth', { clientForRequest: async () => null, currentUser: async () => null }],
-      ['@/lib/require-membership', { requireMembership: async () => null }],
+      ['@/lib/require-membership', { requireMembership: async () => null, requireAccount: async () => null }],
     ]),
   });
   for (const v of KEY_VECTORS) {

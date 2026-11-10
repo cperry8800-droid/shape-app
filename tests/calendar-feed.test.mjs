@@ -455,7 +455,7 @@ async function tokenRoute() {
     typescript: true,
     registry: new Map([
       ['next/server', nextServer], ['@/lib/calendar-feed', feed], ['@/lib/request-utils', requestUtils],
-      ['@/lib/require-membership', { requireMembership: async () => ctx.denied }],
+      ['@/lib/require-membership', { requireMembership: async () => ctx.denied, requireAccount: async () => ctx.denied }],
       ['@/lib/request-auth', { currentUser: async () => ctx.user, clientForRequest: async () => ctx.client }],
     ]),
   });
@@ -572,8 +572,9 @@ test('a calendar app with no session reaches the feed; nothing else under /api/c
   for (const p of ['/api/calendar', '/api/calendar/feed-token', '/api/calendar/feed', '/api/calendar/feedx/' + TOKEN, '/api/client/plan']) {
     assert.equal(await proxyAnswer(p), 401, p + ' slipped past the gate');
   }
-  // and a signed-in non-member is still refused the link route, but reaches a feed
-  assert.equal(await proxyAnswer('/api/calendar/feed-token', { user: { id: 'u1' } }), 402);
+  // and a signed-in account passes the gate to the link route, which decides by the listing (an
+  // account is free since 2026-11-10; the route answers a non-coach 403), and reaches a feed
+  assert.equal(await proxyAnswer('/api/calendar/feed-token', { user: { id: 'u1' } }), 200);
   assert.equal(await proxyAnswer('/api/calendar/feed/' + TOKEN, { user: { id: 'u1' } }), 200);
   assert.equal(await proxyAnswer('/api/calendar/feed-token', { user: { id: 'u1' }, member: true }), 200);
 });

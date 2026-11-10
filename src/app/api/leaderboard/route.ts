@@ -5,8 +5,10 @@
 //        entries: [{ userId, name, avatarUrl, points, rank, prevRank, moved, tier, streak,
 //                    trainingDays, mealDays, isMe }],
 //        me: entry | null,               the caller's own row, ranked or not in this window
-//        hidden: null | 'off' | 'private' | 'team_unasked' | 'team_off',
-//                                        why OTHER members do not see the caller here
+//        hidden: null | 'off' | 'private' | 'team_unasked' | 'team_off' | 'free_account' | 'past_due',
+//                                        why OTHER members do not see the caller here; the last two:
+//                                        the caller is not ranked at all (a paid feature)
+//        participant: boolean | null,    may the caller be ranked (null: unread)
 //        privacy: { leaderboard, teamBoard } | null,   the two switches (null: unread)
 //        hasCoach?: boolean | null,      team only
 //        following?: number | null }     following only
@@ -21,6 +23,7 @@
 import { NextResponse } from 'next/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
+import { computeMembership } from '@/lib/membership-core';
 import { isMissingRelation } from '@/lib/owned-provider';
 import { OPEN_SUB_STATUSES } from '../../../lib/coach-trajectory.mjs';
 import {
@@ -67,7 +70,7 @@ export async function GET(request: Request) {
   const period = parsePeriod(url.searchParams.get('period'));
   const limit = parseLimit(url.searchParams.get('limit'));
 
-  const [board, own, hasCoach, following] = await Promise.all([
+  const [board, own, hasCoach, following, membership] = await Promise.all([
     supabase.rpc('shape_member_board', { p_scope: scope, p_period: period, p_limit: limit }),
     readOwnSettings(supabase, user.id),
     scope === 'team'
@@ -78,14 +81,22 @@ export async function GET(request: Request) {
       ? countOrNull(supabase.from('user_follows').select('following_id', { count: 'exact', head: true })
           .eq('follower_id', user.id).eq('status', 'accepted'))
       : Promise.resolve(null),
+    // null: unread. The board still answers; only the reason it gives the caller is unknown.
+    computeMembership(supabase, user.id, user.email ?? null, { emailConfirmed: !!user.email_confirmed_at, strict: true }).catch(() => null),
   ]);
+  // ⚠ ONLY A PAID MEMBER IS RANKED (owner, 2026-11-10: free accounts "can see leaderboards but
+  // dont get to participate"). The board itself ranks paid members only
+  // (2026-11-10-leaderboard-members-ranked.sql); the caller is told why they are not on it.
+  const participant = membership ? membership.isMember : null;
+  const notRanked = participant === false ? (membership?.pastDue ? 'past_due' : 'free_account') : null;
 
   if (board.error) {
-    if (isMissingRelation(board.error)) return legacyBoard(supabase, user.id, scope, period, limit, own);
+    if (isMissingRelation(board.error)) return legacyBoard(supabase, user.id, scope, period, limit, own, notRanked);
     return unavailable();
   }
 
-  const rows = (board.data ?? []) as Array<Record<string, unknown>>;
+  // A caller who may not be ranked has no row, even before the migration has run.
+  const rows = ((board.data ?? []) as Array<Record<string, unknown>>).filter((r) => !(notRanked && r.is_me === true));
   const all = rows.map(memberEntry);
   const mine = all.find((e) => e.isMe) ?? null;
   const total = rows.length ? Number(rows[0].total) || 0 : 0;
@@ -101,8 +112,9 @@ export async function GET(request: Request) {
     period,
     total,
     entries,
-    me: mine ? { ...mine, total } : null,
-    hidden: own ? hiddenReason(scope, own.privacy, own.visibility) : null,
+    me: mine && !notRanked ? { ...mine, total } : null,
+    hidden: notRanked ?? (own ? hiddenReason(scope, own.privacy, own.visibility) : null),
+    participant,
     privacy: own ? own.privacy : null,
   };
   if (scope === 'team') body.hasCoach = hasCoach === null ? null : hasCoach > 0;
@@ -115,6 +127,7 @@ export async function GET(request: Request) {
 async function legacyBoard(
   supabase: SupabaseClient, userId: string, scope: Scope, period: Period, limit: number,
   own: { privacy: Privacy; visibility: unknown } | null,
+  notRanked: 'free_account' | 'past_due' | null = null,
 ) {
   if (scope !== 'everyone') return NextResponse.json({ error: 'This leaderboard is not switched on yet.' }, { status: 503 });
   const [{ data: rows, error }, { data: meRows, error: meError }] = await Promise.all([
@@ -123,7 +136,7 @@ async function legacyBoard(
   ]);
   if (error || meError) return unavailable();
   // The old board never checked visibility, so another member's photo and id stay off it here.
-  const entries = ((rows ?? []) as Array<{ user_id: string; full_name: string; avatar_url: string | null; points: number; rank: number }>).map((r, i) => ({
+  const entries = ((rows ?? []) as Array<{ user_id: string; full_name: string; avatar_url: string | null; points: number; rank: number }>).filter((r) => !(notRanked && r.user_id === userId)).map((r, i) => ({
     userId: r.user_id === userId ? r.user_id : `row-${i}`,
     name: shortName(r.full_name),
     avatarUrl: r.user_id === userId ? r.avatar_url : null,
@@ -140,14 +153,15 @@ async function legacyBoard(
   const meRow = Array.isArray(meRows) ? meRows[0] : null;
   const total = meRow ? Number(meRow.total) : entries.length;
   const listed = entries.find((e) => e.isMe);
-  const me = meRow
+  const me = meRow && !notRanked
     ? { ...(listed ?? { userId, name: 'You', avatarUrl: null, prevRank: null, moved: null, tier: null, streak: null, trainingDays: null, mealDays: null, isMe: true }),
         points: Number(meRow.points), rank: Number(meRow.rank), total }
     : null;
   return NextResponse.json({
     scope, period, total, entries, me,
     // The old board filters on the board switch only, not on a private profile.
-    hidden: own && !own.privacy.leaderboard ? 'off' : null,
+    hidden: notRanked ?? (own && !own.privacy.leaderboard ? 'off' : null),
+    participant: notRanked ? false : null,
     privacy: own ? own.privacy : null,
     legacy: true,
   });

@@ -218,7 +218,7 @@ async function route(db, { denied = null, user = { id: U } } = {}) {
     registry: new Map([
       ['next/server', { NextResponse: { json: (body, init) => ({ body, status: (init && init.status) || 200 }) } }],
       ['@/lib/request-auth', { clientForRequest: async () => client, currentUser: async () => user }],
-      ['@/lib/require-membership', { requireMembership: async () => denied }],
+      ['@/lib/require-membership', { requireMembership: async () => denied, requireAccount: async () => denied }],
       ['@/lib/membership-core', { ACTIVE_SUB: MEMBERSHIP.ACTIVE_SUB }],
       ['@/lib/integrations/providers', { PROVIDERS: { whoop: { label: 'WHOOP' }, spotify: { label: 'Spotify' } } }],
       ['@/lib/member-onboarding.mjs', M],

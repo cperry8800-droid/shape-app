@@ -5,19 +5,20 @@
 import { createServerClient } from '@supabase/ssr';
 import { createClient as createBearerClient, type SupabaseClient } from '@supabase/supabase-js';
 import { NextResponse, type NextRequest } from 'next/server';
-import { computeMembership, GATE_STAMP_HEADER, GATE_STAMP_VALUE } from '@/lib/membership-core';
+import { computeMembership, GATE_STAMP_ACCOUNT, GATE_STAMP_HEADER, GATE_STAMP_VALUE, paidRefusal } from '@/lib/membership-core';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { applyShapeCookieOptions } from '@/lib/supabase/cookie-options';
 import { isStaffPage, verifyUrl } from '@/lib/staff-two-factor.mjs';
 
 type PortalRole = 'client' | 'trainer' | 'nutritionist';
 
-// Paid API prefixes gated to Shape members (active sub OR approved coach OR
-// admin) — the server-side counterpart to the UI paywall. Self-scoped client
-// surfaces + real messaging (the website chat bubble sends via /api/conversations).
-// Billing/auth/webhook/public/community-preview/coach/integration-connect routes
-// are intentionally NOT gated so join + onboarding + OAuth + the community
-// preview keep working.
+// The account API prefixes: self-scoped client surfaces + real messaging (the website chat bubble
+// sends via /api/conversations). Every route under them needs a signed-in ADULT account.
+// Billing/auth/webhook/public/community-preview/coach/integration-connect routes are
+// intentionally NOT gated so join + onboarding + OAuth + the community preview keep working.
+// ⚠ AN ACCOUNT IS FREE (owner, 2026-11-10). These prefixes used to be paid as a whole, so a
+// signed-in account that had not paid could not log a meal, read its own Home or message its
+// coach. Only PAID_API_PREFIXES and PAID_API_PATHS below still need the membership.
 const GATED_API_PREFIXES = [
   '/api/client',
   '/api/nutrition',
@@ -27,6 +28,18 @@ const GATED_API_PREFIXES = [
   '/api/conversations',
   '/api/messages',
 ];
+// The PAID routes under those prefixes: an active membership, an approved coach or an admin.
+// /api/ai is assistant Nora (her action cards, voice, readouts, proactive notices) and the AI
+// drafting (the member's program draft; the coaches' tools, which a coach passes by role); the
+// two recipe imports are the AI helpers (owner, 2026-11-10: paid, like Nora).
+const PAID_API_PREFIXES = ['/api/ai'];
+const PAID_API_PATHS = ['/api/nutrition/recipe-parse', '/api/nutrition/recipe-photo'];
+
+/** Whether this API path needs the paid membership, not just an account. */
+export function isPaidApiPath(apiPath: string): boolean {
+  return PAID_API_PATHS.includes(apiPath) || PAID_API_PREFIXES.some((p) => apiPath === p || apiPath.startsWith(p + '/'));
+}
+
 // Server-to-server routes UNDER a gated prefix that authenticate themselves (a
 // secret), so the per-user membership gate must NOT apply (no user session).
 const GATE_SKIP = ['/api/ai/notify/cron'];
@@ -233,10 +246,11 @@ export async function updateSession(request: NextRequest) {
     }
   }
 
-  // ---- Paid API member gate ------------------------------------------------
-  // Server-side enforcement for the paid client API prefixes. Honors a Bearer
-  // token (native app) as well as the cookie session (web). Fails OPEN on any
-  // unexpected error so a gate fault can never take down the paid routes.
+  // ---- Account + paid API gate ----------------------------------------------
+  // Server-side enforcement for the account API prefixes (a signed-in adult) and, within them,
+  // the paid routes (isPaidApiPath: also the membership). Honors a Bearer token (native app) as
+  // well as the cookie session (web). Fails OPEN on any unexpected error so a gate fault can never
+  // take down the routes; requireAccount / requireMembership in each route re-check.
   if (
     !GATE_SKIP.includes(apiPath) &&
     !GATE_SKIP_PREFIXES.some((p) => apiPath.startsWith(p)) &&
@@ -258,7 +272,8 @@ export async function updateSession(request: NextRequest) {
         gateClient = bClient;
       }
       if (!gateUser) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
-      const { isMember, isKnownMinor } = await computeMembership(gateClient, gateUser.id, gateUser.email ?? null, { emailConfirmed: !!gateUser.email_confirmed_at });
+      const membership = await computeMembership(gateClient, gateUser.id, gateUser.email ?? null, { emailConfirmed: !!gateUser.email_confirmed_at });
+      const { isMember, isKnownMinor } = membership;
       // Shape is 18+, no exceptions. Age is derived from `date_of_birth` at READ
       // time (`isMinorFromDob`), with the trigger-written `over_18` only as the
       // fallback for rows carrying no usable date — so a member's birthday cannot
@@ -272,12 +287,13 @@ export async function updateSession(request: NextRequest) {
       // This was previously computed and read by NOTHING — the only age check was
       // client-side at signup, bypassable by calling the API directly.
       if (isKnownMinor) return NextResponse.json({ error: 'Shape is for adults 18 and over.', code: 'age_restricted' }, { status: 403 });
-      if (!isMember) return NextResponse.json({ error: 'Shape membership required.', code: 'membership_required' }, { status: 402 });
-      // Verified — stamp the request for the route layer so requireMembership
-      // (the per-endpoint half of this gate) passes without re-querying.
+      if (!isMember && isPaidApiPath(apiPath)) return NextResponse.json(paidRefusal(membership), { status: 402 });
+      // Verified — stamp the request for the route layer so requireMembership / requireAccount
+      // (the per-endpoint half of this gate) pass without re-querying. A paid member's stamp
+      // says so; anyone else's says only "a signed-in adult account".
+      forwardedHeaders.set(GATE_STAMP_HEADER, isMember ? GATE_STAMP_VALUE : GATE_STAMP_ACCOUNT);
       // Rebuilding the response drops any cookies Supabase refreshed above,
       // so carry them over (the portal-redirect pattern below).
-      forwardedHeaders.set(GATE_STAMP_HEADER, GATE_STAMP_VALUE);
       const stamped = NextResponse.next({ request: { headers: forwardedHeaders } });
       response.cookies.getAll().forEach((cookie) => stamped.cookies.set(cookie));
       response = stamped;

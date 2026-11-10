@@ -191,8 +191,6 @@ const ALLOW_TWO = {};
 const ALLOW_THREE = {
   'src/lib/coach-trajectory.mjs': 'OPEN_SUB_STATUSES itself.',
   'src/lib/membership-core.ts': 'ACTIVE_SUB: membership, the rule OPEN_SUB_STATUSES follows.',
-  'src/app/dashboard/layout.tsx': 'The dashboard\'s membership gate (ACTIVE_SUB).',
-  'src/app/api/stripe/subscription/route.ts': 'The platform plan (Settings), not a coach.',
   'src/lib/ai/memberReads.mjs': 'PLATFORM_ACTIVE: the platform plan, read beside /api/stripe/subscription.',
   'src/lib/queries.ts': 'A member\'s own subscriptions and the Subscribed badge; these already read past_due before the shared list existed.',
 };

@@ -62,6 +62,12 @@ export async function POST(request: Request) {
     if (m.isKnownMinor) {
       return NextResponse.json({ error: 'Shape is for adults 18 and over.', code: 'age_restricted' }, { status: 403 });
     }
+    // ⚠ A PAST-DUE MEMBER STILL HAS A MEMBERSHIP. It no longer counts as paid (isMember), but a new
+    // checkout would be a second subscription beside the one Stripe is retrying: the fix is the
+    // card, in the billing portal.
+    if (m.pastDue) {
+      return NextResponse.json({ error: "Your membership payment didn't go through. Update your card to keep it.", code: 'payment_past_due' }, { status: 409 });
+    }
     if (m.isMember) {
       return NextResponse.json({ error: "You're already a Shape member.", code: 'already_member' }, { status: 409 });
     }

@@ -83,7 +83,7 @@ const route = await loadRealModule(join(ROOT, 'src/app/api/client/plan/route.ts'
   registry: new Map([
     ['next/server', nextServer],
     ['@/lib/request-auth', { clientForRequest: async () => null, currentUser: async () => null }],
-    ['@/lib/require-membership', { requireMembership: async () => null }],
+    ['@/lib/require-membership', { requireMembership: async () => null, requireAccount: async () => null }],
   ]),
 });
 

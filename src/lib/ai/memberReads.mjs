@@ -717,7 +717,9 @@ export async function readAccount(sb, uid) {
     const r = plan.data && typeof plan.data === 'object' ? plan.data : null;
     const status = r ? str(r.status, 24) : null;
     out.platformSubscription = !status ? { onRecord: false } : {
-      onRecord: true, status, active: PLATFORM_ACTIVE.includes(status),
+      // `active` is the paid features: only an active plan pays for them (owner, 2026-11-10: no
+      // trial, and a past-due plan's card has failed).
+      onRecord: true, status, active: status === 'active', ...(status === 'past_due' ? { paymentFailed: true } : {}),
       ...(dollars(r.price_cents) != null ? { pricePerMonthUsd: dollars(r.price_cents) } : {}),
       ...(day(r.current_period_end) ? { periodEnd: day(r.current_period_end) } : {}),
     };

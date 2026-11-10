@@ -13,7 +13,7 @@
 import { NextResponse } from 'next/server';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { requireMembership } from '@/lib/require-membership';
+import { requireAccount } from '@/lib/require-membership';
 import { OPEN_SUB_STATUSES } from '../../../../lib/coach-trajectory.mjs';
 
 export const runtime = 'nodejs';
@@ -72,7 +72,7 @@ async function uploadAttachment(
 }
 
 export async function POST(request: Request) {
-  const denied = await requireMembership(request);
+  const denied = await requireAccount(request);
   if (denied) return denied;
   const user = await currentUser(request);
   if (!user) return NextResponse.json({ error: 'Sign in to send a note to your coach.' }, { status: 401 });

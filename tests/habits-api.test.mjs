@@ -10,7 +10,7 @@ async function api(results, user = {id:'member-a'}) {
   const registry=new Map([
     ['next/server',{NextResponse:{json:(body,init)=>new Response(JSON.stringify(body),{status:init?.status || 200})}}],
     ['@/lib/request-auth',{clientForRequest:async request=>{authRequests.push(request.headers.get('authorization'));return db;},currentUser:async()=>user}],
-    ['@/lib/require-membership',{requireMembership:async()=>null}],
+    ['@/lib/require-membership',{requireMembership:async()=>null,requireAccount:async()=>null}],
     ['@/lib/request-utils',{readJson:async request=>({ok:true,data:await request.json()}),dbError:()=>new Response('{}',{status:500})}],
   ]);
   return {route:await loadRealModule(fileURLToPath(new URL('../src/app/api/client/habits/route.ts',import.meta.url)),{typescript:true,registry}),calls,authRequests};

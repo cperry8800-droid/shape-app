@@ -60,7 +60,7 @@ async function loadDraftRoute({ user = { id: COACH, email: 'c@x' }, gate = { isM
     ['@/lib/request-auth', { currentUser: async () => user, clientForRequest: async () => sb }],
     ['@/lib/membership-core', { computeMembership: async () => gate }],
     ['@/lib/request-utils', requestUtils],
-    ['@/lib/require-membership', { requireMembership: async () => denied }],
+    ['@/lib/require-membership', { requireMembership: async () => denied, requireAccount: async () => denied }],
     ['@/lib/ai', { hasOpenAIKey: () => hasKey, callAI: async (body, opts) => { ai.push({ body, opts }); const a = answers[Math.min(i++, answers.length - 1)]; if (a instanceof Error) throw a; return a; } }],
     ['@/lib/ai/workoutDraft.mjs', draftCore],
   ]);

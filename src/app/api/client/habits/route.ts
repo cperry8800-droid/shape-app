@@ -10,14 +10,14 @@
 import { NextResponse } from 'next/server';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { readJson, dbError } from '@/lib/request-utils';
-import { requireMembership } from '@/lib/require-membership';
+import { requireAccount } from '@/lib/require-membership';
 
 export const dynamic = 'force-dynamic';
 
 type CompletionRow = { habit_id: string; done_on: string };
 
 export async function GET(request: Request) {
-  const denied = await requireMembership(request);
+  const denied = await requireAccount(request);
   if (denied) return denied;
   const supabase = await clientForRequest(request);
   const user = await currentUser(request);
@@ -82,7 +82,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(req: Request) {
-  const denied = await requireMembership(req);
+  const denied = await requireAccount(req);
   if (denied) return denied;
   const supabase = await clientForRequest(req);
   const user = await currentUser(req);

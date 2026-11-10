@@ -9,7 +9,17 @@ import { isMinorFromDob, mustRefuseForAge } from './age-derive.mjs';
 
 export { isMinorFromDob, mustRefuseForAge };
 
+// The OPEN statuses of a subscription: one that exists and has not ended. Still the rule for a
+// member's subscriptions to their COACHES (and for "already subscribed" checks), so it keeps
+// trialing and past_due. ⚠ NOT THE PLATFORM PERK RULE: see PLATFORM_PERK_STATUSES.
 export const ACTIVE_SUB = new Set(['active', 'trialing', 'past_due']);
+
+// ⚠ PAID FEATURES COME FROM A PAID MEMBERSHIP ONLY (owner, 2026-11-10). An account is free; the
+// $5 platform membership adds assistant Nora, Shape Radio, the AI helpers and the points Store.
+// Only `active` pays for them: Shape sells no trial ("im not doing free trials"), and a member
+// whose renewal failed (past_due, Stripe retrying) keeps their account and the free features but
+// loses the paid ones until the payment goes through ("past due just loses the paid percs").
+export const PLATFORM_PERK_STATUSES = new Set(['active']);
 
 // The proxy gate's verification stamp. After the edge gate verifies a gated
 // request's entitlement it stamps this request header for the route layer;
@@ -18,7 +28,10 @@ export const ACTIVE_SUB = new Set(['active', 'trialing', 'past_due']);
 // value on every request, so the header can only ever be proxy-issued —
 // never caller-supplied.
 export const GATE_STAMP_HEADER = 'x-shape-gate';
+/** Stamped on a request the gate verified as a paid member (or a coach or an admin). */
 export const GATE_STAMP_VALUE = 'member';
+/** Stamped on a request the gate verified as a signed-in adult account, paid or not. */
+export const GATE_STAMP_ACCOUNT = 'account';
 
 // Mirrors getAdminEmails() in admin-access.ts (which can't be imported here —
 // that module pulls in the cookie-based server client).
@@ -39,7 +52,16 @@ export function adminEmails(): string[] {
 }
 
 export type Membership = {
+  /** Paid features: an active platform membership, an approved coach, or an admin. */
   isMember: boolean;
+  /**
+   * The platform membership's renewal failed and Stripe is retrying: the account keeps its free
+   * features, and a paid feature answers `payment_past_due` so the app can say "update your card".
+   * Never true for a coach or an admin (their features never depended on the payment).
+   */
+  pastDue: boolean;
+  /** The newest platform subscription's status, or null (none, or not read for an admin). */
+  platformStatus: string | null;
   isCoach: boolean;
   isAdmin: boolean;
   /**
@@ -58,7 +80,7 @@ export type Membership = {
   isKnownMinor: boolean;
 };
 
-/** Entitlement: approved coach OR admin OR an active platform subscription. */
+/** Paid entitlement: approved coach OR admin OR an `active` platform subscription (never trialing or past_due). */
 export async function computeMembership(
   client: SupabaseClient,
   userId: string,
@@ -109,11 +131,14 @@ export async function computeMembership(
   const isCoach = COACH_ROLES.includes(role) || roles.some((r) => COACH_ROLES.includes(r));
 
   let isMember = isCoach || isAdmin;
+  let platformStatus: string | null = null;
   if (!isMember && subRead) {
     const { data: sub, error: subError } = await subRead;
     if (subError && opts.strict) throw subError;
-    isMember = !!(sub && ACTIVE_SUB.has(String((sub as { status?: unknown }).status)));
+    platformStatus = sub ? String((sub as { status?: unknown }).status ?? '') || null : null;
+    isMember = !!platformStatus && PLATFORM_PERK_STATUSES.has(platformStatus);
   }
+  const pastDue = !isMember && platformStatus === 'past_due';
   // Age is derived from the DATE first (see isMinorFromDob — `over_18` is a
   // signup-time snapshot that goes stale on the member's eighteenth birthday).
   // The stored flag is the fallback for rows that carry no usable DOB, where
@@ -130,5 +155,12 @@ export async function computeMembership(
     profile as { date_of_birth?: unknown; over_18?: unknown; created_at?: unknown } | null
   );
 
-  return { isMember, isCoach, isAdmin, isKnownMinor };
+  return { isMember, pastDue, platformStatus, isCoach, isAdmin, isKnownMinor };
+}
+
+/** The 402 a paid feature answers a signed-in adult who may not use it: past due, or not a member. */
+export function paidRefusal(m: Pick<Membership, 'pastDue'>): { error: string; code: 'payment_past_due' | 'membership_required' } {
+  return m.pastDue
+    ? { error: "Your Shape membership payment didn't go through. Update your card to use this.", code: 'payment_past_due' }
+    : { error: 'Shape membership required.', code: 'membership_required' };
 }

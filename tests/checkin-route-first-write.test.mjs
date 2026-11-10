@@ -85,7 +85,7 @@ async function post(fake, body) {
       ['@/lib/request-auth', { clientForRequest: async () => fake.client, currentUser: async () => ({ id: 'member-1' }) }],
       ['@/lib/request-utils', await loadRealModule(join(ROOT, 'src/lib/request-utils.ts'), { typescript: true, registry: new Map([['next/server', nextServer]]) })],
       ['@/lib/local-day', { clientLocalDay: (d) => d }],
-      ['@/lib/require-membership', { requireMembership: async () => null }],
+      ['@/lib/require-membership', { requireMembership: async () => null, requireAccount: async () => null }],
     ]),
   });
   const res = await mod.POST(new Request('https://x/api/client/checkin', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }));

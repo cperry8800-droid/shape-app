@@ -20,7 +20,7 @@ async function api(path, results = {}, user = { id: 'coach-a' }) {
     ['next/server',{NextResponse:{json}}],
     ['@/lib/request-auth',{clientForRequest:async()=>db,currentUser:async()=>user}],
     ['@/lib/supabase/server',{createClient:async()=>db}],
-    ['@/lib/require-membership',{requireMembership:async()=>null}],
+    ['@/lib/require-membership',{requireMembership:async()=>null,requireAccount:async()=>null}],
     ['@/lib/request-utils',{readJson:async()=>({ok:false,response:json({}, {status:400})}),dbError:()=>json({error:'unavailable'},{status:500})}],
     // The coach Messages routes' shared helpers (fix 3a), real: names, the welcome, the open call.
     ['@/lib/coach-messages',await loadRealModule(fileURLToPath(new URL('../src/lib/coach-messages.ts',import.meta.url)),{typescript:true,registry:new Map([['@/lib/supabase/server',{}]])})],

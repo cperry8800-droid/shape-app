@@ -25,7 +25,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { refuseKnownMinor } from '@/lib/age-gate';
-import { computeMembership } from '@/lib/membership-core';
+import { computeMembership, paidRefusal } from '@/lib/membership-core';
 import { OWN_PROVIDER } from '@/lib/radio/station.mjs';
 import { listenUrl, makePass, passKey, regionAllowed } from '@/lib/radio/pass.mjs';
 
@@ -75,9 +75,11 @@ export async function GET(request: NextRequest) {
   // it too). Kept deliberately: it makes a minor's 403 outrank a non-member's
   // 402, so an under-18 account is told it is under 18 rather than asked to pay.
   let isMember = false;
+  let pastDue = false;
   try {
     const membership = await computeMembership(supabase, user.id, user.email ?? null, { emailConfirmed: !!user.email_confirmed_at });
     isMember = membership.isMember;
+    pastDue = membership.pastDue;
   } catch (e) {
     console.error('[radio/station] membership check faulted — failing CLOSED:', e);
     return NextResponse.json(
@@ -85,12 +87,9 @@ export async function GET(request: NextRequest) {
       { status: 503 }
     );
   }
-  if (!isMember) {
-    return NextResponse.json(
-      { error: 'Shape membership required.', code: 'membership_required' },
-      { status: 402 }
-    );
-  }
+  // ⚠ AN ACTIVE MEMBERSHIP ONLY (owner, 2026-11-10): no trial, and a past-due member is told to
+  // update their card (`payment_past_due`), not to join.
+  if (!isMember) return NextResponse.json(paidRefusal({ pastDue }), { status: 402 });
 
   // The territory: the country Vercel measured for this request.
   const region = regionAllowed(request.headers.get('x-vercel-ip-country'), { production: process.env.NODE_ENV === 'production' });

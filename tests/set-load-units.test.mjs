@@ -70,7 +70,7 @@ async function routes() {
     ['@/lib/e1rm', e1rm],
     ['@/lib/local-day', localDay],
     ['@/lib/recovery-readiness', readiness],
-    ['@/lib/require-membership', { requireMembership: async () => null }],
+    ['@/lib/require-membership', { requireMembership: async () => null, requireAccount: async () => null }],
     ['@/lib/supabase/server', { createClient: async () => client }],
     ['@/lib/request-auth', { clientForRequest: async () => client, currentUser: async () => ({ id: 'u-1' }) }],
   ]);

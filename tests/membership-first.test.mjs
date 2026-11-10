@@ -237,13 +237,13 @@ async function runCoachCheckout({ body, ...opts } = {}) {
   return (await coachRoute(opts)).post(body);
 }
 
-test('coach checkout: a signed-in account without the membership is refused with the gate\'s own code, and no payment starts', async () => {
-  const r = await runCoachCheckout({ platform: [] });
-  assert.equal(r.status, 402);
-  assert.equal(r.body.code, 'membership_required', 'the code the website and the app branch on');
-  assert.equal(r.created.length, 0, 'Stripe was never asked');
-  const cancelled = await runCoachCheckout({ platform: [{ status: 'canceled' }] });
-  assert.equal(cancelled.status, 402, 'a cancelled membership is not a membership');
+test('coach checkout: hiring a coach is free with an account, with no membership, a cancelled one or a past-due one (owner, 2026-11-10)', async () => {
+  for (const platform of [[], [{ status: 'canceled' }], [{ status: 'past_due' }]]) {
+    const r = await runCoachCheckout({ platform });
+    assert.equal(r.status, 200, JSON.stringify(platform));
+    assert.equal(r.created.length, 1, 'the coach\'s checkout opens');
+    assert.notEqual(r.body.code, 'membership_required');
+  }
 });
 
 test('coach checkout: a member pays; an approved coach is a member by role', async () => {
@@ -310,8 +310,8 @@ test('coach checkout: hiring a coach without the health screening is refused wit
   assert.notEqual(plan.body.code, 'screening_required', 'a program is a product, not a hire');
   const screened = await runCoachCheckout({ platform: [{ status: 'active' }] });
   assert.equal(screened.status, 200);
-  const nonMember = await runCoachCheckout({ platform: [], screening: null });
-  assert.equal(nonMember.body.code, 'membership_required', 'the membership is asked first: it is the first thing they need');
+  const free = await runCoachCheckout({ platform: [], screening: null });
+  assert.equal(free.body.code, 'screening_required', 'a free account is asked for the screening, like a member');
   const unread = await runCoachCheckout({ platform: [{ status: 'active' }], fail: ['user_goals'] });
   assert.equal(unread.status, 503, 'a screening we could not read starts nothing');
   assert.equal(unread.created.length, 0);
@@ -385,6 +385,12 @@ test('membership checkout: a member cannot buy a second membership, and neither 
   const fault = await runPlatformCheckout({ fail: ['platform_subscriptions'] });
   assert.equal(fault.status, 503, 'fail closed');
   assert.equal(fault.created.length, 0);
+  // ⚠ A past-due member still HAS a membership: a new checkout would be a second one beside the
+  // one Stripe is retrying. They are sent to update their card.
+  const pastDue = await runPlatformCheckout({ platform: [{ status: 'past_due' }] });
+  assert.equal(pastDue.status, 409);
+  assert.equal(pastDue.body.code, 'payment_past_due');
+  assert.equal(pastDue.created.length, 0);
 });
 
 test('membership checkout: Stripe returns through the confirmation step, then to the page that asked', async () => {
@@ -490,6 +496,16 @@ test('me/membership answers the gate\'s question: signed out, a member, a non-me
   assert.equal(coach.body.coach, true);
   const unknown = await runMe({ fail: ['profiles'] });
   assert.equal(unknown.status, 503, 'a lookup that failed is not a non-member');
+  // Paid features are an ACTIVE membership only (owner, 2026-11-10): no trial, and past due says so.
+  const pastDue = (await runMe({ platform: [{ status: 'past_due' }] })).body;
+  assert.equal(pastDue.member, false);
+  assert.equal(pastDue.pastDue, true);
+  assert.equal(pastDue.status, 'past_due');
+  const trial = (await runMe({ platform: [{ status: 'trialing' }] })).body;
+  assert.equal(trial.member, false, 'a trial pays for nothing');
+  assert.equal(trial.pastDue, false);
+  assert.equal(member.body.pastDue, false);
+  assert.equal(coach.body.pastDue, false);
 });
 
 // ── Codex on #2353: the webhook lags, and Supabase reports a failure as a value ──────────────
@@ -755,6 +771,7 @@ test('a claim another request keeps holding is waited for, then refused as check
     lib.claimCheckout(UID, 'shape_platform').then(() => null, (e) => e),
     runPlatformCheckout({ table: heldTable('shape_platform') }),
     runCoachCheckout({ platform: [{ status: 'active' }], table: heldTable('coach-trainer-4') }),
+    // The detour no longer opens the $5 checkout, so a held membership claim is not in its way.
     runDetour({ table: heldTable('shape_platform') }),
   ]);
   assert.equal(lib.isCheckoutInProgress(direct), true);
@@ -764,7 +781,7 @@ test('a claim another request keeps holding is waited for, then refused as check
   assert.equal(coach.status, 409);
   assert.equal(coach.body.reason, 'checkout_in_progress');
   assert.equal(coach.created.length, 0);
-  assert.equal(detour.out, '/newdesign/MemberProfile.html?u=abc&error=checkout_in_progress');
+  assert.equal(detour.out, null, 'a free account goes on to the coach\'s checkout');
 });
 
 async function runCustomerFor({ stored = null, afterUpdate = undefined, updateError = null, platformCustomer = null, coachCustomer = null, recordError = null } = {}) {
@@ -845,20 +862,14 @@ async function runDetour({ profile = ADULT, platform = [], errors = {}, stripeSu
   } finally { console.error = errLog; process.env.STRIPE_PLATFORM_PRICE_ID = saved; }
 }
 
-test('membershipDetour: a member goes on; anyone else is sent to the $5 checkout, back to the coach', async () => {
-  assert.equal((await runDetour({ platform: [{ status: 'active' }] })).out, null);
-  const join_ = await runDetour();
-  assert.equal(join_.out, 'https://checkout.stripe.test/cs_test_platform1');
-  assert.equal(join_.created[0].customer, 'cus_stable');
-  assert.equal(join_.created[0].success_url, returnUrl('/newdesign/MemberProfile.html?u=abc'));
-  // Its Cancel comes back to the coach saying so (pageShell.jsx's membership_cancelled).
-  assert.equal(join_.created[0].cancel_url, 'https://shape.test/newdesign/MemberProfile.html?u=abc&error=membership_cancelled');
+test('membershipDetour: any adult account goes on to the coach (owner, 2026-11-10); a minor and a failed read do not', async () => {
+  for (const platform of [[{ status: 'active' }], [], [{ status: 'past_due' }], [{ status: 'canceled' }]]) {
+    const r = await runDetour({ platform });
+    assert.equal(r.out, null, JSON.stringify(platform));
+    assert.equal(r.created.length, 0, 'no $5 checkout is opened on the way');
+  }
   assert.equal((await runDetour({ profile: MINOR })).out, '/newdesign/MemberProfile.html?u=abc&error=age_restricted');
-  assert.equal((await runDetour({ errors: { platform_subscriptions: PG_FAIL } })).out, '/newdesign/MemberProfile.html?u=abc&error=membership_check_failed', 'a failed read never reads as "not a member"');
-  const paid = await runDetour({ stripeSubs: [stripeSub({ client_id: UID, plan: 'shape_platform' })] });
-  assert.equal(paid.out, '/newdesign/MemberProfile.html?u=abc&member=pending', 'Codex on #2353: paid a moment ago, no second membership');
-  assert.equal(paid.created.length, 0);
-  assert.equal((await runDetour({ noPrice: true })).out, '/newdesign/MemberProfile.html?u=abc&error=membership_required');
+  assert.equal((await runDetour({ errors: { platform_subscriptions: PG_FAIL } })).out, '/newdesign/MemberProfile.html?u=abc&error=membership_check_failed', 'a failed read starts nothing');
 });
 
 test('membership checkout: a membership Stripe already holds blocks a second one', async () => {

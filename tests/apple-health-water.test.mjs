@@ -68,7 +68,7 @@ async function hydrationGet(obs) {
       ['@/lib/request-auth', { clientForRequest: async () => client, currentUser: async () => ({ id: 'member-1' }) }],
       ['@/lib/request-utils', await loadRealModule(join(ROOT, 'src/lib/request-utils.ts'), { typescript: true, registry: new Map([['next/server', nextServer]]) })],
       ['@/lib/local-day', { clientLocalDay: () => '2026-10-18' }],
-      ['@/lib/require-membership', { requireMembership: async () => null }],
+      ['@/lib/require-membership', { requireMembership: async () => null, requireAccount: async () => null }],
     ]),
   });
   const res = await mod.GET(new Request('https://x/api/client/hydration?date=2026-10-18'));

@@ -190,7 +190,7 @@ const liveRoute = await loadRealModule(join(ROOT, 'src/app/api/ai/notify/route.t
     ['@/lib/ai/notify-core', core],
     ['@/lib/push-cap', { releasePushClaim: async () => {} }],
     ['@/lib/roles.mjs', roles],
-    ['@/lib/require-membership', { requireMembership: async () => null }],
+    ['@/lib/require-membership', { requireMembership: async () => null, requireAccount: async () => null }],
   ]),
 });
 const cronRoute = await loadRealModule(join(ROOT, 'src/app/api/ai/notify/cron/route.ts'), {

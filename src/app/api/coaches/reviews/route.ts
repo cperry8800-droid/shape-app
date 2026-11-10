@@ -41,24 +41,24 @@ function shape(row: ReviewRow) {
   return { id: row.id, rating: row.rating, text: row.body ?? '', author: row.author_name ?? 'Member', authorId: row.user_id ?? null, ownerId: row.owner_id ?? null, date: row.created_at };
 }
 
-// ⚠ MEMBERS READ THE REVIEWS; EVERYONE SEES THE RATING (owner, 2026-10-28: "anyone with a shape
-// membership can read them", and "Rating only" for everyone else). A review's words and author go
-// only to a member (computeMembership: an approved coach, an admin, or an active subscription);
-// anyone else gets `reviews: []` and `locked: true` with the same average and count. The database
-// holds the same line (2026-10-28-coach-reviews-members.sql): coach_reviews is readable by a
-// member, a review's author and its coach, and every rating comes from coach_review_ratings(),
-// which returns totals and counts only.
+// ⚠ EVERY ACCOUNT READS THE REVIEWS; EVERYONE SEES THE RATING. A review's words and author went
+// to a paid member only (owner, 2026-10-28); with a free account they go to every signed-in adult
+// account (owner, 2026-11-10: "Every signed-in account"). A visitor still gets `reviews: []` and
+// `locked: true` with the same average and count. The database holds the same line
+// (2026-11-10-coach-reviews-accounts.sql): coach_reviews is readable by any signed-in account, and
+// every rating comes from coach_review_ratings(), which returns totals and counts only.
 // null: the sign-in or the membership couldn't be read. That is unknown, never "not a member", so
 // a member is never shown the paywall over a failed read (Codex P2 ×2 on #2492): the answer is a
 // 503. Only a sign-in check that measured nobody (src/lib/auth-lookup.ts) is a guest; an auth
 // outage answers a null user too.
+// `member` here is "may read the words": a signed-in adult account (a known minor may not).
 type Reader = { member: boolean; admin: boolean } | null;
 async function readReader(request: Request, supabase: SupabaseClient): Promise<Reader> {
   const { user, error } = await userLookupForRequest(request);
   if (!user) return isMeasuredSignedOut(error) ? { member: false, admin: false } : null;
   try {
     const m = await computeMembership(supabase, user.id, user.email ?? null, { emailConfirmed: !!user.email_confirmed_at, strict: true });
-    return { member: m.isMember, admin: m.isAdmin };
+    return { member: !m.isKnownMinor, admin: m.isAdmin };
   } catch {
     return null;
   }
@@ -68,12 +68,13 @@ const UNKNOWN = () => NextResponse.json({ error: "Couldn't check your membership
 // reviews (count > 0), so a locked answer without one would read as "No reviews yet". When the
 // ratings can't be read, that is unknown too (Codex P2 on #2492).
 const RATINGS_UNREAD = () => NextResponse.json({ error: "Couldn't read the ratings just now." }, { status: 503 });
-// The client a member's list is read with. An admin (a confirmed address on the allow-list) is a
-// member here but not to the table's policy, which can't see the allow-list, so their read would
-// come back empty: it goes through the service role (Codex P2 on #2492). Only for a confirmed
-// admin, and only these reads, whose filters are a validated uuid or a cleaned slug.
-function listClient(reader: { admin: boolean }, supabase: SupabaseClient): SupabaseClient {
-  if (!reader.admin) return supabase;
+// The client a reader's list is read with: the service role, for any reader this route has
+// cleared (a signed-in adult account). This route decides who reads the words, and its filters
+// are a validated uuid or a cleaned slug. ⚠ Through the caller's client a free account read only
+// its own rows until 2026-11-10-coach-reviews-accounts.sql runs (the 2026-10-28 policy admits paid
+// members only), and an admin never matched the policy at all (Codex P2 on #2492).
+function listClient(reader: { member: boolean }, supabase: SupabaseClient): SupabaseClient {
+  if (!reader.member) return supabase;
   try { return createAdminClient(); } catch { return supabase; }
 }
 

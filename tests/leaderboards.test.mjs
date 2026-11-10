@@ -175,11 +175,13 @@ function fakeClient({ rpc = {}, tables = {}, onUpsert, onInsert, onUpdate } = {}
   };
   return client;
 }
-function loadRoute(file, client, user = { id: UID }) {
+// `membership`: what computeMembership answers the caller (a paid member unless a test says).
+function loadRoute(file, client, user = { id: UID }, membership = { isMember: true, pastDue: false }) {
   return loadRealModule(join(ROOT, file), {
     typescript: true,
     registry: new Map([
       ['next/server', nextServer],
+      ['@/lib/membership-core', { computeMembership: async () => { if (membership instanceof Error) throw membership; return { isCoach: false, isAdmin: false, isKnownMinor: false, platformStatus: null, ...membership }; } }],
       ['@/lib/request-auth', { clientForRequest: async () => client, currentUser: async () => user }],
       ['@/lib/owned-provider', ownedProvider],
       ['@/lib/request-utils', requestUtils],
@@ -621,4 +623,47 @@ test('the coach board ranks the score the coach Score page shows', () => {
   assert.match(board, /s\.provider_role = p_role and s\.day < v_today\)\)/);
   assert.match(board, /s\.day <= v_today - 30/);
   assert.match(board, /s\.day <= v_today - 7/);
+});
+
+// ── Free accounts see the board and are not on it (owner, 2026-11-10) ───────────────────────
+test('member board: a free or past-due account sees the board, is not on it, and is told why', async () => {
+  for (const [membership, reason] of [[{ isMember: false, pastDue: false }, 'free_account'], [{ isMember: false, pastDue: true }, 'past_due']]) {
+    // Before the migration the database may still rank them; the route drops their row anyway.
+    const client = fakeClient({
+      rpc: { shape_member_board: { data: [boardRow({ rank: 1 }), boardRow({ rank: 2, user_id: UID, is_me: true }), boardRow({ rank: 3 })], error: null } },
+      tables: { user_goals: ownRows({}, { profileVisibility: 'Public' }) },
+    });
+    const body = await (await (await loadRoute('src/app/api/leaderboard/route.ts', client, { id: UID }, membership)).GET(req('/api/leaderboard'))).json();
+    assert.equal(body.participant, false, reason);
+    assert.equal(body.hidden, reason);
+    assert.equal(body.me, null, 'no rank of their own');
+    assert.equal(body.entries.some((e) => e.isMe), false, 'and no row on the board');
+    assert.deepEqual(body.entries.map((e) => e.rank), [1, 3], 'everyone else is still shown');
+  }
+  const paid = fakeClient({ rpc: { shape_member_board: { data: [boardRow({ rank: 1, user_id: UID, is_me: true, total: 1 })], error: null } }, tables: { user_goals: ownRows({}, { profileVisibility: 'Public' }) } });
+  const body = await (await (await loadRoute('src/app/api/leaderboard/route.ts', paid)).GET(req('/api/leaderboard'))).json();
+  assert.equal(body.participant, true);
+  assert.equal(body.me.rank, 1);
+  // A membership read that failed says nothing about the caller; the board still answers.
+  const unread = fakeClient({ rpc: { shape_member_board: { data: [boardRow({ rank: 1, user_id: UID, is_me: true, total: 1 })], error: null } }, tables: { user_goals: ownRows({}, { profileVisibility: 'Public' }) } });
+  const u = await (await (await loadRoute('src/app/api/leaderboard/route.ts', unread, { id: UID }, new Error('down'))).GET(req('/api/leaderboard'))).json();
+  assert.equal(u.participant, null);
+  assert.equal(u.me.rank, 1);
+});
+
+test('the 2026-11-10 migration ranks paid members only: an active newest plan or a coach role; nothing else in the board changes', () => {
+  const sql = read('supabase-migrations/2026-11-10-leaderboard-members-ranked.sql').replace(/^\s*--.*$/gm, '');
+  assert.match(sql, /^begin;$/m);
+  assert.match(sql, /^commit;\s*$/m);
+  assert.match(sql, /participants as \(\s+select e\.uid\s+from earners e/);
+  assert.match(sql, /where newest\.status = 'active'/);
+  assert.doesNotMatch(sql.slice(sql.indexOf('participants as'), sql.indexOf('eligible as')), /trialing|past_due/, 'a trial or a failed card is not ranked');
+  assert.match(sql, /eligible as \(\s+select e\.uid\s+from participants e/);
+  assert.match(sql, /grant execute on function public\.shape_member_board\(text, text, integer\) to authenticated, service_role;/);
+  // The rest of the function is the 2026-10-18 definition, untouched.
+  const fn = (text) => text.replace(/^\s*--.*$/gm, '').match(/create or replace function public\.shape_member_board[\s\S]*?\n\$\$;/)[0];
+  const before = fn(read('supabase-migrations/2026-10-18-coach-access-past-due.sql'));
+  const after = fn(sql);
+  const cut = (t) => t.replace(/\s+participants as \([\s\S]*?\n {2}\),\n/, '\n').replace('from participants e', 'from earners e').replace(/\s+/g, ' ');
+  assert.equal(cut(after), cut(before));
 });

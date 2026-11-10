@@ -396,9 +396,13 @@ test('shape_help is offered to everyone and answers from the knowledge base; wit
   const priced = await (await fb.mod.POST(post(ask('how much does shape cost')))).json();
   assert.equal(priced.source, 'fallback');
   assert.match(priced.reply, /\$5 a month/);
-  // "free" is a body word of two entries and a tag of none: a stray body
-  // word must not make the rule-based path answer with the wrong entry.
-  const shrug = await (await fb.mod.POST(post(ask('is it free')))).json();
+  // "free" is the membership entry's own tag since the free account (2026-11-10): "is it free" is
+  // answered that the account is, and what the membership adds.
+  const free = await (await fb.mod.POST(post(ask('is it free')))).json();
+  assert.match(free.reply, /A Shape account is free/);
+  assert.match(free.reply, /no free trial/);
+  // A question no entry answers still gets the catch-all.
+  const shrug = await (await fb.mod.POST(post(ask('what colour is the logo')))).json();
   assert.match(shrug.reply, /I can't answer that one from here. The Shape team answers at info@theshapecommunity.com/, 'the catch-all, not a knowledge entry');
 });
 

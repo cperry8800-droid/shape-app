@@ -82,7 +82,7 @@ test('GET /api/ai/speak answers the gate\'s own verdict, with no audio and no ke
       ['@/lib/ai/server', { resolveActor: async () => actor }],
       ['@/lib/ai', { hasOpenAIKey: () => { throw new Error('GET must not touch the key'); }, synthesizeSpeech: () => { throw new Error('GET must not speak'); } }],
       ['@/lib/ai/tone.mjs', {}],
-      ['@/lib/require-membership', { requireMembership: async () => denied }],
+      ['@/lib/require-membership', { requireMembership: async () => denied, requireAccount: async () => denied }],
     ]),
   });
   const ok = await (await load(null, { user: { id: 'u' } })).GET(new Request('https://x/api/ai/speak'));

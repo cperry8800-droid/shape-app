@@ -17,15 +17,15 @@ export const SHAPE_KNOWLEDGE = Object.freeze([
   {
     id: 'membership',
     title: 'What a Shape membership costs and includes',
-    tags: ['price', 'cost', 'membership', 'platform fee', '$5', 'five dollars', 'month', 'include', 'subscription', 'join', 'sign up'],
-    body: 'A Shape membership is $5 a month — the Shape platform fee — and it covers the whole app, with or without a coach: building and logging your own workouts, logging meals and tracking macros, Shape Kitchen recipes and guided cooking, Shape Score points to spend in the Store, Shape Radio ad-free, Nora, progress tracking and the community. It also covers browsing trainers and nutritionists and messaging your pros. Anything bought from an individual coach — a subscription, a plan, a one-off session — is separate and goes to that coach.',
+    tags: ['price', 'cost', 'membership', 'platform fee', '$5', 'five dollars', 'month', 'include', 'subscription', 'join', 'sign up', 'free', 'free account', 'trial', 'free trial', 'paid', 'locked'],
+    body: 'A Shape account is free and covers most of the app, with or without a coach: building and logging workouts, programs, logging meals and macros, Shape Kitchen recipes, progress, earning Shape Score points and seeing the leaderboards, the community, browsing, booking, hiring and messaging coaches, and asking Nora about Shape and your account. The Shape membership is $5 a month — the Shape platform fee — and adds the paid features: Nora as your assistant (looking up your own plan and numbers, logging and setting things up for you, voice, the weekly readout), Shape Radio, the AI helpers (a recipe from text or a photo, an AI draft of your own program), Cook Mode’s voice, being ranked on the leaderboards, and spending Score points in the Store. There is no free trial. Anything bought from a coach — a subscription, a plan, a session — is separate and goes to that coach.',
     source: 'Pricing page FAQ',
   },
   {
     id: 'coach-optional',
     title: 'Do I have to subscribe to a coach?',
     tags: ['coach', 'subscribe', 'required', 'have to', 'without a coach', 'self', 'own workouts', 'platform level'],
-    body: 'No. At the platform level you can browse coaches, book intro calls, buy one-off plans, build your own workouts right in the app, and use the community. Some members stay there, training on self-built weeks or à-la-carte plans; others subscribe to one or more coaches for ongoing programming.',
+    body: 'No. With a free account you can browse coaches, book intro calls, buy one-off plans, build your own workouts right in the app, and use the community. Some members stay there, training on self-built weeks or à-la-carte plans; others subscribe to one or more coaches for ongoing programming.',
     source: 'Pricing page FAQ',
   },
   {
@@ -39,7 +39,7 @@ export const SHAPE_KNOWLEDGE = Object.freeze([
     id: 'cancel',
     title: 'Cancelling, pausing or changing the membership and billing',
     tags: ['cancel', 'cancellation', 'refund', 'stop', 'quit', 'pause', 'billing', 'invoice', 'receipt', 'payment method', 'card', 'stripe', 'portal', 'renew', 'charge'],
-    body: 'The $5 membership cancels any time from settings — instantly, no penalty, no lock-in — and coach subscriptions cancel on the same screen; your data and training history stay with you. In the app: Settings → Account → Membership & billing → Manage subscription, which opens the Stripe billing portal (invoices, receipts and the payment method live there too). Pausing or deleting the account is under Settings → Account actions.',
+    body: 'The $5 membership cancels any time from settings — instantly, no penalty, no lock-in — and coach subscriptions cancel on the same screen; your data and training history stay with you. In the app: Settings → Account → Membership & billing → Manage subscription, which opens the Stripe billing portal (invoices, receipts and the payment method live there too). Pausing or deleting the account is under Settings → Account actions. If a renewal payment fails, the account stays and everything free keeps working; the paid features (Nora as your assistant, Shape Radio, the AI helpers, Cook Mode’s voice and the Store) pause until the card is updated, with the Update your card button or Manage subscription, both of which open the billing portal.',
     source: 'Pricing page FAQ · the app’s Settings',
   },
   {
@@ -53,7 +53,7 @@ export const SHAPE_KNOWLEDGE = Object.freeze([
     id: 'radio',
     title: 'Shape Radio and music',
     tags: ['radio', 'music', 'station', 'playlist', 'dj', 'spotify', 'apple music', 'listen', 'ad-free', 'skip'],
-    body: 'Shape Radio is included in the membership: an ad-free station of coach playlists and DJ sets. It is a non-interactive station, so you cannot choose, request, replay or skip a specific track, and it streams only where the licences cover it — the US and UK at launch. Coach playlists and soundtracks play through your own connected Spotify or Apple Music account. Radio is opened from the Home card, and Shape Radio can be turned on or off under Settings.',
+    body: 'Shape Radio is part of the $5 membership, not the free account: an ad-free station of coach playlists and DJ sets. It is a non-interactive station, so you cannot choose, request, replay or skip a specific track, and it streams only where the licences cover it — the US and UK at launch. Coach playlists and soundtracks play through your own connected Spotify or Apple Music account. Radio is opened from the Home card, and Shape Radio can be turned on or off under Settings. Each listener needs their own signed-in account with its own membership: a stream cannot be shared, and one account plays on one device at a time.',
     source: 'Pricing page FAQ · Terms of service, clause 08',
   },
   {
@@ -109,7 +109,7 @@ export const SHAPE_KNOWLEDGE = Object.freeze([
     id: 'nora',
     title: 'What Nora can do',
     tags: ['nora', 'assistant', 'help', 'what can you do', 'voice', 'talk', 'speak', 'listen', 'mic', 'remember', 'memory', 'read aloud'],
-    body: 'For a signed-in member Nora can look up today’s and this week’s plan, recent workouts, the last seven days in numbers, habits and streaks, coaching sessions, reminders and Shape Score points; recommend coaches from the marketplace; and draft actions you confirm with one tap — a weigh-in, water, a habit check, a reminder, a meal log with real macros. She remembers preferences you tell her (managed under Settings → What Nora remembers). Coaches can ask her to look up a client by name and read that client’s snapshot. Voice: in the app and on the website, turn on voice chat and hold the mic to talk; Nora reads replies aloud, and her voice and tone live under Settings → Notifications → Nora’s voice.',
+    body: 'With a free account Nora answers questions about Shape, your account and billing, and recommends coaches. With the membership she is also your assistant: she can look up today’s and this week’s plan, recent workouts, the last seven days in numbers, habits and streaks, coaching sessions, reminders and Shape Score points; recommend coaches from the marketplace; and draft actions you confirm with one tap — a weigh-in, water, a habit check, a reminder, a meal log with real macros. She remembers preferences you tell her (managed under Settings → What Nora remembers). Coaches can ask her to look up a client by name and read that client’s snapshot. Voice: in the app and on the website, turn on voice chat and hold the mic to talk; Nora reads replies aloud, and her voice and tone live under Settings → Notifications → Nora’s voice.',
     source: 'The app',
   },
   {
