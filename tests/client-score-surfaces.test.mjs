@@ -170,7 +170,9 @@ test('signed out is not "it broke", and neither is a membership gate', async () 
   assert.match(note('loading', 'your record'), /^Reading/);
   assert.match(note('anon', 'your record'), /^Sign in/);
   assert.ok(!/reload/i.test(note('anon', 'your record')), 'a signed-out visitor is told to reload');
-  assert.match(note('gated', 'your record'), /membership/i);
+  // The record comes with a free account (owner, 2026-11-10), so a 402 sells no membership.
+  assert.match(note('gated', 'your record'), /can't open your record/);
+  assert.doesNotMatch(note('gated', 'your record'), /membership/i, 'a free account is told the record needs a membership');
   assert.ok(!/reload/i.test(note('gated', 'your record')), 'a non-member is told to reload');
   assert.match(note('error', 'your record'), /Couldn't read/);
   assert.equal(note('ready', 'your record'), null, 'a ready state must render data, not a sentence');
@@ -210,6 +212,9 @@ test('signed out is not "it broke", and neither is a membership gate', async () 
   assert.deepEqual(await lbRead(new Error('offline')), { kind: 'error' });
   const lbNote = fn(LB_UI, 'lbStateNote');
   assert.ok(!/reload/i.test(lbNote('anon', false)), 'a signed-out visitor is told to reload');
+  // Seeing the boards is free with an account (owner, 2026-11-10); a 402 sells no membership.
+  assert.doesNotMatch(lbNote('gated', false), /membership/i);
+  assert.ok(!/reload/i.test(lbNote('gated', false)));
   assert.ok(!/reload/i.test(lbNote('forbidden', true)), 'a member is told to reload the coach board');
   assert.match(lbNote('forbidden', true), /coaches/);
   assert.match(lbNote('not_ready', false), /switched on/);

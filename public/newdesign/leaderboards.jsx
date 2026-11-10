@@ -43,9 +43,10 @@ function lbInitials(name) {
   return String(name || "?").split(/\s+/).filter(Boolean).map((p) => p[0]).join("").replace(/\./g, "").slice(0, 2).toUpperCase() || "?";
 }
 
-// One reader for the three routes. 401 signed out · 402 not a member · 403 not a coach ·
+// One reader for the three routes. 401 signed out · 402 refused this account · 403 not a coach ·
 // 503 not switched on yet · anything else that is not a 2xx, or a 2xx that is not the route's
-// payload, could not be read.
+// payload, could not be read. (Seeing the boards is free with an account, owner 2026-11-10, so a
+// 402 is not expected; being RANKED is the membership's, and the board says so itself: lbNotRanked.)
 function lbRead(url, shaped) {
   return fetch(url, { credentials: "same-origin", cache: "no-store" }).then(function (r) {
     if (r.status === 401) return { kind: "anon" };
@@ -80,7 +81,7 @@ function lbCoachShaped(d) {
 function lbStateNote(kind, coach) {
   if (kind === "loading") return "Reading the board…";
   if (kind === "anon") return "Sign in to see the leaderboard.";
-  if (kind === "gated") return "The leaderboard is part of Shape membership.";
+  if (kind === "gated") return "This account can’t open the leaderboard right now.";
   if (kind === "forbidden") return coach ? "The coach leaderboard is for coaches with a Shape listing." : "You can’t see this board.";
   if (kind === "not_ready") return "This leaderboard isn’t switched on yet. Check back soon.";
   if (kind === "error") return "We couldn’t read the leaderboard just now. Nothing has changed; reload to try again.";
@@ -168,6 +169,41 @@ function lbWithGaps(all, skip) {
   return out;
 }
 
+// ⚠ A FREE ACCOUNT SEES THE BOARDS AND IS NOT ON THEM (owner, 2026-11-10). Being ranked is part of
+// the membership: only paid members (the membership, an approved coach) appear. The route says so
+// for the caller (participant: false, hidden "free_account" or "past_due", me: null, no row), and
+// where their place would be, the board says why, with the way in: Join, or for a renewal that
+// failed, the owner's past-due line and Update your card. "join" | "pastdue" | null.
+const LB_PAST_DUE_LINE = "Your payment didn’t go through. Update your card to get Shape Radio and Nora back.";
+function lbNotRanked(d) {
+  if (!d || typeof d !== "object") return null;
+  if (d.hidden === "past_due") return "pastdue";
+  if (d.hidden === "free_account" || d.participant === false) return "join";
+  return null;
+}
+function LbJoinLine({ kind }) {
+  const [busy, setBusy] = React.useState(false);
+  const [err, setErr] = React.useState("");
+  const pastDue = kind === "pastdue";
+  const go = async () => {
+    if (busy) return;
+    const M = window.ShapeMembership;
+    if (!M) { window.location.href = "/newdesign/Pricing.html"; return; }
+    setBusy(true); setErr("");
+    const r = pastDue ? await M.portal() : await M.start();
+    if (r && r.code === "already_member") { window.location.reload(); return; }
+    if (r && r.error) setErr(r.error);
+    if (r) setBusy(false);
+  };
+  return (
+    <div className="lb-note" data-lb-not-ranked={kind} style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+      <span style={{ flex: "1 1 240px", minWidth: 0 }}>{pastDue ? LB_PAST_DUE_LINE : <React.Fragment><b>Members are ranked on the leaderboards.</b> Join to take part.</React.Fragment>}</span>
+      <button type="button" className="lb-btn lb-btn--on" disabled={busy} onClick={go}>{busy ? (pastDue ? "Opening billing…" : "Opening checkout…") : pastDue ? "Update your card" : "Join"}</button>
+      {err ? <span role="alert" style={{ flexBasis: "100%", color: "var(--sh-danger, #e07856)" }}>{err}</span> : null}
+    </div>
+  );
+}
+
 // ── Members ─────────────────────────────────────────────────────────────────────────────────
 function MemberLeaderboard() {
   const [scope, setScope] = React.useState("everyone");
@@ -234,7 +270,8 @@ function MemberLeaderboard() {
 
   const d = state.data;
   const entries = d.entries;
-  const me = d.me;
+  const notRanked = lbNotRanked(d);
+  const me = notRanked ? null : d.me;
   const nameOf = (e) => (e.isMe ? "You" : e.name);
   const periodWord = LB_PERIODS.find((p) => p.key === period).long.toLowerCase();
 
@@ -303,8 +340,9 @@ function MemberLeaderboard() {
   return (
     <div className="lb">
       {controls}
-      {ask}
-      {me && me.rank !== null
+      {notRanked ? null : ask}
+      {notRanked ? <LbJoinLine kind={notRanked} />
+        : me && me.rank !== null
         ? <LbYou me={me} entries={entries} gapUnit="points" sideLabel={lbLabel("points \u00b7 " + periodWord, "pts")}
             value={(e) => e.points} valueLabel={(e) => lbNum(e.points)} nameOf={nameOf}
             ofText={ofText} leadText={LB_SCOPE_NAME[scope]}
@@ -313,7 +351,7 @@ function MemberLeaderboard() {
         : <div className="lb-note">You’re not ranked for {LB_PERIOD_NAME[period]} yet. The board counts points earned inside the window; log a workout, a meal or a habit and you’ll place.</div>}
       {hiddenNote}
       {body}
-      {switches}
+      {notRanked ? null : switches}
       {foot}
     </div>
   );
@@ -543,4 +581,4 @@ function useLeaderboardPrivacy() {
   return [state, save];
 }
 
-Object.assign(window, { MemberLeaderboard, CoachLeaderboard, CoachScoreActions, coachStandingLine, coachScoreFixNote, COACH_SCORE_FIX_ON, useCoachStanding, useLeaderboardPrivacy, lbPutPrivacy, lbRead, lbMemberShaped, lbCoachShaped, lbStateNote, lbAbove, lbWithGaps, lbActivity, lbPodiumLine });
+Object.assign(window, { MemberLeaderboard, CoachLeaderboard, CoachScoreActions, coachStandingLine, coachScoreFixNote, COACH_SCORE_FIX_ON, useCoachStanding, useLeaderboardPrivacy, lbPutPrivacy, lbRead, lbMemberShaped, lbCoachShaped, lbStateNote, lbNotRanked, lbAbove, lbWithGaps, lbActivity, lbPodiumLine });

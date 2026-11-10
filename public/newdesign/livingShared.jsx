@@ -467,11 +467,12 @@ async function lvBuyPlan(o) {
     const res = await fetch("/api/stripe/checkout-session", { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ item: { type: "plan", name: o.name, price: o.price, planId: o.planId }, coach: { provider_id: o.providerId, provider_role: o.providerRole }, ref: (window.ShapeCoachRef && window.ShapeCoachRef.token()) || undefined, code: lvCheckoutCode(), successPath: "/purchase/success", cancelPath: "/newdesign/MemberProfile.html" }) });
     const j = await res.json().catch(() => ({}));
     if (j.url) { window.location.href = j.url; return; }
-    // Coaching needs the $5 membership first (owner, 2026-10-14). The route answers 402 with
-    // the gate's own code; it never put "membership_required" in `error`, so this branch used
-    // to be unreachable and a non-member read the bare sentence instead.
+    // ⚠ HIRING A COACH NEEDS ONLY A FREE ACCOUNT (owner, 2026-11-10; it needed the $5 membership
+    // from 2026-10-14), so the route no longer answers a plan's checkout with 402. The branch stays
+    // in case one does, and says what the checkout asked rather than a rule that is gone. It reads
+    // the gate's own `code`: "membership_required" never came in `error`.
     if (res.status === 402 && j.code === "membership_required" && window.ShapeMembership) {
-      if (window.confirm("Plans are for Shape members. Start your $5/month membership now? You'll come back here to buy the plan.")) {
+      if (window.confirm("This checkout asked for a Shape membership first. Start your $5/month membership now? You'll come back here to buy the plan.")) {
         const r = await window.ShapeMembership.start();
         if (r && r.error) alert(r.error);
       }
@@ -828,9 +829,10 @@ function useLvCoachCommerce({ d, monthly = null, provider }) {
   const [clientOf, setClientOf] = React.useState(undefined);
   const [wlErr, setWlErr] = React.useState("");
   const [buyErr, setBuyErr] = React.useState("");
-  // Coaching needs the $5 membership first (owner, 2026-10-14): a 402 from the checkout shows
-  // the join prompt, and the membership checkout comes back here with `member=joined` (or
-  // `member=pending` while Stripe clears the payment).
+  // Hiring a coach needs only a free account (owner, 2026-11-10; it needed the $5 membership from
+  // 2026-10-14), so the checkout no longer answers 402 and this prompt is not the normal path. It
+  // stays for a checkout that still does: what it asked, the membership checkout, and back here with
+  // `member=joined` (or `member=pending` while Stripe clears the payment).
   const [needsMember, setNeedsMember] = React.useState(false);
   // Hiring a coach needs the health screening (client-onboarding review, fix 2b): the route
   // answers 409 screening_required, and the member goes to Settings → Health profile and back.
@@ -1075,7 +1077,7 @@ function LvCoachBlocks({ d, light, owner, view, onReviews }) {
       ) : null}
       {needsMember ? (
         <div role="alert" style={{ marginTop: 12, maxWidth: 420, border: `1px solid ${hexA(ink, 0.25)}`, borderRadius: 8, padding: "12px 14px" }}>
-          <div style={{ fontFamily: lvSans, fontSize: 13, lineHeight: 1.5, color: ink }}>Coaching is for Shape members. Start your $5/month membership first, and you'll come back here to subscribe to {first}.</div>
+          <div style={{ fontFamily: lvSans, fontSize: 13, lineHeight: 1.5, color: ink }}>This checkout asked for a Shape membership first. Start your $5/month membership, and you'll come back here to subscribe to {first}.</div>
           <button onClick={async () => { setJoinErr(""); const r = window.ShapeMembership ? await window.ShapeMembership.start() : { error: "Could not start checkout. Reload the page and try again." }; if (r && r.error) setJoinErr(r.error); }} style={{ marginTop: 10, padding: "11px 16px", borderRadius: 8, border: 0, background: c, color: "#0c0a08", cursor: "pointer", fontFamily: lvMono, fontSize: 10.5, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase" }}>Start membership · $5/month</button>
           {joinErr ? <div style={{ marginTop: 8, fontFamily: lvMono, fontSize: 10.5, fontWeight: 700, color: "#c0533b" }}>{joinErr}</div> : null}
         </div>

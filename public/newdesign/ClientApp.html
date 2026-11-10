@@ -151,7 +151,12 @@ const CA_ROUTES = {
   goal:      () => <ClientGoalsPage />,
   profile:   () => <React.Fragment><LiveProfilePage demoRole="client" shell={{ navItems: clientNavItems("profile"), payoutCard: clientPayoutCard }} /><ChatWidget tabs={clientChatTabs} /></React.Fragment>,
   settings:  () => <React.Fragment><ClientSettingsPage /><ChatWidget tabs={clientChatTabs} /></React.Fragment>,
+  // What the $5 membership adds (dashClient.jsx), opened from a locked paid feature and from Today.
+  membership: () => <React.Fragment><ClientJoinPage /><ChatWidget tabs={clientChatTabs} /></React.Fragment>,
 };
+// The shell's one notice, under the app bar on every route (DashFrame draws it): a renewal that
+// failed, with Update your card, and a membership payment still clearing (dashClient.jsx).
+window.ShapeDashNotice = ClientMembershipNotice;
 
 // Settings is its own dashboard tab (owner call 2026-07-23) — it used to ride the
 // profile page's extras slot, which made it render under EVERY profile tab (Music
@@ -183,12 +188,13 @@ function caSlug() {
   const h = Object.prototype.hasOwnProperty.call(CA_LEGACY_TABS, low) ? CA_LEGACY_TABS[low] : low;
   return caHasRoute(h) ? h : "today";
 }
-// ⚠ ASK WHETHER THIS ACCOUNT IS A MEMBER BEFORE DRAWING ANY TAB. A signed-in account that has
-// not started the $5 membership is refused every /api/client read, and each tab used to fall
-// back to the demo member's data. It gets the join panel instead (dashClient.jsx), on every tab
-// but Settings, which stays open for billing, sign-out and deleting the account. A signed-out
-// visitor and an unanswered lookup keep the page as it was. The answer is left on window for
-// the first-run tour (dashTour.js), which waits for it and stays away from a non-member.
+// ⚠ ASK WHAT THIS ACCOUNT HAS BEFORE DRAWING ANY TAB. An account is free (owner, 2026-11-10): a
+// signed-in adult who has not paid draws every route with their own data, and the $5 membership
+// is the paid features alone (pageShell.jsx, ShapePaidLock), so the join panel that used to stand
+// in front of every tab is the membership page now (#membership). The answer still decides the
+// age-restricted page, the paid features' prompts, the Today pill and the past-due notice, and
+// it is left on window for them and for the first-run tour (dashTour.js), which waits for it. A
+// signed-out visitor and an unanswered lookup keep the page as it was.
 function caUseMembership() {
   const [m, setM] = React.useState(window.__shapeClientMembership || null);
   React.useEffect(() => {
@@ -199,6 +205,9 @@ function caUseMembership() {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
+      // A signed-in answer always carries pastDue as a boolean (the paid features' prompts and the
+      // past-due notice read it), so a missing field is never taken for a failed renewal.
+      if (d && d.signedIn === true) d = { ...d, pastDue: d.pastDue === true };
       window.__shapeClientMembership = d || { unknown: true };
       if (on) setM(window.__shapeClientMembership);
     };
@@ -236,10 +245,9 @@ function ClientApp() {
     return () => window.removeEventListener("hashchange", onHash);
   }, []);
   if (!membership) return null;
-  // A known minor is told why before anything else: the membership offer would refuse them anyway
-  // (the gate answers age_restricted to every paid read). Settings stays open, to delete the account.
+  // A known minor is told why before anything else: Shape is for adults, and the gate answers
+  // age_restricted to every read. Settings stays open, to delete the account.
   if (membership.signedIn && membership.ageRestricted === true && route !== "settings") return <ClientAgeRestrictedPage />;
-  if (membership.signedIn && membership.member === false && route !== "settings") return <ClientJoinPage />;
   return (caHasRoute(route) ? CA_ROUTES[route] : CA_ROUTES.today)();
 }
 ReactDOM.createRoot(document.getElementById("root")).render(<ClientApp />);

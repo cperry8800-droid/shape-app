@@ -2247,12 +2247,20 @@ function shapeConfirmOpen(opts) {
 Object.assign(window, { ShapeConfirm: { open: shapeConfirmOpen } });
 
 // ── The $5 membership checkout, from any page ─────────────────────────────────
-// One door for every "start your membership" button on the website: the client
-// dashboard's join panel, a coach's profile when coaching needs the membership first
-// (owner, 2026-10-14), Pricing. `returnTo` is the page to come back to; the server
-// confirms the payment on the way back (/api/stripe/platform-return) and adds
-// `member=joined`, or `member=pending` when Stripe has not cleared it yet. A cancelled
-// checkout returns to `cancelTo`, else to `returnTo`.
+// ⚠ AN ACCOUNT IS FREE, AND THE MEMBERSHIP IS THE PAID FEATURES ONLY (owner, 2026-11-10). A
+// signed-in adult who has not paid keeps logging, their dashboard, the programs they build,
+// seeing the leaderboards, hiring and messaging coaches, reviews and Nora's help with the app.
+// The $5 a month adds assistant Nora (her action cards, voice and the weekly readout), Shape
+// Radio, the AI helpers, Cook Mode voice, the points Store and being ranked on the leaderboards.
+// An approved coach and an admin have them too. No free trials. A renewal that failed (Stripe retrying) is PAST DUE: free until the card
+// is updated, and told so at every paid feature (ShapePaidLock below).
+// One door for every "start your membership" button on the website: the upgrade prompt at a
+// paid feature, the client dashboard's membership page, Pricing. `returnTo` is the page to
+// come back to; the server confirms the payment on the way back (/api/stripe/platform-return)
+// and adds `member=joined`, or `member=pending` when Stripe has not cleared it yet. A cancelled
+// checkout returns to `cancelTo`, else to `returnTo`. A past-due account's checkout answers 409
+// payment_past_due, and its card is updated in the billing portal instead of a second
+// membership being sold.
 // Resolves to null when the page is navigating away, else { error, code } to show.
 function shapeMembershipHere() {
   try {
@@ -2272,12 +2280,115 @@ async function shapeStartMembership(returnTo, cancelTo) {
     const j = await res.json().catch(() => ({}));
     if (res.ok && j.url) { window.location.href = j.url; return null; }
     if (res.status === 401) { window.location.href = "/newdesign/Landing.html"; return null; }
+    if (res.status === 409 && j && j.code === "payment_past_due") return shapeOpenBillingPortal(back);
     return { error: (j && j.error) || "Could not start checkout. Try again.", code: (j && j.code) || null };
   } catch (e) {
     return { error: "Could not start checkout. Check your connection and try again.", code: null };
   }
 }
-Object.assign(window, { ShapeMembership: { start: shapeStartMembership, here: shapeMembershipHere } });
+// Shape's own Stripe billing portal (POST /api/stripe/billing-portal → { url }), where a card
+// that didn't go through is updated. `returnPath` is where the portal sends them back.
+// Resolves to null when the page is navigating away, else { error, code } to show.
+async function shapeOpenBillingPortal(returnPath) {
+  const back = returnPath || shapeMembershipHere();
+  try {
+    const res = await fetch("/api/stripe/billing-portal", {
+      method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ returnPath: back }),
+    });
+    const j = await res.json().catch(() => ({}));
+    if (res.ok && j && j.url) { window.location.href = j.url; return null; }
+    if (res.status === 401) { window.location.href = "/newdesign/Login.html?next=" + encodeURIComponent(back); return null; }
+    return { error: (j && j.error) || "Could not open billing. Try again.", code: (j && j.code) || null };
+  } catch (e) {
+    return { error: "Could not open billing. Check your connection and try again.", code: null };
+  }
+}
+// What the account has, from /api/me/membership: { signedIn: false } | { signedIn: true, member
+// (the paid features), coach, ageRestricted, pastDue, status } | { unknown: true } when it did not
+// answer. One read per page, shared by every surface on it; the client dashboard's own answer
+// (ClientApp.html leaves it on window) is used as it is.
+let shapeMembershipRead = null;
+function shapeReadMembership() {
+  const held = window.__shapeClientMembership;
+  if (held && !held.unknown) return Promise.resolve(held);
+  if (!shapeMembershipRead) {
+    shapeMembershipRead = fetch("/api/me/membership", { credentials: "same-origin", cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : { unknown: true }))
+      .then((d) => (d && typeof d === "object" ? d : { unknown: true }))
+      .catch(() => ({ unknown: true }));
+  }
+  return shapeMembershipRead;
+}
+// Which prompt a locked paid feature shows, from a paid route's 402 code or a membership answer:
+// "pastdue" (the renewal failed), "join" (a free account), "signin" (no account), or null (it is
+// not locked to this account, or the answer did not come).
+function shapeLockKind(x) {
+  if (x === "payment_past_due") return "pastdue";
+  if (x === "membership_required") return "join";
+  if (!x || typeof x !== "object" || x.unknown) return null;
+  if (x.signedIn === false) return "signin";
+  if (x.signedIn !== true || x.member === true || x.coach === true) return null;
+  return x.pastDue === true ? "pastdue" : "join";
+}
+// The answer, for a component: null while it is read.
+function useShapeMembership() {
+  const held = window.__shapeClientMembership;
+  const [m, setM] = React.useState(held && !held.unknown ? held : null);
+  React.useEffect(() => {
+    if (m) return undefined;
+    let on = true;
+    shapeReadMembership().then((d) => { if (on) setM(d); });
+    return () => { on = false; };
+  }, []);
+  return m;
+}
+// The owner's words for a renewal that failed (2026-11-10), at every paid feature.
+const SHAPE_PAST_DUE_LINE = "Your payment didn’t go through. Update your card to get Shape Radio and Nora back.";
+// The prompt at a locked paid feature, one voice everywhere. A free account: what the feature is
+// part of, and Join (the membership checkout, back to this page). Past due: the owner's line and
+// Update your card (the billing portal). No account: the same line and a way in. `kind` is
+// shapeLockKind's; `feature` names the thing ("Shape Radio", "Nora's weekly read"); `compact`
+// is the one-line form for a control row; `more` sits after the button (a "what's included" link).
+// The paper's own accent and deep ink, both of which follow the paper, so the button reads on
+// every skin (tests/newdesign-paper-pairs: no paper ink on a fill that stays put).
+function ShapePaidLock({ kind, feature, returnTo, compact, more }) {
+  const [busy, setBusy] = React.useState(false);
+  const [err, setErr] = React.useState("");
+  if (kind !== "pastdue" && kind !== "join" && kind !== "signin") return null;
+  const ac = "var(--sh-accent, #2ee0c4)";
+  const what = feature || "This";
+  const line = kind === "pastdue" ? SHAPE_PAST_DUE_LINE
+    : kind === "join" ? what + " is part of Shape membership, $5 a month."
+    : what + " is part of Shape membership. Make a free account, then add it for $5 a month.";
+  const act = async () => {
+    if (busy) return;
+    setBusy(true); setErr("");
+    const r = kind === "pastdue" ? await shapeOpenBillingPortal(returnTo) : await shapeStartMembership(returnTo);
+    if (r && r.code === "already_member") { window.location.reload(); return; }
+    if (r && r.error) setErr(r.error);
+    if (r) setBusy(false);
+  };
+  const btn = { flex: "none", minHeight: compact ? 28 : 36, padding: compact ? "5px 12px" : "8px 16px", borderRadius: 999, border: 0, background: ac, color: "var(--sh-deep, #06231f)", fontFamily: mono, fontSize: compact ? 9.5 : 10.5, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", textDecoration: "none", display: "inline-flex", alignItems: "center", cursor: busy ? "default" : "pointer", opacity: busy ? 0.65 : 1 };
+  return (
+    <div data-shape-lock={kind} role="status" style={{ display: "flex", alignItems: "center", gap: compact ? 8 : 12, flexWrap: "wrap", padding: compact ? "8px 10px" : "12px 14px", borderRadius: 10, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.14)", borderLeft: "3px solid " + ac, fontFamily: sans, textAlign: "left" }}>
+      <svg aria-hidden width="12" height="14" viewBox="0 0 12 14" style={{ flex: "none", color: ac }}>
+        <rect x="1" y="6" width="10" height="7.25" rx="1.6" fill="none" stroke="currentColor" strokeWidth="1.3" />
+        <path d="M3.4 6V4.3a2.6 2.6 0 0 1 5.2 0V6" fill="none" stroke="currentColor" strokeWidth="1.3" />
+      </svg>
+      <span style={{ flex: "1 1 200px", minWidth: 0, fontSize: compact ? 12 : 13.5, lineHeight: 1.45 }}>{line}</span>
+      {kind === "signin"
+        ? <a href="/newdesign/Pricing.html" style={btn}>Join Shape</a>
+        : <button type="button" onClick={act} disabled={busy} style={btn}>{busy ? (kind === "pastdue" ? "Opening billing…" : "Opening checkout…") : kind === "pastdue" ? "Update your card" : "Join"}</button>}
+      {more || null}
+      {err ? <span role="alert" style={{ flexBasis: "100%", fontSize: 12, color: "var(--sh-danger, #e07856)" }}>{err}</span> : null}
+    </div>
+  );
+}
+Object.assign(window, {
+  ShapeMembership: { start: shapeStartMembership, here: shapeMembershipHere, portal: shapeOpenBillingPortal, read: shapeReadMembership, lockKind: shapeLockKind, pastDueLine: SHAPE_PAST_DUE_LINE },
+  ShapePaidLock, useShapeMembership,
+});
 
 // ⚠ THE `#site-footer` AUTO-MOUNT IS GONE, AND IT WAS RENDERING EVERY MARKETING
 // FOOTER TWICE. It mounted a second <Footer /> into any page carrying
@@ -3281,7 +3392,11 @@ const SHAPE_CHECKOUT_NOTICES = {
   // ⚠ NOT "NOTHING WAS CHARGED" either (Codex on #2522): a recent checkout on the coach's former
   // Stripe account that Shape can no longer read (retireCoachCheckouts), which may have been paid.
   payment_pending: ["error", "We can't confirm a recent checkout with this coach yet, so a new one didn't start. It may have gone through: check your email for a receipt before paying again. If this lasts more than a few days, contact support."],
-  membership_required: ["error", "Coaching needs a Shape membership, and it couldn't be started from here. Nothing was charged. Start one on the Pricing page."],
+  // Hiring a coach needs only a free account now (owner, 2026-11-10); a checkout that still came
+  // back asking for the membership says what happened, without promising a rule that is gone.
+  membership_required: ["error", "That checkout asked for a Shape membership, so it didn't start. Nothing was charged. Try again in a moment."],
+  // SHAPE_PAST_DUE_LINE's words, written out: this table is read on its own (tests/checkout-notice).
+  payment_past_due: ["error", "Your payment didn't go through. Update your card to get Shape Radio and Nora back."],
   membership_check_failed: ["error", "We couldn't check your Shape membership. Nothing was charged. Try again in a moment."],
   age_restricted: ["error", "Shape is for adults 18 and over."],
   invalid_purchase: ["error", "That checkout didn't say which coach or plan, so it didn't start. Nothing was charged. Choose the coach again."],

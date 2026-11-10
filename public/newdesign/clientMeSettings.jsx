@@ -106,26 +106,67 @@ async function openCoachBilling(c) {
   window.location.href = (r.ok && r.d && r.d.url) ? r.d.url : "/pricing";
 }
 
+// Shape's own billing portal, for the membership and the card on file (owner, 2026-11-10: a card
+// that didn't go through is updated there, never on the Pricing page). pageShell.jsx's helper
+// when it is loaded; the same request otherwise. A portal that won't open says why.
+async function openShapeBilling() {
+  const back = "/newdesign/ClientApp.html#settings";
+  if (window.ShapeMembership && window.ShapeMembership.portal) {
+    const r = await window.ShapeMembership.portal(back);
+    if (r && r.error) window.alert(r.error);
+    return;
+  }
+  try {
+    const r = await fetch("/api/stripe/billing-portal", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ returnPath: back }) });
+    const d = r.ok ? await r.json() : null;
+    if (d && d.url) { window.location.href = d.url; return; }
+  } catch (e) {}
+  window.alert("Could not open billing. Try again.");
+}
+
+// The membership's row (owner, 2026-11-10): an account is free, the membership is the paid
+// features, and a renewal that failed is past due — free until the card is updated, and said here
+// with the button that fixes it. `sub` is /api/stripe/subscription's answer: undefined while it is
+// read, "unread" when it did not answer (never shown as "Free" to someone who may be paying), null
+// for no membership, else { active, pastDue, status, priceCents, renewsAt }.
+function planMemberRow(sub, signedIn, money, renews) {
+  if (!signedIn) return { value: "$5 / month — example", action: "JOIN", onAction: () => { window.location.href = "/pricing"; } };
+  if (sub === undefined) return { value: "Checking…" };
+  if (sub === "unread") return { value: "Couldn't check. Reload to try again." };
+  if (sub && sub.pastDue === true) {
+    return { value: "Payment didn't go through", action: "UPDATE CARD", onAction: openShapeBilling, pastDue: true,
+      desc: window.ShapeMembership ? window.ShapeMembership.pastDueLine : "Your payment didn't go through. Update your card to get Shape Radio and Nora back." };
+  }
+  if (sub) return { value: money(sub.priceCents) + (renews ? " · renews " + renews : ""), action: "MANAGE", onAction: openShapeBilling };
+  return { value: "Free", action: "JOIN",
+    onAction: async () => {
+      if (!window.ShapeMembership) { window.location.href = "/pricing"; return; }
+      const r = await window.ShapeMembership.start("/newdesign/ClientApp.html#settings");
+      if (r && r.code === "already_member") { window.location.reload(); return; }
+      if (r && r.error) window.alert(r.error);
+    },
+    desc: "Your account is free. The membership adds Nora as your assistant, Shape Radio, the points Store and a place on the leaderboards for $5 a month." };
+}
+
 function PlanBillingCard({ signedIn }) {
-  const [sub, setSub] = React.useState(undefined);  // undefined=loading, null=inactive, obj=active
+  const [sub, setSub] = React.useState(undefined);  // see planMemberRow
   const [coaches, setCoaches] = React.useState(undefined); // undefined=loading, array when known
   const [pm, setPm] = React.useState(undefined);    // undefined=loading, {hasMethod,…}
   React.useEffect(() => {
     if (!signedIn) { setSub(null); setCoaches(null); setPm(null); return; }
     const j = (p) => fetch(p, { credentials: "same-origin", cache: "no-store" }).then(r => (r.ok ? r.json() : null)).catch(() => null);
-    j("/api/stripe/subscription").then(d => setSub(d && d.active ? d : null));
+    j("/api/stripe/subscription").then(d => setSub(!d || typeof d.active !== "boolean" ? "unread" : (d.active || d.pastDue === true) ? d : null));
     j("/api/client/team").then(d => setCoaches(d && Array.isArray(d.coaches) ? d.coaches : []));
     j("/api/stripe/payment-method").then(d => setPm(d || { hasMethod: false }));
   }, [signedIn]);
   const money = (c) => (typeof c === "number" ? "$" + (c % 100 ? (c / 100).toFixed(2) : (c / 100)) + " / month" : "$5 / month");
   const date = (s) => { try { return s ? new Date(s).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : null; } catch (e) { return null; } };
-  const renews = sub && date(sub.renewsAt);
-  const memberValue = sub === undefined ? "Checking…"
-    : sub ? (money(sub.priceCents) + (renews ? " · renews " + renews : ""))
-    : (signedIn ? "Not active" : "$5 / month — example");
+  const hasSub = !!sub && typeof sub === "object";
+  const renews = hasSub && !sub.pastDue && date(sub.renewsAt);
+  const member = planMemberRow(sub, signedIn, money, renews);
   const cap = (s) => (s ? String(s).charAt(0).toUpperCase() + String(s).slice(1) : "Card");
   const pmValue = (pm && pm.hasMethod) ? (cap(pm.brand) + " •••• " + (pm.last4 || "----"))
-    : (sub || (pm && pm.hasMethod === false && signedIn) ? "Manage in billing portal" : "—");
+    : (hasSub || (pm && pm.hasMethod === false && signedIn) ? "Manage in billing portal" : "—");
   let coachingRows;
   if (!signedIn) {
     coachingRows = <Row label="Coaching plans" value="Managed with your coach" action="VIEW COACHES" onAction={() => window.location.href = "/newdesign/Coaches.html"} />;
@@ -139,9 +180,9 @@ function PlanBillingCard({ signedIn }) {
   return (
     <Card>
       <SectionTitle>Plan &amp; billing</SectionTitle>
-      <Row label="Shape membership" value={memberValue} action={sub ? "MANAGE" : "JOIN"} onAction={() => window.location.href = "/pricing"} />
+      <Row label="Shape membership" value={member.pastDue ? <span data-plan-past-due style={{ color: "var(--sh-danger, #e07856)" }}>{member.value}</span> : member.value} action={member.action} onAction={member.onAction} desc={member.desc} />
       {coachingRows}
-      <Row label="Payment method" value={pmValue} action={(pm && pm.hasMethod) || sub ? "UPDATE" : undefined} onAction={(pm && pm.hasMethod) || sub ? () => window.location.href = "/pricing" : undefined} />
+      <Row label="Payment method" value={pmValue} action={(pm && pm.hasMethod) || hasSub ? "UPDATE" : undefined} onAction={(pm && pm.hasMethod) || hasSub ? openShapeBilling : undefined} />
     </Card>
   );
 }

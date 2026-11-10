@@ -1626,7 +1626,7 @@ function CpwWorkWith({ T, cm, K, sells, monthly, listed, sample, providerId, off
       ) : null}
       {cm.needsMember ? (
         <div role="alert" style={{ marginTop: 12, padding: "12px 14px", border: `1px solid ${ink(0.25)}` }}>
-          <p style={{ margin: 0, fontSize: 13.5, lineHeight: 1.5, color: INK }}>Coaching is for Shape members. Start your $5/month membership first, and you'll come back here to subscribe to {first}.</p>
+          <p style={{ margin: 0, fontSize: 13.5, lineHeight: 1.5, color: INK }}>This checkout asked for a Shape membership first. Start your $5/month membership, and you'll come back here to subscribe to {first}.</p>
           <button type="button" onClick={async () => { cm.setJoinErr(""); const r = window.ShapeMembership ? await window.ShapeMembership.start() : { error: "Could not start checkout. Reload the page and try again." }; if (r && r.error) cm.setJoinErr(r.error); }} style={{ ...ctaInk, width: "100%", marginTop: 10 }}>Start membership · $5/month</button>
           {err(cm.joinErr)}
         </div>

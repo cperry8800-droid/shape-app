@@ -66,7 +66,26 @@ test('app: a conversation opened from inside Settings closes Settings first, in 
 test('website: voice also asks the server gate, so a dietitian or an admin keeps it', () => {
   assert.match(WEB, /const canVoice = member === true \|\| voiceGate === true;/);
   assert.match(WEB, /if \(member !== false \|\| !myUserIdRef\.current\) return undefined;/, 'only a signed-in account the member check refused asks');
-  assert.match(WEB, /fetch\("\/api\/ai\/speak", \{ method: "GET", credentials: "same-origin", cache: "no-store" \}\)\s*\.then\(\(r\) => \{ if \(!cancelled\) setVoiceGate\(r\.ok\); \}\)/);
+  assert.match(WEB, /fetch\("\/api\/ai\/speak", \{ method: "GET", credentials: "same-origin", cache: "no-store" \}\)\s*\.then\(async \(r\) => \{\n\s+if \(cancelled\) return;\n\s+setVoiceGate\(r\.ok\);/);
+  // …and its 402 says whether the renewal failed (owner, 2026-11-10: past due is told so).
+  assert.match(WEB, /if \(!cancelled && why && why\.code === "payment_past_due"\) setPastDue\(true\);/);
+});
+
+test('website: the voice lock reads /api/me/membership — member and pastDue — not the subscription', () => {
+  // The paid features are the membership, an approved coach's or an admin's (owner, 2026-11-10),
+  // which /api/me/membership knows and /api/stripe/subscription does not.
+  const at = WEB.indexOf('const [account, setAccount] = React.useState(null);');
+  assert.ok(at > 0, 'the account/member check moved');
+  const check = WEB.slice(at, WEB.indexOf('const [voiceGate, setVoiceGate]', at));
+  assert.match(check, /window\.ShapeMembership\.read\(\)/, 'the page\'s one membership answer');
+  assert.match(check, /fetch\("\/api\/me\/membership", \{ credentials: "same-origin", cache: "no-store" \}\)/, 'and the route itself without the shell');
+  assert.match(check, /setMember\(!!\(md && md\.signedIn === true && \(md\.member === true \|\| md\.coach === true\)\)\);/);
+  assert.match(check, /setPastDue\(!!\(md && md\.signedIn === true && md\.pastDue === true\)\);/);
+  assert.doesNotMatch(check, /\/api\/stripe\/subscription/, 'the voice lock reads the subscription again');
+  // The composer: messaging comes with a free account, so only someone signed out is asked in.
+  assert.match(WEB, /\{\(account === "out" && !isSupport\) \? \(/);
+  assert.doesNotMatch(WEB, /Become a Shape member to send messages/);
+  assert.match(check, /setAccount\(d && Object\.prototype\.hasOwnProperty\.call\(d, "user"\) \? "out" : "unknown"\)/, 'an /api/me that did not answer is not "signed out"');
 });
 
 test('GET /api/ai/speak answers the gate\'s own verdict, with no audio and no key', async () => {
@@ -112,7 +131,13 @@ test('website: a non-member is told in Nora\'s chat that voice unlocks with memb
   const note = WEB.match(/\{voiceLocked && \(\s*<div data-nora-voice-locked[\s\S]*?<\/div>\s*\)\}/);
   assert.ok(note, 'the note is not rendered under voiceLocked');
   assert.match(note[0], /Voice chat with Nora unlocks with membership\./);
-  assert.match(note[0], /<a href="\/pricing"/, 'no way to join from the note');
+  assert.match(note[0], /<a href="\/pricing"/, 'no way in for a visitor from the note');
+  // A free account joins from the note; a past-due one is told so, with Update your card
+  // (owner, 2026-11-10).
+  assert.match(note[0], /onClick=\{\(\) => cwMembershipDoor\(false\)\}[^>]*>Join &rarr;/);
+  assert.match(note[0], /\{pastDue \? CW_PAST_DUE_LINE : "Voice chat with Nora unlocks with membership\."\}/);
+  assert.match(note[0], /onClick=\{\(\) => cwMembershipDoor\(true\)\}[^>]*>Update your card &rarr;/);
+  assert.match(WEB, /const CW_PAST_DUE_LINE = "Your payment didn’t go through\. Update your card to get Shape Radio and Nora back\.";/);
   assert.doesNotMatch(note[0], /onClick=\{(startTalk|toggleVoice)\}/, 'the note starts nothing: voice stays behind the gate');
   assert.ok(WEB.indexOf('{voiceLocked && (') > WEB.indexOf('{isSupport && canVoice && talkSupported && ('), 'the note sits in the control row, after Talk (her face, in the header)');
 });

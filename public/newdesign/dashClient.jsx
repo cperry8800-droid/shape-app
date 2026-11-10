@@ -78,6 +78,20 @@ function dclTodayISO() {
 function dclRealDate() {
   return new Date().toLocaleDateString([], { weekday: "long", month: "short", day: "numeric" }).toUpperCase();
 }
+// The Today pill: Member, Free or Past due. `acct` is /api/me/membership's answer (the shell's,
+// ClientApp.html), `sub` this page's /api/stripe/subscription read; the first that answered decides.
+// A coach's or an admin's paid features read as Member. Neither answered: a dash, never "Free".
+function dclMemberPill(acct, sub) {
+  const MEMBER = { kind: "member", text: "Member", c: DCL_TEAL };
+  const FREE = { kind: "free", text: "Free", c: DCL_INK50, href: "#membership" };
+  const PAST = { kind: "pastdue", text: "Past due", c: DCL_RED, href: "#membership" };
+  if (acct && acct.signedIn === true && typeof acct.member === "boolean") {
+    if (acct.member === true || acct.coach === true) return MEMBER;
+    return acct.pastDue === true ? PAST : FREE;
+  }
+  if (sub && typeof sub.active === "boolean") return sub.pastDue === true ? PAST : sub.active ? MEMBER : FREE;
+  return { kind: "unread", text: "Membership · —", c: DCL_INK50 };
+}
 function dclFmt12(t) {
   if (!t) return null;
   const [h, m] = String(t).split(":").map(Number);
@@ -808,9 +822,11 @@ function ClientDashboardPage() {
     ? (selfRec ? DashSignals.buildMilestones(selfRec) : { recent: [], next: [] })
     : DCL_DEMO.milestonesFeed, units);
 
-  const memberPill = live
-    ? (membership ? (membership.active ? { text: "Membership · active", c: DCL_TEAL } : { text: "Membership · inactive", c: DCL_RED }) : { text: "Membership · —", c: DCL_INK50 })
-    : { text: "Membership · demo", c: DCL_INK50 };
+  // Member, Free or Past due (owner, 2026-11-10: an account is free; the membership is the paid
+  // features). The shell's /api/me/membership answer first, since it knows a coach's or an admin's
+  // paid features too; else this page's own /api/stripe/subscription read. Free and Past due open
+  // the membership page, which says what it adds or how to fix the card.
+  const memberPill = live ? dclMemberPill(window.__shapeClientMembership, membership) : { kind: "demo", text: "Membership · demo", c: DCL_INK50 };
 
   const plate = (ac) => ({ "--dac": ac });
   const btn = { fontFamily: DCL_MONO, fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--sh-deep, #06231f)", background: DCL_TEAL, border: 0, borderRadius: 4, padding: "8px 13px", cursor: "pointer" };
@@ -994,7 +1010,12 @@ function ClientDashboardPage() {
                   <a href={dashShellHref("ClientTeam.html")} aria-label="Book a session" style={{ color: DCL_TEAL, textDecoration: "none", padding: "8px 10px", margin: "-8px -10px" }}>→</a>
                 </div>
                 <div style={{ borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.05)", paddingTop: 10, marginTop: 2 }}>
-                  <span style={{ fontFamily: DCL_MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: memberPill.c, border: "1px solid " + (memberPill.c === DCL_INK50 ? "rgba(var(--sh-ink-rgb, 242,237,228),0.18)" : ssAlpha(memberPill.c, 0x55 / 255)), borderRadius: 4, padding: "4px 9px" }}>{memberPill.text}</span>
+                  {(() => {
+                    const pillStyle = { fontFamily: DCL_MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: memberPill.c, border: "1px solid " + (memberPill.c === DCL_INK50 ? "rgba(var(--sh-ink-rgb, 242,237,228),0.18)" : ssAlpha(memberPill.c, 0x55 / 255)), borderRadius: 4, padding: "4px 9px" };
+                    return memberPill.href
+                      ? <a href={memberPill.href} data-member-pill={memberPill.kind} style={{ ...pillStyle, display: "inline-flex", alignItems: "center", minHeight: 24, boxSizing: "border-box", textDecoration: "none" }}>{memberPill.text}</a>
+                      : <span data-member-pill={memberPill.kind} style={pillStyle}>{memberPill.text}</span>;
+                  })()}
                 </div>
               </div>
             ) },
@@ -1006,29 +1027,34 @@ function ClientDashboardPage() {
   );
 }
 
-// ── Join panel: a signed-in account that has not started the $5 membership ──────────────
-// ⚠ THIS ACCOUNT USED TO GET SOMEONE ELSE'S DASHBOARD. Every /api/client read answers 402 to a
-// non-member, so useDashboard fell back to the demo member ("Welcome back, Priya") under a
-// "Preview · demo data" band whose only button was "Sign in", the page they were already on.
-// Nothing offered the membership. ClientApp.html now asks /api/me/membership first and renders
-// this panel for every tab but Settings until the account is a member.
-// `member=pending` in the URL means Stripe took the payment but the membership was not
-// confirmed on the way back (platform-return); the panel re-asks for a minute before
-// offering the button again.
+// ── The membership: what $5 a month adds ───────────────────────────────────────────────────
+// ⚠ AN ACCOUNT IS FREE, AND THIS IS NO LONGER A WALL (owner, 2026-11-10). It stood in front of
+// every tab for a signed-in account without the $5 membership, back when every /api/client read
+// refused one (and before that, the account fell back to the demo member's dashboard). A free
+// account draws every route with its own data now, and this is the membership page
+// (#membership), reached from each locked paid feature's prompt and from Today's pill. It lists
+// only what the membership adds; the rest is free with the account, and the page says so.
 const DCL_JOIN_PERKS = [
-  "Build your own workouts, coach optional",
-  "Meal logging and macro tracking",
-  "Shape Kitchen recipes and guided cooking",
-  "Shape Score points to spend in the Store",
-  "Shape Radio and Nora",
-  "Subscribe to trainers and nutritionists when you want one",
+  "Nora as your assistant: she makes the change you ask for, and you confirm or undo it",
+  "Talk to Nora out loud, and hear her answer",
+  "Nora's weekly read of your training and food",
+  "Shape Radio: one live channel, ad-free",
+  "AI program drafts, and Cook Mode by voice",
+  "Spend your Shape Score points in the Store",
+  "A place on the leaderboards: members are the ones ranked",
 ];
+const DCL_FREE_WITH_ACCOUNT = "Free with your account, membership or not: logging workouts and meals, your dashboard, the programs you build, seeing the leaderboards, hiring and messaging coaches, their reviews, and Nora's help with the app.";
 
-function ClientJoinPage() {
-  const pending = (() => { try { return new URLSearchParams(window.location.search).get("member") === "pending"; } catch (e) { return false; } })();
-  const [busy, setBusy] = React.useState(false);
-  const [err, setErr] = React.useState("");
-  const [waiting, setWaiting] = React.useState(pending);
+// Whether /api/me/membership's answer has the paid features: the membership, an approved coach's
+// role or an admin's (the server folds those into `member`; `coach` is read too, to be safe).
+function dclHasPaid(m) { return !!(m && m.signedIn === true && (m.member === true || m.coach === true)); }
+function dclPendingInUrl() { try { return new URLSearchParams(window.location.search).get("member") === "pending"; } catch (e) { return false; } }
+// `member=pending` in the URL means Stripe took the payment but the membership was not confirmed
+// on the way back (platform-return). It is asked again every 3 seconds for a minute, and once it
+// is a member the page reloads on the same route with `member=joined`, so the shell's answer is
+// the new one. "waiting" | "late" (the minute went by) | null.
+function useDclPendingMembership(pending) {
+  const [state, setState] = React.useState(pending ? "waiting" : null);
   React.useEffect(() => {
     if (!pending) return;
     let on = true; let tries = 0;
@@ -1043,50 +1069,89 @@ function ClientJoinPage() {
         .then((d) => {
           clearTimeout(late);
           if (!on) return;
-          if (d && d.member === true) { window.location.replace(window.location.pathname + "?member=joined#today"); return; }
-          if (++tries >= 20) { setWaiting(false); return; }
+          if (d && d.member === true) { window.location.replace(window.location.pathname + "?member=joined" + (window.location.hash || "#today")); return; }
+          if (++tries >= 20) { setState("late"); return; }
           setTimeout(tick, 3000);
         });
     };
     tick();
     return () => { on = false; };
   }, []);
-  const join = async () => {
+  return state;
+}
+
+// The client shell's one notice (ClientApp.html sets it as window.ShapeDashNotice; DashFrame draws
+// it under the app bar on every route). A renewal that failed: the owner's line and Update your
+// card, which opens Shape's billing portal (owner, 2026-11-10: past due is free until the card is
+// updated). A membership payment still clearing: said, until it lands. Nothing otherwise.
+function ClientMembershipNotice() {
+  const m = window.__shapeClientMembership;
+  const wait = useDclPendingMembership(dclPendingInUrl() && !!m && m.signedIn === true && !dclHasPaid(m));
+  if (!m || m.signedIn !== true) return null;
+  const box = { margin: "14px clamp(16px, 3vw, 32px) 0" };
+  if (wait) {
+    return (
+      <div data-membership-notice={wait} role="status" style={{ ...box, padding: "12px 14px", borderRadius: 10, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.14)", borderLeft: "3px solid " + DCL_TEAL, fontSize: 13.5, lineHeight: 1.5 }}>
+        {wait === "waiting"
+          ? "Confirming your membership. Stripe has your payment and we're waiting for it to clear; Nora and Shape Radio open as soon as it does."
+          : "Your membership payment is still clearing. Reload this page in a minute, or check Plan & billing in Settings."}
+      </div>
+    );
+  }
+  if (dclHasPaid(m) || m.pastDue !== true) return null;
+  const Lock = window.ShapePaidLock;
+  return Lock ? <div data-membership-notice="pastdue" style={box}><Lock kind="pastdue" /></div> : null;
+}
+
+function ClientJoinPage() {
+  const m = window.__shapeClientMembership || null;
+  const paid = dclHasPaid(m);
+  const M = window.ShapeMembership;
+  // A free account joins, a past-due one updates its card; an answer that never came offers the
+  // checkout, which knows the account and says if it is already a member.
+  const kind = paid ? null : (M && M.lockKind(m)) || "join";
+  const pastDue = kind === "pastdue";
+  const [busy, setBusy] = React.useState(false);
+  const [err, setErr] = React.useState("");
+  const go = async () => {
     if (busy) return;
     setBusy(true); setErr("");
-    const r = window.ShapeMembership ? await window.ShapeMembership.start("/newdesign/ClientApp.html#today") : { error: "Could not start checkout. Reload the page and try again." };
+    const r = !M ? { error: "Could not start checkout. Reload the page and try again." }
+      : pastDue ? await M.portal("/newdesign/ClientApp.html#membership")
+      : await M.start("/newdesign/ClientApp.html#today");
     if (r && r.code === "already_member") { window.location.reload(); return; }
     if (r && r.error) setErr(r.error);
-    setBusy(false);
+    if (r) setBusy(false);
   };
-  const btn = { fontFamily: DCL_MONO, fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--sh-deep, #06231f)", background: DCL_TEAL, border: 0, borderRadius: 4, padding: "13px 20px", cursor: busy ? "default" : "pointer", opacity: busy ? 0.6 : 1 };
+  const btn = { fontFamily: DCL_MONO, fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--sh-deep, #06231f)", background: DCL_TEAL, border: 0, borderRadius: 4, padding: "13px 20px", cursor: busy ? "default" : "pointer", opacity: busy ? 0.6 : 1, textDecoration: "none", display: "inline-block" };
   return (
     <DashFrame navItems={clientNavItems("today")} payoutCard={null}>
       <main style={{ padding: "40px 32px 80px", minWidth: 0, maxWidth: 680 }}>
         <div style={{ fontFamily: DCL_MONO, fontSize: 10.5, letterSpacing: "0.14em", color: DCL_TEAL, textTransform: "uppercase" }}>Shape membership</div>
         <h1 style={{ fontFamily: serif, fontSize: 34, letterSpacing: "-0.02em", fontWeight: 500, margin: "10px 0 0", lineHeight: 1.08 }}>
-          {waiting ? "Confirming your membership." : "Your account is ready. Start your membership to use it."}
+          {paid ? "Your membership is on." : pastDue ? "Your payment didn’t go through." : "Membership adds Nora and Shape Radio."}
         </h1>
         <p style={{ fontSize: 15, lineHeight: 1.6, color: DCL_INK50, margin: "14px 0 0" }}>
-          {waiting
-            ? "Stripe has your payment and we are waiting for it to clear. This page opens your dashboard as soon as it does."
-            : "Everything in the app is included for $5 a month. Coaches are optional, and each one is a separate subscription."}
+          {paid
+            ? "Nora as your assistant, Shape Radio, the Store and your place on the leaderboards are yours. Manage the membership in Settings."
+            : pastDue
+              ? "Update your card to get Shape Radio and Nora back. Your account, and everything free on it, stays as it is."
+              : "$5 a month, cancel any time in Settings. Everything else on Shape stays free with your account."}
         </p>
-        {!waiting && (
-          <ul style={{ listStyle: "none", padding: 0, margin: "22px 0 0", display: "grid", gap: 8 }}>
-            {DCL_JOIN_PERKS.map((t) => (
-              <li key={t} style={{ fontSize: 14, display: "flex", gap: 10, alignItems: "baseline" }}>
-                <span aria-hidden style={{ color: DCL_TEAL, fontFamily: DCL_MONO }}>✓</span><span>{t}</span>
-              </li>
-            ))}
-          </ul>
-        )}
-        {!waiting && (
-          <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap", marginTop: 28 }}>
-            <button type="button" onClick={join} disabled={busy} style={btn}>{busy ? "Opening checkout…" : "Start membership · $5/month"}</button>
-            <span style={{ fontFamily: DCL_MONO, fontSize: 9.5, letterSpacing: "0.1em", textTransform: "uppercase", color: DCL_INK50 }}>Cancel any time in Settings</span>
-          </div>
-        )}
+        <ul style={{ listStyle: "none", padding: 0, margin: "22px 0 0", display: "grid", gap: 8 }}>
+          {DCL_JOIN_PERKS.map((t) => (
+            <li key={t} style={{ fontSize: 14, display: "flex", gap: 10, alignItems: "baseline" }}>
+              <span aria-hidden style={{ color: DCL_TEAL, fontFamily: DCL_MONO }}>✓</span><span>{t}</span>
+            </li>
+          ))}
+        </ul>
+        <p data-free-with-account style={{ fontSize: 13, lineHeight: 1.55, color: DCL_INK50, margin: "18px 0 0" }}>{DCL_FREE_WITH_ACCOUNT}</p>
+        <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap", marginTop: 28 }}>
+          {paid
+            ? <a href="#settings" style={btn}>Settings →</a>
+            : <button type="button" onClick={go} disabled={busy} style={btn}>{busy ? (pastDue ? "Opening billing…" : "Opening checkout…") : pastDue ? "Update your card" : "Start membership · $5/month"}</button>}
+          {!paid && !pastDue && <span style={{ fontFamily: DCL_MONO, fontSize: 9.5, letterSpacing: "0.1em", textTransform: "uppercase", color: DCL_INK50 }}>Cancel any time in Settings</span>}
+        </div>
         {err && <div role="alert" style={{ marginTop: 14, fontSize: 13.5, color: DCL_RED }}>{err}</div>}
       </main>
     </DashFrame>
@@ -1094,8 +1159,8 @@ function ClientJoinPage() {
 }
 
 // A signed-in account the server knows to be under 18 (/api/me/membership's ageRestricted). Shown
-// before the membership offer, which would refuse them: Shape is for adults 18 and over. Settings
-// stays reachable from the rail, for deleting the account.
+// in place of every route but Settings: Shape is for adults 18 and over. Settings stays reachable
+// from the rail, for deleting the account.
 function ClientAgeRestrictedPage() {
   return (
     <DashFrame navItems={clientNavItems("today")} payoutCard={null}>
@@ -1113,4 +1178,4 @@ function ClientAgeRestrictedPage() {
   );
 }
 
-Object.assign(window, { ClientDashboardPage, ClientJoinPage, ClientAgeRestrictedPage, DashWorkoutCard, DashMealLedgerCard, DashTodayCard });
+Object.assign(window, { ClientDashboardPage, ClientJoinPage, ClientAgeRestrictedPage, ClientMembershipNotice, dclMemberPill, DashWorkoutCard, DashMealLedgerCard, DashTodayCard });

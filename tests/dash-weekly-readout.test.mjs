@@ -321,7 +321,24 @@ test('the readout’s data is fetched by the PAGE, because an empty widget never
   assert.match(card, /if \(!shown \|\| !held \|\| !held\.readout\) return null;/);
   // …and the hook is what decides `shown`, from the same render's `live`
   assert.match(fn(PROG, 'useDprWeeklyReadout'),
-    /return \{ held, shown: !\(!live \|\| !held \|\| !held\.readout \|\| mismatched\) \};/);
+    /return \{ held, locked: live \? locked : null, shown: !\(!live \|\| !held \|\| !held\.readout \|\| mismatched\) \};/);
+});
+
+test('a free or past-due account gets a locked teaser, never an error and never someone’s readout', () => {
+  // The weekly readout is part of the membership (owner, 2026-11-10). A 402 from the route is the
+  // gate's answer, not a failure: the hook keeps its code, the widget is not empty for it, and the
+  // card it draws holds no readout at all.
+  const hook = fn(PROG, 'useDprWeeklyReadout');
+  assert.match(hook, /if \(res\.status === 402\) \{\n\s+const why = await res\.json\(\)\.catch\(\(\) => null\);\n\s+lock = why && why\.code === "payment_past_due" \? "payment_past_due" : "membership_required";\n\s+\} else d = res\.ok \? await res\.json\(\) : null;/);
+  assert.match(hook, /if \(on\) setLocked\(lock\);\n\s+if \(on\) setHeld\(d && d\.readout && d\.user_id \? d : null\);/, 'a locked answer holds no readout');
+  assert.match(hook, /if \(!live\) \{ setHeld\(null\); setLocked\(null\); return undefined; \}/, 'signed out holds no lock either');
+  const m = PROG.match(/\{ key: "readout"[^\n]*\}/);
+  assert.match(m[0], /empty: !readout\.shown && !readout\.locked/, 'the locked teaser never mounts');
+  assert.match(m[0], /readout\.locked \? <DprWeeklyReadoutLocked code=\{readout\.locked\} \/> : <DprWeeklyReadout/);
+  const card = fn(PROG, 'DprWeeklyReadoutLocked');
+  assert.ok(!/held|readout\.summary|insights/.test(card), 'the teaser reads a readout');
+  assert.match(card, /const kind = code === "payment_past_due" \? "pastdue" : "join";/);
+  assert.match(card, /<Lock kind=\{kind\} feature="Nora's weekly read"/);
 });
 
 test('the member’s card does not make a resolvable identity a precondition of the POST', () => {

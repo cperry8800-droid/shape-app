@@ -5,19 +5,18 @@ const ROLES = [
   {
     key: "client",
     kicker: "For members",
-    // ⚠ THE MEMBERSHIP IS THE WHOLE APP, NOT A COACH FEE — owner, 2026-10-09: "we
-    // also need to market this membership as taking advantages of all features on
-    // app, not just paying for coaches". This card used to read as a ticket to the
-    // marketplace. Every perk names a feature a $5 member has with no coach at all
-    // (the app's own paywall lists the same ones), and coaches come last, as the
-    // option they are. "Member", not "Client": someone without a coach is not
+    // ⚠ A FREE ACCOUNT, AND A MEMBERSHIP FOR THE PAID FEATURES (owner, 2026-11-10). The card
+    // sold $5 as the whole app (owner, 2026-10-09: the app's features, not a coach fee); now
+    // the account is free and keeps the app and every coach, and $5 a month adds assistant
+    // Nora, Shape Radio, the points Store and a place on the leaderboards. Coaches still come
+    // last, as the option they are. "Member", not "Client": someone without a coach is not
     // anyone's client, the reason the nav tab is Members (2026-09-14).
     title: "Member",
-    blurb: "The whole Shape app for $5 a month. Train, log meals, cook, earn rewards and listen to Shape Radio. Add a coach whenever you want one.",
+    blurb: "A free Shape account trains, logs meals, cooks and hires a coach whenever you want one. $5 a month adds Nora as your assistant, Shape Radio, the points Store and a place on the leaderboards.",
     cta: "Get started",
     href: "SignupClient.html",
-    meta: "$5 / month · the whole app",
-    perks: ["Workouts + meal logging, coach optional", "Shape Kitchen recipes + guided cooking", "Score points to spend in the Store", "Shape Radio, ad-free", "Nora, your in-app assistant", "Every coach, when you want one"],
+    meta: "Free account · $5 / month membership",
+    perks: ["Workouts + meal logging, free", "Shape Kitchen recipes + guided cooking, free", "Every coach, when you want one, free", "Members: Nora as your assistant", "Members: Shape Radio, ad-free", "Members: spend Score points in the Store"],
   },
   {
     key: "trainer",
@@ -208,7 +207,7 @@ function RoleGrid() {
 
 function Reassurance() {
   const items = [
-    { k: "$5/mo", v: "Flat platform fee for members" },
+    { k: "$5/mo", v: "Membership for Nora and Shape Radio; the account is free" },
     { k: "Verified", v: "Every coach credential-checked" },
     { k: "Direct", v: "Payouts to each coach's bank, on their Stripe schedule" },
     { k: "No lock-in", v: "Cancel any time, take your clients" },

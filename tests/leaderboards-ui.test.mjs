@@ -324,6 +324,50 @@ test('website: every state is a sentence; a hidden member is told by whom', asyn
   await w.unmount();
 });
 
+test('website: a free account sees the board and is not on it — the locked line says why, with Join or Update your card', async () => {
+  // Owner, 2026-11-10: viewing is free, being ranked is the membership's. The route answers a
+  // non-participant with participant: false, hidden 'free_account' | 'past_due' and me: null.
+  const calls = [];
+  window.ShapeMembership = {
+    start: async () => { calls.push('start'); return null; },
+    portal: async () => { calls.push('portal'); return null; },
+  };
+  try {
+    routes = { '/api/leaderboard': () => ({ status: 200, body: memberBoard({ me: false, hidden: 'free_account', extra: { participant: false } }) }) };
+    const v = await mount(React.createElement(MemberLeaderboard));
+    assert.ok(v.host.querySelector('.lb-board'), 'the board itself is shown');
+    assert.match(v.text(), /Priya S\./);
+    const line = v.host.querySelector('[data-lb-not-ranked="join"]');
+    assert.ok(line, 'no locked line where the place would be');
+    assert.match(line.textContent, /Members are ranked on the leaderboards\. Join to take part\./);
+    assert.doesNotMatch(v.text(), /You’re not ranked for/, 'a free account is told to log a workout to place');
+    assert.doesNotMatch(v.text(), /Show me on leaderboards/, 'a switch for a board it is not on');
+    await click(byText(line, 'button', /^Join$/));
+    assert.deepEqual(calls, ['start']);
+    await v.unmount();
+
+    routes = { '/api/leaderboard': () => ({ status: 200, body: memberBoard({ me: false, hidden: 'past_due', extra: { participant: false } }) }) };
+    const w = await mount(React.createElement(MemberLeaderboard));
+    const past = w.host.querySelector('[data-lb-not-ranked="pastdue"]');
+    assert.ok(past);
+    assert.match(past.textContent, /Your payment didn’t go through\. Update your card to get Shape Radio and Nora back\./);
+    await click(byText(past, 'button', /Update your card/));
+    assert.deepEqual(calls, ['start', 'portal']);
+    await w.unmount();
+
+    // A member on the board keeps their place line.
+    routes = { '/api/leaderboard': () => ({ status: 200, body: memberBoard({ extra: { participant: true } }) }) };
+    const m = await mount(React.createElement(MemberLeaderboard));
+    assert.ok(!m.host.querySelector('[data-lb-not-ranked]'));
+    assert.match(m.text(), /81 points to pass Devon R\./);
+    await m.unmount();
+    assert.equal(window.lbNotRanked({ participant: false }), 'join');
+    assert.equal(window.lbNotRanked({ hidden: 'private' }), null, 'a private profile is hidden, not unranked');
+  } finally {
+    delete window.ShapeMembership;
+  }
+});
+
 test('website: the coach board, refused for members, and climbers before history', async () => {
   // On Climbers you gained 98: the coach to chase is Maya (+99), not Dana (more score, +87).
   const climbBoard = () => { const d = coachBoard({ since: '2026-09-15' }); d.entries.find((e) => e.isMe).gained = 98; return d; };

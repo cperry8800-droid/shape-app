@@ -403,21 +403,43 @@ function RadioNora() {
   );
 }
 
+// The pitch, only to an account without the station (owner, 2026-11-10: an account is free, and
+// Shape Radio is part of the $5 membership). A member, a coach or an admin already has it and sees
+// none; a free account is offered the membership, back to this page; a renewal that failed is told
+// its card didn't go through, with the billing portal; a visitor is sent to make an account. Nothing
+// while the answer is read, or if it never comes: a member is never pitched what they pay for.
 function RadioJoin() {
+  const m = window.useShapeMembership ? window.useShapeMembership() : null;
+  const [busy, setBusy] = React.useState(false);
+  const [err, setErr] = React.useState("");
+  const kind = m && window.ShapeMembership ? window.ShapeMembership.lockKind(m) : null;
+  if (!kind) return null;
+  const go = async () => {
+    if (busy) return;
+    setBusy(true); setErr("");
+    const M = window.ShapeMembership;
+    const r = kind === "pastdue" ? await M.portal("/newdesign/Radio.html") : await M.start("/newdesign/Radio.html");
+    if (r && r.code === "already_member") { window.location.reload(); return; }
+    if (r && r.error) setErr(r.error);
+    if (r) setBusy(false);
+  };
+  const cta = { display: "inline-flex", alignItems: "center", height: 46, padding: "0 24px", marginTop: 26, border: 0, background: RD_TEAL, color: "#04110f", fontFamily: RD_SANS, fontWeight: 700, fontSize: 14.5, textDecoration: "none", cursor: busy ? "default" : "pointer", opacity: busy ? 0.65 : 1, clipPath: "polygon(0 0, calc(100% - 9px) 0, 100% 9px, 100% 100%, 0 100%)" };
   return (
-    <section style={{ padding: "0 24px 110px" }}>
+    <section data-radio-join={kind} style={{ padding: "0 24px 110px" }}>
       <RdReveal>
         <div style={{ maxWidth: 760, margin: "0 auto", padding: "clamp(32px,4vw,56px)", border: "1px solid rgba(238,243,240,0.14)", background: "rgba(6,9,15,0.6)", textAlign: "center", clipPath: "polygon(0 0, calc(100% - 14px) 0, 100% 14px, 100% 100%, 0 100%)" }}>
           <h2 style={{ fontFamily: RD_DISP, fontWeight: 500, fontVariationSettings: "'wdth' 105", fontSize: "clamp(26px,3vw,38px)", letterSpacing: "-0.02em", margin: 0, color: RD_CREAM }}>
-            Included with every membership.
+            {kind === "pastdue" ? "Your payment didn’t go through." : "Part of Shape membership."}
           </h2>
           <p style={{ fontFamily: RD_SANS, fontSize: 15, color: "rgba(238,243,240,0.7)", margin: "16px auto 0", maxWidth: 480, lineHeight: 1.6 }}>
-            One live channel, no ads, and the coach playlists that ride on your own
-            sessions. $5 a month, cancel any time.
+            {kind === "pastdue"
+              ? "Update your card to get Shape Radio and Nora back. Your account stays as it is."
+              : "One live channel, no ads, and the coach playlists that ride on your own sessions. $5 a month, cancel any time. Your Shape account stays free without it."}
           </p>
-          <a href="/newdesign/Landing.html" style={{ display: "inline-flex", alignItems: "center", height: 46, padding: "0 24px", marginTop: 26, background: RD_TEAL, color: "#04110f", fontFamily: RD_SANS, fontWeight: 700, fontSize: 14.5, textDecoration: "none", clipPath: "polygon(0 0, calc(100% - 9px) 0, 100% 9px, 100% 100%, 0 100%)" }}>
-            Join Shape
-          </a>
+          {kind === "signin"
+            ? <a href="/newdesign/Landing.html" style={cta}>Join Shape</a>
+            : <button type="button" onClick={go} disabled={busy} style={cta}>{busy ? (kind === "pastdue" ? "Opening billing…" : "Opening checkout…") : kind === "pastdue" ? "Update your card" : "Join · $5/month"}</button>}
+          {err ? <p role="alert" style={{ fontFamily: RD_SANS, fontSize: 13.5, color: RD_HOT, margin: "12px 0 0" }}>{err}</p> : null}
         </div>
       </RdReveal>
     </section>

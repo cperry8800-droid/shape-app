@@ -767,7 +767,7 @@ function MkTrust() {
     ["✓", "Verified badge", "Shape checked this coach’s certificate and liability insurance."],
     ["$", "Coaches set their own rates", "The price on a card is the coach’s, not a Shape markup."],
     ["→", "Free intro first", "Book a free call to see if you fit, before you pay anything."],
-    ["×", "Cancel any time", "Coaching sits on the $5/mo membership. No lock-in."],
+    ["×", "Cancel any time", "Hiring a coach needs only a free Shape account. No lock-in."],
   ];
   return <section className="mk-trust" aria-label="How coaching on Shape works"><div className="mk-wrap row">{T.map(([g, b, s]) => <div className="ti" key={b}><i aria-hidden="true">{g}</i><div><b>{b}</b><span>{s}</span></div></div>)}</div></section>;
 }
@@ -1082,7 +1082,7 @@ function MkQuickView({ c, index, total, onPrev, onNext, onClose, signedIn, compa
           </div>
           <div className="fine">
             <button type="button" className={"mk-cmp-l" + (comparing ? " on" : "")} disabled={!comparing && !canCompare} onClick={() => onCompare(c)}>{comparing ? "✓ In compare" : canCompare ? "＋ Add to compare" : "Compare holds 3"}</button>
-            <p>{kind === "listing" ? "Booking opens when this coach joins Shape." : "The intro is free. Coaching needs a Shape membership ($5/mo, cancel any time) and a short health screening."}</p>
+            <p>{kind === "listing" ? "Booking opens when this coach joins Shape." : "The intro is free. Coaching needs a free Shape account and a short health screening."}</p>
           </div>
         </div>
       </aside>
