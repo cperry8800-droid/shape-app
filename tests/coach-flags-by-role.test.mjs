@@ -243,6 +243,55 @@ test('a goal\'s slip goes to the coach of what it measures: weight to the nutrit
   assert.equal(S.goalDiscipline({ metric: 'custom' }), null);
 });
 
+test('a coach\'s goal slip names their own worst slipped goal: a worse weight goal never hides a trainer\'s strength goal', () => {
+  const hist = (pts) => pts.map(([d, v]) => ({ on: ago(d), value: v }));
+  const goal = (id, metric, pts) => ({ id, label: id, metric, unit: 'kg', target: 70, start: 80, history: hist(pts) });
+  // The weight goal slips 13 days and comes first; the strength goal slips 9.
+  const weight = goal('Cut', 'weight', [[56, 80], [49, 79], [42, 78], [35, 77], [28, 76], [21, 75.6], [14, 75.4], [7, 75.3], [1, 75.3]]);
+  const squat = goal('Squat', 'strength', [[56, 80], [49, 79], [42, 78], [35, 77], [28, 76], [21, 75.5], [14, 75.0], [7, 74.7], [1, 74.6]]);
+  const r = rec({ ...both, goals: [weight, squat] });
+  const t = row('trainer', r).flags.find((f) => f.key === 'goal_slip');
+  assert.equal(t.owned, true);
+  assert.equal(t.discipline, 'training');
+  assert.match(t.reason, /Squat/);
+  assert.equal(row('trainer', r).severity, 'amber');
+  const n = row('nutritionist', r).flags.find((f) => f.key === 'goal_slip');
+  assert.equal(n.owned, true);
+  assert.match(n.reason, /Cut/);
+  // The member owns both and hears of the worse, even when the lesser is a habit both coaches own.
+  assert.match(S.evaluateClient(r, NOW, 'client').flags.find((f) => f.key === 'goal_slip').reason, /Cut/);
+  const habit = { ...squat, id: 'Steps', label: 'Steps', metric: 'habit' };
+  assert.match(S.evaluateClient(rec({ ...both, goals: [weight, habit] }), NOW, 'client').flags.find((f) => f.key === 'goal_slip').reason, /Cut/);
+  // A trainer alone owns every goal, so hears of the worse.
+  assert.match(row('trainer', rec({ ...solo('trainer'), goals: [weight, squat] })).flags.find((f) => f.key === 'goal_slip').reason, /Cut/);
+  // With none of their own past the line, the coach sees the other's as routed context.
+  const only = row('trainer', rec({ ...both, goals: [weight] })).flags.find((f) => f.key === 'goal_slip');
+  assert.equal(only.owned, false);
+  assert.match(only.reason, /Cut/);
+  // Their own slipping only 4 days, under the line, doesn't hide the other's either.
+  const nudge = goal('Bench', 'strength', [[56, 80], [49, 79], [42, 78], [35, 77], [28, 76], [21, 75.2], [14, 74.6], [7, 74.0], [1, 73.6]]);
+  assert.equal(S.goalSlipDays(nudge, NOW), 4);
+  const under = row('trainer', rec({ ...both, goals: [weight, nudge] })).flags.find((f) => f.key === 'goal_slip');
+  assert.equal(under.owned, false);
+  assert.match(under.reason, /Cut/);
+});
+
+test('joint attention reads each side at its own coach\'s line, so both coaches agree on who needs a note', () => {
+  const co = { coCoaches: [{ role: 'nutritionist', userId: 'n1', name: 'Rae' }, { role: 'trainer', userId: 't1', name: 'Alex' }], ...both };
+  // A 4-day gap: past the nutritionist's 3 days, inside a trainer's own 5.
+  const r = rec({ ...co, foodLogs: { lastLoggedOn: ago(4), daysLogged7d: 3 }, bookedSessions: { trainer: { done: 4, planned: 9 } } });
+  for (const role of ['trainer', 'nutritionist']) {
+    const j = S.findJointAttention([r], NOW, null, role);
+    assert.deepEqual(j.map((x) => x.nutritionFlags.map((f) => f.key)), [['food_gap']], role);
+    assert.deepEqual(j.map((x) => x.trainingFlags.map((f) => f.key)), [['missed_sessions']], role);
+  }
+  // A trainer's own tuning moves their side, never the nutritionist's.
+  assert.equal(S.findJointAttention([r], NOW, { FOOD_GAP_DAYS: 7 }, 'trainer').length, 1);
+  assert.equal(S.findJointAttention([r], NOW, { MISSED_SESSIONS: 6 }, 'trainer').length, 0);
+  // And the nutritionist's own tuning moves theirs.
+  assert.equal(S.findJointAttention([r], NOW, { FOOD_GAP_DAYS: 7 }, 'nutritionist').length, 0);
+});
+
 test('joint attention reads training from missed sessions, never the streak', () => {
   const co = { coCoaches: [{ role: 'nutritionist', userId: 'n1', name: 'Rae' }, { role: 'trainer', userId: 't1', name: 'Alex' }], ...both };
   const gap = { foodLogs: { lastLoggedOn: ago(6), daysLogged7d: 1 } };

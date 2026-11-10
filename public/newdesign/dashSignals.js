@@ -808,16 +808,24 @@
   }
 
   // Goals-page rule: a projection slipping ≥ GOAL_SLIP_DAYS week-over-week
-  // emits one amber-weight flag naming the worst goal. Both pro feeds see it
+  // emits one amber-weight flag naming one goal (which, below). Both pro feeds see it
   // (either pro may have set the goal); skips cleanly when goals/history are
   // missing, and a goal that was ALWAYS stalled never had an ETA to slip.
-  function ruleGoalSlip(c, now) {
+  // A coach's flag names the worst slipped goal THEY own (goalOwned): a slipping weight goal that is
+  // the nutritionist's never hides a trainer's slipping squat. Only when none of theirs is past the
+  // line does it name the worst of all, which then reads as routed context. The member, who owns all
+  // their goals, gets the worst of all.
+  function ruleGoalSlip(c, now, role) {
     var gs = visibleGoals(c.goals);
-    var worst = null, worstGoal = null;
+    var coach = disciplineForRole(role) !== "general";
+    var worst = null, worstGoal = null, mine = null, mineGoal = null;
     for (var i = 0; i < gs.length; i++) {
       var s = goalSlipDays(gs[i], now);
-      if (s != null && s > 0 && (worst == null || s > worst)) { worst = s; worstGoal = gs[i]; }
+      if (s == null || !(s > 0)) continue;
+      if (worst == null || s > worst) { worst = s; worstGoal = gs[i]; }
+      if (coach && goalOwned(gs[i], role, c) && (mine == null || s > mine)) { mine = s; mineGoal = gs[i]; }
     }
+    if (mine != null && mine >= THRESHOLDS.GOAL_SLIP_DAYS) { worst = mine; worstGoal = mineGoal; }
     if (worst == null || worst < THRESHOLDS.GOAL_SLIP_DAYS) return null;
     // The goal's own name, or none when it is the untitled weight goal's English stand-in. A lost
     // date is `lost`, never an Infinity `days`, so the figures survive JSON.
@@ -847,6 +855,11 @@
   function goalDiscipline(g) {
     var m = g && typeof g.metric === "string" ? g.metric : "";
     return Object.prototype.hasOwnProperty.call(GOAL_METRIC_DISCIPLINE, m) ? GOAL_METRIC_DISCIPLINE[m] : null;
+  }
+  // Would this goal's slip be the viewing coach's own? tagFlag's test, on the goal before a flag exists.
+  function goalOwned(g, role, c) {
+    var owner = disciplineOwner(goalDiscipline(g) || "general");
+    return owner === null || disciplineForRole(owner) === disciplineForRole(role) || !hasPro(c, owner);
   }
 
   // Recovery rule: a 7-day average sleep MORE than SLEEP_DEFICIT_H hours under
@@ -1148,7 +1161,7 @@
     var ciFlag = ruleCheckinOverdue(c, now);
     if (ciFlag) flags.push(ciFlag);
     if ((f = ruleContactGap(c, now, role))) flags.push(f);
-    if ((f = ruleGoalSlip(c, now))) flags.push(f);
+    if ((f = ruleGoalSlip(c, now, role))) flags.push(f);
     if ((f = ruleSleepRecovery(c, now))) flags.push(f);
     // energy_low is the RECOVERY discipline, and follows sleep_low's established
     // pattern exactly: pushed for every viewer.
@@ -1801,6 +1814,14 @@
     }
     return null;
   }
+  // One side of joint attention, read at its own coach's line. The viewer's side keeps the set this
+  // runs in (their own tuning); the co-coach's side reads at that role's house defaults, since their
+  // tuning is theirs. Read inside the viewer's set, a trainer judged the nutrition side by their own
+  // 5-day food-log gap, and the two coaches disagreed on who needed a joint note.
+  function jointLeg(c, now, legRole, viewer) {
+    var run = function () { return evaluateClient(c, now, legRole).flags; };
+    return disciplineForRole(legRole) === disciplineForRole(viewer) ? run() : withThresholds(defaultsForRole(legRole), run);
+  }
   function findJointAttention(clients, now, thresholds, role) {
     if (thresholds) return withThresholds(thresholds, function () { return findJointAttention(clients, now, null, role); });
     if (!inScope()) return withThresholds(defaultsForRole(role), function () { return findJointAttention(clients, now, null, role); });
@@ -1810,8 +1831,8 @@
       var c = clients[i];
       var coCoach = coCoachFor(c, role);
       if (!coCoach) continue;
-      var training = evaluateClient(c, now, "trainer").flags.filter(isTrainingSlip);
-      var nutrition = evaluateClient(c, now, "nutritionist").flags.filter(function (f) { return NUTRITION_KEYS[f.key]; });
+      var training = jointLeg(c, now, "trainer", role).filter(isTrainingSlip);
+      var nutrition = jointLeg(c, now, "nutritionist", role).filter(function (f) { return NUTRITION_KEYS[f.key]; });
       if (training.length && nutrition.length) {
         out.push({ client: c, trainingFlags: training, nutritionFlags: nutrition, coCoach: coCoach,
           action: { kind: "care_team", label: "Start joint note" } });
