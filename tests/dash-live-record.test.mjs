@@ -147,9 +147,12 @@ test('the filled record lets the rules that were skipped actually fire', () => {
   };
   const rec = recordFromLive(ROW, dropping, null);
   const keys = DashSignals.evaluateClient(rec, now, 'trainer').flags.map((f) => f.key);
-  for (const k of ['score_drop', 'contact_gap', 'streak_broken']) {
+  for (const k of ['score_drop', 'contact_gap']) {
     assert.ok(keys.includes(k), 'expected ' + k + ' to fire on a filled record, got: ' + keys.join(', '));
   }
+  // The streak reaches the record; a broken one is the member's own flag, no coach's (2026-11-10).
+  assert.equal(rec.streaks.current, 0);
+  assert.ok(DashSignals.evaluateClient(rec, now, 'client').flags.some((f) => f.key === 'streak_broken'));
 });
 
 // ── _dashCoachNotes — the read behind coachNotes ─────────────────────────────

@@ -18,6 +18,8 @@ test('PREVIEW: protein well under target routes to the dietitian; the trainer se
   const c = {
     profile: { name: 'Priya S.' },
     nutrition: { avgProtein: 118, targetProtein: 175, avgCalories: 1900, targetCalories: 2000 },
+    // The week's days the averages are over (NUTRITION_MIN_DAYS, 2026-11-10).
+    foodLogs: { lastLoggedOn: '2026-06-15', daysLogged7d: 5 },
     pros: { trainer: true, nutritionist: true },
   };
   // Nutritionist OWNS it — actionable, with the plain-language reason, and it
@@ -43,19 +45,25 @@ test('PREVIEW: protein well under target routes to the dietitian; the trainer se
   assert.equal(tr.severity, 'green', "trainer severity unchanged — read-only doesn't escalate");
 });
 
-test('a training signal (streak broken) routes to the trainer; the nutritionist sees it READ-ONLY', () => {
-  const c = { profile: { name: 'Marcus T.' }, streaks: { current: 0, best: 8 }, pros: { trainer: true, nutritionist: true } };
-  const tr = row('trainer', c).flags.find((f) => f.key === 'streak_broken');
-  assert.equal(tr.discipline, 'training');
+test('a trainer\'s signal (a wearable\'s low recovery) routes to the trainer; the nutritionist sees it READ-ONLY', () => {
+  // (A broken streak was this case until 2026-11-10; it is no coach's flag now.)
+  const c = { profile: { name: 'Marcus T.' }, recovery: { recoveryScore: { avg7: 20, n: 5 } }, pros: { trainer: true, nutritionist: true } };
+  const tr = row('trainer', c).flags.find((f) => f.key === 'recovery_low');
+  assert.equal(tr.discipline, 'recovery');
   assert.equal(tr.owned, true);
   assert.equal(tr.routeTo, 'trainer');
-  const nut = row('nutritionist', c).flags.find((f) => f.key === 'streak_broken');
-  assert.ok(nut, 'nutritionist sees the streak flag');
+  const nut = row('nutritionist', c).flags.find((f) => f.key === 'recovery_low');
+  assert.ok(nut, 'nutritionist sees the recovery flag');
   assert.equal(nut.owned, false, 'but read-only — it routes to the trainer');
   assert.equal(nut.routeTo, 'trainer');
+  // …and a food-log gap is the nutritionist's: the trainer sees it read-only.
+  const gap = { profile: { name: 'Sam' }, foodLogs: { lastLoggedOn: '2026-06-09', daysLogged7d: 1 }, pros: { trainer: true, nutritionist: true } };
+  assert.equal(row('trainer', gap).flags.find((f) => f.key === 'food_gap').routeTo, 'nutritionist');
+  assert.equal(row('trainer', gap).flags.find((f) => f.key === 'food_gap').owned, false);
+  assert.equal(row('nutritionist', gap).flags.find((f) => f.key === 'food_gap').owned, true);
 });
 
-test('general signals (check-in, contact, goal, score, food-logging) are owned by whoever is viewing', () => {
+test('general signals (check-in, contact, sessions, score) are owned by whoever is viewing', () => {
   const c = { profile: { name: 'Sam R.' }, checkIn: { lastWeekOf: '2026-05-25' }, pros: { trainer: true, nutritionist: true } };
   for (const role of ['trainer', 'nutritionist']) {
     const ci = row(role, c).flags.find((f) => f.key === 'checkin_overdue');
@@ -70,6 +78,7 @@ test('one pro → everything routes to them (the nutrition flag is OWNED by a so
   const c = {
     profile: { name: 'Jamie' },
     nutrition: { avgProtein: 110, targetProtein: 175 },
+    foodLogs: { lastLoggedOn: '2026-06-15', daysLogged7d: 5 },
     pros: { trainer: true, nutritionist: false }, // solo trainer
   };
   // ⚠ P2: OWNED MEANS IT IS THEIRS TO ACT ON — so it is one of their flags, counted and alerted, not
@@ -83,10 +92,11 @@ test('one pro → everything routes to them (the nutrition flag is OWNED by a so
 });
 
 test('severity ordering is unchanged — the sort + thresholds still hold', () => {
+  const quiet = { trainer: '2026-06-07' }; // 9 days
   const clients = [
-    { profile: { name: 'Red' }, streaks: { current: 0, best: 8 }, foodLogs: { lastLoggedOn: '2026-06-10', daysLogged7d: 0 }, pros: { trainer: true } }, // 2 flags → red
-    { profile: { name: 'Amber' }, streaks: { current: 0, best: 8 }, pros: { trainer: true } }, // 1 flag → amber
-    { profile: { name: 'Green' }, streaks: { current: 6, best: 9 }, pros: { trainer: true } }, // 0 → green
+    { profile: { name: 'Red' }, lastContact: quiet, bookedSessions: { trainer: { done: 4, planned: 9 } }, pros: { trainer: true } }, // two areas → red
+    { profile: { name: 'Amber' }, lastContact: quiet, pros: { trainer: true } }, // 1 flag → amber
+    { profile: { name: 'Green' }, streaks: { current: 0, best: 9 }, pros: { trainer: true } }, // a broken streak is no coach's flag → green
   ];
   const feed = getTriageFeed('trainer', clients, NOW);
   assert.deepEqual(feed.map((r) => r.severity), ['red', 'amber', 'green']);

@@ -174,7 +174,7 @@ const engine = DashSignals as unknown as {
   buildDirective: (record: unknown, now?: Date, role?: string) => Directive;
   evaluateClient: (record: unknown, now?: Date, role?: string) => { flags: Flag[]; severity: string };
   getTriageFeed: (role: string, clients: unknown[], now?: Date, thresholds?: Record<string, number>) => TriageRow[];
-  resolveThresholds: (o: unknown) => { thresholds: Record<string, number>; applied: Record<string, number>; refused: { key: string; why: string }[] };
+  resolveThresholds: (o: unknown, role?: string) => { thresholds: Record<string, number>; applied: Record<string, number>; refused: { key: string; why: string }[] };
 };
 
 // The client a coach record names: the snapshot's `userId` (DashSignals.engineSnapshot), else its id,
@@ -316,13 +316,15 @@ export async function readUserGoal(client: SupabaseClient, userId: string, kind:
 // ⚠ THE STORED DOCUMENT IS RE-VALIDATED HERE, not trusted. It is written by a
 // browser panel, so an out-of-range or non-numeric entry must be refused server-side
 // too; `resolveThresholds` drops those back to the house value rather than clamping.
+// ⚠ AND RESOLVED FOR THE ROLE THE ROSTER IS (`role`): the house values under the tuning are that
+// role's (a trainer's food-log gap is 5 days), so a coach with both listings gets each roster's own.
 export async function loadCoachThresholds(
-  client: SupabaseClient, userId: string,
+  client: SupabaseClient, userId: string, role?: string,
 ): Promise<Record<string, number> | null> {
   const doc = await readUserGoal(client, userId, 'coach_settings');
   const t = doc && typeof doc.thresholds === 'object' ? doc.thresholds : null;
   if (!t) return null;
-  try { return engine.resolveThresholds(t).thresholds; } catch { return null; }
+  try { return engine.resolveThresholds(t, role).thresholds; } catch { return null; }
 }
 
 export async function writeUserGoal(client: SupabaseClient, userId: string, kind: string, value: unknown): Promise<void> {

@@ -45,33 +45,38 @@ const clean = (over = {}) => ({
 
 const keys = (r) => r.flags.map((f) => f.key).sort();
 
-// ── streak_broken ────────────────────────────────────────────────────────────
+// ── streak_broken (the member's own view; no coach's flag since 2026-11-10) ──
 test("streak broken fires when current=0 and a real streak existed", () => {
-  const r = evaluateClient(clean({ streaks: { current: 0, best: 12 } }), NOW, "trainer");
+  const r = evaluateClient(clean({ streaks: { current: 0, best: 12 } }), NOW, "client");
   assert.deepEqual(keys(r), ["streak_broken"]);
   assert.equal(r.severity, "amber");
   assert.match(r.flags[0].reason, /12 days/);
+  for (const role of ["trainer", "nutritionist"]) assert.deepEqual(keys(evaluateClient(clean({ streaks: { current: 0, best: 12 } }), NOW, role)), [], role);
 });
 test("streak NOT broken when best below minimum", () => {
-  const r = evaluateClient(clean({ streaks: { current: 0, best: THRESHOLDS.STREAK_MIN_BEST - 1 } }), NOW, "trainer");
+  const r = evaluateClient(clean({ streaks: { current: 0, best: THRESHOLDS.STREAK_MIN_BEST - 1 } }), NOW, "client");
   assert.deepEqual(keys(r), []);
 });
 test("missing streaks skips the rule (no false alarm on live data)", () => {
-  const r = evaluateClient(clean({ streaks: null }), NOW, "trainer");
+  const r = evaluateClient(clean({ streaks: null }), NOW, "client");
   assert.deepEqual(keys(r), []);
   assert.equal(r.severity, "green");
 });
 
-// ── score_drop ───────────────────────────────────────────────────────────────
+// ── score_drop (the member's absolute points; a coach's is relative, tests/coach-flags-by-role) ──
 test("score drop fires exactly at the threshold", () => {
   const hist = [{ weekOf: mondaysAgo(1), points: 70 }, { weekOf: mondaysAgo(0), points: 70 - THRESHOLDS.SCORE_DROP_PTS }];
-  const r = evaluateClient(clean({ shapeScoreHistory: hist }), NOW, "trainer");
+  const r = evaluateClient(clean({ shapeScoreHistory: hist }), NOW, "client");
   assert.deepEqual(keys(r), ["score_drop"]);
   assert.match(r.flags[0].reason, new RegExp(THRESHOLDS.SCORE_DROP_PTS + " pts"));
+  // A coach's: SCORE_DROP_PCT of the week before, so the same 5 points (7%) is no flag.
+  assert.deepEqual(keys(evaluateClient(clean({ shapeScoreHistory: hist }), NOW, "trainer")), []);
+  const pct = [{ weekOf: mondaysAgo(1), points: 70 }, { weekOf: mondaysAgo(0), points: 70 - Math.ceil(70 * THRESHOLDS.SCORE_DROP_PCT / 100) }];
+  assert.deepEqual(keys(evaluateClient(clean({ shapeScoreHistory: pct }), NOW, "trainer")), ["score_drop"]);
 });
 test("score drop below threshold does not fire", () => {
   const hist = [{ weekOf: mondaysAgo(1), points: 70 }, { weekOf: mondaysAgo(0), points: 70 - THRESHOLDS.SCORE_DROP_PTS + 1 }];
-  const r = evaluateClient(clean({ shapeScoreHistory: hist }), NOW, "trainer");
+  const r = evaluateClient(clean({ shapeScoreHistory: hist }), NOW, "client");
   assert.deepEqual(keys(r), []);
 });
 test("single-entry or missing history skips the rule", () => {
@@ -81,8 +86,11 @@ test("single-entry or missing history skips the rule", () => {
 
 // ── food_gap ─────────────────────────────────────────────────────────────────
 test("food gap fires at exactly N days, not before", () => {
-  assert.deepEqual(keys(evaluateClient(clean({ foodLogs: { lastLoggedOn: ago(THRESHOLDS.FOOD_GAP_DAYS), daysLogged7d: 4 } }), NOW, "trainer")), ["food_gap"]);
-  assert.deepEqual(keys(evaluateClient(clean({ foodLogs: { lastLoggedOn: ago(THRESHOLDS.FOOD_GAP_DAYS - 1), daysLogged7d: 4 } }), NOW, "trainer")), []);
+  // The house policy is the nutritionist's (and the member's); a trainer's house value is 5 days.
+  assert.deepEqual(keys(evaluateClient(clean({ foodLogs: { lastLoggedOn: ago(THRESHOLDS.FOOD_GAP_DAYS), daysLogged7d: 4 } }), NOW, "nutritionist")), ["food_gap"]);
+  assert.deepEqual(keys(evaluateClient(clean({ foodLogs: { lastLoggedOn: ago(THRESHOLDS.FOOD_GAP_DAYS - 1), daysLogged7d: 4 } }), NOW, "nutritionist")), []);
+  assert.deepEqual(keys(evaluateClient(clean({ foodLogs: { lastLoggedOn: ago(5), daysLogged7d: 2 } }), NOW, "trainer")), ["food_gap"]);
+  assert.deepEqual(keys(evaluateClient(clean({ foodLogs: { lastLoggedOn: ago(4), daysLogged7d: 3 } }), NOW, "trainer")), []);
 });
 test("no last-log date: empty week flags, partial week skips (approximation)", () => {
   assert.deepEqual(keys(evaluateClient(clean({ foodLogs: { lastLoggedOn: null, daysLogged7d: 0 } }), NOW, "trainer")), ["food_gap"]);
@@ -127,7 +135,7 @@ test("contact gap fires at the threshold for the viewing pro only", () => {
 test("client view uses the most recent contact from any pro", () => {
   const c = clean({ lastContact: { trainer: ago(9), nutritionist: ago(2) } });
   assert.deepEqual(keys(evaluateClient(c, NOW, "client")), []);
-  const c2 = clean({ lastContact: { trainer: ago(9), nutritionist: ago(6) } });
+  const c2 = clean({ lastContact: { trainer: ago(9), nutritionist: ago(8) } });
   assert.deepEqual(keys(evaluateClient(c2, NOW, "client")), ["contact_gap"]);
 });
 test("missing lastContact skips the rule", () => {
@@ -135,13 +143,23 @@ test("missing lastContact skips the rule", () => {
 });
 
 // ── severity mapping ─────────────────────────────────────────────────────────
-test("two flags escalate to red", () => {
+test("flags in two areas escalate a coach's row to red; two in one area stay amber", () => {
   const r = evaluateClient(clean({
-    streaks: { current: 0, best: 10 },
-    foodLogs: { lastLoggedOn: ago(5), daysLogged7d: 1 },
+    lastContact: { trainer: ago(8), nutritionist: ago(1) },
+    bookedSessions: { trainer: { done: 4, planned: 9 } },
   }), NOW, "trainer");
-  assert.equal(r.flags.length, 2);
+  assert.deepEqual(keys(r), ["contact_gap", "missed_sessions"]);
   assert.equal(r.severity, "red");
+  const one = evaluateClient(clean({
+    foodLogs: { lastLoggedOn: ago(4), daysLogged7d: 4 },
+    nutrition: { avgCalories: 2600, targetCalories: 2000 },
+  }), NOW, "nutritionist");
+  assert.deepEqual(keys(one), ["food_gap", "ledger_blown"]);
+  assert.equal(one.severity, "amber");
+  // The member's own view: two flags are red, as before.
+  const member = evaluateClient(clean({ streaks: { current: 0, best: 10 }, foodLogs: { lastLoggedOn: ago(5), daysLogged7d: 1 } }), NOW, "client");
+  assert.equal(member.flags.length, 2);
+  assert.equal(member.severity, "red");
 });
 test("a fully-null live record is green (engine never invents flags)", () => {
   const bare = { profile: { id: "x", name: "Sparse", isNew: false }, trainingAdherence: null, foodLogs: null, shapeScoreHistory: null, weighIns: null, streaks: null, lastContact: null, checkIn: null, goalPhase: null, milestones: null, payments: null };
@@ -169,17 +187,25 @@ test("the mock personas hit their designed severities", () => {
   assert.equal(by["Jordan M."].severity, "green");
   assert.equal(by["Priya S."].severity, "green");
   assert.equal(by["Aisha K."].severity, "amber");
-  assert.equal(by["Elena R."].severity, "amber");
-  assert.equal(by["Deandre K."].severity, "amber");
-  assert.equal(by["Nadia P."].severity, "amber");
+  // A coach's score drop is context (2026-11-10): Elena's 23% shows and never colours her row.
+  assert.equal(by["Elena R."].severity, "green");
+  assert.deepEqual(keys(by["Elena R."]), ["score_drop"]);
+  // Deandre's 3-day food-log gap is under a trainer's 5, and the nutritionist's anyway.
+  assert.equal(by["Deandre K."].severity, "green");
+  // Nadia's weight goal is the nutritionist's: the trainer sees its slip as context.
+  assert.equal(by["Nadia P."].severity, "green");
   assert.deepEqual(keys(by["Nadia P."]), ["goal_slip"]);
+  assert.equal(by["Nadia P."].flags[0].owned, false);
   assert.equal(by["Marcus T."].severity, "red");
   assert.equal(by["Sam R."].severity, "red");
   assert.equal(by["Jonah W."].severity, "red");
-  assert.deepEqual(keys(by["Marcus T."]), ["food_gap", "score_drop", "streak_broken"]);
-  // Sam (9/14) and Jonah (10/14) are also the missed-sessions cases (P2): booked sessions in the
-  // last six weeks that were never completed, at or over the house 3.
-  assert.deepEqual(keys(by["Sam R."]), ["contact_gap", "food_gap", "missed_sessions"]);
+  // Red is two areas: Marcus's missed sessions and his short sleep (the food gap is the
+  // nutritionist's, the score drop context); Sam's missed sessions and quiet thread; Jonah's three
+  // missed check-ins alone.
+  assert.deepEqual(keys(by["Marcus T."]), ["food_gap", "missed_sessions", "score_drop", "sleep_low"]);
+  // Marcus (5/9), Sam (9/14) and Jonah (10/14) are the missed-sessions cases (P2): booked sessions in
+  // the last six weeks that were never completed, at or over the house 3.
+  assert.deepEqual(keys(by["Sam R."]), ["contact_gap", "missed_sessions"]);
   assert.deepEqual(keys(by["Jonah W."]), ["checkin_overdue", "missed_sessions"]);
   // Tess B. is the brand-new client: green, isNew, and her missing first
   // check-in is excused by the new-client pass.
@@ -191,10 +217,10 @@ test("flags carry short pill labels in the spec format", () => {
   const feed = getTriageFeed("trainer", buildMockClients(NOW), NOW);
   const by = Object.fromEntries(feed.map((r) => [r.client.profile.name, r]));
   const labels = (r) => r.flags.map((f) => f.label).sort();
-  assert.deepEqual(labels(by["Marcus T."]), ["No logs 3d", "Score ↓8", "Streak broken"]);
-  assert.deepEqual(labels(by["Sam R."]), ["Missed 5", "No logs 4d", "Quiet 7d"]);
+  assert.deepEqual(labels(by["Marcus T."]), ["Missed 4", "No logs 5d", "Score ↓23%", "Sleep low"]);
+  assert.deepEqual(labels(by["Sam R."]), ["Missed 5", "Quiet 7d"]);
   assert.deepEqual(labels(by["Jonah W."]), ["Check-in 3w late", "Missed 4"]);
-  assert.deepEqual(labels(by["Elena R."]), ["Score ↓7"]);
+  assert.deepEqual(labels(by["Elena R."]), ["Score ↓23%"]);
   assert.deepEqual(labels(by["Nadia P."]), ["Goal ETA +15d"]);
   for (const r of feed) for (const f of r.flags) assert.ok(f.label && f.label.length <= 18, f.key + " label fits a pill");
 });
@@ -206,7 +232,8 @@ test("mock personas are stable on any weekday (no grace-dependent flips)", () =>
     assert.equal(by["Marcus T."], "red", "Marcus red on day " + d);
     assert.equal(by["Jonah W."], "red", "Jonah red on day " + d);
     assert.equal(by["Jordan M."], "green", "Jordan green on day " + d);
-    assert.equal(by["Nadia P."], "amber", "Nadia amber on day " + d + " (goal slip is date-relative)");
+    const nby = Object.fromEntries(getTriageFeed("nutritionist", buildMockClients(now), now).map((r) => [r.client.profile.name, r.severity]));
+    assert.equal(nby["Nadia P."], "amber", "Nadia amber for her nutritionist on day " + d + " (goal slip is date-relative)");
   }
 });
 
@@ -258,16 +285,17 @@ test("protein under fires at -15% with value+target; skips without a target", ()
   assert.deepEqual(keys(evaluateClient(noTarget, NOW, "nutritionist")), []);
   assert.deepEqual(keys(evaluateClient(clean({ nutrition: null }), NOW, "nutritionist")), []);
 });
-test("nutritionist persona feed: Deandre red (logs+ledger), Priya amber (protein); trainer feed unchanged", () => {
+test("nutritionist persona feed: Deandre amber (logs+ledger, one area), Priya amber (protein); the trainer's green", () => {
   const nf = getTriageFeed("nutritionist", buildMockClients(NOW), NOW);
   const nby = Object.fromEntries(nf.map((r) => [r.client.profile.name, r]));
-  assert.equal(nby["Deandre K."].severity, "red");
+  assert.equal(nby["Deandre K."].severity, "amber");
   assert.deepEqual(keys(nby["Deandre K."]), ["food_gap", "ledger_blown"]);
   assert.equal(nby["Priya S."].severity, "amber");
   assert.deepEqual(keys(nby["Priya S."]), ["protein_under"]);
+  assert.equal(nby["Marcus T."].severity, "amber", "his food-log gap is hers; his sleep is the trainer's");
   const tf = getTriageFeed("trainer", buildMockClients(NOW), NOW);
   const tby = Object.fromEntries(tf.map((r) => [r.client.profile.name, r.severity]));
-  assert.equal(tby["Deandre K."], "amber");
+  assert.equal(tby["Deandre K."], "green");
   assert.equal(tby["Priya S."], "green");
 });
 
@@ -300,10 +328,14 @@ test("milestones skip cleanly on a sparse record", () => {
 // ── joint attention (step 9.2) ──────────────────────────────────────────────
 test("joint attention requires a training-domain AND a nutrition-domain flag", () => {
   // Each with a nutritionist on the care team (P2: joint attention needs a real co-coach).
+  // Training is the trainer's own missed sessions (the broken streak was, until 2026-11-10); nutrition
+  // a food-log gap past the viewing trainer's 5 days.
   const team = { coCoaches: [{ role: "nutritionist", userId: "rae", name: "Rae" }] };
-  const joint = clean({ ...team, streaks: { current: 0, best: 10 }, foodLogs: { lastLoggedOn: ago(4), daysLogged7d: 2 } });
-  const trainingOnly = clean({ ...team, streaks: { current: 0, best: 10 } });
-  const nutritionOnly = clean({ ...team, foodLogs: { lastLoggedOn: ago(4), daysLogged7d: 2 } });
+  const missed = { bookedSessions: { trainer: { done: 4, planned: 9 } } };
+  const gap = { foodLogs: { lastLoggedOn: ago(6), daysLogged7d: 1 } };
+  const joint = clean({ ...team, ...missed, ...gap });
+  const trainingOnly = clean({ ...team, ...missed });
+  const nutritionOnly = clean({ ...team, ...gap });
   const res = findJointAttention([joint, trainingOnly, nutritionOnly], NOW, null, "trainer");
   assert.equal(res.length, 1);
   assert.equal(res[0].client, joint);
@@ -371,7 +403,7 @@ test("the directive leads with the most urgent flag, not push order (S3-5)", () 
   const rec = clean({
     shapeScoreHistory: [
       { weekOf: mondaysAgo(1), points: 80 },
-      { weekOf: mondaysAgo(0), points: 70 }, // drop 10 ≥ SCORE_DROP_PTS → fires first in push order
+      { weekOf: mondaysAgo(0), points: 60 }, // a 25% drop ≥ a coach's SCORE_DROP_PCT → fires first in push order
     ],
     checkIn: { lastWeekOf: mondaysAgo(10) }, // months-late check-in
   });

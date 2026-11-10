@@ -109,15 +109,34 @@ const CST_SECTION_KEYS = CST_SECTIONS.map((s) => s.key);
 // A section's cards side by side on a wide screen, one column on a narrow one.
 const CST_GRID = { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 420px), 1fr))", gap: 16, alignItems: "start" };
 
-// Thirteen flag numbers read as four questions. The ROWS still come from DashSignals.TUNABLES: a group
-// only names keys, so a threshold the engine adds lands under "More" rather than going missing, and one
-// it drops is skipped rather than offered.
-const CST_FLAG_GROUPS = [
-  { key: "contact", icon: "contact", label: "Logging & contact", blurb: "When a client goes quiet, or is waiting on you.", keys: ["FOOD_GAP_DAYS", "CONTACT_GAP_DAYS", "REPLY_WAIT_HOURS"] },
-  { key: "checkins", icon: "checkins", label: "Check-ins & sessions", blurb: "When the weekly rhythm slips.", keys: ["CHECKIN_GRACE_DAYS", "CHECKIN_RED_WEEKS", "MISSED_SESSIONS"] },
-  { key: "body", icon: "body", label: "Nutrition & recovery", blurb: "When intake, sleep or recovery runs off target.", keys: ["LEDGER_OVER_PCT", "PROTEIN_UNDER_PCT", "SLEEP_DEFICIT_H", "RECOVERY_LOW"] },
-  { key: "progress", icon: "progress", label: "Programs & progress", blurb: "When results stall or a program runs out.", keys: ["SCORE_DROP_PTS", "GOAL_SLIP_DAYS", "PROGRAM_END_DAYS"] },
-];
+// The flag numbers read as a few questions, and each coach's own first (owner, 2026-11-10: "make sure
+// these are relevant to each coach. Trainer vs nutritionist"). The ROWS still come from the engine
+// (DashSignals.tunablesFor: the ones this role's evaluation reads, in its words, with its house
+// values): a group only names keys, so a threshold the engine adds lands under "More" rather than
+// going missing, and one it drops is skipped rather than offered. A role's own groups come first; the
+// last are the ones another coach owns while they're on the client, and the context a coach sees and
+// never counts.
+const CST_FLAG_CONTACT = { key: "contact", icon: "contact", label: "Contact & check-ins", blurb: "When a client goes quiet, misses the weekly check-in, or is waiting on you.", keys: ["CONTACT_GAP_DAYS", "REPLY_WAIT_HOURS", "CHECKIN_GRACE_DAYS", "CHECKIN_RED_WEEKS"] };
+const CST_FLAG_CONTEXT = { key: "context", icon: "example", label: "Context · shown, never counted", blurb: "On the client so you can ask about it. It never colours a row or sends an alert.", keys: ["SCORE_DROP_PCT"] };
+const CST_FLAG_GROUPS_BY_ROLE = {
+  trainer: [
+    { key: "training", icon: "training", label: "Training & sessions", blurb: "When sessions slip, a program runs out, or a strength or endurance goal stalls.", keys: ["MISSED_SESSIONS", "PROGRAM_END_DAYS", "GOAL_SLIP_DAYS"] },
+    { key: "recovery", icon: "recovery", label: "Recovery", blurb: "When sleep or a wearable's recovery runs low, so you can ease the load.", keys: ["SLEEP_DEFICIT_H", "RECOVERY_LOW"] },
+    CST_FLAG_CONTACT,
+    { key: "nutrition", icon: "nutrition", label: "Nutrition · when you're their only coach", blurb: "With a nutritionist on the client these are theirs, and you see them as context. Without one they're yours, and calories and protein never turn a row red.", keys: ["FOOD_GAP_DAYS", "LEDGER_OVER_PCT", "PROTEIN_UNDER_PCT"] },
+    CST_FLAG_CONTEXT,
+  ],
+  nutritionist: [
+    { key: "intake", icon: "nutrition", label: "Logging & intake", blurb: "When logging thins out, or intake runs off the plan's targets.", keys: ["FOOD_GAP_DAYS", "FOOD_LOG_DAYS", "LEDGER_OVER_PCT", "PROTEIN_UNDER_PCT"] },
+    { key: "plans", icon: "progress", label: "Plans & progress", blurb: "When a plan runs out, a weight goal stalls, or your sessions slip.", keys: ["PROGRAM_END_DAYS", "GOAL_SLIP_DAYS", "MISSED_SESSIONS"] },
+    CST_FLAG_CONTACT,
+    { key: "recovery", icon: "recovery", label: "Recovery · the trainer's when one is on", blurb: "Sleep and recovery are the trainer's to act on. When you're the client's only coach, they're yours.", keys: ["SLEEP_DEFICIT_H", "RECOVERY_LOW"] },
+    CST_FLAG_CONTEXT,
+  ],
+};
+function cstFlagGroups(role) {
+  return CST_FLAG_GROUPS_BY_ROLE[role === "nutritionist" || role === "dietitian" ? "nutritionist" : "trainer"];
+}
 // The notification switches under four headings. CST_COACH_TYPES stays the list of rows, with the
 // same rule: a type no group names lands under "More".
 const CST_NOTIFY_GROUPS = [
@@ -168,6 +187,9 @@ const CST_ICONS = {
   switches: "M4 6h7M14 6h2M4 14h2M9 14h7M12.5 4.3v3.4M7.5 12.3v3.4",
   zone: "M10 3a7 7 0 1 1 0 14 7 7 0 0 1 0-14zM3 10h14M10 3c2 2 3 4.5 3 7s-1 5-3 7c-2-2-3-4.5-3-7s1-5 3-7z",
   calendar: "M4 6a1.5 1.5 0 0 1 1.5-1.5h9A1.5 1.5 0 0 1 16 6v8.5a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 4 14.5zM4 8.5h12M7.5 3v3M12.5 3v3",
+  training: "M3 8v4M5.5 6.5v7M14.5 6.5v7M17 8v4M5.5 10h9",
+  recovery: "M15.5 12.5A6 6 0 0 1 7.5 4.5a6 6 0 1 0 8 8z",
+  nutrition: "M10 4a6 6 0 1 1 0 12 6 6 0 0 1 0-12zM10 7.5a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5z",
 };
 function cstIcon(name) {
   const d = CST_ICONS[name];
@@ -297,10 +319,11 @@ function CoachSettingsPage({ role }) {
   const live = signedIn === true;
   const store = useCoachDoc("coach_settings", live, acct);
   const doc = store.doc || {};
-  // Every tunable, for every role: see the note on TUNABLES — the engine routes flags
-  // by ownership rather than evaluating a different rule set, so a threshold hidden
-  // from a role still moved what that role saw.
-  const tunables = DashSignals.TUNABLES || [];
+  // The tunables this role's evaluation reads, in its words and with its house values: see the note on
+  // TUNABLES — the engine routes flags by ownership rather than evaluating a different rule set, so
+  // every threshold that moves what a role sees is on its page (tunablesFor drops only one no
+  // evaluation of this role reads).
+  const tunables = typeof DashSignals.tunablesFor === "function" ? DashSignals.tunablesFor(role) : (DashSignals.TUNABLES || []);
   const landing = cstLandingOptions(role);
   // The paper (light by default, the previous dark tones one tap away) is the
   // account's, shared with the app through app_tweaks — dashData.jsx's own hook.
@@ -410,7 +433,8 @@ function CoachSettingsPage({ role }) {
     // A stored value the engine refused is NOT a tuning — the roster runs on the house default, so
     // the row must say so rather than showing the refused number in teal as if it were live.
     const isTuned = val != null && !wasRefused;
-    const house = DashSignals.DEFAULT_THRESHOLDS[t.key];
+    // This role's house value (a trainer's food-log gap is 5 days, a nutritionist's 3).
+    const house = t.house != null ? t.house : DashSignals.DEFAULT_THRESHOLDS[t.key];
     const shown = isTuned ? val : house;
     return (
       <div key={t.key} style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap", paddingTop: 14, marginTop: 14, borderTop: "1px solid var(--sh-line, #302c27)" }}>
@@ -442,7 +466,7 @@ function CoachSettingsPage({ role }) {
       </div>
     );
   };
-  const flagGroups = cstGrouped(CST_FLAG_GROUPS, tunables, (t) => t.key, { key: "more", label: "More", blurb: "" });
+  const flagGroups = cstGrouped(cstFlagGroups(role), tunables, (t) => t.key, { key: "more", label: "More", blurb: "" });
 
   return (
     <React.Fragment>
@@ -539,13 +563,17 @@ function CoachSettingsPage({ role }) {
                       options here"). */}
                   <div style={{ marginTop: 12, fontSize: 13, color: CST_INK, lineHeight: 1.55, maxWidth: 760 }}>
                     Each number decides when a client is flagged to you: in Needs you on Today, on your
-                    Clients list, and in your red and amber alerts. The House chip shows Shape's default;
-                    it lights up once you change a number, and a tap on it puts the default back.
+                    Clients list, and in your red and amber alerts. One flag makes a client amber. Red takes
+                    flags in two different areas (training and contact, say), a yes on the health screening,
+                    or check-ins missed for weeks. The House chip shows Shape's default
+                    for {role === "nutritionist" ? "nutritionists" : "trainers"}; it lights up once you
+                    change a number, and a tap on it puts the default back.
                   </div>
                   <div style={{ marginTop: 8, fontSize: 11.5, color: CST_INK50, lineHeight: 1.5, maxWidth: 760 }}>
                     {/* The line that stops a coach reading these as a way to see more. */}
                     A flag still needs real logged days behind it — these move the line, they never
-                    invent evidence. A client who logs nothing is never flagged for logging nothing.
+                    invent evidence. Calories and protein wait for 4 logged days in the week, and a
+                    score drop for a week of 30 points or more.
                   </div>
                 </React.Fragment>
               )}
