@@ -307,6 +307,11 @@ export async function undoChange({ registry, auditId, actor, ctx, audit }) {
         });
       }
     }
+    // ⚠ THE ACTION'S OWN REFUSAL IS MARKED (Codex on #2678): its words ("Changed since — nothing
+    // undone.") are for the card, as an apply's are (execute_failed, above), and the undo route
+    // answers them with a 409. The audit sink's failures (the claim, the legacy mark) are thrown
+    // outside this catch, unmarked: they name the database and stay a plain server error.
+    if (e && typeof e === 'object') { try { Object.defineProperty(e, 'undoRefused', { value: true }); } catch { /* a frozen error stays unmarked */ } }
     throw e;
   }
   if (claimed) {

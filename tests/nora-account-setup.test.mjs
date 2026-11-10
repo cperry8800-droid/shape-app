@@ -856,6 +856,12 @@ test('route: a drafted card outlives a failed or wordless follow-up; with no car
   const res = await (await none.mod.POST(chat('hello'))).json();
   assert.ok(!(res.actions || []).some((a) => a.type === 'proposal'));
   assert.notEqual(res.reply, 'Here it is to review. Nothing changes until you confirm.', 'no card, no card line');
+  // Codex on #2678: coach links (or a memory chip) are actions with nothing to confirm, so the
+  // card line never speaks for them; the turn falls back as it always did.
+  const links = await loadChat({ answers: [call('recommend_coaches', { focus: 'strength', kind: 'trainer' }), { fail: true }] });
+  const lr = await (await links.mod.POST(chat('find me a strength trainer online'))).json();
+  assert.ok(!(lr.actions || []).some((a) => a.type === 'proposal'));
+  assert.notEqual(lr.reply, 'Here it is to review. Nothing changes until you confirm.', 'coach links are not a card');
 });
 
 test('undo route: a refused undo says why (409 and its reason), not a bare 500', async () => {
@@ -867,15 +873,37 @@ test('undo route: a refused undo says why (409 and its reason), not a bare 500',
     ['@/lib/require-membership', { requireMembership: async () => null }],
   ]) });
   const req = () => new Request('https://x/api/ai/audit/undo', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ auditId: 'a1' }) });
-  const refused = await load(async () => { throw new Error('Changed since — nothing undone.'); });
+  // undoChange marks the action's own refusal (see the next test).
+  const marked = (msg) => Object.defineProperty(new Error(msg), 'undoRefused', { value: true });
+  const refused = await load(async () => { throw marked('Changed since — nothing undone.'); });
   const r1 = await refused.POST(req());
   assert.equal(r1.status, 409);
   assert.deepEqual(await r1.json(), { error: 'undo_failed', message: 'Changed since — nothing undone.' });
+  // Codex on #2678: an audit failure names the database; it is never sent to the card.
+  const infra = await load(async () => { throw new Error('ai_audit undo claim failed: relation "ai_action_audit" does not exist'); });
+  await assert.rejects(() => infra.POST(req()), /ai_audit undo claim failed/, 'a server error, not a 409 with its words');
   const ok = await load(async () => ({ ok: true, undoneBy: ME }));
   const r2 = await ok.POST(req());
   assert.equal(r2.status, 200);
   const gone = await load(async () => ({ ok: false, error: 'audit_not_found' }));
   assert.equal((await gone.POST(req())).status, 404);
+});
+
+test('undoChange marks only the action\'s own refusal; an audit failure stays unmarked', async () => {
+  const registry = proposals.createRegistry();
+  registry.define('refuses', { undo: async () => { throw new Error('Changed since — nothing undone.'); } });
+  const entry = { actorUserId: ME, actorRole: 'client', status: 'applied', action: 'refuses', target: null, beforeState: {}, afterState: {}, confirmedPayload: {} };
+  let released = 0;
+  const audit = { get: async () => entry, claimUndo: async () => true, releaseUndo: async () => { released += 1; } };
+  const actor = { id: ME, role: 'client' };
+  const e1 = await proposals.undoChange({ registry, auditId: 'a1', actor, ctx: {}, audit }).then(() => null, (e) => e);
+  assert.equal(e1 && e1.message, 'Changed since — nothing undone.');
+  assert.equal(e1.undoRefused, true, 'the action\'s refusal is marked');
+  assert.equal(released, 1, 'and the claim is handed back');
+  const broken = { ...audit, claimUndo: async () => { throw new Error('ai_audit undo claim failed: permission denied'); } };
+  const e2 = await proposals.undoChange({ registry, auditId: 'a1', actor, ctx: {}, audit: broken }).then(() => null, (e) => e);
+  assert.match(e2 && e2.message, /ai_audit undo claim failed/);
+  assert.notEqual(e2.undoRefused, true, 'an audit failure is not marked');
 });
 
 test('the app\'s card: Confirm and Undo carry the session\'s token at the tap, and Undo says the route\'s reason', () => {

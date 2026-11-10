@@ -1247,6 +1247,8 @@ async function askOpenAI(
     ...recent,
   ];
   const actions: SupportAction[] = [];
+  // Whether a confirm card was drawn this turn (CARD_ONLY_REPLY speaks only for one).
+  const hasCard = () => actions.some((a) => a.type === 'proposal');
   // Cook Mode: no tools at all. A member: the base tools, the member action +
   // memory tools, the READ tools, for a coach the two coach lookups, and for a
   // trainer draft_workout.
@@ -1297,8 +1299,10 @@ async function askOpenAI(
     const result = await callAI(body, { promptId: 'support.chat', signal, effort: 'low', verbosity: 'low', ...(onText ? { onText } : {}) });
     // ⚠ A DRAFTED CARD OUTLIVES A FAILED FOLLOW-UP (2026-11-10): the card was drawn, signed and
     // counted against the budget in an earlier round; dropping it with the reply lost it. Nothing
-    // is applied before Confirm, so the card goes out with a plain line instead.
-    if (!result.ok) return actions.length ? { reply: CARD_ONLY_REPLY, actions, model: answeredBy } : null;
+    // is applied before Confirm, so the card goes out with a plain line instead. Only a card: a
+    // coach link or a memory chip has nothing to confirm, and the line would say it had (Codex on
+    // #2678), so a turn with no card falls back as it always did.
+    if (!result.ok) return hasCard() ? { reply: CARD_ONLY_REPLY, actions, model: answeredBy } : null;
     answeredBy = result.model;
     if (result.fellBack) pinnedModel = result.model;
     const payload = result.data as OpenAIResponsePayload;
@@ -1307,7 +1311,7 @@ async function askOpenAI(
     const budgetLeft = toolCalls < MAX_TOOL_CALLS;
     if (calls.length === 0 || round === MAX_MODEL_ROUNDS - 1 || !budgetLeft) {
       const reply = plainText(extractOutputText(payload));
-      return reply ? { reply, actions, model: answeredBy } : actions.length ? { reply: CARD_ONLY_REPLY, actions, model: answeredBy } : null;
+      return reply ? { reply, actions, model: answeredBy } : hasCard() ? { reply: CARD_ONLY_REPLY, actions, model: answeredBy } : null;
     }
     if (shownThisRound && sink) sink.reset();
     // What she is looking up, so the panel says so instead of three dots (noraStatus.mjs).
