@@ -54,6 +54,32 @@ test('announce composes over the shell location; null clears', () => {
   assert.deepEqual(bsNavCompose({ tab: 'me' }), { tab: 'me' });
 });
 
+// Each surface announces under its own key (Codex P2 on #2683): an overlay closing over a page clears only
+// its own, so the page's survives for the next push; a push merges every live one, the later winning a key.
+test('announce is keyed: an overlay closing over a page leaves the page\'s, and the newer wins a shared key', () => {
+  bsNavClear();
+  bsNavAnnounce({ detail: { clientId: 'c1' } }, 'clients');
+  bsNavAnnounce({ sub: 'integrations' }, 'settings');
+  assert.deepEqual(bsNavCompose({ tab: 'clients', overlay: 'settings' }),
+    { tab: 'clients', overlay: 'settings', detail: { clientId: 'c1' }, sub: 'integrations' }, 'both, while Settings is open');
+  bsNavAnnounce(null, 'settings');
+  assert.deepEqual(bsNavCompose({ tab: 'clients' }), { tab: 'clients', detail: { clientId: 'c1' } }, 'Settings closing leaves the client');
+  assert.deepEqual(bsNavAnnounced('clients'), { detail: { clientId: 'c1' } });
+  assert.equal(bsNavAnnounced('settings'), null);
+  // A page and the overlay over it share `sub`: the overlay, announced later, wins while it is open.
+  bsNavAnnounce({ sub: 'goals' }, 'home');
+  bsNavAnnounce({ sub: 'edit-profile' }, 'settings');
+  assert.equal(bsNavCompose({ tab: 'home', overlay: 'settings' }).sub, 'edit-profile');
+  bsNavAnnounce(null, 'settings');
+  assert.equal(bsNavCompose({ tab: 'home' }).sub, 'goals');
+  // The same key replaces its own, and the bare call (no key) still works as one slot of its own.
+  bsNavAnnounce({ sub: 'habits' }, 'home');
+  assert.equal(bsNavCompose({ tab: 'home' }).sub, 'habits');
+  bsNavAnnounce(null, 'home'); bsNavAnnounce(null, 'clients');
+  assert.equal(bsNavAnnounced(), null);
+  bsNavClear();
+});
+
 test('bsNavClear resets the announce register as well as the stack', () => {
   bsNavPush({ tab: 'eat' });
   bsNavAnnounce({ sub: 'grocery' });
