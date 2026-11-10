@@ -625,6 +625,21 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
 
   return [
     {
+      section: 'App Eat: Coming up and the week\'s meal plan as a sheet; nutritionists link a playlist to a prep day or a meal in the website builder and the coach app, and Eat labels it (#2670). No migration',
+      items: [
+        { label: 'Owner, 2026-11-10: "Smaller, app only: add a "Coming up" preview of the next days\' meals to Eat, and a pop-up of the full week\'s meal plan, the same way Train now works. Bigger: let nutritionists link a playlist to a meal or prep day in the builder, carry it through the plan, and show "For Sun prep" labels on Eat\'s playlists … - do both"', status: 'done' },
+        { label: '#2670 Eat: Coming up (BSEatPlan.jsx) previews the next three days (Tomorrow, the day, its meals and kcal against the target, first three meals, playlists) and opens the meal plan on that day; the Meal plan sheet is the week in full with swaps and the member\'s own meals, today framed, Month view at its foot; a day past Sunday opens next week; both wait for the plan read', status: 'done' },
+        { label: '#2670 website meal builder: a "Playlist for this day" and a "♪ Playlist" per meal from the coach\'s saved playlists (not a trainer\'s); buildMealAssignment sends day.playlist and meal.playlist only when set, so plans without one publish as before; dashMealCore.js?v=20261110 on both hosts', status: 'done' },
+        { label: 'Owner, 2026-11-10: "add a playlist picker to the coach app\'s meal editor too - nutritionists should be able to add playlists to meal plans"; #2670 the coach app\'s meal-plan editor (BSMealBuilderEditor.jsx) sets the day\'s and each meal\'s playlist as the website does (mealBuilderEdit.mjs), and a swap keeps the meal\'s', status: 'done' },
+        { label: '#2670 Eat\'s Playlists: "For Sun · Batch prep", matched by soundtrack id then name to the days and meals as the menu shows them; an unsent playlist is a bare card, as on Train', status: 'done' },
+        { label: 'Review: Codex\'s five findings fixed (playlist labels after a swap; the kcal line from the meals shown, against the target; Coming up before the plan read; a day past Sunday opening last week; the day strip on a filled open day); the coach app\'s meal editor picker reviewed clean; Codex clean on f79d607; CI green on the final head', status: 'done' },
+        { label: 'A playlist the nutritionist linked but never sent to the member has no link on Eat (a bare card): the plan carries the soundtrack id and name, not its URL or service', status: 'pending' },
+        { label: 'The meal plan sheet shows this week, or next week for a Coming up day past Sunday; a plan\'s later weeks have no view', status: 'pending' },
+        { label: 'The coach app\'s workout editor (BSWorkoutDocumentEditor.jsx) has no playlist picker for a trainer\'s session; it keeps one set on the website', status: 'pending' },
+        { label: 'BS_COACH_PLAYLISTS\' attached text (iosAppBroadsheetRadio.jsx) has no reader since #2669 and #2670', status: 'pending' },
+      ],
+    },
+    {
       section: 'App Train: playlists say which workout they play with, On deck previews the sessions, Full plan opens the week as a sheet (#2669); a visitor\'s intro console scrolls with a coach\'s page (#2668). No migration',
       items: [
         { label: 'Owner, 2026-11-10, of a coach\'s page from the marketplace: "this free intro pop up is still staying present and too high on screen when i scroll … Also make the profile picture a little smaller"; of Train: "remove the music from joran box and have the music assigned to workouts down in the playlist section, just make it more clear which workout its assigned to. also the full plan and on deck just brings you to the monthly calendar page, there should be a better preview of what actually is "on deck" and a pop up of the actual full place"', status: 'done' },
