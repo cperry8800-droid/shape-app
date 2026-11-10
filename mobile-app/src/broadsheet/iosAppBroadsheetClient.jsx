@@ -11272,8 +11272,10 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
     : tr('nutrition:eat.goalMaintain', { defaultValue: 'Maintaining' });
   const [swapMealId, setSwapMealId] = useStateBSC(null);     // meal id being swapped, or null
   const [mealOverrides, setMealOverrides] = useStateBSC({}); // meal id → { title, kcal, p, c, f }
-  // The meal plan sheet (BSEatPlan.jsx): the weekday it opens on, or null when closed.
+  // The meal plan sheet (BSEatPlan.jsx): the weekday it opens on, or null when closed, and its week: 0 this
+  // one, 1 the next (a Coming up day past Sunday opens the week that holds it; Codex on #2670).
   const [eatPlanAt, setEatPlanAt] = useStateBSC(null);
+  const [eatPlanWeek, setEatPlanWeek] = useStateBSC(0);
   React.useEffect(() => {
     let cancelled = false;
     if (!(window.shapeDb && window.shapeDb.getUserGoals)) return undefined;
@@ -13083,7 +13085,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
 
       {/* Coming up (owner, 2026-11-10: "add a 'Coming up' preview of the next days' meals to Eat"): the next
           three days' menus, each opening the meal plan on its day (BSEatPlan.jsx). */}
-      {eatPlanShown && <BSEatComingUp program={PROGRAM} mealsOf={eatMealsOf} onPlan={(idx) => setEatPlanAt(Number.isInteger(idx) ? idx : bsWeekdayIdx())} />}
+      {eatPlanShown && <BSEatComingUp program={PROGRAM} mealsOf={eatMealsOf} onPlan={(idx, week) => { setEatPlanWeek(week === 1 ? 1 : 0); setEatPlanAt(Number.isInteger(idx) ? idx : bsWeekdayIdx()); }} />}
 
       {/* Tonight's prep for tomorrow (owner, 2026-10-05): the same list the reminder names. A dish
           the nutritionist ticked has no catalog method to walk, so it has no Start (Phase 2). */}
@@ -13140,7 +13142,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
             <BSFocusLink data-bsck-door="prep" color={t.isLight ? '#0a8f87' : t.ACCENT} glyph="→" label={tr('cook:prep.door', { defaultValue: 'Prep the week' })} onOpen={() => openPrep()} />
             {/* The week's meal plan as a sheet, every day and meal (owner, 2026-11-10: "a pop-up of the full week's
                 meal plan, the same way Train now works"). */}
-            {eatPlanShown && <BSFocusLink data-bsck-door="meal-plan" color={t.INK70} glyph="▤" label={tr('nutrition:eat.mealPlan', { defaultValue: 'Meal plan' })} tag={liveMealTitle || ''} onOpen={() => setEatPlanAt(bsWeekdayIdx())} />}
+            {eatPlanShown && <BSFocusLink data-bsck-door="meal-plan" color={t.INK70} glyph="▤" label={tr('nutrition:eat.mealPlan', { defaultValue: 'Meal plan' })} tag={liveMealTitle || ''} onOpen={() => { setEatPlanWeek(0); setEatPlanAt(bsWeekdayIdx()); }} />}
             <BSFocusLink color="#a07a2e" glyph="✎" label={coach} tag={bsEatFuelUnread && !bsEatCoachSet('calories') ? planGoalLabel : `${planGoalLabel} · ${bsEatCalTgt.toLocaleString()}`} onOpen={() => setPreviewDayBrief(true)} />
             {cur.coachLine ? (
               <div style={{ margin: `10px ${t.padX}px 0`, padding: '2px 0 2px 12px', borderLeft: '3px solid #a07a2e', fontFamily: tClean.DISPLAY, fontStyle: 'italic', fontSize: 14, lineHeight: 1.45, color: t.INK70 }}>&ldquo;{cur.coachLine}&rdquo;</div>
@@ -13173,8 +13175,8 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
       {/* The meal plan: the week as a sheet, each day's meals as the menu shows them. It portals out of the
           clean area and keeps its type (bsCleanSheet). */}
       {eatPlanAt != null && (
-        <BSEatPlanSheet program={PROGRAM} focusIdx={eatPlanAt} planName={liveMealTitle || ''} coach={bsEatSignedIn ? (liveMealCoach || null) : 'Dr. Maya Patel'}
-          mealsOf={(i) => eatMealsOf(i)} onClose={() => setEatPlanAt(null)} onMonth={() => { setEatPlanAt(null); goCalendar(); }} />
+        <BSEatPlanSheet program={PROGRAM} focusIdx={eatPlanAt} weekOffset={eatPlanWeek} planName={liveMealTitle || ''} coach={bsEatSignedIn ? (liveMealCoach || null) : 'Dr. Maya Patel'}
+          mealsOf={(i, off) => eatMealsOf(i, off)} onClose={() => setEatPlanAt(null)} onMonth={() => { setEatPlanAt(null); goCalendar(); }} />
       )}
       </BSCleanType>
 

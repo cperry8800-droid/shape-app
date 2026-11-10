@@ -89,7 +89,7 @@ export function BSEatComingUp({ program = [], mealsOf = null, onPlan }) {
   const week = Array.isArray(program) ? program : [];
   const todayIdx = weekdayIdx();
   const act = (
-    <button type="button" data-eat-plan-open="" onClick={() => onPlan && onPlan(null)} style={{ flexShrink: 0, display: 'inline-flex', alignItems: 'center', minHeight: 44, marginBottom: -6, background: 'transparent', border: 0, padding: '0 2px', color: t.ACCENT, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap' }}>{tr('session:train.plan', { defaultValue: 'Plan' })} →</button>
+    <button type="button" data-eat-plan-open="" onClick={() => onPlan && onPlan(null, 0)} style={{ flexShrink: 0, display: 'inline-flex', alignItems: 'center', minHeight: 44, marginBottom: -6, background: 'transparent', border: 0, padding: '0 2px', color: t.ACCENT, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap' }}>{tr('session:train.plan', { defaultValue: 'Plan' })} →</button>
   );
   if (!week.length) return null;
   return (
@@ -104,7 +104,7 @@ export function BSEatComingUp({ program = [], mealsOf = null, onPlan }) {
           const lists = playlistsOf(d, meals);
           const meta = mealsMeta(tr, d, meals);
           return (
-            <button type="button" key={idx} data-eat-coming-day={idx} onClick={() => onPlan && onPlan(idx)}
+            <button type="button" key={idx} data-eat-coming-day={idx} onClick={() => onPlan && onPlan(idx, todayIdx + off > 6 ? 1 : 0)}
               style={{ width: '100%', textAlign: 'left', cursor: 'pointer', background: 'transparent', border: 0, display: 'grid', gridTemplateColumns: '40px 1fr 14px', gap: 12, alignItems: 'start', minHeight: 44, padding: '14px 0', borderTop: i === 0 ? 0 : `1px solid ${t.HAIR}` }}>
               <span data-eat-coming-dow="" style={{ paddingTop: 3, fontFamily: t.HEAD || t.DISPLAY, fontSize: 15, fontWeight: 700, lineHeight: 1, letterSpacing: '-0.01em', color: tomorrow ? t.ACCENT : t.INK }}>{dayName(idx, 'short')}</span>
               <span style={{ minWidth: 0, display: 'block' }}>
@@ -133,11 +133,21 @@ export function BSEatComingUp({ program = [], mealsOf = null, onPlan }) {
   );
 }
 
-export function BSEatPlanSheet({ program = [], focusIdx = 0, planName = '', coach = null, mealsOf = null, onClose, onMonth = null }) {
+// `weekOffset` 1 shows next week (Codex on #2670): Coming up reads past Sunday into next week's days, so a
+// wrapped row ("Tomorrow" on a Sunday) opens the week that holds it, each day on its real date and with
+// that date's meals, not this week's past Monday.
+export function BSEatPlanSheet({ program = [], focusIdx = 0, weekOffset = 0, planName = '', coach = null, mealsOf = null, onClose, onMonth = null }) {
   const t = window.useBS();
   const tr = useShapeTr();
   const week = Array.isArray(program) ? program : [];
   const todayIdx = weekdayIdx();
+  const wo = weekOffset === 1 ? 1 : 0;
+  // Days from today to the day the sheet shows at `idx`, and that day's date.
+  const ahead = (idx) => idx - todayIdx + 7 * wo;
+  const dateAt = (idx) => dateOf(idx + 7 * wo);
+  // Each day's meals as the menu shows them on its date: the strip and the day read the same list (Codex on
+  // #2670: a day the member filled on an open plan day is not empty).
+  const mealsAt = week.map((d, idx) => (typeof mealsOf === 'function' ? mealsOf(idx, ahead(idx)) : (d && d.meals)) || []);
   const [at, setAt] = React.useState(Number.isInteger(focusIdx) ? focusIdx : todayIdx);
   const bodyRef = React.useRef(null);
   const panelRef = React.useRef(null);
@@ -160,9 +170,10 @@ export function BSEatPlanSheet({ program = [], focusIdx = 0, planName = '', coac
   }, []);
 
   const title = tr('nutrition:eat.mealPlan', { defaultValue: 'Meal plan' });
-  const whenOf = (idx) => (idx === todayIdx ? tr('home:when.today', { defaultValue: 'Today' })
-    : idx === todayIdx + 1 ? tr('home:when.tomorrow', { defaultValue: 'Tomorrow' }) : null);
-  const kicker = [planName, coach].filter(Boolean).join(' · ');
+  const isToday = (idx) => ahead(idx) === 0;
+  const whenOf = (idx) => (isToday(idx) ? tr('home:when.today', { defaultValue: 'Today' })
+    : ahead(idx) === 1 ? tr('home:when.tomorrow', { defaultValue: 'Tomorrow' }) : null);
+  const kicker = [wo ? tr('calendar:weeks.nextWeek', { defaultValue: 'Next week' }) : null, planName, coach].filter(Boolean).join(' · ');
 
   const sheet = (
     <div data-eat-plan-scrim="" onClick={onClose} style={{ position: 'absolute', inset: 0, zIndex: 200, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
@@ -180,12 +191,12 @@ export function BSEatPlanSheet({ program = [], focusIdx = 0, planName = '', coac
           <div role="group" aria-label={title} data-eat-plan-days="" style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: 4, marginTop: 12, paddingBottom: 10, borderBottom: `1px solid ${t.RULE}` }}>
             {week.map((d, idx) => {
               const on = idx === at;
-              const empty = !d || !(Array.isArray(d.meals) && d.meals.length);
+              const empty = !mealsAt[idx].length;
               return (
                 <button key={idx} type="button" data-eat-plan-jump={idx} aria-label={dayName(idx, 'long')} aria-current={on ? 'true' : undefined} onClick={() => go(idx)}
-                  style={{ minWidth: 0, minHeight: 48, padding: '4px 0', borderRadius: 8, cursor: 'pointer', border: `1px solid ${on ? GOLD : idx === todayIdx ? `${GOLD}88` : t.RULE}`, background: on ? GOLD : 'transparent', color: on ? '#ffffff' : empty ? t.INK50 : t.INK, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2 }}>
+                  style={{ minWidth: 0, minHeight: 48, padding: '4px 0', borderRadius: 8, cursor: 'pointer', border: `1px solid ${on ? GOLD : isToday(idx) ? `${GOLD}88` : t.RULE}`, background: on ? GOLD : 'transparent', color: on ? '#ffffff' : empty ? t.INK50 : t.INK, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2 }}>
                   <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>{dayName(idx, 'narrow')}</span>
-                  <span style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>{dateOf(idx).getDate()}</span>
+                  <span style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>{dateAt(idx).getDate()}</span>
                   <span aria-hidden="true" style={{ width: 4, height: 4, borderRadius: 99, background: empty ? 'transparent' : on ? '#ffffff' : GOLD }} />
                 </button>
               );
@@ -196,13 +207,13 @@ export function BSEatPlanSheet({ program = [], focusIdx = 0, planName = '', coac
         <div ref={bodyRef} className="bs-scroll" data-eat-plan-body="" style={{ flex: 1, minHeight: 0, overflowY: 'auto', position: 'relative', paddingLeft: t.padX, paddingRight: t.padX, paddingBottom: 'calc(20px + env(safe-area-inset-bottom, 0px))' }}>
           {week.map((d, idx) => {
             const day = d || {};
-            const meals = (typeof mealsOf === 'function' ? mealsOf(idx) : day.meals) || [];
+            const meals = mealsAt[idx];
             const when = whenOf(idx);
             const meta = mealsMeta(tr, day, meals);
             return (
               <section key={idx} ref={(el) => { dayRefs.current[idx] = el; }} data-eat-plan-day={idx} aria-label={dayName(idx, 'long')}
-                style={{ position: 'relative', padding: `18px 0 18px ${idx === todayIdx ? 12 : 0}px`, borderTop: idx === 0 ? 0 : `1px solid ${t.HAIR || t.RULE}`, borderLeft: idx === todayIdx ? `3px solid ${GOLD}` : 0 }}>
-                <div style={mono(t, 9, idx === todayIdx ? GOLD : t.INK50)}>{[dayName(idx, 'short'), dateOf(idx).getDate()].join(' ')}{when ? ` · ${when}` : ''}</div>
+                style={{ position: 'relative', padding: `18px 0 18px ${isToday(idx) ? 12 : 0}px`, borderTop: idx === 0 ? 0 : `1px solid ${t.HAIR || t.RULE}`, borderLeft: isToday(idx) ? `3px solid ${GOLD}` : 0 }}>
+                <div style={mono(t, 9, isToday(idx) ? GOLD : t.INK50)}>{[dayName(idx, 'short'), dateAt(idx).getDate()].join(' ')}{when ? ` · ${when}` : ''}</div>
                 <div style={{ marginTop: 5, fontFamily: t.HEAD || t.DISPLAY, fontSize: 19, fontWeight: 700, letterSpacing: '-0.02em', lineHeight: 1.15, color: t.INK }}>{day.headline || day.title || ''}</div>
                 {meta ? <div data-eat-plan-meta="" style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.04em', color: t.INK50 }}>{meta}</div> : null}
                 {day.copy ? <div style={{ marginTop: 6, fontFamily: t.BODY || t.DISPLAY, fontSize: 13.5, lineHeight: 1.45, color: t.INK70 }}>{day.copy}</div> : null}

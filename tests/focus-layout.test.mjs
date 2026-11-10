@@ -771,6 +771,16 @@ test('Eat: Coming up and the Meal plan link open the meal plan sheet; Playlists 
   d.render();
   sheet = d.nodes().find(fn('BSEatPlanSheet'));
   assert.equal(sheet && sheet.props.focusIdx, 5, 'a day coming up opens the plan on that day');
+  assert.equal(sheet.props.weekOffset, 0, 'in this week');
+  // A day past Sunday opens the week that holds it, with that date's meals (Codex on #2670).
+  sheet.props.onClose();
+  d.render();
+  d.nodes().find(fn('BSEatComingUp')).props.onPlan(0, 1);
+  d.render();
+  sheet = d.nodes().find(fn('BSEatPlanSheet'));
+  assert.equal(sheet.props.focusIdx, 0);
+  assert.equal(sheet.props.weekOffset, 1, 'next week');
+  assert.equal(sheet.props.mealsOf.length, 2, 'the sheet hands each day its date');
   sheet.props.onMonth();
   d.render();
   assert.equal(month, 1, 'Month view opens the calendar');

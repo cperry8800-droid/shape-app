@@ -27,7 +27,7 @@ const React = require_('react');
 const ReactDOM = require_('react-dom');
 const ReactDOMClient = require_('react-dom/client');
 
-const cats = Object.fromEntries(['session', 'home', 'common', 'nutrition'].map((ns) => [ns, JSON.parse(readFileSync(join(ROOT, `mobile-app/src/i18n/catalogs/en/${ns}.json`), 'utf8'))]));
+const cats = Object.fromEntries(['session', 'home', 'common', 'nutrition', 'calendar'].map((ns) => [ns, JSON.parse(readFileSync(join(ROOT, `mobile-app/src/i18n/catalogs/en/${ns}.json`), 'utf8'))]));
 W.ShapeI18n = {
   t: (key, opts = {}) => { const [ns, k] = key.split(':'); const msg = cats[ns] ? cats[ns][k] : undefined; return msg == null ? undefined : new IntlMessageFormat(msg, 'en').format(opts); },
   intlLocale: () => 'en-US',
@@ -63,7 +63,8 @@ async function mount(el) {
 
 test('Coming up: the next three days as previews, each opening the meal plan on its day; Plan opens it on today', async () => {
   const plan = [];
-  const m = await mount(React.createElement(E.BSEatComingUp, { program: week(), onPlan: (i) => plan.push(i) }));
+  const weeks = [];
+  const m = await mount(React.createElement(E.BSEatComingUp, { program: week(), onPlan: (i, wk) => { plan.push(i); weeks.push(wk); } }));
   try {
     const rows = m.qa('[data-eat-coming-day]');
     assert.equal(rows.length, 3);
@@ -80,6 +81,7 @@ test('Coming up: the next three days as previews, each opening the meal plan on 
     await m.click(second);
     await m.click(m.q('[data-eat-plan-open]'));
     assert.deepEqual(plan, [(TODAY + 2) % 7, null]);
+    assert.deepEqual(weeks, [TODAY + 2 > 6 ? 1 : 0, 0], 'a day past Sunday opens next week; Plan opens this one');
   } finally { await m.close(); }
 });
 
@@ -159,9 +161,10 @@ test('the module stands alone: no import of the client, globals read at call tim
 // ── The page's wiring ──
 const CLIENT = readFileSync(join(ROOT, 'mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx'), 'utf8');
 test('Eat hands Coming up and the meal plan its week, its meals as the menu shows them, and its doors', () => {
-  assert.match(CLIENT, /<BSEatComingUp program=\{PROGRAM\} mealsOf=\{eatMealsOf\} onPlan=\{\(idx\) => setEatPlanAt\(Number\.isInteger\(idx\) \? idx : bsWeekdayIdx\(\)\)\} \/>/);
-  assert.match(CLIENT, /label=\{tr\('nutrition:eat\.mealPlan', \{ defaultValue: 'Meal plan' \}\)\} tag=\{liveMealTitle \|\| ''\} onOpen=\{\(\) => setEatPlanAt\(bsWeekdayIdx\(\)\)\}/);
-  assert.match(CLIENT, /<BSEatPlanSheet program=\{PROGRAM\} focusIdx=\{eatPlanAt\}[^>]*mealsOf=\{\(i\) => eatMealsOf\(i\)\} onClose=\{\(\) => setEatPlanAt\(null\)\} onMonth=\{\(\) => \{ setEatPlanAt\(null\); goCalendar\(\); \}\}/);
+  // A Coming up day opens the sheet on its weekday, in the week that holds it (Codex on #2670); the Meal plan row on today.
+  assert.match(CLIENT, /<BSEatComingUp program=\{PROGRAM\} mealsOf=\{eatMealsOf\} onPlan=\{\(idx, week\) => \{ setEatPlanWeek\(week === 1 \? 1 : 0\); setEatPlanAt\(Number\.isInteger\(idx\) \? idx : bsWeekdayIdx\(\)\); \}\} \/>/);
+  assert.match(CLIENT, /label=\{tr\('nutrition:eat\.mealPlan', \{ defaultValue: 'Meal plan' \}\)\} tag=\{liveMealTitle \|\| ''\} onOpen=\{\(\) => \{ setEatPlanWeek\(0\); setEatPlanAt\(bsWeekdayIdx\(\)\); \}\}/);
+  assert.match(CLIENT, /<BSEatPlanSheet program=\{PROGRAM\} focusIdx=\{eatPlanAt\} weekOffset=\{eatPlanWeek\}[^>]*mealsOf=\{\(i, off\) => eatMealsOf\(i, off\)\} onClose=\{\(\) => setEatPlanAt\(null\)\} onMonth=\{\(\) => \{ setEatPlanAt\(null\); goCalendar\(\); \}\}/);
   // The meals as the menu shows them: the swap by title, then that date's own swap, then the member's planned meals.
   const fn = CLIENT.slice(CLIENT.indexOf('const eatMealsOf = '), CLIENT.indexOf('const _eatRows = '));
   assert.match(fn, /const ov = mealOverrides\[m\.title\];/);
@@ -263,4 +266,41 @@ test('a swapped dish\'s playlist names the dish on the plate', () => {
   const shown = w.map((d, i) => (i === at ? { ...d, meals: d.meals.map((m) => (m.id === 'dd' ? { ...m, title: 'Grilled tofu', _swapped: true } : m)) } : d));
   const jazz = bsEatPlaylistCards([], shown, TODAY).find((c) => c.title === 'Dinner jazz');
   assert.deepEqual(jazz.uses.map((u) => u.title), ['Grilled tofu']);
+});
+
+// A Coming up row past Sunday is next week's day: the sheet it opens shows that week, each day on its real
+// date and with that date's meals (Codex on #2670), and the day strip marks the days the sheet fills.
+const dateNum = (offsetDays) => { const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() + offsetDays); return String(d.getDate()); };
+test('next week\'s sheet: its dates, that date\'s meals, Tomorrow by the date, no today frame', async () => {
+  const seen = [];
+  const w = week();
+  const m = await mount(React.createElement(E.BSEatPlanSheet, { program: w, focusIdx: 0, weekOffset: 1, planName: 'Lean build', mealsOf: (i, off) => { seen.push([i, off]); return w[i].meals; }, onClose() {} }));
+  try {
+    assert.match(m.q('[data-eat-plan]').textContent, /^Next week · Lean build/);
+    assert.deepEqual(seen.filter(([i]) => i === 0).map(([, off]) => off).slice(0, 1), [7 - TODAY], 'Monday is read on next Monday\'s date');
+    for (let idx = 0; idx < 7; idx++) {
+      const ahead = idx - TODAY + 7;
+      assert.equal(m.q(`[data-eat-plan-jump="${idx}"]`).textContent.replace(/\D/g, ''), dateNum(ahead), `day ${idx} shows next week's date`);
+      const day = m.q(`[data-eat-plan-day="${idx}"]`);
+      assert.equal(/Tomorrow/.test(day.textContent), ahead === 1, `Tomorrow only on the date that is tomorrow (day ${idx})`);
+      assert.equal(/Today/.test(day.textContent), false);
+      assert.equal(day.style.borderLeft === '' || day.style.borderLeft === '0px' || /none|^0/.test(day.style.borderLeft), true, 'no today frame next week');
+    }
+  } finally { await m.close(); }
+});
+
+test('the day strip marks a day the member filled on an open plan day', async () => {
+  const w = week();
+  const open = (TODAY + 4) % 7; // the fixture's open day: no plan meals
+  const mealsOf = (i) => (i === open ? [meal('own', '12:00 PM', 'Planned wrap', { _own: true })] : w[i].meals);
+  const m = await mount(React.createElement(E.BSEatPlanSheet, { program: w, mealsOf, onClose() {} }));
+  try {
+    const dot = m.q(`[data-eat-plan-jump="${open}"]`).querySelector('span[aria-hidden="true"]');
+    assert.notEqual(dot.style.background, 'transparent', 'the open day the member filled has its dot');
+    assert.match(m.q(`[data-eat-plan-day="${open}"]`).textContent, /Planned wrap/);
+  } finally { await m.close(); }
+  const bare = await mount(React.createElement(E.BSEatPlanSheet, { program: w, mealsOf: (i) => w[i].meals, onClose() {} }));
+  try {
+    assert.equal(bare.q(`[data-eat-plan-jump="${open}"]`).querySelector('span[aria-hidden="true"]').style.background, 'transparent', 'an open day left open has none');
+  } finally { await bare.close(); }
 });
