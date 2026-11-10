@@ -158,6 +158,9 @@ const world = () => ({
   channel_messages: [
     { id: 'a', channel_id: 'ch-run', sender_id: 'u9', author_name: 'Diego', body: 'Saturday 6am long run', created_at: '2026-11-10T08:00:00Z' },
     { id: 'b', channel_id: 'ch-run', sender_id: 'u8', author_name: 'Priya', body: 'In. 8:00 pace', created_at: '2026-11-10T08:30:00Z' },
+    // A channel with history, so a message sent here is followed by an incremental read
+    // (after the last one seen) rather than another first read.
+    { id: 'c', channel_id: 'ch-mine', sender_id: 'u7', author_name: 'Owen', body: 'Fiber is the forgotten macro', created_at: '2026-11-10T07:00:00Z' },
   ],
   unread: [{ channel_id: 'ch-run', unread: 2 }],
 });
@@ -240,9 +243,11 @@ test('a message to a channel is stored as the member, then shown once', async ()
     await settle(10);
     const ins = log.find((x) => x[0] === 'insert' && x[1] === 'channel_messages');
     assert.deepEqual(ins[2], { channel_id: 'ch-mine', sender_id: 'u1', author_name: 'Ann Lee', body: 'Protein first this week' });
+    assert.ok(m.doc.querySelector('[data-chat-panel]').textContent.includes('Fiber is the forgotten macro'), 'the channel\'s history was not read');
     // The next read finds the stored copy; the page's own copy gives way to it.
     await React.act(async () => { await new Promise((r) => setTimeout(r, 8200)); });
     await settle(6);
+    assert.ok(log.some((x) => x[0] === 'select' && x[1] === 'channel_messages' && /gt/.test(x[2])), 'no read after the last one seen');
     const panel = m.doc.querySelector('[data-chat-panel]').textContent;
     assert.equal(panel.split('Protein first this week').length - 1, 2, 'shown once in the thread (and once as the row\'s last line): ' + panel.split('Protein first this week').length);
     assert.doesNotMatch(panel, /Not sent/);
