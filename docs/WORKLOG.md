@@ -18,7 +18,7 @@ or past 12 KB.
 - **The PR description is the record:** what changed and why, each review finding and its
   answer, what was verified, what is left open. What is left open goes to the War Room
   (`src/lib/warroom.ts`), and below if it waits on the owner. The War Room update is the
-  last commit of the last PR in flight, once its CI and review are done (owner, 2026-10-16).
+  last commit of the last PR in flight, as soon as Codex is clean (owner, 2026-11-10).
 - **Review.**
   - Read your own diff, and a helper's whole diff, adversarially before pushing (owner,
     2026-11-06): unread vs empty, partial loads, sample data, old keys, zones, nested buttons.
