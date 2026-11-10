@@ -22,6 +22,7 @@ import { formatDate as bsZoneFormatDate, formatTime as bsZoneFormatTime, onZoneC
 import { bsChatStamp, bsChatDayLabel, bsChatClock, bsChatDividerIndexes } from '../services/chatTime.mjs';
 import { bsReplyFor, bsReplyFromMetadata, bsReplySnippet, bsReplySwipeDecide, bsReplySwipeOffset, bsReplySwipeCommits, BS_REPLY_SWIPE } from '../services/chatReply.mjs';
 import { bsTypingSend, bsTypingWho, bsReceiptFor, bsMergeThreadHistory, BS_SIGNALS_EMPTY } from '../services/chatSignals.mjs';
+import { bsThreadNavKey, bsThreadViaNav } from '../services/chatThreadBack.mjs';
 import { bsScoreRecord, RANGE_KEYS } from '../services/scoreHistory.mjs';
 // The ONE ceiling. The prompt must ask at exactly the load the core refuses to
 // admit unconsidered — a local copy of 150 that drifted would leave the screen
@@ -723,6 +724,8 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
   React.useEffect(() => bsNoraOpen({ page: bsNoraPage(tab), label: noraTabLabel }, noraOwner.current), [tab, noraTabLabel]);
   const [showSettings, setShowSettings] = useStateBSC(false);
   const [settingsStart, setSettingsStart] = useStateBSC('');
+  // Was Settings opened straight onto that page from somewhere else? Its ← then leaves Settings (BSSettings).
+  const [settingsLanded, setSettingsLanded] = useStateBSC(false);
   const [showCalendar, setShowCalendar] = useStateBSC(false);
   // The day the calendar opens on: a day tapped in Home's week, else null (today).
   const [calendarDate, setCalendarDate] = useStateBSC(null);
@@ -748,7 +751,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
   const navLoc = () => {
     if (showSettings) return { tab, overlay: 'settings', sub: settingsStart || '' };
     if (showCalendar) return { tab, overlay: 'calendar' };
-    if (showSearch) return { tab, overlay: 'search' };
+    if (showSearch) return { tab, overlay: 'search', ...(searchQueryRef.current ? { query: searchQueryRef.current } : null) };
     if (showCycle) return { tab, overlay: 'cycle' };
     if (tab === 'store') return { tab: 'store', sub: storeView };
     if (tab === 'market') return { tab: 'market', detail: marketRole ? { role: marketRole } : undefined };
@@ -760,13 +763,17 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
     // A notified person's profile is no location of its own: any step back closes it.
     setNotifPerson(null);
     setShowSearch(loc.overlay === 'search');
+    setSearchStart(loc.overlay === 'search' ? (loc.query || '') : '');
     setShowCalendar(loc.overlay === 'calendar');
     setShowCycle(loc.overlay === 'cycle');
-    if (loc.overlay === 'settings') { setSettingsStart(loc.sub || ''); setShowSettings(true); }
-    else { setShowSettings(false); setSettingsStart(''); }
+    if (loc.overlay === 'settings') { setSettingsStart(loc.sub || ''); setSettingsLanded(!!loc.landed); setShowSettings(true); }
+    else { setShowSettings(false); setSettingsStart(''); setSettingsLanded(false); }
     if (loc.tab === 'store') setStoreView(loc.sub === 'score' ? 'score' : 'store');
-    if (loc.tab === 'market') { setMarketRole((loc.detail && loc.detail.role) || null); setMarketCoach(null); }
-    if (loc.tab === 'chat' && loc.detail) setChatRequest({ ...loc.detail, nonce: Date.now() });
+    // Coaches comes back on the coach whose profile was open (BSMarketplaceScreen announces it), or its list.
+    if (loc.tab === 'market') { setMarketRole((loc.detail && loc.detail.role) || null); setMarketCoach((loc.detail && loc.detail.coach) || null); }
+    // A Back to Chat's list carries no thread, and drops any older one, which the remounting page would
+    // otherwise open again.
+    if (loc.tab === 'chat') setChatRequest(loc.detail ? { ...loc.detail, nonce: Date.now() } : null);
     if (loc.tab === 'eat') setEatStart(loc.sub || '');
     if (loc.tab === 'me') setMeStart(loc.sub || '');
     if (loc.tab) setTab(loc.tab);
@@ -778,9 +785,10 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
   // a duplicate location, changed nothing on screen, and had the next back
   // silently consumed. BSSettings answers the same event by closing its pane,
   // which is what "take me to my profile" means once you are already in it.
-  const goSettings = () => { if (!showSettings) navPush(); setSettingsStart(''); setShowSettings(true); };
-  const goEditProfile = () => { navPush(); setSettingsStart('edit-profile'); setShowSettings(true); };
-  const goIntegrations = () => { navPush(); setSettingsStart('integrations'); setShowSettings(true); };
+  const goSettings = () => { if (!showSettings) navPush(); setSettingsStart(''); setSettingsLanded(false); setShowSettings(true); };
+  // A jump straight onto a page of Settings lands there: that page's ← goes back where the member was.
+  const goEditProfile = () => { navPush(); setSettingsStart('edit-profile'); setSettingsLanded(true); setShowSettings(true); };
+  const goIntegrations = () => { navPush(); setSettingsStart('integrations'); setSettingsLanded(true); setShowSettings(true); };
   const goCycle    = () => { navPush(); setShowSettings(false); setShowCycle(true); };
   const goRadio    = () => { navPush(); setTab('radio'); };
   const goTrain    = (options) => { navPush(); if (options?.workout) setPendingTrainStart({ workout: options.workout }); setTab('train'); };
@@ -790,7 +798,8 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
   const goCalendar = (date) => { navPush(); setCalendarDate(date instanceof Date ? date : null); setShowCalendar(true); };
   // Open the chat tab on a specific coach's DM (Team → Coaches).
   const [chatRequest, setChatRequest] = useStateBSC(null);
-  const goChat = (coach, role) => { navPush(); setChatRequest({ coach: coach || null, role: role || null, nonce: Date.now() }); setTab('chat'); };
+  // `back: 'nav'`: this jump pushed where the member was, so the thread's ← steps back there (BSClientFeed).
+  const goChat = (coach, role) => { navPush(); setChatRequest({ coach: coach || null, role: role || null, back: 'nav', nonce: Date.now() }); setTab('chat'); };
   // The shape:* event effects below register ONCE ([] deps), so their handlers
   // must read the CURRENT render's jump closures at fire time — a mount-render
   // goSettings/goIntegrations would be frozen at that render's state. (navPush
@@ -809,6 +818,9 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
   // jump's, never the tab's.
   const enterTab = (k) => {
     if (k === 'market' && tab !== 'market') { setMarketRole(null); setMarketCoach(null); }
+    // Chat from another tab opens on its list: a thread a jump opened earlier (Coaches' Message) is that
+    // jump's, and the remounting page would otherwise open it again (2026-11-10).
+    if (k === 'chat' && tab !== 'chat') setChatRequest(null);
     setTab(k);
   };
   const onNavGesture = (intent) => {
@@ -889,10 +901,12 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
     // and detail.coachId (a chat coach_invite card) so it opens that coach's
     // Listing directly once the live providers load.
     const open = (e) => {
-      navJumpRef.current.navPush(); setShowSettings(false); setSettingsStart('');
+      navJumpRef.current.navPush(); setShowSettings(false); setSettingsStart(''); setShowSearch(false);
       setMarketRole(typeof e?.detail?.role === 'string' ? e.detail.role : null);
+      // `back: 'nav'`: this jump pushed where the member was, so that coach's ← steps back there (a chat's
+      // coach card, a notification), not to Coaches' list (2026-11-10).
       setMarketCoach((typeof e?.detail?.role === 'string' && e?.detail?.coachId != null)
-        ? { role: e.detail.role, providerId: Number(e.detail.coachId) }
+        ? { role: e.detail.role, providerId: Number(e.detail.coachId), back: 'nav' }
         : null);
       setTab('market');
     };
@@ -939,7 +953,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
       navJumpRef.current.navPush(); setShowSettings(false); setSettingsStart('');
       setShowCalendar(false); setShowSearch(false); setShowCycle(false); setChatRequest(null);
     };
-    const toSettings = (page) => { clear(); setSettingsStart(page); setShowSettings(true); };
+    const toSettings = (page) => { clear(); setSettingsStart(page); setSettingsLanded(!!page); setShowSettings(true); };
     const open = (e) => {
       const d = (e && e.detail) || {};
       if (BS_COACH_PAGES.includes(d.page)) {
@@ -1049,6 +1063,9 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
 
   // Universal search — the ⌕ in every header opens it (no prop-threading).
   const [showSearch, setShowSearch] = useStateBSC(false);
+  // The query Search shows (for the nav history) and the one it reopens on after a Back.
+  const searchQueryRef = React.useRef('');
+  const [searchStart, setSearchStart] = useStateBSC('');
   const [showNoraSheet, setShowNoraSheet] = useStateBSC(false);
   React.useEffect(() => {
     const open = () => { setShowSearch(false); setShowNoraSheet(true); };
@@ -1056,7 +1073,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
     return () => window.removeEventListener('shape:openNora', open);
   }, []);
   React.useEffect(() => {
-    const open = () => { navJumpRef.current.navPush(); setShowSearch(true); };
+    const open = () => { navJumpRef.current.navPush(); searchQueryRef.current = ''; setSearchStart(''); setShowSearch(true); };
     window.addEventListener('shape:openSearch', open);
     return () => window.removeEventListener('shape:openSearch', open);
   }, []);
@@ -1077,7 +1094,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
       // Settings is a full-screen overlay above the tabs; a conversation opened from
       // inside it (Help's "Ask Nora") would land underneath, invisible (Codex, #2241).
       setShowSettings(false);
-      setChatRequest({ conversationId: d.conversationId || null, channel: d.channel || null, support: !!d.support, coach: d.name || null, nonce: Date.now() });
+      setChatRequest({ conversationId: d.conversationId || null, channel: d.channel || null, support: !!d.support, coach: d.name || null, back: 'nav', nonce: Date.now() });
       setTab('chat');
     };
     window.addEventListener('shape:openConversation', open);
@@ -1110,7 +1127,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
   // "Start session" from the calendar event sheet → close calendar, jump to the
   // Train tab, and auto-launch the live session there.
   React.useEffect(() => {
-    const onStart = (event) => { navJumpRef.current.navPush(); setShowCalendar(false); setTab('train'); setPendingTrainStart(event.detail?.workout ? { workout: event.detail.workout } : true); };
+    const onStart = (event) => { navJumpRef.current.navPush(); setShowCalendar(false); setShowSearch(false); setTab('train'); setPendingTrainStart(event.detail?.workout ? { workout: event.detail.workout } : true); };
     window.addEventListener('shape:startWorkout', onStart);
     return () => window.removeEventListener('shape:startWorkout', onStart);
   }, []);
@@ -1268,7 +1285,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
   // calendar, habits, the coach queue and live-watch), i.e. the whole Settings
   // section — deleting their ⌕ instead would defeat the contract this PR exists
   // to establish. One overlay, referenced by every return, keeps it working.
-  const searchOverlay = showSearch ? <BSUniversalSearch onClose={() => { if (!navBack()) setShowSearch(false); }} /> : null;
+  const searchOverlay = showSearch ? <BSUniversalSearch initialQuery={searchStart} onQuery={(v) => { searchQueryRef.current = v; }} onClose={() => { if (!navBack()) setShowSearch(false); }} onLeave={() => setShowSearch(false)} /> : null;
   // The first-run steps (goal, coaching, screening) deliberately do NOT get it — they must not be
   // escapable before they are done. ⚠ An earlier version of this comment also
   // claimed they "carry no masthead, so there is no ⌕ to press". That is true of
@@ -1306,8 +1323,9 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
   const settingsOverlay = showSettings ? (
     <div style={{ position: 'absolute', inset: 0, zIndex: 210 }}>
       <BSSettings
-        key={'settings:' + settingsStart}
+        key={'settings:' + settingsStart + (settingsLanded ? ':landed' : '')}
         initialPage={settingsStart}
+        landed={settingsLanded}
         onBack={() => { if (!navBack()) { setShowSettings(false); setSettingsStart(''); } }}
         onLogout={onLogout}
         tweaks={tweaks}
@@ -18740,7 +18758,7 @@ function BSNotifiedPerson({ userId, onClose }) {
     <div data-notified-person style={{ position: 'absolute', inset: 0, zIndex: 230, background: t.PAPER }}>
       {person
         ? <BSPublicProfile person={person} onBack={onClose}
-            onMessage={me && person.userId !== me ? (p) => bsOpenMemberConversation(p, onClose) : null} />
+            onMessage={me && person.userId !== me ? (p) => bsOpenMemberConversation(p, null) : null} />
         : <div data-person-loading="" style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 0` }}>
             {/* While the read is out: the masthead row and the Back every page has, where it has it. */}
             {window.BSMastRow && <window.BSMastRow trailing={null} />}
@@ -18876,11 +18894,17 @@ function BSAskNoraLink({ t, label, draft, problem, style }) {
     </button>
   );
 }
-function BSUniversalSearch({ onClose }) {
+// `onClose` is Search's own ← (it steps the nav history back). `onLeave` closes Search for a result that
+// opens another page (the coaches, a workout, a channel): that page's jump pushes Search, query and all
+// (`onQuery`), so its Back comes back here. Closing through `onClose` first popped the history under the
+// jump, and its late popstate reopened Search over the new page (owner, 2026-11-10: "Make sure back
+// buttons are going back to previous page and location user was on").
+function BSUniversalSearch({ onClose, onLeave = onClose, initialQuery = '', onQuery = null }) {
   const t = useBS();
   const tr = useShapeTr();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
-  const [q, setQ] = useStateBSC('');
+  const [q, setQ] = useStateBSC(initialQuery || '');
+  React.useEffect(() => { if (onQuery) onQuery(q.trim()); }, [q]); // eslint-disable-line react-hooks/exhaustive-deps
   const [filter, setFilter] = useStateBSC('all'); // all | members | coaches
   const [rows, setRows] = useStateBSC(null);
   const [busy, setBusy] = useStateBSC(false);
@@ -19077,7 +19101,7 @@ function BSUniversalSearch({ onClose }) {
   );
   if (viewWorkout) return (
     <div style={{ position: 'absolute', inset: 0, zIndex: 230, background: t.PAPER }}>
-      <BSWorkoutDetail workout={viewWorkout} onBack={() => setViewWorkout(null)} onStart={() => { onClose(); try { window.dispatchEvent(new CustomEvent('shape:startWorkout', { detail: { workout: viewWorkout } })); } catch (e) {} }} />
+      <BSWorkoutDetail workout={viewWorkout} onBack={() => setViewWorkout(null)} onStart={() => { onLeave(); try { window.dispatchEvent(new CustomEvent('shape:startWorkout', { detail: { workout: viewWorkout } })); } catch (e) {} }} />
     </div>
   );
 
@@ -19162,7 +19186,7 @@ function BSUniversalSearch({ onClose }) {
           chHits.length ? (
             <>
               <div style={{ ...eyebrow, padding: '8px 0 2px' }}>{tr('feed:channels.count', { count: chHits.length, defaultValue: '{count, plural, one {# channel} other {# channels}}' })}</div>
-              {chHits.map((c, i) => <TileRow key={'ch' + c.id} first={i === 0} glyph="#" color={teal} title={c.name} sub={`${tr('feed:thread.memberCount', { count: c.memberCount || 0, defaultValue: '{count, plural, one {# member} other {# members}}' })}${c.blurb ? ' · ' + c.blurb : ''}`} onClick={() => { onClose(); try { window.dispatchEvent(new CustomEvent('shape:openConversation', { detail: { channel: c } })); } catch (e) {} }} />)}
+              {chHits.map((c, i) => <TileRow key={'ch' + c.id} first={i === 0} glyph="#" color={teal} title={c.name} sub={`${tr('feed:thread.memberCount', { count: c.memberCount || 0, defaultValue: '{count, plural, one {# member} other {# members}}' })}${c.blurb ? ' · ' + c.blurb : ''}`} onClick={() => { onLeave(); try { window.dispatchEvent(new CustomEvent('shape:openConversation', { detail: { channel: c } })); } catch (e) {} }} />)}
             </>
           ) : (
             <div style={{ padding: '18px 0', fontFamily: t.DISPLAY, fontSize: 15, color: t.INK50 }}>{needle ? tr('feed:channels.noneMatch', { q: q.trim(), defaultValue: 'No channels match “{q}”' })
@@ -19181,7 +19205,7 @@ function BSUniversalSearch({ onClose }) {
           ) : (rows !== null && list.length === 0 && moreHits === 0 && !noraHit && !askNora) ? (
             <div style={{ padding: '18px 0' }}>
               <div style={{ fontFamily: t.DISPLAY, fontSize: 15, color: t.INK50 }}>{tr('common:search.noMatch', { query: q.trim(), defaultValue: 'Nothing on Shape matches “{query}”.' })}</div>
-              <button onClick={() => { onClose(); try { window.dispatchEvent(new Event('shape:openMarket')); } catch (e) {} }} style={{ marginTop: 10, background: 'transparent', border: 0, padding: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: teal }}>{tr('common:search.browseCoaches', { defaultValue: 'Browse coaches on the marketplace →' })}</button>
+              <button onClick={() => { onLeave(); try { window.dispatchEvent(new Event('shape:openMarket')); } catch (e) {} }} style={{ marginTop: 10, background: 'transparent', border: 0, padding: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: teal }}>{tr('common:search.browseCoaches', { defaultValue: 'Browse coaches on the marketplace →' })}</button>
             </div>
           ) : (
             <>
@@ -19210,7 +19234,7 @@ function BSUniversalSearch({ onClose }) {
               {filter === 'all' && chHits.length > 0 && (
                 <>
                   <div style={{ ...eyebrow, padding: '16px 0 2px' }}>{tr('feed:tab.channels', { defaultValue: 'Channels' })}</div>
-                  {chHits.map((c, i) => <TileRow key={'ch' + c.id} first={i === 0} glyph="#" color={teal} title={c.name} sub={`${tr('feed:thread.memberCount', { count: c.memberCount || 0, defaultValue: '{count, plural, one {# member} other {# members}}' })}${c.blurb ? ' · ' + c.blurb : ''}`} onClick={() => { onClose(); try { window.dispatchEvent(new CustomEvent('shape:openConversation', { detail: { channel: c } })); } catch (e) {} }} />)}
+                  {chHits.map((c, i) => <TileRow key={'ch' + c.id} first={i === 0} glyph="#" color={teal} title={c.name} sub={`${tr('feed:thread.memberCount', { count: c.memberCount || 0, defaultValue: '{count, plural, one {# member} other {# members}}' })}${c.blurb ? ' · ' + c.blurb : ''}`} onClick={() => { onLeave(); try { window.dispatchEvent(new CustomEvent('shape:openConversation', { detail: { channel: c } })); } catch (e) {} }} />)}
                 </>
               )}
               {filter === 'all' && recHits.length > 0 && (
@@ -22576,14 +22600,27 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   const [coachThreads, setCoachThreads] = useStateBSC(null);
   const [openChat, setOpenChat] = useStateBSC(null); // selected DM/channel row → thread view
   const [openProfile, setOpenProfile] = useStateBSC(null); // tapped a chat avatar → public profile
+  // Where the open thread's ← goes (owner, 2026-11-10: "when i click on messages from the coaches page …
+  // when i hit back, it bring me to teams page. Make sure back buttons are going back to previous page and
+  // location user was on"; services/chatThreadBack.mjs). A thread another page opened (Coaches' Message,
+  // Home's coach card, a search result, a notification, a coach's client) came with `back: 'nav'`: that
+  // jump pushed where the member was, so ← and the swipe step back there, at the scroll it left. A thread
+  // opened from Chat's own lists closes to the list, as before.
+  const [navBackKey, setNavBackKey] = useStateBSC(null);
+  const backViaNav = bsThreadViaNav(openChat, navBackKey);
+  const closeThread = () => {
+    setOpenChat(null);
+    setNavBackKey(null);
+    if (backViaNav && window.ShapeNav?.canPop?.()) window.ShapeNav.back();
+  };
   // Nav announce: only threads re-enterable via chatRequest are announced
   // (conversation-id DMs; real channels). Demo/local-only threads announce
   // nothing — a push from them records the chat tab root. Channels carry their
   // id at openChat.channelId (with name/members/host alongside), so we rebuild
   // the { channel } shape that setChatRequest({ channel }) → openChannelNow
   // replays; sample/demo channels (id 'sample…') are local-only, so skipped.
-  const chatNavDetail = openChat && openChat.conversation_id ? { conversationId: openChat.conversation_id, coach: openChat.n || null, role: openChat.s || null }
-    : openChat && openChat.channelId != null && !String(openChat.channelId).startsWith('sample') ? { channel: { id: openChat.channelId, name: openChat.n, memberCount: openChat.memberCount, isHost: openChat.isHost } }
+  const chatNavDetail = openChat && openChat.conversation_id ? { conversationId: openChat.conversation_id, coach: openChat.n || null, role: openChat.s || null, ...(backViaNav ? { back: 'nav' } : null) }
+    : openChat && openChat.channelId != null && !String(openChat.channelId).startsWith('sample') ? { channel: { id: openChat.channelId, name: openChat.n, memberCount: openChat.memberCount, isHost: openChat.isHost }, ...(backViaNav ? { back: 'nav' } : null) }
     : null;
   React.useEffect(() => {
     window.ShapeNav?.announce?.(chatNavDetail ? { detail: chatNavDetail } : null);
@@ -22618,6 +22655,8 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   React.useEffect(() => {
     if (!openRequest || !openRequest.nonce) return;
     const name = openRequest.coach;
+    // A request that opens no thread (the Wall, Nora, Team's list) leaves none held for a nav Back.
+    setNavBackKey(null);
     // Deep-link to an exact conversation (e.g. a coach tapping MESSAGE on a
     // client profile): open that thread directly by id.
     if (openRequest.conversationId) {
@@ -22625,6 +22664,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
       // loads the history itself by id.
       const listed = (threadRows || []).find(r => r.conversation_id === openRequest.conversationId);
       setOpenChat(listed || { n: name || 'Client', s: openRequest.role || tr('feed:thread.directMessage', { defaultValue: 'Direct message' }), c: '#0a8f87', i: (name || 'C').charAt(0), conversation_id: openRequest.conversationId, dm: true, messages: [] });
+      setNavBackKey(bsThreadNavKey(openRequest, { conversation_id: openRequest.conversationId }));
       return;
     }
     // Deep-link to a channel (e.g. from universal search): open it directly,
@@ -22632,6 +22672,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
     if (openRequest.channel && openRequest.channel.id != null) {
       setTab('channels');
       openChannelNow(openRequest.channel);
+      setNavBackKey(bsThreadNavKey(openRequest, { channelId: openRequest.channel.id }));
       return;
     }
     // Deep-link to the Wall (Home's "On the wall" card).
@@ -22667,7 +22708,9 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
     const sample = BS_SAMPLE_COACH_DMS[name]
       ? { n: name, s: openRequest.role || 'Coach', c: '#c0533b', i: name.charAt(0), conversation_id: null, messages: BS_SAMPLE_COACH_DMS[name] }
       : null;
-    setOpenChat(byName || (threadRows && threadRows[0]) || sample || { n: name, s: openRequest.role || 'Coach', c: '#c0533b', i: (name || 'C').charAt(0), conversation_id: null, messages: [] });
+    const pick = byName || (threadRows && threadRows[0]) || sample || { n: name, s: openRequest.role || 'Coach', c: '#c0533b', i: (name || 'C').charAt(0), conversation_id: null, messages: [] };
+    setOpenChat(pick);
+    setNavBackKey(bsThreadNavKey(openRequest, pick));
   }, [openRequest && openRequest.nonce]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Member-created community channels ("run club" style).
@@ -23295,7 +23338,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
           key={openChat.conversation_id || (openChat.channelId != null ? 'ch:' + openChat.channelId : 'n:' + (openChat.n || ''))}
           thread={{ who: isCh && !String(openChat.n || '').startsWith('#') ? `# ${openChat.n}` : openChat.n, role: openChat.s || (isCh ? tr('feed:thread.channel', { defaultValue: 'Channel' }) : tr('feed:thread.directMessage', { defaultValue: 'Direct message' })), last: openChat.last, time: '', at: openChat.at || null, messages: openChat.messages || [], group: isCh, conversationId: openChat.conversation_id, channelId: openChat.channelId }}
           eyebrow={openChat.channelId ? tr('feed:thread.channel', { defaultValue: 'Channel' }) : openChat.dm ? tr('feed:thread.privateThread', { defaultValue: 'Private thread' }) : tr('feed:thread.directMessage', { defaultValue: 'Direct message' })}
-          onBack={() => setOpenChat(null)}
+          onBack={closeThread}
           onOpenProfile={(person) => setOpenProfile(person)}
           onSendChannel={openChat.channelId && !String(openChat.channelId).startsWith('sample') ? () => setSendPostFor({ channel: { id: openChat.channelId, name: openChat.n, memberCount: openChat.memberCount || 0 } }) : null}
           grocerySaveTo={myRole === 'client' ? 'member' : bsIsCoachRole(myRole) ? 'coach' : null}
@@ -32512,8 +32555,15 @@ function bsAccountRoles(profile) {
   return out.includes('nutritionist') ? out.filter((x) => x !== 'dietitian') : out;
 }
 
-function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initialPage = '' }) {
+function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initialPage = '', landed = false }) {
   const t = useBS();
+  // A page Settings was opened straight onto from somewhere else (Home's Watch & apps → Integrations, a
+  // notification → your notifications, Goals → Edit profile: the shell's `landed`) goes back to where the
+  // member was, through Settings' own Back (owner, 2026-11-10: "Make sure back buttons are going back to
+  // previous page and location user was on"); it used to land on Settings' own page, a second ← away.
+  // Reached from Settings' own page, it goes back there, as before.
+  const landedOn = landed ? initialPage : '';
+  const backFrom = (page, close) => () => { if (landedOn && landedOn === page) onBack(); else close(); };
   const tr = useShapeTr();
   const r = useBSRadio();
   const [showContact, setShowContact] = useStateBSC(false);
@@ -33456,11 +33506,16 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   // Nav announce (spec §2): the shell only sees settingsStart at OPEN time;
   // this keeps the register current as the user moves within Settings. Only
   // the replayable keys (initialPage-supported) are announced.
-  const navSub = editing ? 'edit-profile' : showIntegrations ? 'integrations' : showPricing ? 'pricing' : '';
+  // Every page Settings can be opened on (initialPage) is announced, so a jump from it comes back to it, and
+  // whether it was landed on, so its ← still leaves Settings after that Back (2026-11-10).
+  const navSub = editing ? 'edit-profile' : showIntegrations ? 'integrations' : showPricing ? 'pricing'
+    : showNotifications ? 'notifications' : showSessions ? 'sessions' : showHabits ? 'habits'
+    : showBusiness ? 'business' : detail === 'practice' ? 'practice' : '';
+  const navLanded = !!navSub && navSub === landedOn;
   React.useEffect(() => {
-    window.ShapeNav?.announce?.({ sub: navSub });
+    window.ShapeNav?.announce?.(navLanded ? { sub: navSub, landed: true } : { sub: navSub });
     return () => window.ShapeNav?.announce?.(null);
-  }, [navSub]);
+  }, [navSub, navLanded]);
   // Persist the profile identity across sessions/devices via user_goals. Read again when Nora's
   // account setup (or its Undo) changes the name from her sheet; a key typed into stays theirs.
   const identityRev = useBSUserGoalsRev(BS_IDENTITY_KINDS);
@@ -33787,13 +33842,13 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     return <BSSubprocessorsPage onBack={() => setShowSubprocessors(false)} onContact={() => { setShowSubprocessors(false); setShowContact(true); }} />;
   }
   if (showPricing) {
-    return <BSPricingPage onBack={() => setShowPricing(false)} />;
+    return <BSPricingPage onBack={backFrom('pricing', () => setShowPricing(false))} />;
   }
   if (showSessions) {
-    return <BSSessionsScreen onBack={() => setShowSessions(false)} />;
+    return <BSSessionsScreen onBack={backFrom('sessions', () => setShowSessions(false))} />;
   }
   if (showNotifications) {
-    return <BSNotifications onBack={() => setShowNotifications(false)} onRoute={(route, data) => {
+    return <BSNotifications onBack={backFrom('notifications', () => setShowNotifications(false))} onRoute={(route, data) => {
       if (route === 'sessions') { setShowNotifications(false); setShowSessions(true); return; }
       // Every other route goes through the map a tapped push uses too (bsRouteNotification):
       // a waitlist invite opens the marketplace, a prep reminder the cook screen, a message its thread.
@@ -33807,7 +33862,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     return <BSNoraMemoryPage onBack={() => setShowNoraMemory(false)} />;
   }
   if (showIntegrations) {
-    return <BSIntegrationsPage onBack={() => setShowIntegrations(false)} />;
+    return <BSIntegrationsPage onBack={backFrom('integrations', () => setShowIntegrations(false))} />;
   }
   if (showScore) {
     return <BSShapeScorePage profile={scoreProfile} onBack={() => setShowScore(false)} onOpenStore={() => { setShowScore(false); setShowStore(true); }} />;
@@ -33828,7 +33883,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     return <BSClientLibrary onBack={() => setShowLibrary(false)} goMarket={() => { setShowLibrary(false); try { window.dispatchEvent(new Event('shape:openMarket')); } catch (e) {} }} />;
   }
   if (showHabits) {
-    return <BSHabitsPage tweaks={tweaks} setTweak={setTweak} accent={t.GREEN} onBack={() => setShowHabits(false)} onOpenScore={() => { setShowHabits(false); setShowScore(true); }} />;
+    return <BSHabitsPage tweaks={tweaks} setTweak={setTweak} accent={t.GREEN} onBack={backFrom('habits', () => setShowHabits(false))} onOpenScore={() => { setShowHabits(false); setShowScore(true); }} />;
   }
   if (showCheckin) {
     return <BSWeeklyCheckin onBack={() => setShowCheckin(false)} />;
@@ -33840,7 +33895,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     return <BSLeaderboard onBack={() => setShowLeaderboard(false)} mode={isCoachRole ? 'coach' : 'member'} role={coachRole || 'trainer'} />;
   }
   if (showBusiness) {
-    return <BSCoachBusinessPage role={coachRole || 'trainer'} tab={showBusiness} onBack={() => setShowBusiness(null)} />;
+    return <BSCoachBusinessPage role={coachRole || 'trainer'} tab={showBusiness} onBack={backFrom('business', () => setShowBusiness(null))} />;
   }
   if (showHours) {
     return <BSCoachHoursPage role={coachRole || 'trainer'} onBack={() => setShowHours(false)}
@@ -34494,7 +34549,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
           what this pane is named after. The JSX is UNCHANGED apart from two spaces
           of indent: a move that also rewrites is a move nobody can review. */}
       {detail === 'practice' && (<>
-        <DetailBack title={tr('settings:section.practice', { defaultValue: 'Your practice' })} />
+        <DetailBack title={tr('settings:section.practice', { defaultValue: 'Your practice' })} onBack={backFrom('practice', () => setDetail(''))} />
         {/* Not in the marketplace yet: each missing step with the action that fixes it. */}
         {isCoachRole && myListing && !myListing.ready && window.BSListingNotice && (() => {
           const Notice = window.BSListingNotice;
@@ -34619,7 +34674,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
           shape:openProfile, and this page holds an unsaved draft it must not discard —
           the invariant recorded beside toRoot. */}
       {!detail && editing && (<>
-        <DetailBack title={tr('settings:passport.edit', { defaultValue: 'Edit profile' })} onBack={cancelEdit} />
+        <DetailBack title={tr('settings:passport.edit', { defaultValue: 'Edit profile' })} onBack={backFrom('edit-profile', cancelEdit)} />
         {(() => {
           const acc = bsMyTierColor(); // the avatar follows my Shape Score tier, as on the card
           // The lit panel (owner, 2026-11-09, of this page: "this page looks outdated"): the root's

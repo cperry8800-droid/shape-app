@@ -475,7 +475,7 @@ test('Settings › Coach on Shape: the door, or the stage the route says, with w
   assert.match(src, /const \[coachApp, setCoachApp\] = useStateBSC\(undefined\);/);
   assert.match(src, /if \(!window\.ShapeApplications\?\.myStatus\) \{ setCoachApp\(null\); return undefined; \}\n\s+let live = true;\n\s+setCoachApp\(undefined\);/);
   // One way into a root tab for the bar and the swipes: entering Coaches from elsewhere opens it on Both.
-  assert.match(src, /const enterTab = \(k\) => \{\n\s+if \(k === 'market' && tab !== 'market'\) \{ setMarketRole\(null\); setMarketCoach\(null\); \}\n\s+setTab\(k\);\n\s+\};/);
+  assert.match(src, /const enterTab = \(k\) => \{\n\s+if \(k === 'market' && tab !== 'market'\) \{ setMarketRole\(null\); setMarketCoach\(null\); \}\n(?:\s+\/\/[^\n]*\n)*\s+if \(k === 'chat' && tab !== 'chat'\) setChatRequest\(null\);\n\s+setTab\(k\);\n\s+\};/);
   assert.match(src, /navSlide\(intent === 'next-tab' \? 'l' : 'r'\);\n\s+enterTab\(next\);/, 'a swipe into Coaches kept a jump\'s role');
   assert.match(src, /onChange=\{enterTab\}/);
   assert.match(src, /if \(showApply && window\.BSProviderApplicationScreen\) \{/);

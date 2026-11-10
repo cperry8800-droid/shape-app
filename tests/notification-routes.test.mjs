@@ -157,7 +157,7 @@ test('a person route opens that person, never the reader\'s own profile, in all 
   assert.match(CLIENT, /const navResolve = \(loc\) => \{\n\s*if \(!loc\) return;\n[^\n]*\n\s*setNotifPerson\(null\);/, 'a step back closes it');
   assert.ok(CLIENT.indexOf('const [notifPerson, setNotifPerson]') < CLIENT.indexOf('const navResolve = (loc) => {'), 'declared before the resolver reads it');
   for (const name of ['function BSTrainerAppInner(', 'function BSNutritionistAppInner(']) {
-    const shellSrc = PROS.slice(PROS.indexOf(name), PROS.indexOf(name) + 30000);
+    const shellSrc = PROS.slice(PROS.indexOf(name), PROS.indexOf(name) + 34000);
     // A coach session can run without the client module that draws it, so it is loaded first.
     assert.match(pageEffect(shellSrc, '⚠ EVERY OTHER NOTIFICATION LANDS HERE'), /case 'person': clear\(\); bsProOpenPerson\(d\.id, setNotifPerson\); return;/, name);
     assert.match(shellSrc, /const takeover = \(el\) => \(<>\{el\}\{settingsOverlay\}\{searchOverlay\}\{noraSheet\}\{personOverlay\}<\/>\);/, name);
@@ -279,7 +279,7 @@ test('the member app opens every member route and hands every coach route to the
 
 test('both coach apps open every coach route and hand every member route to the member app', () => {
   for (const [name, mine] of [['function BSTrainerAppInner(', 'trainer'], ['function BSNutritionistAppInner(', 'nutritionist']]) {
-    const shellSrc = PROS.slice(PROS.indexOf(name), PROS.indexOf(name) + 30000);
+    const shellSrc = PROS.slice(PROS.indexOf(name), PROS.indexOf(name) + 34000);
     const body = pageEffect(shellSrc, '⚠ EVERY OTHER NOTIFICATION LANDS HERE');
     const handled = cases(body);
     for (const [kind, audience] of Object.entries(R.ROUTES)) {
@@ -321,8 +321,8 @@ test('Settings opens on the page a notification asks for, and the notification l
   assert.match(CLIENT, /const \[detail, setDetail\] = useStateBSC\(initialPage === 'practice' \? 'practice' : ''\);/);
   assert.match(CLIENT, /\{ l: tr\('settings:notif\.inbox', \{ defaultValue: 'Your notifications' \}\), r: tr\('settings:notif\.inboxMeta', \{ defaultValue: 'Open' \}\), action: \(\) => setShowNotifications\(true\) \},/);
   // A new start page remounts Settings, so one already open goes there.
-  assert.match(CLIENT, /<BSSettings\s+key=\{'settings:' \+ settingsStart\}/);
-  assert.equal((PROS.match(/<BSSettings key=\{'settings:' \+ settingsStart\}/g) || []).length, 2);
+  assert.match(CLIENT, /<BSSettings\s+key=\{'settings:' \+ settingsStart \+ \(settingsLanded \? ':landed' : ''\)\}/);
+  assert.equal((PROS.match(/<BSSettings key=\{'settings:' \+ settingsStart \+ \(settingsLanded \? ':landed' : ''\)\}/g) || []).length, 2);
   for (const loc of ['de', 'en', 'es', 'fr', 'ha', 'id', 'it', 'pcm', 'pt-BR', 'ru', 'tr', 'uk', 'vi']) {
     const cat = JSON.parse(read(`mobile-app/src/i18n/catalogs/${loc}/settings.json`));
     for (const k of ['notif.inbox', 'notif.inboxMeta']) assert.ok(typeof cat[k] === 'string' && cat[k].trim(), `${loc}: ${k}`);

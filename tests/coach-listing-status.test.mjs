@@ -431,7 +431,7 @@ test('app: the backend door and the marketplace\'s word for a deep link to a coa
   assert.match(backend, /window\.ShapeCoachListing = \{\s+getMine: getMyCoachListings,\s+saveRates: saveMyCoachRates,\s+publicByOwner: publicListingByOwner,\s+publicById: publicListingById,\s+\};/);
   assert.match(backend, /fetch\(`\$\{apiBaseUrl\}\/api\/coach\/listing`, \{\s+method: 'POST',/);
   const market = read('mobile-app/src/broadsheet/iosAppBroadsheetMarketplace.jsx');
-  assert.match(market, /if \(hit\) \{ setOpen\(hit\); setOpenNo\(null\); setOpenIntro\(false\); setDeepMiss\(false\); \} else setDeepMiss\(true\);\s+if \(onCoachConsumed\) onCoachConsumed\(\);/);
+  assert.match(market, /if \(hit\) \{ setOpen\(hit\); setOpenNo\(null\); setOpenIntro\(false\); setOpenListing\(!!initialCoach\.listing\); setOpenViaNav\(initialCoach\.back === 'nav'\); setDeepMiss\(false\); \} else setDeepMiss\(true\);\s+if \(onCoachConsumed\) onCoachConsumed\(\);/);
   // The directory draws in its own module (2026-11-04 redesign): the marketplace hands it the miss
   // and its dismiss, and the view says so.
   assert.match(market, /deepMiss=\{deepMiss\} onDeepMissDismiss=\{\(\) => setDeepMiss\(false\)\}/);
