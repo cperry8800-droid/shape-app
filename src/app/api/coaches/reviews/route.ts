@@ -68,13 +68,13 @@ const UNKNOWN = () => NextResponse.json({ error: "Couldn't check your membership
 // reviews (count > 0), so a locked answer without one would read as "No reviews yet". When the
 // ratings can't be read, that is unknown too (Codex P2 on #2492).
 const RATINGS_UNREAD = () => NextResponse.json({ error: "Couldn't read the ratings just now." }, { status: 503 });
-// The client a reader's list is read with: the service role, for any reader this route has
-// cleared (a signed-in adult account). This route decides who reads the words, and its filters
+// The client a reader's list is read with: the service role. Called only for a reader this route
+// has cleared (a signed-in adult account): each list returns `locked` before it for any other.
+// This route decides who reads the words, and its filters
 // are a validated uuid or a cleaned slug. ⚠ Through the caller's client a free account read only
 // its own rows until 2026-11-10-coach-reviews-accounts.sql runs (the 2026-10-28 policy admits paid
 // members only), and an admin never matched the policy at all (Codex P2 on #2492).
-function listClient(reader: { member: boolean }, supabase: SupabaseClient): SupabaseClient {
-  if (!reader.member) return supabase;
+function listClient(supabase: SupabaseClient): SupabaseClient {
   try { return createAdminClient(); } catch { return supabase; }
 }
 
@@ -126,7 +126,7 @@ export async function GET(request: Request) {
     const reader = await readReader(request, supabase);
     if (!reader) return UNKNOWN();
     if (!reader.member) return NextResponse.json({ reviews: [], locked: true });
-    const { data, error } = await listClient(reader, supabase).from('coach_reviews').select('*').in('id', ids).limit(3);
+    const { data, error } = await listClient(supabase).from('coach_reviews').select('*').in('id', ids).limit(3);
     if (error) return NextResponse.json({ reviews: [] });
     return NextResponse.json({ reviews: (data ?? []).map((r) => shape(r as ReviewRow)) });
   }
@@ -146,7 +146,7 @@ export async function GET(request: Request) {
     const rating = ratings ? ratingOf(ratings.filter((r) => r.owner_id === ownerParam)) : null;
     if (!reader.member) return rating ? NextResponse.json({ reviews: [], locked: true, ...rating }) : RATINGS_UNREAD();
     // The list is the newest 200; the average and count are over every review.
-    const { data, error } = await listClient(reader, supabase).from('coach_reviews').select('*').eq('owner_id', ownerParam).order('created_at', { ascending: false }).limit(200);
+    const { data, error } = await listClient(supabase).from('coach_reviews').select('*').eq('owner_id', ownerParam).order('created_at', { ascending: false }).limit(200);
     if (error) return NextResponse.json({ reviews: [], ...(rating || {}) });
     return NextResponse.json({ reviews: (data ?? []).map((r) => shape(r as ReviewRow)), ...(rating || {}) });
   }
@@ -159,7 +159,7 @@ export async function GET(request: Request) {
     if (!reader.member) return rating ? NextResponse.json({ reviews: [], locked: true, ...rating }) : RATINGS_UNREAD();
     // select('*') keeps this migration-safe — an explicit owner_id column would
     // 400 pre-migration (PostgREST). shape() picks only the fields it needs.
-    const { data, error } = await listClient(reader, supabase)
+    const { data, error } = await listClient(supabase)
       .from('coach_reviews')
       .select('*')
       .eq('coach_slug', slug)

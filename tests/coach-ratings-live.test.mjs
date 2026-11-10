@@ -89,7 +89,7 @@ function reviewsClient(rows, { ratingsFn = true, canReadRows = true, log = null 
 // allow-list, whose lists the route reads with `adminClient` (the service role). `membershipFails`:
 // the membership read errs, which computeMembership throws only when asked to be strict.
 // `authOutage`: the sign-in check itself fails (getUser answers a null user with a 5xx error).
-async function loadRoute(client, { member = false, admin = false, signedIn = member || admin, adminClient = null, membershipFails = false, authOutage = false, seen = {} } = {}) {
+async function loadRoute(client, { member = false, admin = false, minor = false, signedIn = member || admin || minor, adminClient = null, membershipFails = false, authOutage = false, seen = {} } = {}) {
   const require_ = createRequire(join(ROOT, 'package.json'))
   return loadRealModule(join(ROOT, 'src/app/api/coaches/reviews/route.ts'), {
     typescript: true,
@@ -106,7 +106,7 @@ async function loadRoute(client, { member = false, admin = false, signedIn = mem
       ['@/lib/membership-core', { computeMembership: async (sb, id, email, opts = {}) => {
         seen.strict = opts.strict === true
         if (membershipFails) { if (opts.strict) throw new Error('profiles read failed'); return { isMember: false, isCoach: false, isAdmin: false, isKnownMinor: false } }
-        return { isMember: (member || admin) && id === 'u-reader', isCoach: false, isAdmin: admin && id === 'u-reader', isKnownMinor: false }
+        return { isMember: (member || admin) && id === 'u-reader', isCoach: false, isAdmin: admin && id === 'u-reader', isKnownMinor: minor && id === 'u-reader' }
       } }],
       ['@/lib/supabase/admin', { createAdminClient: () => { if (!adminClient) throw new Error('no service key'); seen.adminReads = (seen.adminReads || 0) + 1; return adminClient } }],
     ]),
@@ -166,6 +166,16 @@ test('every signed-in account reads the reviews; a visitor gets the rating and n
     }
     const memberPins = await (await member.GET(new Request(`https://shape.test/api/coaches/reviews?ids=${REVIEW}`))).json()
     assert.equal(memberPins.reviews.length, 1)
+    // A known minor is signed in and still reads no words: Shape is for adults. The rating only,
+    // and no read through the service role.
+    const minorSeen = {}
+    const minor = await loadRoute(reviewsClient(rows, { ratingsFn, canReadRows: !ratingsFn }), { minor: true, adminClient: reviewsClient(rows, { ratingsFn }), seen: minorSeen })
+    for (const q of [`?owner=${OWNER}`, '?coach=ada-coach']) {
+      const body = await (await minor.GET(new Request(`https://shape.test/api/coaches/reviews${q}`))).json()
+      assert.deepEqual(body, { reviews: [], locked: true, avg: 8, count: 2 }, `${q}, a known minor: the rating, no words`)
+    }
+    assert.deepEqual(await (await minor.GET(new Request(`https://shape.test/api/coaches/reviews?ids=${REVIEW}`))).json(), { reviews: [], locked: true })
+    assert.equal(minorSeen.adminReads, undefined, 'a minor is never read for through the service role')
   }
 })
 

@@ -46,7 +46,12 @@ test('each index is unique, on owner_id, and partial: ownerless listings stay fr
 });
 
 test('approval takes the listing that won a unique violation, and throws any other', () => {
-  const src = readFileSync('src/app/dashboard/applications/actions.ts', 'utf8');
-  const fn = src.slice(src.indexOf('async function publishProviderRow('), src.indexOf('/** Records how the decision email went'));
+  // The approval moved to src/lib/coach-approval.ts (2026-11-10), shared by the admin's Approve and
+  // the applicant's own confirm link; publishProviderRow is the same function there.
+  const src = readFileSync('src/lib/coach-approval.ts', 'utf8');
+  const start = src.indexOf('async function publishProviderRow(');
+  const end = src.indexOf('/** Records how a decision email went');
+  assert.ok(start >= 0 && end > start, 'publishProviderRow is found');
+  const fn = src.slice(start, end);
   assert.match(fn, /if \(\(error as \{ code\?: string \}\)\.code === '23505'\) \{[\s\S]*?\.eq\('owner_id', ownerId\)[\s\S]*?if \(winner\?\.id != null\) return winner\.id;\s+\}\s+throw error;/);
 });

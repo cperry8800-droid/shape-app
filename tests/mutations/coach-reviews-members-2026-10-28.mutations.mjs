@@ -115,9 +115,10 @@ const RETARGET = {
   "api: every signed-in reader counts as a member": { file: API, find: "    return { member: !m.isKnownMinor, admin: m.isAdmin };", replace: "    return { member: m.isMember, admin: m.isAdmin };" },
   "api: an unknown membership is treated as \"not a member\"": { file: API, find: "    return { member: !m.isKnownMinor, admin: m.isAdmin };\n  } catch {\n    return null;\n  }", replace: "    return { member: !m.isKnownMinor, admin: m.isAdmin };\n  } catch {\n    return { member: false, admin: false };\n  }" },
   "api: an admin reads with their own session": { file: API, find: "  if (!reader.member) return supabase;\n  try { return createAdminClient(); } catch { return supabase; }", replace: "  return supabase;" },
-  "api: everyone reads through the service role": { file: API, find: "  if (!reader.member) return supabase;", replace: "  if (false) return supabase;" },
 };
-const DROP = [];
+// listClient no longer takes the reader (2026-11-10): every list returns `locked` before it for a
+// reader who may not read the words, which "?ids answers a non-member" and the like guard.
+const DROP = ['api: everyone reads through the service role'];
 const ADDED = [
   { name: "api: a known minor reads the words", file: API,
     find: "    return { member: !m.isKnownMinor, admin: m.isAdmin };",
