@@ -13,7 +13,7 @@
 import React from 'react';
 import {
   bsNavPush, bsNavPop, bsNavCanPop, bsNavSize, bsNavClear, bsNavAnnounce,
-  bsNavCompose, bsGuardWanted, bsGuardSync, bsPhoneBack, bsGuardOnFirstUse, bsNavDropStack,
+  bsNavCompose, bsGuardWanted, bsGuardSync, bsPhoneBack, bsGuardPop, bsGuardOnFirstUse, bsNavDropStack,
 } from '../services/navHistory.mjs';
 
 // The Back of the page in front (the chrome's bsTopPageBack: what its ← and a swipe on it do), or null.
@@ -89,12 +89,18 @@ export function useBSNavHistory({ navLoc, navResolve }) {
   }, [own, scheduleSync]);
 
   React.useEffect(() => {
-    const onPop = () => {
+    const onPop = (ev) => {
       own();
+      // Armed means the browser stands on our guard entry, so it is read from where the browser now stands.
+      const onGuard = !!(ev && ev.state && ev.state.shapeNav);
+      const kind = bsGuardPop({ onGuard, armed: armed.current, consuming: consuming.current });
+      armed.current = onGuard;
       // Our own walk-off of a stale guard landing: nothing for the reader here.
-      if (consuming.current) { consuming.current = false; scheduleSync(); return; }
-      if (!armed.current) return;              // not our guard entry
-      armed.current = false;                   // the browser just spent it
+      if (kind === 'ours') { consuming.current = false; scheduleSync(); return; }
+      // The browser's Forward back onto a guard we walked off: ours again, kept or walked off by the sync.
+      if (kind === 'forward') { scheduleSync(); return; }
+      if (kind !== 'back') return;             // not our guard entry
+      // The reader's Back: the browser just spent the guard.
       // The phone's back does what the page in front's ← does (a station closes onto its cover, Search's
       // person view onto Search), and the stack is stepped only from a page with no Back of its own.
       const pageBack = bsPageBackNow();

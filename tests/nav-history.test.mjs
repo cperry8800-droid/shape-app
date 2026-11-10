@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import {
   bsNavPush, bsNavPop, bsNavPeek, bsNavCanPop, bsNavSize, bsNavClear,
   bsNavReplaceTop, bsNavAnnounce, bsNavAnnounced, bsNavCompose,
-  bsGuardWanted, bsGuardSync, bsPhoneBack,
+  bsGuardWanted, bsGuardSync, bsPhoneBack, bsGuardPop,
 } from '../mobile-app/src/services/navHistory.mjs';
 
 test('push/pop round-trips descriptors in LIFO order', () => {
@@ -115,6 +115,53 @@ test('the phone\'s back takes the page in front\'s own Back first, then the stac
   assert.equal(bsPhoneBack({ pageHasBack: true, stackSize: 0 }), 'page');
   assert.equal(bsPhoneBack({ pageHasBack: false, stackSize: 2 }), 'stack', 'a root tab steps the history');
   assert.equal(bsPhoneBack({ pageHasBack: false, stackSize: 0 }), 'none');
+});
+
+test('a popstate is read from the entry the browser lands on: our walk-off, the reader\'s Back, or a Forward onto our guard', () => {
+  assert.equal(bsGuardPop({ onGuard: false, armed: false, consuming: true }), 'ours', 'our own history.back() landing');
+  assert.equal(bsGuardPop({ onGuard: false, armed: true }), 'back', 'the reader spent the guard');
+  // A walk-off leaves our guard as a Forward entry: the browser's Forward stands on it again (Codex P2 on #2689).
+  assert.equal(bsGuardPop({ onGuard: true, armed: false }), 'forward');
+  assert.equal(bsGuardPop({ onGuard: false, armed: false }), null, 'not our entry');
+  assert.equal(bsGuardPop({ onGuard: true, armed: true }), null, 'already standing on it');
+});
+
+test('a Forward onto a guard we walked off is ours again, so no later Back is spent on it (Codex P2 on #2689)', () => {
+  // The browser's history: each entry's state, and where the browser stands. The shell as bsNavShell.js runs it.
+  let entries = [null], at = 0;
+  let stack = 0, pageBack = false, armed = false, consuming = false;
+  const sync = () => {
+    const act = bsGuardSync({ wanted: bsGuardWanted(stack, pageBack), armed, consuming });
+    if (act === 'arm') { entries = entries.slice(0, at + 1).concat({ shapeNav: true }); at += 1; armed = true; }
+    if (act === 'consume') { armed = false; consuming = true; at -= 1; land(); } // history.back(), landing as a popstate
+  };
+  const land = () => { // the popstate
+    const onGuard = !!(entries[at] && entries[at].shapeNav);
+    const kind = bsGuardPop({ onGuard, armed, consuming });
+    armed = onGuard;
+    if (kind === 'ours') { consuming = false; sync(); return kind; }
+    if (kind === 'forward') { sync(); return kind; }
+    if (kind !== 'back') return 'nothing';
+    const step = bsPhoneBack({ pageHasBack: pageBack, stackSize: stack });
+    if (step === 'page') pageBack = false; else if (step === 'stack') stack -= 1;
+    sync();
+    return step;
+  };
+  const back = () => { if (at === 0) return 'left the app'; at -= 1; return land(); };
+  const forward = () => { if (at === entries.length - 1) return 'nothing forward'; at += 1; return land(); };
+  // Home → Goals in place, then Goals' own ←: the guard is walked off, and stays as a Forward entry.
+  pageBack = true; sync(); assert.equal(at, 1);
+  pageBack = false; sync(); assert.equal(at, 0); assert.equal(entries.length, 2);
+  // The browser's Forward stands on it again: ours, and with nothing to go back to it is walked off.
+  assert.equal(forward(), 'forward'); assert.equal(at, 0); assert.equal(armed, false);
+  // Goals again: one guard, and two Backs close it and then leave. Before, the second Back did nothing.
+  pageBack = true; sync(); assert.equal(armed, true);
+  assert.equal(back(), 'page');
+  assert.equal(back(), 'left the app');
+  // With a jump behind the page, a Forward onto the guard keeps it: the stack still wants it.
+  stack = 1; sync(); stack = 0; sync(); stack = 1; // a Back that emptied it, then something pushed without a sync yet
+  assert.equal(forward(), 'forward'); assert.equal(armed, true); assert.equal(at, 1);
+  assert.equal(back(), 'stack');
 });
 
 test('guard invariant holds across a mixed sequence (armed ⟺ the stack or a page Back)', () => {

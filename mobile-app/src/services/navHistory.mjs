@@ -92,6 +92,19 @@ export function bsGuardSync({ wanted, armed, consuming = false }) {
   return null;
 }
 export function bsPhoneBack({ pageHasBack, stackSize }) { return pageHasBack ? 'page' : stackSize > 0 ? 'stack' : 'none'; }
+// `bsGuardPop`    — what a popstate was, from the entry the browser now stands on (`onGuard`: its state is
+//                   our guard's) and what the shell believed: our own walk-off landing ('ours'), the
+//                   reader's Back spending our guard ('back'), the browser's Forward back onto a guard we
+//                   walked off ('forward'), or not ours (null). A walk-off leaves our guard as a Forward
+//                   entry; stepping onto it unnoticed left the shell unarmed on a guard, and the next Back
+//                   was spent on it with nothing to show (Codex P2 on #2689). So the shell then takes
+//                   armed from where the browser stands (armed ⟺ onGuard), and a 'forward' is synced like
+//                   any other change: kept if a Back has somewhere to go, else walked off again.
+export function bsGuardPop({ onGuard, armed, consuming = false }) {
+  if (consuming) return 'ours';
+  if (onGuard) return armed ? null : 'forward';
+  return armed ? 'back' : null;
+}
 // `bsGuardOnFirstUse` — the first time a shell touches the history, a stack
 //                       already there is ANOTHER shell's: the member app's, left
 //                       when the account switched to a coach app (Settings'

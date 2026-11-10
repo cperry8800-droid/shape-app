@@ -224,7 +224,7 @@ test('every way into the history takes the shell\'s first touch first', () => {
   assert.match(SHELL, /const own = React\.useCallback\(\(\) => \{\n\s+if \(owned\.current\) return;\n\s+owned\.current = true;\n\s+if \(bsGuardOnFirstUse\(bsNavSize\(\)\) === 'adopt'\) \{ bsNavDropStack\(\); armed\.current = true; \}\n\s+\}, \[\]\);/);
   assert.match(SHELL, /const navPush = React\.useCallback\(\(\) => \{\n\s+own\(\);\n\s+const changed = bsNavPush\(/);
   assert.match(SHELL, /const navBack = React\.useCallback\(\(\) => \{\n\s+own\(\);\n\s+if \(!bsNavCanPop\(\)\) return false;/);
-  assert.match(SHELL, /const onPop = \(\) => \{\n\s+own\(\);\n/);
+  assert.match(SHELL, /const onPop = \(ev\) => \{\n\s+own\(\);\n/);
   assert.match(SHELL, /const sync = React\.useCallback\(\(\) => \{\n\s+syncTimer\.current = null;\n\s+own\(\);/);
   assert.match(SHELL, /const navClear = React\.useCallback\(\(\) => \{\n\s+own\(\);\n\s+bsNavClear\(\);/);
   assert.match(SHELL, /const canPop = \(\) => \{ own\(\); return bsNavCanPop\(\); \};\n\s+window\.ShapeNav = \{ push: navPush, back: navBack, canPop, announce: bsNavAnnounce, clear: navClear \};/);
@@ -245,10 +245,15 @@ test('the chrome names the Back of the page in front: the one a swipe there woul
 });
 
 test('the phone\'s back takes the page\'s own Back first, and the guard stands while there is one', () => {
-  const onPop = between(SHELL, 'const onPop = () => {', '\n    };\n');
-  // Our own walk-off landing is nothing for the reader; an entry not ours is left alone.
-  assert.match(onPop, /if \(consuming\.current\) \{ consuming\.current = false; scheduleSync\(\); return; \}\n\s+if \(!armed\.current\) return;/);
-  assert.match(onPop, /armed\.current = false;/);
+  const onPop = between(SHELL, 'const onPop = (ev) => {', '\n    };\n');
+  // Armed is read from where the browser lands: a Forward onto a guard we walked off is ours again, and the
+  // sync keeps or walks it off (Codex P2 on #2689). Our own walk-off landing is nothing for the reader; an
+  // entry not ours is left alone.
+  assert.match(onPop, /const onGuard = !!\(ev && ev\.state && ev\.state\.shapeNav\);\n\s+const kind = bsGuardPop\(\{ onGuard, armed: armed\.current, consuming: consuming\.current \}\);\n\s+armed\.current = onGuard;\n/);
+  assert.match(onPop, /if \(kind === 'ours'\) \{ consuming\.current = false; scheduleSync\(\); return; \}/);
+  assert.match(onPop, /if \(kind === 'forward'\) \{ scheduleSync\(\); return; \}\n\s+if \(kind !== 'back'\) return;/);
+  assert.ok(onPop.indexOf('armed.current = onGuard;') < onPop.indexOf("if (kind === 'ours')"), 'armed is set before any return');
+  assert.match(SHELL, /import \{[^}]*\bbsGuardPop\b[^}]*\} from '\.\.\/services\/navHistory\.mjs';/, 'read at the first popstate, so a missing import only throws there');
   assert.match(onPop, /const step = bsPhoneBack\(\{ pageHasBack: !!pageBack, stackSize: bsNavSize\(\) \}\);\n\s+if \(step === 'page'\) \{/);
   assert.match(onPop, /try \{ pageBack\(\); \} catch \(e\) \{\}\n\s+\} else if \(step === 'stack'\) navBack\(\);\n\s+scheduleSync\(\);/);
   assert.ok(onPop.indexOf('window.bsMarkBack()') < onPop.indexOf('pageBack();'), 'a page Back lands at the scroll it left, like the ←');
