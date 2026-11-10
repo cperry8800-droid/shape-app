@@ -1540,12 +1540,19 @@ export async function POST(request: Request) {
   // ⚠ A FREE ACCOUNT'S FREE WEEK OF NORA IS HER ASSISTANT, AS FOR A MEMBER (owner, 2026-11-10: it
   // starts after the third completed workout, once, with no card; 2026-11-10-nora-free-week.sql).
   // Her lookups, memory and action cards open for it; nothing else a member has does (Radio, the
-  // Store and the rest ask the membership themselves). A preview that could not be read is none.
+  // Store and the rest ask the membership themselves).
+  // ⚠ A WEEK THAT COULD NOT BE READ IS NOT "NO WEEK" (Codex P2 on #2675). Read as none, an account in
+  // its free week was answered by the help desk, and counted on the free tier, while the table could
+  // not be read. As requireNora on a fault, this message is answered by her assistant instead: the
+  // account's age and plan were read just above, so only the week is unknown. Her end-of-week note
+  // waits for a read that says when it ends.
   let noraWeekEnds: string | null = null;
   if (actor && membership && !membership.isMember && !membership.isKnownMinor) {
-    const week = await readNoraPreview(actor.supabase, actor.user.id).catch(() => null);
-    if (week?.active) {
-      noraWeekEnds = week.endsAt;
+    let week: Awaited<ReturnType<typeof readNoraPreview>> = null;
+    let weekUnread = false;
+    try { week = await readNoraPreview(actor.supabase, actor.user.id); } catch { weekUnread = true; }
+    if (weekUnread || week?.active) {
+      noraWeekEnds = week?.active ? week.endsAt : null;
       membership = { ...membership, isMember: true };
     }
   }

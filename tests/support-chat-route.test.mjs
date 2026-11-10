@@ -97,7 +97,7 @@ async function loadRoute({ user = { id: U, email: 'm@x' }, role = 'client', role
     ['@/lib/ai/adminLookup.mjs', adminLookup],
     // The help desk's service-role client: the test's own (adminDb), else one that refuses.
     ['@/lib/supabase/admin', { createAdminClient: () => { if (!adminDb) throw new Error('no service role'); return adminDb; } }],
-    ['@/lib/membership-core', { readNoraPreview: async () => noraWeek, computeMembership: async () => ({ isMember, isCoach, isAdmin, isKnownMinor: false }) }],
+    ['@/lib/membership-core', { readNoraPreview: async () => { if (noraWeek instanceof Error) throw noraWeek; return noraWeek; }, computeMembership: async () => ({ isMember, isCoach, isAdmin, isKnownMinor: false }) }],
     ['@/lib/food-search-server', { searchFoodsServer: async () => ({ results: [], unavailable: true }) }],
     ['@/lib/ai', {
       hasOpenAIKey: () => hasKey,
@@ -1503,4 +1503,13 @@ test('the free week of Nora: a free account in its week gets her lookups and the
   const a = after.calls.ai[0];
   for (const n of READ_NAMES) assert.ok(!toolNames(a.body).includes(n), `${n} after the week`);
   assert.match(String(a.body.input?.[0]?.content ?? JSON.stringify(a.body)), /FREE ACCOUNT:[^]*free week of you as their assistant/);
+  // ⚠ A week that could not be read is not "no week" (Codex P2 on #2675): as requireNora on a fault,
+  // her assistant answers that message, with no end date claimed and no free-account note.
+  const unread = await loadRoute({ isMember: false, noraWeek: Object.assign(new Error('fake failure on nora_previews'), { code: '57014' }) });
+  await unread.mod.POST(post(ask('what is on today')));
+  const u = unread.calls.ai[0];
+  for (const n of READ_NAMES) assert.ok(toolNames(u.body).includes(n), `${n} when the week could not be read`);
+  const uSys = String(u.body.input?.[0]?.content ?? JSON.stringify(u.body));
+  assert.doesNotMatch(uSys, /FREE ACCOUNT:/, 'an unread week was answered as a confirmed free account');
+  assert.doesNotMatch(uSys, /NORA FREE WEEK:/, 'an end date nobody read was claimed');
 });

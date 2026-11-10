@@ -104,6 +104,10 @@ export default {
     { name: "board: a free account sees past the top 10", file: BOARD,
       find: "  const entries = all.filter((e) => e.rank !== null && e.rank <= FREE_TOP).map(still);",
       replace: "  const entries = all.filter((e) => e.rank !== null).map(still);" },
+    // Codex P2 on #2675: the chat answers an unread week with her assistant, as requireNora.
+    { name: "r11: the chat answers an unread week as the help desk", file: CHAT,
+      find: "    if (weekUnread || week?.active) {",
+      replace: "    if (week?.active) {" },
     // Codex P2 ×2 on #2675: a week that could not be read is unknown, everywhere.
     { name: "r9: a failed read of the week is no week again", file: CORE,
       find: "    if (code === 'PGRST205' || code === '42P01') return null;\n    throw error;\n",
