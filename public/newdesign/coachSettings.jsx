@@ -36,6 +36,8 @@ const CST_DEFAULT_CHANNELS = { inapp: true, push: true, email: false };
 // to it by tests/notification-email.test.mjs, because this page is not a module.
 const CST_EMAIL_TYPES = ["waitlist_join"];
 const CST_CAPS = [2, 3, 4, 6, 8];
+// An hour field reads "22:00": its ":00" sits against the digits.
+const CST_HOUR_SUFFIX = { marginLeft: -5 };
 
 // ⚠ THE COACH'S NOTIFICATION TYPES ARE DERIVED, NOT LISTED. src/lib/ai/notifications.mjs
 // marks every type with an `audience`, and the delivery gate gives a type no channel
@@ -87,6 +89,59 @@ const CST_COACH_TYPES = [
 // it — same inert row, registered too.)
 const CST_REGISTRY_COACH_TYPES = ["client_red", "client_amber"];
 
+// ── The page in sections (owner, 2026-11-10: "settings page needs to be organized much better", then
+// "create tabs at the top that get to different sections in settings instead of scrolling all the way
+// down"). The switch Business uses (DashSegmented), remembered per role the way Business remembers
+// its own, and a link can name one: #settings?section=notifications. Guides has its own tab because the
+// dashboard tour says it is in "Settings → Guides" (dashTour.js).
+// ⚠ OBJECTS, NEVER `["key", "Label"]` ROWS, here and in the groups below:
+// tests/coach-settings.test.mjs reads every two-space-indented `["key",` line in this file as a
+// notification switch.
+const CST_SECTIONS = [
+  { key: "general", label: "General" },
+  { key: "flags", label: "Client flags" },
+  { key: "notifications", label: "Notifications" },
+  { key: "calendar", label: "Calendar" },
+  { key: "guides", label: "Guides" },
+  { key: "account", label: "Account" },
+];
+const CST_SECTION_KEYS = CST_SECTIONS.map((s) => s.key);
+// A section's cards side by side on a wide screen, one column on a narrow one.
+const CST_GRID = { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 420px), 1fr))", gap: 16, alignItems: "start" };
+
+// Thirteen flag numbers read as four questions. The ROWS still come from DashSignals.TUNABLES: a group
+// only names keys, so a threshold the engine adds lands under "More" rather than going missing, and one
+// it drops is skipped rather than offered.
+const CST_FLAG_GROUPS = [
+  { key: "contact", icon: "contact", label: "Logging & contact", blurb: "When a client goes quiet, or is waiting on you.", keys: ["FOOD_GAP_DAYS", "CONTACT_GAP_DAYS", "REPLY_WAIT_HOURS"] },
+  { key: "checkins", icon: "checkins", label: "Check-ins & sessions", blurb: "When the weekly rhythm slips.", keys: ["CHECKIN_GRACE_DAYS", "CHECKIN_RED_WEEKS", "MISSED_SESSIONS"] },
+  { key: "body", icon: "body", label: "Nutrition & recovery", blurb: "When intake, sleep or recovery runs off target.", keys: ["LEDGER_OVER_PCT", "PROTEIN_UNDER_PCT", "SLEEP_DEFICIT_H", "RECOVERY_LOW"] },
+  { key: "progress", icon: "progress", label: "Programs & progress", blurb: "When results stall or a program runs out.", keys: ["SCORE_DROP_PTS", "GOAL_SLIP_DAYS", "PROGRAM_END_DAYS"] },
+];
+// The notification switches under four headings. CST_COACH_TYPES stays the list of rows, with the
+// same rule: a type no group names lands under "More".
+const CST_NOTIFY_GROUPS = [
+  { key: "clients", label: "Your clients", keys: ["client_red", "client_amber", "client_message", "new_client", "shared_client"] },
+  { key: "business", label: "Bookings & money", keys: ["sessions", "payments", "waitlist_join"] },
+  { key: "people", label: "People", keys: ["direct_message", "follows", "friend_habit"] },
+  { key: "account", label: "Your account", keys: ["credentials", "account"] },
+];
+// `rows` under the groups that name them, in each group's order; a row no group names goes last,
+// under `rest`, and a name with no row is skipped. A group left empty is dropped.
+function cstGrouped(groups, rows, keyOf, rest) {
+  const byKey = new Map(rows.map((r) => [keyOf(r), r]));
+  const placed = new Set();
+  const out = [];
+  groups.forEach((g) => {
+    const got = [];
+    g.keys.forEach((k) => { if (byKey.has(k) && !placed.has(k)) { placed.add(k); got.push(byKey.get(k)); } });
+    if (got.length) out.push({ ...g, rows: got });
+  });
+  const left = rows.filter((r) => !placed.has(keyOf(r)));
+  if (left.length) out.push({ ...rest, rows: left });
+  return out;
+}
+
 function cstCard(children, extra) {
   return (
     <div className="dash-plate dash-plate--tick dash-plate--bracket" style={{ "--dac": CST_TEAL, paddingLeft: 24, ...(extra || {}) }}>
@@ -95,7 +150,45 @@ function cstCard(children, extra) {
   );
 }
 function cstChip(on) {
-  return { fontFamily: CST_MONO, fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", padding: "7px 12px", borderRadius: 4, border: "1px solid " + (on ? CST_TEAL : "rgba(var(--sh-ink-rgb, 242,237,228),0.18)"), background: on ? "rgba(var(--sh-accent-rgb, 46,224,196),0.10)" : "transparent", color: on ? "var(--sh-accent-ink, #2ee0c4)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.75)", cursor: "pointer" };
+  return { fontFamily: CST_MONO, fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", padding: "8px 13px", borderRadius: 7, border: "1px solid " + (on ? CST_TEAL : "var(--sh-line2, #413d38)"), background: on ? "var(--sh-accent-tint, #182d26)" : "transparent", color: on ? "var(--sh-accent-ink, #2ee0c4)" : CST_INK, cursor: "pointer" };
+}
+// The card's head: an icon in an accent tile, the mono eyebrow, and a status on the right
+// (owner, 2026-11-10: "improve look of boxes etc"). Icons are 20-unit strokes in the accent,
+// never an emoji.
+const CST_ICONS = {
+  opens: "M3 5.5A1.5 1.5 0 0 1 4.5 4h11A1.5 1.5 0 0 1 17 5.5v9a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 3 14.5zM3 8h14M7 8v8",
+  example: "M2 10s3-5.5 8-5.5S18 10 18 10s-3 5.5-8 5.5S2 10 2 10zM10 12.3a2.3 2.3 0 1 0 0-4.6 2.3 2.3 0 0 0 0 4.6z",
+  skin: "M10 3a7 7 0 1 1 0 14 7 7 0 0 1 0-14zM10 3v14",
+  flag: "M5 17V3.5M5 4h9.5l-2 3.5 2 3.5H5",
+  contact: "M4 5.5A1.5 1.5 0 0 1 5.5 4h9A1.5 1.5 0 0 1 16 5.5v6a1.5 1.5 0 0 1-1.5 1.5H9l-3.5 3v-3A1.5 1.5 0 0 1 4 11.5z",
+  checkins: "M4 6a1.5 1.5 0 0 1 1.5-1.5h9A1.5 1.5 0 0 1 16 6v8.5a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 4 14.5zM4 8.5h12M7.5 3v3M12.5 3v3M7.5 12.2l1.7 1.6 3.3-3.3",
+  body: "M2.5 10.5h3.5l2-4.5 3.5 9 2-4.5h4",
+  progress: "M3 14.5l4.5-4.5 3 3L17 6.5M12.5 6.5H17V11",
+  bell: "M6 8.5a4 4 0 0 1 8 0c0 4 1.8 5.5 1.8 5.5H4.2S6 12.5 6 8.5zM8.5 16.5a1.6 1.6 0 0 0 3 0",
+  switches: "M4 6h7M14 6h2M4 14h2M9 14h7M12.5 4.3v3.4M7.5 12.3v3.4",
+  zone: "M10 3a7 7 0 1 1 0 14 7 7 0 0 1 0-14zM3 10h14M10 3c2 2 3 4.5 3 7s-1 5-3 7c-2-2-3-4.5-3-7s1-5 3-7z",
+  calendar: "M4 6a1.5 1.5 0 0 1 1.5-1.5h9A1.5 1.5 0 0 1 16 6v8.5a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 4 14.5zM4 8.5h12M7.5 3v3M12.5 3v3",
+};
+function cstIcon(name) {
+  const d = CST_ICONS[name];
+  if (!d) return null;
+  return (
+    <span className="cst-icon" aria-hidden="true">
+      <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d={d} /></svg>
+    </span>
+  );
+}
+function cstPill(text, tone, dot) {
+  return <span className={"cst-pill" + (tone ? " is-" + tone : "")}>{dot ? <span className="cst-dot" /> : null}{text}</span>;
+}
+function cstHead(icon, label, right) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+      {cstIcon(icon)}
+      <span className="dash-eyebrow">{label}</span>
+      {right ? <span style={{ marginLeft: "auto", display: "inline-flex", gap: 6, flexWrap: "wrap" }}>{right}</span> : null}
+    </div>
+  );
 }
 // ⚠ A NUMBER FIELD THAT COMMITS ON BLUR, NOT ON EVERY KEYSTROKE, AND THAT REFUSES AN
 // EMPTY VALUE. Two measured problems with the naive form:
@@ -107,7 +200,7 @@ function cstChip(on) {
 //     second write failed the account was left pinned at the intermediate value.
 // The field holds its own text while being typed and reports once, on blur or Enter;
 // an out-of-range or empty value snaps back to what is stored rather than saving.
-function CstNumber({ value, min, max, step, label, disabled, onCommit }) {
+function CstNumber({ value, min, max, step, label, disabled, onCommit, suffix, tone, suffixStyle }) {
   const [draft, setDraft] = React.useState(String(value));
   // The stored value wins whenever it changes underneath us (another device, a reset).
   React.useEffect(() => { setDraft(String(value)); }, [value]);
@@ -117,14 +210,18 @@ function CstNumber({ value, min, max, step, label, disabled, onCommit }) {
     if (!Number.isFinite(n) || n < min || n > max) { setDraft(String(value)); return; }
     if (n !== value) onCommit(n);
   };
+  // One box: the number and its unit inside it (dash.css .cst-field). `tone` is "tuned" (the accent)
+  // or "refused" (amber).
   return (
-    <input
-      type="number" min={min} max={max} step={step} value={draft} aria-label={label} disabled={disabled}
-      onChange={(e) => setDraft(e.target.value)}
-      onBlur={commit}
-      onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); e.currentTarget.blur(); } }}
-      style={{ width: 74, minHeight: 30, padding: "5px 8px", borderRadius: 4, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.18)", background: "transparent", color: CST_INK, fontFamily: CST_MONO, fontSize: 12.5, opacity: disabled ? 0.45 : 1 }}
-    />
+    <span className={"cst-field" + (tone ? " is-" + tone : "") + (disabled ? " is-off" : "")}>
+      <input
+        type="number" min={min} max={max} step={step} value={draft} aria-label={label} disabled={disabled}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); e.currentTarget.blur(); } }}
+      />
+      {suffix != null ? <span className="cst-field-unit" style={suffixStyle}>{suffix}</span> : null}
+    </span>
   );
 }
 
@@ -271,8 +368,81 @@ function CoachSettingsPage({ role }) {
   // the roster and the server ran the house default — for exactly the untrusted-document
   // case the validation exists to handle.
   const tunedCount = tunables.filter((t) => effThresholds[t.key] != null && !refused.has(t.key)).length;
+  const storeTone = live && store.kind === "ready" ? CST_TEAL : live && store.kind !== "loading" ? CST_AMBER : CST_INK50;
   // The account's time zone control (zoneSettingWeb.jsx, its own script), read at render.
   const ZoneSetting = typeof window.ShapeZoneSetting === "function" ? window.ShapeZoneSetting : null;
+
+  // ── the sections ──────────────────────────────────────────────────────────
+  // The store off the account this page already resolved (`acct`), not a second useSignedIn.
+  const prefs = useRememberedChoicesFor(live, acct);
+  const [section, setSection] = useRememberedChoice(prefs, "settingsSection:" + role, CST_SECTION_KEYS, "general");
+  // A link that names a section opens on it, and counts as the coach's choice, as on Business.
+  React.useEffect(() => {
+    const asked = typeof dashRouteParam === "function" ? dashRouteParam("section") : null;
+    if (asked && CST_SECTION_KEYS.includes(asked)) setSection(asked);
+  }, []);
+  // …and so does one followed while Settings is already open: the shell keeps this page mounted
+  // when only the hash's ?section= changes (the tour's "See all guides" sends #settings?section=guides).
+  // Bound to the current setter, whose account changes once the sign-in resolves.
+  React.useEffect(() => {
+    const follow = () => {
+      const asked = typeof dashRouteParam === "function" ? dashRouteParam("section") : null;
+      if (asked && CST_SECTION_KEYS.includes(asked)) setSection(asked);
+    };
+    window.addEventListener("hashchange", follow);
+    return () => window.removeEventListener("hashchange", follow);
+  }, [setSection]);
+  const hasAccount = typeof CoachAccountSettings === "function";
+  const hasGuides = typeof CoachGuidesCard === "function";
+  const sections = CST_SECTIONS.filter((s) => (s.key !== "account" || hasAccount) && (s.key !== "guides" || hasGuides));
+  const active = sections.some((s) => s.key === section) ? section : "general";
+  // ⚠ EVERY PANEL STAYS MOUNTED, AND A TAB ONLY HIDES THE OTHERS. Each card reads its own data when it
+  // mounts (the notification centre, the calendar link, the zone, the account), so unmounting a tab
+  // would read it again, flash "Loading…" on every switch, and drop a card's notice mid-save.
+  // `hidden` on a wrapper with no display of its own: an inline display would override it.
+  const panel = (key, body) => (
+    <div key={key} role="tabpanel" aria-label={(CST_SECTIONS.find((s) => s.key === key) || {}).label} hidden={active !== key}>{body}</div>
+  );
+
+  const flagRow = (t) => {
+    const val = effThresholds[t.key];
+    const wasRefused = refused.has(t.key);
+    // A stored value the engine refused is NOT a tuning — the roster runs on the house default, so
+    // the row must say so rather than showing the refused number in teal as if it were live.
+    const isTuned = val != null && !wasRefused;
+    const house = DashSignals.DEFAULT_THRESHOLDS[t.key];
+    const shown = isTuned ? val : house;
+    return (
+      <div key={t.key} style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap", paddingTop: 14, marginTop: 14, borderTop: "1px solid var(--sh-line, #302c27)" }}>
+        <div style={{ flex: "1 1 200px", minWidth: 0 }}>
+          <div style={{ fontSize: 14, fontWeight: 500, color: CST_INK }}>{t.label}</div>
+          <div style={{ fontSize: 12, color: CST_INK50, lineHeight: 1.45, marginTop: 3 }}>{t.help}</div>
+        </div>
+        {/* The unit sits inside the field at a fixed width, so every field in a group lines up. */}
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginLeft: "auto" }}>
+          <CstNumber
+            value={shown} min={t.min} max={t.max} step={t.step} disabled={settling}
+            label={t.label + " (" + t.unit + ")"}
+            onCommit={(n) => setThreshold(t.key, n)}
+            tone={wasRefused ? "refused" : isTuned ? "tuned" : null}
+            suffix={wasRefused ? "not used" : t.unit}
+            suffixStyle={{ minWidth: 60, color: wasRefused ? CST_AMBER : undefined }}
+          />
+          {/* ⚠ THE HOUSE DEFAULT IS ALWAYS ON SCREEN, so a coach can see what
+              they changed from without a reset being the only way to find out. Quiet at the
+              default; the accent, with ↺, once the row is tuned and a tap puts it back. */}
+          <button
+            type="button" onClick={() => setThreshold(t.key, null)} disabled={settling || (!isTuned && !wasRefused)}
+            title={"House default: " + house + " " + t.unit}
+            className={"cst-house" + (isTuned || wasRefused ? " is-live" : "")}
+          >
+            {isTuned || wasRefused ? "↺ " : ""}House {house}
+          </button>
+        </div>
+      </div>
+    );
+  };
+  const flagGroups = cstGrouped(CST_FLAG_GROUPS, tunables, (t) => t.key, { key: "more", label: "More", blurb: "" });
 
   return (
     <React.Fragment>
@@ -282,145 +452,145 @@ function CoachSettingsPage({ role }) {
         payoutCard={card}
         eyebrow="OFFICE · SETTINGS"
         title="How your practice reads"
-        subtitle="The thresholds that decide when a client is flagged to you, where your dashboard opens, your time zone, which of your own notifications reach you, and the private link that puts your sessions on your own calendar. Apart from your time zone, which your open hours follow, nothing here changes what a client sees."
+        subtitle="Where your dashboard opens and how it looks, when a client is flagged to you, which notifications reach you, your calendar link and your account. Apart from your time zone, which your open hours follow, nothing here changes what a client sees."
       >
-        {/* ── the signal engine ───────────────────────────────────────────── */}
-        {cstCard(
-          <React.Fragment>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12, flexWrap: "wrap" }}>
-              <span className="dash-eyebrow">Flags · when a client reaches you</span>
-              <span style={{ marginLeft: "auto", fontFamily: CST_MONO, fontSize: 9, letterSpacing: "0.1em", textTransform: "uppercase", color: tunedCount ? CST_TEAL : CST_INK50 }}>
-                {tunedCount ? tunedCount + " tuned" : "House defaults"}
-              </span>
-            </div>
-            <div style={{ fontFamily: CST_MONO, fontSize: 9.5, color: CST_INK50, marginTop: 6 }}>{storeLine}</div>
-            <div style={{ marginTop: 14 }}>
-              {tunables.map((t) => {
-                const val = effThresholds[t.key];
-                const wasRefused = refused.has(t.key);
-                // A stored value the engine refused is NOT a tuning — the roster runs
-                // on the house default, so the row must say so rather than showing the
-                // refused number in teal as if it were live.
-                const isTuned = val != null && !wasRefused;
-                const shown = isTuned ? val : DashSignals.DEFAULT_THRESHOLDS[t.key];
-                return (
-                  <div key={t.key} style={{ display: "flex", alignItems: "flex-start", gap: 12, flexWrap: "wrap", paddingTop: 12, marginTop: 12, borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)" }}>
-                    <div style={{ flex: "1 1 240px", minWidth: 0 }}>
-                      <div style={{ fontSize: 13.5, color: CST_INK }}>{t.label}</div>
-                      <div style={{ fontSize: 11.5, color: CST_INK50, lineHeight: 1.45, marginTop: 3 }}>{t.help}</div>
-                    </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginLeft: "auto" }}>
-                      <CstNumber
-                        value={shown} min={t.min} max={t.max} step={t.step} disabled={settling}
-                        label={t.label + " (" + t.unit + ")"}
-                        onCommit={(n) => setThreshold(t.key, n)}
-                      />
-                      <span style={{ fontFamily: CST_MONO, fontSize: 9.5, color: wasRefused ? CST_AMBER : CST_INK50, minWidth: 34 }}>
-                        {wasRefused ? "not used" : t.unit}
-                      </span>
-                      {/* ⚠ THE HOUSE DEFAULT IS ALWAYS ON SCREEN, so a coach can see what
-                          they changed from without a reset being the only way to find out. */}
-                      <button
-                        type="button" onClick={() => setThreshold(t.key, null)} disabled={settling || (!isTuned && !wasRefused)}
-                        title={"House default: " + DashSignals.DEFAULT_THRESHOLDS[t.key] + " " + t.unit}
-                        style={{ ...cstChip(false), minHeight: 30, opacity: isTuned ? 1 : 0.4, cursor: isTuned ? "pointer" : "default" }}
-                      >
-                        House {DashSignals.DEFAULT_THRESHOLDS[t.key]}
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-            <div style={{ marginTop: 14, fontSize: 11.5, color: CST_INK50, lineHeight: 1.5 }}>
-              {/* The line that stops a coach reading these as a way to see more. */}
-              A flag still needs real logged days behind it — these move the line, they never
-              invent evidence. A client who logs nothing is never flagged for logging nothing.
-            </div>
-          </React.Fragment>
-        )}
-
-        {/* ── where the dashboard opens ───────────────────────────────────── */}
-        <div style={{ marginTop: 16 }}>
-          {cstCard(
-            <React.Fragment>
-              <span className="dash-eyebrow">Your dashboard opens on</span>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 12 }}>
-                {landing.map(([slug, label]) => (
-                  <button key={slug} type="button" disabled={settling} onClick={() => setLanding(slug)}
-                    style={{ ...cstChip((effective.landingTab || "today") === slug), minHeight: 30, opacity: settling ? 0.45 : 1 }}>{label}</button>
-                ))}
-              </div>
-              <div style={{ marginTop: 10, fontSize: 11.5, color: CST_INK50, lineHeight: 1.5 }}>
-                Applies when you open the dashboard without a tab in the address — a link
-                straight to a tab still goes there.
-              </div>
-            </React.Fragment>
-          )}
-        </div>
-
-        {/* ── the example dashboard (owner, 2026-11-09) ───────────────────── */}
-        {/* A signed-in coach's own pages show their own clients, so with none yet they're empty.
-            The example shows the dashboard with sample clients, in this tab, under its band. */}
-        {live && typeof DashExampleLink === "function" && window.ShapeDashExample && !window.ShapeDashExample.on && (
-          <div style={{ marginTop: 16 }}>
-            {cstCard(
-              <React.Fragment>
-                <span className="dash-eyebrow">The example dashboard</span>
-                <div style={{ marginTop: 10, fontSize: 13, color: CST_INK, lineHeight: 1.5 }}>
-                  Every page with sample clients on it, so you can see what your dashboard does before your own clients fill it. Nothing you do in the example reaches your account.
-                </div>
-                <div style={{ marginTop: 10, fontSize: 13 }}><DashExampleLink /></div>
-              </React.Fragment>
-            )}
+        <div style={{ maxWidth: 1200 }}>
+          <div style={{ marginBottom: 16 }}>
+            <DashSegmented label="Settings sections" value={active} onChange={setSection}
+              items={sections.map((s) => ({ key: s.key, label: s.label }))} />
           </div>
-        )}
 
-        {/* ── the account's time zone (P9) ────────────────────────────────── */}
-        {/* It drives where the hours editor keeps your open hours and every reader of your
-            listing's zone (the server copies it onto trainers / nutritionists). The control
-            frames itself, so before the migration or signed out there is no empty card. */}
-        {ZoneSetting && (
-          <ZoneSetting coach labelClassName="dash-eyebrow" wrap={(body) => <div style={{ marginTop: 16 }}>{cstCard(body)}</div>} />
-        )}
-
-        {/* ── appearance ──────────────────────────────────────────────────── */}
-        <div style={{ marginTop: 16 }}>
-          {cstCard(
-            <React.Fragment>
-              <div className="dash-eyebrow">Appearance</div>
-              <div className="dash-ledger" />
-              <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 6 }}>Skin</div>
-              <div style={{ fontSize: 12, color: CST_INK50, lineHeight: 1.5, marginBottom: 12 }}>
-                The dashboard's look. White and Bone are light, the rest dark; Night drops the blue
-                tones for evenings. It follows your account across devices, and the app follows
-                its light or dark.
-              </div>
-              {typeof DashPaperPicker === "function" && <DashPaperPicker value={paperCtl[0]} onChoose={paperCtl[1]} />}
-              {live === false && (
-                <div style={{ marginTop: 10, fontSize: 11.5, color: CST_INK50, lineHeight: 1.5 }}>
-                  Signed out the choice stays on this browser; sign in to keep it on your account.
-                </div>
+          {panel("general", (
+            <div style={CST_GRID}>
+              {/* ── where the dashboard opens ─────────────────────────────── */}
+              {cstCard(
+                <React.Fragment>
+                  {cstHead("opens", "Your dashboard opens on")}
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 14 }}>
+                    {landing.map(([slug, label]) => (
+                      <button key={slug} type="button" disabled={settling} onClick={() => setLanding(slug)}
+                        style={{ ...cstChip((effective.landingTab || "today") === slug), minHeight: 30, opacity: settling ? 0.45 : 1 }}>{label}</button>
+                    ))}
+                  </div>
+                  <div style={{ marginTop: 12, fontSize: 12, color: CST_INK50, lineHeight: 1.5 }}>
+                    Applies when you open the dashboard without a tab in the address — a link
+                    straight to a tab still goes there.
+                  </div>
+                </React.Fragment>
               )}
-            </React.Fragment>
-          )}
-        </div>
 
-        {/* ── notifications ───────────────────────────────────────────────── */}
-        <div style={{ marginTop: 16 }}>
-          {/* ⚠ KEYED ON THE ACCOUNT. A remount is the whole reload — the card's own
-              read effect keys on `signedIn`, which does not change when one signed-in
-              coach is replaced by another. */}
-          <CoachNotificationCard key={acct || "anon"} signedIn={signedIn} acct={acct} />
-        </div>
+              {/* ── the example dashboard (owner, 2026-11-09) ─────────────── */}
+              {/* A signed-in coach's own pages show their own clients, so with none yet they're empty.
+                  The example shows the dashboard with sample clients, in this tab, under its band. */}
+              {live && typeof DashExampleLink === "function" && window.ShapeDashExample && !window.ShapeDashExample.on && (
+                cstCard(
+                  <React.Fragment>
+                    {cstHead("example", "The example dashboard")}
+                    <div style={{ marginTop: 12, fontSize: 13, color: CST_INK, lineHeight: 1.5 }}>
+                      Every page with sample clients on it, so you can see what your dashboard does before your own clients fill it. Nothing you do in the example reaches your account.
+                    </div>
+                    <div style={{ marginTop: 10, fontSize: 13 }}><DashExampleLink /></div>
+                  </React.Fragment>
+                )
+              )}
 
-        {/* ── the calendar feed ───────────────────────────────────────────── */}
-        <div style={{ marginTop: 16 }}>
-          {/* Keyed on the account for the notification card's reason: a link read for one
-              coach must never stay on screen under another's session. */}
-          <CoachCalendarFeedCard key={acct || "anon"} signedIn={signedIn} />
+              {/* ── the account's time zone (P9) ──────────────────────────── */}
+              {/* It drives where the hours editor keeps your open hours and every reader of your
+                  listing's zone (the server copies it onto trainers / nutritionists). The control
+                  frames itself, so before the migration or signed out there is no empty card. */}
+              {ZoneSetting && (
+                // The icon tile sits beside the control's own label, as on the other cards.
+                <ZoneSetting coach labelClassName="dash-eyebrow" labelStyle={{ paddingLeft: 40, lineHeight: "30px" }}
+                  wrap={(body) => cstCard(<div style={{ position: "relative" }}><span style={{ position: "absolute", left: 0, top: 0 }}>{cstIcon("zone")}</span>{body}</div>)} />
+              )}
+
+              {/* ── appearance ────────────────────────────────────────────── */}
+              {cstCard(
+                <React.Fragment>
+                  {cstHead("skin", "Appearance")}
+                  <div style={{ fontSize: 13, fontWeight: 500, margin: "14px 0 6px" }}>Skin</div>
+                  <div style={{ fontSize: 12, color: CST_INK50, lineHeight: 1.5, marginBottom: 12 }}>
+                    The dashboard's look. White and Bone are light, the rest dark; Night drops the blue
+                    tones for evenings. It follows your account across devices, and the app follows
+                    its light or dark.
+                  </div>
+                  {typeof DashPaperPicker === "function" && <DashPaperPicker value={paperCtl[0]} onChoose={paperCtl[1]} />}
+                  {live === false && (
+                    <div style={{ marginTop: 10, fontSize: 11.5, color: CST_INK50, lineHeight: 1.5 }}>
+                      Signed out the choice stays on this browser; sign in to keep it on your account.
+                    </div>
+                  )}
+                </React.Fragment>
+              )}
+            </div>
+          ))}
+
+          {/* ── the signal engine ─────────────────────────────────────────── */}
+          {panel("flags", (
+            <div style={{ display: "grid", gap: 16 }}>
+              {cstCard(
+                <React.Fragment>
+                  {cstHead("flag", "Flags · when a client reaches you",
+                    cstPill(tunedCount ? tunedCount + " tuned" : "House defaults", tunedCount ? "teal" : null))}
+                  <div style={{ display: "flex", alignItems: "center", gap: 7, marginTop: 10, fontSize: 12, color: storeTone }}>
+                    <span className="cst-dot" aria-hidden="true" />{storeLine}
+                  </div>
+                  {/* What these numbers are, said once at the top (owner, 2026-11-10: "what are these
+                      options here"). */}
+                  <div style={{ marginTop: 12, fontSize: 13, color: CST_INK, lineHeight: 1.55, maxWidth: 760 }}>
+                    Each number decides when a client is flagged to you: in Needs you on Today, on your
+                    Clients list, and in your red and amber alerts. The House chip shows Shape's default;
+                    it lights up once you change a number, and a tap on it puts the default back.
+                  </div>
+                  <div style={{ marginTop: 8, fontSize: 11.5, color: CST_INK50, lineHeight: 1.5, maxWidth: 760 }}>
+                    {/* The line that stops a coach reading these as a way to see more. */}
+                    A flag still needs real logged days behind it — these move the line, they never
+                    invent evidence. A client who logs nothing is never flagged for logging nothing.
+                  </div>
+                </React.Fragment>
+              )}
+              <div style={CST_GRID}>
+                {flagGroups.map((g) => {
+                  const n = g.rows.filter((t) => effThresholds[t.key] != null && !refused.has(t.key)).length;
+                  return (
+                    <React.Fragment key={g.key}>
+                      {cstCard(
+                        <React.Fragment>
+                          {cstHead(g.icon, g.label, n ? cstPill(n + " tuned", "teal") : null)}
+                          {g.blurb ? <div style={{ marginTop: 10, fontSize: 12.5, color: CST_INK50, lineHeight: 1.45 }}>{g.blurb}</div> : null}
+                          <div>{g.rows.map(flagRow)}</div>
+                        </React.Fragment>
+                      )}
+                    </React.Fragment>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+
+          {/* ── notifications ─────────────────────────────────────────────── */}
+          {panel("notifications", (
+            // ⚠ KEYED ON THE ACCOUNT. A remount is the whole reload — the card's own
+            // read effect keys on `signedIn`, which does not change when one signed-in
+            // coach is replaced by another.
+            <CoachNotificationCard key={acct || "anon"} signedIn={signedIn} acct={acct} />
+          ))}
+
+          {/* ── the calendar feed ─────────────────────────────────────────── */}
+          {panel("calendar", (
+            // Keyed on the account for the notification card's reason: a link read for one
+            // coach must never stay on screen under another's session.
+            <CoachCalendarFeedCard key={acct || "anon"} signedIn={signedIn} />
+          ))}
+
+          {/* ── the guides: the welcome tour again, and each page's guide ──── */}
+          {hasGuides && panel("guides", <CoachGuidesCard />)}
+
+          {/* ── the account: profile details, export and close ──────────── */}
+          {hasAccount && panel("account", (
+            <CoachAccountSettings key={acct || "anon"} accountId={acct} />
+          ))}
         </div>
-        {typeof CoachAccountSettings === "function" && <CoachAccountSettings key={acct || "anon"} accountId={acct} />}
       </DashPage>
     </React.Fragment>
   );
@@ -604,24 +774,24 @@ function CoachNotificationCard({ signedIn, acct }) {
   if (signedIn === false) {
     return cstCard(
       <React.Fragment>
-        <span className="dash-eyebrow">Notifications</span>
-        <div style={{ marginTop: 10, fontSize: 12.5, color: CST_INK50 }}>Sign in to set which of your notifications reach you.</div>
+        {cstHead("bell", "Notifications")}
+        <div style={{ marginTop: 12, fontSize: 12.5, color: CST_INK50 }}>Sign in to set which of your notifications reach you.</div>
       </React.Fragment>
     );
   }
   if (signedIn === undefined || state === null) {
     return cstCard(
       <React.Fragment>
-        <span className="dash-eyebrow">Notifications</span>
-        <div style={{ marginTop: 10, fontSize: 12.5, color: CST_INK50 }}>Loading…</div>
+        {cstHead("bell", "Notifications")}
+        <div style={{ marginTop: 12, fontSize: 12.5, color: CST_INK50 }}>Loading…</div>
       </React.Fragment>
     );
   }
   if (state.settings === null) {
     return cstCard(
       <React.Fragment>
-        <span className="dash-eyebrow">Notifications</span>
-        <div style={{ marginTop: 10, fontSize: 12.5, color: CST_INK50 }}>
+        {cstHead("bell", "Notifications")}
+        <div style={{ marginTop: 12, fontSize: 12.5, color: CST_INK50 }}>
           Couldn't read your notification settings just now. Nothing has changed —
           reload to try again.
         </div>
@@ -636,82 +806,98 @@ function CoachNotificationCard({ signedIn, acct }) {
     const row = state.matrix[type];
     return (row && typeof row[ch] === "boolean") ? row[ch] : CST_DEFAULT_CHANNELS[ch];
   };
-  return cstCard(
-    <React.Fragment>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12, flexWrap: "wrap" }}>
-        <span className="dash-eyebrow">Notifications · your own</span>
-        <span style={{ marginLeft: "auto", fontFamily: CST_MONO, fontSize: 9, letterSpacing: "0.1em", textTransform: "uppercase", color: s && s.muted ? CST_AMBER : CST_INK50 }}>
-          {s && s.muted ? "All muted" : "On"}
-        </span>
-      </div>
-      {err ? <div style={{ marginTop: 8, fontSize: 11.5, color: CST_AMBER }}>{err}</div> : null}
+  // The switches under their headings; a type no heading names still gets its row, under "More".
+  const groups = cstGrouped(CST_NOTIFY_GROUPS, CST_COACH_TYPES, (r) => r[0], { key: "more", label: "More" });
+  // Two cards: how notifications arrive (mute, quiet hours, the cap), narrow, beside which ones do.
+  return (
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 16, alignItems: "flex-start" }}>
+      <div style={{ flex: "1 1 280px", minWidth: 0 }}>
+        {cstCard(
+          <React.Fragment>
+            {cstHead("bell", "Notifications · delivery", cstPill(s && s.muted ? "All muted" : "On", s && s.muted ? "amber" : "teal", true))}
+            {err ? <div role="alert" style={{ marginTop: 8, fontSize: 11.5, color: CST_AMBER }}>{err}</div> : null}
 
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 12 }}>
-        <button type="button" onClick={() => saveSettings({ muted: !s.muted })} style={{ ...cstChip(s.muted), minHeight: 30 }}>
-          {s.muted ? "Muted — turn back on" : "Mute everything"}
-        </button>
-      </div>
+            <div style={{ marginTop: 14 }}>
+              <button type="button" onClick={() => saveSettings({ muted: !s.muted })} style={{ ...cstChip(s.muted), minHeight: 30 }}>
+                {s.muted ? "Muted — turn back on" : "Mute everything"}
+              </button>
+            </div>
 
-      <div style={{ marginTop: 14, display: "flex", gap: 18, flexWrap: "wrap" }}>
-        <div>
-          {cstLabel("Quiet hours")}
-          <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 6 }}>
-            <CstNumber value={s.quiet_start} min={0} max={23} step={1} label="Quiet hours start"
-              onCommit={(n) => saveSettings({ quiet_start: n })} />
-            <span style={{ fontFamily: CST_MONO, fontSize: 10, color: CST_INK50 }}>to</span>
-            <CstNumber value={s.quiet_end} min={0} max={23} step={1} label="Quiet hours end"
-              onCommit={(n) => saveSettings({ quiet_end: n })} />
-          </div>
-        </div>
-        <div>
-          {cstLabel("Most per day")}
-          <div style={{ display: "flex", gap: 6, marginTop: 6, flexWrap: "wrap" }}>
-            {CST_CAPS.map((n) => (
-              <button key={n} type="button" onClick={() => saveSettings({ daily_cap: n })} style={{ ...cstChip(s.daily_cap === n), minHeight: 30, padding: "7px 10px" }}>{n}</button>
-            ))}
-          </div>
-        </div>
-      </div>
+            <div style={{ marginTop: 16 }}>
+              {cstLabel("Quiet hours")}
+              <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 6 }}>
+                <CstNumber value={s.quiet_start} min={0} max={23} step={1} label="Quiet hours start" suffix=":00" suffixStyle={CST_HOUR_SUFFIX}
+                  onCommit={(n) => saveSettings({ quiet_start: n })} />
+                <span style={{ fontFamily: CST_MONO, fontSize: 10.5, color: CST_INK50, padding: "0 2px" }}>to</span>
+                <CstNumber value={s.quiet_end} min={0} max={23} step={1} label="Quiet hours end" suffix=":00" suffixStyle={CST_HOUR_SUFFIX}
+                  onCommit={(n) => saveSettings({ quiet_end: n })} />
+              </div>
+              <div style={{ marginTop: 6, fontSize: 11.5, color: CST_INK50, lineHeight: 1.45 }}>Hours on a 24-hour clock, in your time zone.</div>
+            </div>
 
-      <div style={{ marginTop: 16, overflowX: "auto" }}>
-        <table style={{ borderCollapse: "collapse", width: "100%", minWidth: 380 }}>
-          <thead>
-            <tr>
-              <th style={{ textAlign: "left", padding: "0 8px 8px 0" }}>{cstLabel("What")}</th>
-              {CST_CHANNELS.map(([ch, label]) => (
-                <th key={ch} style={{ padding: "0 8px 8px", width: 70 }}>{cstLabel(label)}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {CST_COACH_TYPES.map(([type, label, help]) => (
-              <tr key={type} style={{ borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)" }}>
-                <td style={{ padding: "10px 8px 10px 0" }}>
-                  <div style={{ fontSize: 13, color: CST_INK }}>{label}</div>
-                  <div style={{ fontSize: 11, color: CST_INK50, lineHeight: 1.4, marginTop: 2 }}>{help}</div>
-                </td>
-                {CST_CHANNELS.map(([ch]) => (ch === "email" && !CST_EMAIL_TYPES.includes(type)
-                  ? <td key={ch} style={{ padding: "10px 8px" }} aria-hidden="true" />
-                  : <td key={ch} style={{ padding: "10px 8px", textAlign: "center" }}>
-                    <button type="button" role="switch" aria-checked={isOn(type, ch)} aria-label={label + " · " + ch}
-                      onClick={() => toggle(type, ch, !isOn(type, ch))}
-                      style={{ width: 34, minHeight: 24, borderRadius: 4, cursor: "pointer", border: "1px solid " + (isOn(type, ch) ? CST_TEAL : "rgba(var(--sh-ink-rgb, 242,237,228),0.18)"), background: isOn(type, ch) ? "rgba(var(--sh-accent-rgb, 46,224,196),0.14)" : "transparent", color: isOn(type, ch) ? "var(--sh-accent-ink, #2ee0c4)" : CST_INK50, fontFamily: CST_MONO, fontSize: 11 }}>
-                      {isOn(type, ch) ? "✓" : "×"}
-                    </button>
-                  </td>
+            <div style={{ marginTop: 16 }}>
+              {cstLabel("Most per day")}
+              <div style={{ display: "flex", gap: 6, marginTop: 6, flexWrap: "wrap" }}>
+                {CST_CAPS.map((n) => (
+                  <button key={n} type="button" onClick={() => saveSettings({ daily_cap: n })} style={{ ...cstChip(s.daily_cap === n), minHeight: 32, minWidth: 38, padding: "7px 10px" }}>{n}</button>
                 ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
+              </div>
+            </div>
+          </React.Fragment>
+        )}
       </div>
-      <div style={{ marginTop: 12, fontSize: 11.5, color: CST_INK50, lineHeight: 1.5 }}>
-        {/* Said plainly, because the alternative is a coach believing they muted
-            something they did not. */}
-        Every notification you get is switched here. Quiet hours hold them until the morning;
-        the daily cap applies to the client alerts and friends' habits above.
+
+      <div style={{ flex: "3 1 460px", minWidth: 0 }}>
+        {cstCard(
+          <React.Fragment>
+            {cstHead("switches", "Notifications · what reaches you")}
+            <div style={{ marginTop: 14, overflowX: "auto" }}>
+              <table style={{ borderCollapse: "collapse", width: "100%", minWidth: 380 }}>
+                <thead>
+                  <tr>
+                    <th style={{ textAlign: "left", padding: "0 8px 8px 0" }}>{cstLabel("What")}</th>
+                    {CST_CHANNELS.map(([ch, label]) => (
+                      <th key={ch} style={{ padding: "0 8px 8px", width: 70 }}>{cstLabel(label)}</th>
+                    ))}
+                  </tr>
+                </thead>
+                {groups.map((g) => (
+                  <tbody key={g.key}>
+                    <tr style={{ borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)" }}>
+                      <th scope="rowgroup" colSpan={1 + CST_CHANNELS.length} style={{ textAlign: "left", padding: "16px 0 4px", fontFamily: CST_MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--sh-accent-ink, #2ee0c4)" }}>
+                        {g.label}
+                      </th>
+                    </tr>
+                    {g.rows.map(([type, label, help]) => (
+                      <tr key={type} style={{ borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)" }}>
+                        <td style={{ padding: "10px 8px 10px 0" }}>
+                          <div style={{ fontSize: 13, color: CST_INK }}>{label}</div>
+                          <div style={{ fontSize: 11, color: CST_INK50, lineHeight: 1.4, marginTop: 2 }}>{help}</div>
+                        </td>
+                        {CST_CHANNELS.map(([ch]) => (ch === "email" && !CST_EMAIL_TYPES.includes(type)
+                          ? <td key={ch} style={{ padding: "10px 8px" }} aria-hidden="true" />
+                          : <td key={ch} style={{ padding: "10px 8px", textAlign: "center" }}>
+                            {/* A sliding pill (dash.css .cst-switch); its state is aria-checked. */}
+                            <button type="button" role="switch" aria-checked={isOn(type, ch)} aria-label={label + " · " + ch}
+                              onClick={() => toggle(type, ch, !isOn(type, ch))} className="cst-switch" />
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                ))}
+              </table>
+            </div>
+            <div style={{ marginTop: 12, fontSize: 11.5, color: CST_INK50, lineHeight: 1.5 }}>
+              {/* Said plainly, because the alternative is a coach believing they muted
+                  something they did not. */}
+              Every notification you get is switched here. Quiet hours hold them until the morning;
+              the daily cap applies to the client alerts and friends' habits above.
+            </div>
+          </React.Fragment>
+        )}
       </div>
-    </React.Fragment>
+    </div>
   );
 }
 
@@ -816,8 +1002,8 @@ function CoachCalendarFeedCard({ signedIn }) {
   const ready = signedIn === true && state.kind === "ready" ? state : null;
   const live = !!ready;
   const field = {
-    flex: "1 1 260px", minWidth: 0, minHeight: 32, padding: "6px 10px", borderRadius: 4,
-    border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.18)", background: "transparent",
+    flex: "1 1 260px", minWidth: 0, minHeight: 34, padding: "6px 11px", borderRadius: 8, boxSizing: "border-box",
+    border: "1px solid var(--sh-line2, #413d38)", background: "var(--sh-rest, #221e19)",
     color: live ? CST_INK : CST_INK50, fontFamily: CST_MONO, fontSize: 11.5,
   };
   const linkChip = (on) => ({ ...cstChip(false), minHeight: 30, display: "inline-flex", alignItems: "center", textDecoration: "none", opacity: on ? 1 : 0.45, pointerEvents: on ? "auto" : "none" });
@@ -834,13 +1020,8 @@ function CoachCalendarFeedCard({ signedIn }) {
 
   return cstCard(
     <React.Fragment>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12, flexWrap: "wrap" }}>
-        <span className="dash-eyebrow">Calendar feed · read-only</span>
-        <span style={{ marginLeft: "auto", fontFamily: CST_MONO, fontSize: 9, letterSpacing: "0.1em", textTransform: "uppercase", color: live ? CST_TEAL : CST_INK50 }}>
-          {live ? "Link ready" : "Off"}
-        </span>
-      </div>
-      <div style={{ marginTop: 10, fontSize: 12.5, color: CST_INK50, lineHeight: 1.5 }}>{CST_FEED_INTRO}</div>
+      {cstHead("calendar", "Calendar feed · read-only", cstPill(live ? "Link ready" : "Off", live ? "teal" : null, live))}
+      <div style={{ marginTop: 12, fontSize: 12.5, color: CST_INK50, lineHeight: 1.5, maxWidth: 720 }}>{CST_FEED_INTRO}</div>
 
       <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 12, alignItems: "center" }}>
         <input
