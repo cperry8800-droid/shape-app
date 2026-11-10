@@ -625,6 +625,19 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
 
   return [
     {
+      section: 'Set up with Nora, checked end to end: the coach dashboard opens Nora, not Chat; one card a reply; a drafted card is kept; a refused Undo says why; the app\'s card reads a fresh token (#2678). No migration',
+      items: [
+        { label: 'Owner, 2026-11-10: "Make sure this set up with Nora feature is fully functioning. Check that after." … "Just making sure Nora has those capabilities." Traced from every entry point and driven in a browser: the action itself (#2566) was sound; the path to it had one break and four ways to lose the card or its reason', status: 'done' },
+        { label: '#2678 the launcher (globalChatButton.js): on pages that boot the chat late (TrainerApp, NutritionistApp) the widget took a waiting "open Nora" request as it mounted, then the launcher\'s poll opened a bare chat, which turned Nora off: "Set up with Nora" landed on the Wall. It remembers the request was waiting and opens nothing more, with one waiter however often it is tapped; the fallback panel clears that. Before/after in Chromium: "Wall." → "Nora." with the request in her composer', status: 'done' },
+        { label: '#2678 the chat route: a second set_up_account in one reply is refused (one_card) before the budget or a read; a card drafted in an earlier round goes out with "Here it is to review. Nothing on the card changes until you confirm." when the follow-up fails or says nothing (only a card: coach links and the memory chip fall back as before)', status: 'done' },
+        { label: '#2678 Undo: the action\'s own refusal ("Changed since — nothing undone.") is a 409 with its words, as an apply\'s is; undoChange marks it (undoRefused), and an audit failure (the claim, the legacy mark) stays a plain server error. The app\'s Confirm and Undo read the session\'s token at the tap (liveAccessToken), and Undo shows the reason, never the code', status: 'done' },
+        { label: 'Review: Codex on ffd2e37, two P2s (the card line with coach links; an audit failure\'s database words on the card), fixed in 5062f78; on 5062f78, two more (a double tap started a second poll that turned Nora off; the card line spoke for a memory already written), fixed in 358f037; each with tests; Codex clean on 358f037. Mutations: nora-setup-fixes 19 killed, nothing skipped. npm test: the one failure was a test pinning the launcher too tightly, fixed to name the new guard. CI green on the final head', status: 'done' },
+        { label: 'Left by #2678: the plain fallback panel (when the rich widget cannot load) sends confirmCards:false, so Nora draws no setup card there', status: 'pending' },
+        { label: 'Left by #2678: a signed-in non-member in the app\'s Preview who reaches the goal step is offered "Set up with Nora", but the server gives non-members no setup tool', status: 'pending' },
+        { label: 'OWNER: on the live site, as a coach on TrainerApp.html: replay the welcome (Settings → Guides), tap "Set up with Nora", send "set my units to metric and my week to start on Monday", Confirm, then Undo (#2678)', status: 'pending' },
+      ],
+    },
+    {
       section: 'Tutorials, PR 1 of 3: a five-stop coach welcome, a guide for every coach dashboard page, Skip tour on every step, the app tour fixed and replayable (#2677). No migration',
       items: [
         { label: 'Owner, 2026-11-10: "we need create tutorials for dashboard on website for coaches and tutorial for new accounts on the app. They need to show all features" … approving the proposal: "Go to all recommendations. Also have viewing the tutorial once initially, have the option to go through it again at a later date if user wants to. Also make sure user has option to cancel tutorial if they don\'t want it"', status: 'done' },
