@@ -216,8 +216,6 @@
   "support.voice.paused": "In pausa. Toccami per parlare.",
   "support.voice.noAnswer": "Non sono riuscita a rispondere. Toccami per riprovare.",
   "support.voice.unheard": "La mia risposta è nella chat. Toccami per continuare a parlare.",
-  "support.voice.memberOnly": "La voce di Nora è una funzione per i membri.",
-  "support.voice.talkMembers": "Parlare con Nora è una funzione per i membri.",
   "support.voice.micBlocked": "Consenti il microfono per parlare con Nora.",
   "support.voice.done": "Ho finito",
   "support.voice.interrupt": "Interrompi Nora",
@@ -413,5 +411,6 @@
   "thread.voiceUnplayable": "Questo messaggio vocale non può essere riprodotto ora.",
   "thread.voiceNotSent": "Non inviato",
   "thread.voiceFailed": "Impossibile inviare il messaggio vocale.",
-  "thread.voicePreview": "Messaggio vocale · {time}"
+  "thread.voicePreview": "Messaggio vocale · {time}",
+  "composer.signInToSend": "Accedi per inviare messaggi"
 }

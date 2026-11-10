@@ -193,7 +193,10 @@ test('the composer is square with an ink send button on the chat page; Nora\'s s
   const comp = between(CLIENT, 'function BSMessageComposer({', '\n}\n');
   assert.match(comp, /onVoiceComplete, mag = false, tray = false, above = null, voiceNote = null \}\) \{/);
   assert.match(comp, /background: canSend \? \(mag \? t\.INK : t\.ACCENT\) : t\.SURFACE_BORDER/);
-  assert.match(comp, /\{\(mag \|\| tray\) \? null : <span aria-hidden>🔒<\/span>\}/);
+  // The locked bar (a session with no account: messaging is free since 2026-11-10) asks it to sign in,
+  // square on the chat page, with no coloured emoji anywhere (BSPaidLock.jsx's BSSignInToSend).
+  assert.match(comp, /const lockedField = <BSSignInToSend t=\{t\} pinned=\{pinned\} square=\{mag\} arrow=\{mag \|\| tray\} \/>;/);
+  assert.doesNotMatch(comp, /🔒/);
   assert.equal((comp.match(/borderRadius: 17,/g) || []).length, 0, 'every rounded control asks mag');
   assert.match(CLIENT, /<BSMessageComposer mag value=\{draft\}/, 'the chat page asks for it');
   // Nora's sheet has its own look again (owner, 2026-10-31: "dont use a previously used one"): the tray,

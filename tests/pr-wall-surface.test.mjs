@@ -123,8 +123,11 @@ test('the activity button calls the publisher, it does not open the PR sheet', (
   assert.equal(opened, 1, 'it calls the publisher the parent passed');
 });
 
-// A prospect who tapped PREVIEW THE APP FIRST from the paywall: signed in, and
-// not a member. `window.ShapeCanChat` is the shell's own member signal.
+// A session the shell holds no account for while the prop still says signed in (the
+// frame a session ends on). The signed-out Preview that made this a lasting state is gone
+// (owner, 2026-11-10: an account is required, and a free account posts its own records), but
+// `window.ShapeCanChat === false` is still the shell's own "no account" signal, and naming
+// a step the reader has already taken stays the #2005 defect.
 function previewingSignedIn(fn) {
   const prev = globalThis.window.ShapeCanChat;
   globalThis.window.ShapeCanChat = false;

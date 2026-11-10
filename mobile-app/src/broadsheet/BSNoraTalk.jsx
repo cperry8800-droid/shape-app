@@ -1,6 +1,7 @@
 import React from 'react';
 import { createVoiceLoop } from '../../../public/newdesign/noraVoiceLoop.mjs';
 import { bsNoraPhotoError } from './noraFace.mjs';
+import { BSPaidLock, bsNoraLockRead, bsNoraLockFromCode, bsPaidSentence, bsPaidRefused } from './BSPaidLock.jsx';
 // ─── TALK TO NORA (the Nora sheet's voice view) ──────────────────────────────
 // Owner, 2026-10-08: "a button in chat where you can initiate talking and her face
 // appears". The Talk button opens this view over the sheet: her face, a ring that moves
@@ -86,6 +87,15 @@ export function useNoraTalk(ask) {
   return { ...view, ringRef, barsRef, start, tap: () => loop.tap(), end: () => loop.end() };
 }
 
+// ⚠ HER VOICE IS ASSISTANT NORA, A PAID FEATURE (owner, 2026-11-10), a member's or a free week's.
+// The loop names a 402 'members'; what it says follows the account: a membership whose renewal
+// failed is told to update the card, an ended free week that it has ended, anyone else that
+// membership adds her voice. The Talk key does not open this view for a locked account at all (the
+// Nora sheet shows the lock); this is for a refusal the shell's flags had not caught.
+function bsNoraTalkLock() {
+  return bsNoraLockRead() || bsNoraLockFromCode('membership_required');
+}
+
 export function bsNoraTalkStatus(tr, state, info) {
   const i = info || {};
   if (state === 'starting') return tr('feed:support.voice.starting', { defaultValue: 'Starting…' });
@@ -100,14 +110,14 @@ export function bsNoraTalkStatus(tr, state, info) {
   if (state === 'paused') {
     if (i.reason === 'network') return tr('feed:support.voice.noAnswer', { defaultValue: "I couldn't answer just now. Tap me to try again." });
     if (i.reason === 'signed_out') return tr('feed:support.voice.signIn', { defaultValue: "Sign in to hear Nora's voice." });
-    if (i.reason === 'members') return tr('feed:support.voice.memberOnly', { defaultValue: "Nora's voice is a member feature." });
+    if (i.reason === 'members') return bsPaidSentence(tr, bsNoraTalkLock(), 'voice');
     if (i.reason && i.reason !== 'quiet') return tr('feed:support.voice.unheard', { defaultValue: 'My answer is in the chat. Tap me to keep talking.' });
     return tr('feed:support.voice.paused', { defaultValue: 'Paused. Tap me to talk.' });
   }
   if (state === 'error') {
     if (i.reason === 'signed_out') return tr('feed:support.voice.signIn', { defaultValue: "Sign in to hear Nora's voice." });
     return i.reason === 'members'
-      ? tr('feed:support.voice.talkMembers', { defaultValue: 'Talking to Nora is a member feature.' })
+      ? bsPaidSentence(tr, bsNoraTalkLock(), 'voice')
       : tr('feed:support.voice.micBlocked', { defaultValue: 'Allow the microphone to talk to Nora.' });
   }
   return '';
@@ -143,6 +153,10 @@ function hexA(hex, a) {
  * she thinks, rings that spread while she speaks, and End as a red key at the foot. */
 export function BSNoraTalk({ talk, t, tint, avatar }) {
   const tr = useShapeTr();
+  // A paid refusal draws the lock's one action under the status, and asks the shell to read the
+  // membership again so the rest of the app locks with it. (Read before the idle return: a hook.)
+  const refused = !!talk && (talk.state === 'paused' || talk.state === 'error') && !!talk.info && talk.info.reason === 'members';
+  React.useEffect(() => { if (refused) bsPaidRefused(); }, [refused]);
   if (!talk || talk.state === 'idle') return null;
   const { state, info } = talk;
   const status = bsNoraTalkStatus(tr, state, info);
@@ -208,6 +222,7 @@ export function BSNoraTalk({ talk, t, tint, avatar }) {
           {status}
           {state === 'thinking' && [0, 1, 2].map((n) => <span key={n} aria-hidden style={{ width: 5, height: 5, borderRadius: 999, background: glow, animation: `bsNoraTalkDot 1.2s ${n * 0.16}s infinite` }} />)}
         </div>
+        {refused && <BSPaidLock lock={bsNoraTalkLock()} feature="voice" compact tone="dark" style={{ width: '100%', maxWidth: 420, textAlign: 'left', boxSizing: 'border-box' }} />}
         {(talk.heard || talk.reply) && (
           <div style={{ width: '100%', maxWidth: 420, display: 'flex', flexDirection: 'column', gap: 12, textAlign: 'left', marginTop: 4, padding: '14px 16px', borderRadius: 18, background: hexA(LIGHT, 0.06), border: `1px solid ${hexA(LIGHT, 0.1)}`, boxSizing: 'border-box' }}>
             {talk.heard && (
@@ -240,6 +255,6 @@ export function BSNoraTalk({ talk, t, tint, avatar }) {
 export function bsNoraVoiceFail(tr, reason) {
   if (reason === 'playback_blocked') return tr('feed:support.voice.tapAgain', { defaultValue: 'Tap Listen again to hear Nora.' });
   if (reason === 'signed_out') return tr('feed:support.voice.signIn', { defaultValue: "Sign in to hear Nora's voice." });
-  if (reason === 'members') return tr('feed:support.voice.memberOnly', { defaultValue: "Nora's voice is a member feature." });
+  if (reason === 'members') return bsPaidSentence(tr, bsNoraTalkLock(), 'voice');
   return tr('feed:support.voice.unavailable', { defaultValue: 'Voice is unavailable right now.' });
 }

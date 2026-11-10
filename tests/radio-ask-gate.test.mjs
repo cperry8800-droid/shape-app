@@ -130,7 +130,10 @@ test('the auto-prompt requires a resolved account and re-runs when identity land
   // This provider mounts ABOVE the async auth gate, so the first evaluation on a
   // cold launch has no uid and must fail closed. Without authTick in the deps it
   // would never re-run, and a signed-in member would never be asked at all.
-  assert.match(effect.slice(0, 700), /\}, \[askedPrompt, authTick\]\);/, 'the effect re-runs on identity change');
+  // And only a known member is asked (owner, 2026-11-10: Shape Radio is paid): it re-runs when the
+  // account's answer lands, so a member is asked then and a free account never is.
+  assert.match(effect.slice(0, 700), /if \(!radioPaidYes\) return undefined;/, 'a free account is invited to listen');
+  assert.match(effect.slice(0, 900), /\}, \[askedPrompt, authTick, radioPaidYes\]\);/, 'the effect re-runs on identity change');
 });
 
 test('an account that already answered CLOSES a prompt already on screen', () => {

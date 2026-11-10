@@ -1,12 +1,12 @@
-// The signed-out cold open's invite edition (BSSplash style "classified", reached from the
-// paywall's "Preview the app first"). Owner, 2026-11-09, over a screenshot of it: "also make sure
-// this is wired properly. and remove that one line" — the "To: You · Invitation" address line.
+// The cold open's invite edition (BSSplash style "classified", the telegram a digest that found no
+// session falls back to). Owner, 2026-11-09, over a screenshot of it: "also make sure this is wired
+// properly. and remove that one line" — the "To: You · Invitation" address line.
 //
-// Wired: the paywall's Preview reaches it, and Step inside, a tap anywhere and the keyboard each
-// leave it for the app without stamping a member's seen-marker. A visitor with no session got the
-// pitch only after three retries meant for a member whose session was still restoring: 3.3s of
-// "Putting today together…" on a local build, every time. The shell knows the answer by then (the
-// paywall waits for the restore), so it hands it to the splash.
+// ⚠ IT IS NO LONGER A DOOR (owner, 2026-11-10: an account is required; the signed-out Preview that
+// reached it from the paywall is gone). Only a signed-in account reaches the telegram now, so the
+// shell hands the splash no signed-out answer; the invite edition stays as the fallback for a
+// session that never restores, and Step inside, a tap anywhere and the keyboard each still leave it
+// for the app.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -41,32 +41,26 @@ test('the invite edition opens on the pitch, with no address line over it', () =
   }
 });
 
-test('Preview reaches it, and every way out enters the app without a member stamp', () => {
-  assert.match(SHELL, /onPreview=\{\(\) => \{ setPreviewMode\(true\); setStage\('daily'\); \}\}/, 'the paywall Preview no longer opens the invite');
+test('no Preview reaches it any more, and every way out enters the app', () => {
+  assert.doesNotMatch(SHELL, /onPreview|setPreviewMode|previewMode/, 'the signed-out Preview is back');
   const daily = SHELL.slice(SHELL.indexOf("{stage === 'daily' && <BSSplash"), SHELL.indexOf("{stage === 'login'"));
-  assert.match(daily, /if \(authUserId && !previewMode\) \{ try \{ localStorage\.setItem\('shape\.dailySeen'/, 'a preview would stamp the seen-marker');
+  assert.match(daily, /if \(authUserId\) \{ try \{ localStorage\.setItem\('shape\.dailySeen'/, 'only an account stamps the seen-marker');
   assert.match(daily, /setStage\('app'\);/, 'leaving the invite no longer enters the app');
   // Step inside, the whole screen, and a real keyboard control.
   assert.match(INVITE, /<div onClick=\{onDone\}/, 'a tap anywhere no longer enters');
   assert.match(INVITE, /<button onClick=\{onDone\}[^>]*>\s*<span>\{tr\('launch\.stepInside'\)\}<\/span>/, 'Step inside no longer enters');
 });
 
-test('a visitor with no session gets the pitch at once; a restoring member keeps the retries', () => {
-  // The shell's answer: only the paywall's Preview, only once the restore has finished, only with no account.
-  assert.match(SHELL, /<BSSplash style="classified" signedOut=\{previewMode && authReady && !authUserId\}/,
-    'the shell no longer tells the splash the visitor has no session');
-  assert.match(SPLASH, /^function BSSplash\(\{ onDone, style = 'wire-beat', signedOut = false \}\)/, 'signedOut must default to false');
-  // Seeded at once (no loading frame), and the effect stops before any digest build.
-  assert.match(SPLASH, /useStateBSM\(\(\) => \(style === 'classified' && signedOut \? \{ signedIn: false, name: null \} : null\)\)/);
+test('only an account reaches the telegram: the splash takes no signed-out answer, and a restoring account keeps the retries', () => {
+  assert.match(SHELL, /<BSSplash style="classified" onDone=/, 'the shell hands the telegram a signed-out answer again');
+  assert.match(SPLASH, /^function BSSplash\(\{ onDone, style = 'wire-beat' \}\)/);
+  assert.match(SPLASH, /const \[bsDigest, setBsDigest\] = useStateBSM\(null\);/, 'the telegram opens on its loading line, not the invite');
   const effect = SPLASH.slice(SPLASH.indexOf("if (style !== 'classified') return undefined;"));
-  const early = effect.indexOf('if (signedOut) { setBsDigest({ signedIn: false, name: null }); return undefined; }');
-  const build = effect.indexOf('bsBuildDailyDigest()');
-  assert.ok(early > 0 && build > early, 'the signed-out answer must short-circuit before the digest build');
-  // The retries stay for everyone else: three, backing off, before the preview.
+  // The retries stay: three, backing off, before the invite edition.
   assert.match(effect, /if \(tries >= 3\) \{ setBsDigest\(dd \|\| \{ signedIn: false, name: null \}\); return; \}/);
-  assert.match(effect, /\}, \[style, signedOut\]\);/);
-  // The paywall that offers Preview waits for the restore, so `authReady` is settled when it is pressed.
+  assert.match(effect, /\}, \[style\]\);/);
+  // The door waits for the restore before it decides: the welcome only for a session with no account.
   const gate = SHELL.slice(SHELL.indexOf("{stage === 'gate' && ("), SHELL.indexOf("{stage === 'daily'"));
-  assert.ok(gate.indexOf('memberGateLoading || memberAllowed ?') >= 0 && gate.indexOf('memberGateLoading || memberAllowed ?') < gate.indexOf('<BSPaywall'),
-    'the paywall no longer waits for the gate (and so for the restore)');
+  assert.ok(gate.indexOf('gateLoading ?') >= 0 && gate.indexOf('gateLoading ?') < gate.indexOf('<BSWelcome'),
+    'the welcome no longer waits for the gate (and so for the restore)');
 });

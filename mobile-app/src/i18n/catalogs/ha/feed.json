@@ -216,8 +216,6 @@
   "support.voice.paused": "An dakata. Taɓa ni don yin magana.",
   "support.voice.noAnswer": "Ban iya amsawa yanzu ba. Taɓa ni don sake gwadawa.",
   "support.voice.unheard": "Amsata tana cikin hira. Taɓa ni don ci gaba da magana.",
-  "support.voice.memberOnly": "Muryar Nora fasali ne na membobi.",
-  "support.voice.talkMembers": "Yin magana da Nora fasali ne na membobi.",
   "support.voice.micBlocked": "Ba da izinin makirufo don yin magana da Nora.",
   "support.voice.done": "Na gama magana",
   "support.voice.interrupt": "Katse Nora",
@@ -413,5 +411,6 @@
   "thread.voiceUnplayable": "Ba za a iya kunna wannan saƙon murya yanzu ba.",
   "thread.voiceNotSent": "Ba a aika ba",
   "thread.voiceFailed": "Ba a iya aika saƙon murya ba.",
-  "thread.voicePreview": "Saƙon murya · {time}"
+  "thread.voicePreview": "Saƙon murya · {time}",
+  "composer.signInToSend": "Shiga don aika saƙonni"
 }
