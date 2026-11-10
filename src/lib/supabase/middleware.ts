@@ -5,7 +5,7 @@
 import { createServerClient } from '@supabase/ssr';
 import { createClient as createBearerClient, type SupabaseClient } from '@supabase/supabase-js';
 import { NextResponse, type NextRequest } from 'next/server';
-import { computeMembership, GATE_STAMP_ACCOUNT, GATE_STAMP_HEADER, GATE_STAMP_NORA, GATE_STAMP_VALUE, paidRefusal, readNoraPreview } from '@/lib/membership-core';
+import { computeMembership, GATE_STAMP_ACCOUNT, GATE_STAMP_HEADER, GATE_STAMP_VALUE, paidRefusal } from '@/lib/membership-core';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { applyShapeCookieOptions } from '@/lib/supabase/cookie-options';
 import { isStaffPage, verifyUrl } from '@/lib/staff-two-factor.mjs';
@@ -34,17 +34,6 @@ const GATED_API_PREFIXES = [
 // two recipe imports are the AI helpers (owner, 2026-11-10: paid, like Nora).
 const PAID_API_PREFIXES = ['/api/ai'];
 const PAID_API_PATHS = ['/api/nutrition/recipe-parse', '/api/nutrition/recipe-photo'];
-
-// Assistant Nora's own routes, under /api/ai: her action cards (proposals, confirm, the audit and its
-// undo), her voice (speak, transcribe), the weekly readout, her notices and her directive. During a
-// free account's free week of Nora they answer as for a member (owner, 2026-11-10); the AI drafting
-// (draft-program, the coaches' tools) and the recipe imports never do.
-const NORA_API_PREFIXES = ['/api/ai/proposals', '/api/ai/audit', '/api/ai/speak', '/api/ai/transcribe', '/api/ai/weekly-readout', '/api/ai/notify', '/api/ai/directive'];
-
-/** Whether this API path is assistant Nora's, which her free week opens. */
-export function isNoraApiPath(apiPath: string): boolean {
-  return NORA_API_PREFIXES.some((p) => apiPath === p || apiPath.startsWith(p + '/'));
-}
 
 /** Whether this API path needs the paid membership, not just an account. */
 export function isPaidApiPath(apiPath: string): boolean {
@@ -299,14 +288,11 @@ export async function updateSession(request: NextRequest) {
       // This was previously computed and read by NOTHING — the only age check was
       // client-side at signup, bypassable by calling the API directly.
       if (isKnownMinor) return NextResponse.json({ error: 'Shape is for adults 18 and over.', code: 'age_restricted' }, { status: 403 });
-      // A free account in its free week of Nora passes her own routes (stamped as such).
-      let noraWeek = false;
-      if (!isMember && isNoraApiPath(apiPath)) noraWeek = !!(await readNoraPreview(gateClient, gateUser.id))?.active;
-      if (!isMember && !noraWeek && isPaidApiPath(apiPath)) return NextResponse.json(paidRefusal(membership), { status: 402 });
-      // Verified — stamp the request for the route layer so requireMembership / requireNora /
-      // requireAccount (the per-endpoint half of this gate) pass without re-querying. A paid
-      // member's stamp says so; a free week's says Nora; anyone else's says only "an account".
-      forwardedHeaders.set(GATE_STAMP_HEADER, isMember ? GATE_STAMP_VALUE : noraWeek ? GATE_STAMP_NORA : GATE_STAMP_ACCOUNT);
+      if (!isMember && isPaidApiPath(apiPath)) return NextResponse.json(paidRefusal(membership), { status: 402 });
+      // Verified — stamp the request for the route layer so requireMembership / requireAccount
+      // (the per-endpoint half of this gate) pass without re-querying. A paid member's stamp says
+      // so; anyone else's says only "an account".
+      forwardedHeaders.set(GATE_STAMP_HEADER, isMember ? GATE_STAMP_VALUE : GATE_STAMP_ACCOUNT);
       // Rebuilding the response drops any cookies Supabase refreshed above,
       // so carry them over (the portal-redirect pattern below).
       const stamped = NextResponse.next({ request: { headers: forwardedHeaders } });

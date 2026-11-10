@@ -19,14 +19,14 @@ import { NextResponse } from 'next/server';
 import { currentUser, clientForRequest } from '@/lib/request-auth';
 import { countBudget, budgetReply } from '@/lib/ai/noraLimits';
 import { transcribeAudio, hasOpenAIKey } from '@/lib/ai';
-import { requireNora } from '@/lib/require-membership';
+import { requireMembership } from '@/lib/require-membership';
 import { transcriptionHints } from '@/lib/ai/voiceLang.mjs';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export async function POST(request: Request) {
-  const denied = await requireNora(request);
+  const denied = await requireMembership(request);
   if (denied) return denied;
   const user = await currentUser(request);
   if (!user) return NextResponse.json({ error: 'Sign in to use voice input.' }, { status: 401 });

@@ -189,43 +189,6 @@ export async function computeMembership(
   return { isMember, pastDue, platformStatus, includedWithCoach, isCoach, isAdmin, isKnownMinor };
 }
 
-/** A stamp the gate gives a request for assistant Nora during an account's free week. */
-export const GATE_STAMP_NORA = 'nora';
-
-export type NoraPreview = { startedAt: string; endsAt: string; active: boolean };
-
-/**
- * The account's free week of assistant Nora (supabase-migrations/2026-11-10-nora-free-week.sql: it
- * starts by itself after a free account's third completed workout, once per account, with no card;
- * owner, 2026-11-10). Read with the caller's own session (an account reads its own row) or the
- * service role. null when there is none (or no table yet); a failed read throws.
- */
-export async function readNoraPreview(
-  client: SupabaseClient,
-  userId: string,
-  opts: { now?: number } = {}
-): Promise<NoraPreview | null> {
-  const { data, error } = await client.from('nora_previews').select('started_at, ends_at').eq('user_id', userId).maybeSingle();
-  if (error) {
-    // Before 2026-11-10-nora-free-week.sql has run there is no table, and so no week: an answer.
-    // ⚠ ANY OTHER FAILURE IS UNKNOWN, AND THROWN, EVERYWHERE (Codex P2 ×2 on #2675). Read as "no
-    // week", it was a confirmed refusal: /api/me/membership answered nora:false, and the edge gate
-    // and requireNora answered a 402, to an account in its free week, for as long as the table
-    // could not be read. Thrown, each takes its own fault path: the membership read's 503 (clients
-    // keep what they knew), and the gate's and requireNora's fail-open with a log, as every other
-    // read of the paid gate. A caller that would rather have none says so (.catch).
-    const code = String((error as { code?: unknown }).code ?? '');
-    if (code === 'PGRST205' || code === '42P01') return null;
-    throw error;
-  }
-  if (!data) return null;
-  const row = data as { started_at?: unknown; ends_at?: unknown };
-  const endsAt = String(row.ends_at ?? '');
-  const ends = Date.parse(endsAt);
-  if (!Number.isFinite(ends)) return null;
-  return { startedAt: String(row.started_at ?? ''), endsAt, active: ends > (opts.now ?? Date.now()) };
-}
-
 /** The 402 a paid feature answers a signed-in adult who may not use it: past due, or not a member. */
 export function paidRefusal(m: Pick<Membership, 'pastDue'>): { error: string; code: 'payment_past_due' | 'membership_required' } {
   return m.pastDue

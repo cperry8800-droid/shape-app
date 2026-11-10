@@ -38,7 +38,7 @@ import { NextResponse } from 'next/server';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { readJson, dbError } from '@/lib/request-utils';
 import { callAI, hasOpenAIKey } from '@/lib/ai';
-import { requireNora } from '@/lib/require-membership';
+import { requireMembership } from '@/lib/require-membership';
 import {
   computeCorrelations,
   SNAPSHOT_SELECT,
@@ -397,7 +397,7 @@ async function generateReadout(
 }
 
 export async function POST(request: Request) {
-  const denied = await requireNora(request);
+  const denied = await requireMembership(request);
   if (denied) return denied;
   let body: { user_id?: string; window_days?: number } = {};
   const bodyResult = await readJson<{ user_id?: string; window_days?: number }>(request, { allowEmpty: true });

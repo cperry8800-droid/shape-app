@@ -58,7 +58,7 @@ function calls(...items) { return { output: [{ type: 'reasoning', id: 'rs_1', su
 // `isCoach`/`isAdmin` default the way membership-core derives them (from the
 // role), so a test can also model a DUAL-ROLE account: primary role 'client',
 // coach by roles[] — which is what the route must read membership for.
-async function loadRoute({ user = { id: U, email: 'm@x' }, role = 'client', roles = null, isMember = true, isCoach = ['trainer', 'nutritionist', 'dietitian'].includes(role), isAdmin = false, noraWeek = null, hasKey = true, answers = [say('ok')], tables = {}, rpcs = {}, fail = [], rate = null, turnstile = null, adminDb = null } = {}) {
+async function loadRoute({ user = { id: U, email: 'm@x' }, role = 'client', roles = null, isMember = true, isCoach = ['trainer', 'nutritionist', 'dietitian'].includes(role), isAdmin = false, hasKey = true, answers = [say('ok')], tables = {}, rpcs = {}, fail = [], rate = null, turnstile = null, adminDb = null } = {}) {
   const sb = fakeSupabase({ tables, rpcs, fail });
   const calls_ = { ai: [], proposals: [], rate: [], turnstile: [] };
   // Nora's limits run for real over a stubbed counter and bot check, so a test reads
@@ -97,7 +97,7 @@ async function loadRoute({ user = { id: U, email: 'm@x' }, role = 'client', role
     ['@/lib/ai/adminLookup.mjs', adminLookup],
     // The help desk's service-role client: the test's own (adminDb), else one that refuses.
     ['@/lib/supabase/admin', { createAdminClient: () => { if (!adminDb) throw new Error('no service role'); return adminDb; } }],
-    ['@/lib/membership-core', { readNoraPreview: async () => { if (noraWeek instanceof Error) throw noraWeek; return noraWeek; }, computeMembership: async () => ({ isMember, isCoach, isAdmin, isKnownMinor: false }) }],
+    ['@/lib/membership-core', { computeMembership: async () => ({ isMember, isCoach, isAdmin, isKnownMinor: false }) }],
     ['@/lib/food-search-server', { searchFoodsServer: async () => ({ results: [], unavailable: true }) }],
     ['@/lib/ai', {
       hasOpenAIKey: () => hasKey,
@@ -1489,27 +1489,14 @@ test('STREAM: no status for a round that answers, and a plain request is never h
   assert.equal(json.status, undefined);
 });
 
-test('the free week of Nora: a free account in its week gets her lookups and the member tier, and is told when it ends; after it, the help desk (owner, 2026-11-10)', async () => {
-  const week = await loadRoute({ isMember: false, noraWeek: { startedAt: '2026-11-08T10:00:00Z', endsAt: '2026-11-15T10:00:00Z', active: true } });
-  await week.mod.POST(post(ask('what is on today')));
-  const w = week.calls.ai[0];
-  for (const n of READ_NAMES) assert.ok(toolNames(w.body).includes(n), `${n} during the free week`);
-  assert.ok(!toolNames(w.body).includes('find_client'), 'a free week is not a coach');
-  const sys = String(w.body.input?.[0]?.content ?? JSON.stringify(w.body));
-  assert.match(sys, /NORA FREE WEEK: [^]*ends 2026-11-15/);
-  assert.doesNotMatch(sys, /FREE ACCOUNT:/);
-  const after = await loadRoute({ isMember: false, noraWeek: { startedAt: '2026-10-01T10:00:00Z', endsAt: '2026-10-08T10:00:00Z', active: false } });
-  await after.mod.POST(post(ask('what is on today')));
-  const a = after.calls.ai[0];
-  for (const n of READ_NAMES) assert.ok(!toolNames(a.body).includes(n), `${n} after the week`);
-  assert.match(String(a.body.input?.[0]?.content ?? JSON.stringify(a.body)), /FREE ACCOUNT:[^]*free week of you as their assistant/);
-  // ⚠ A week that could not be read is not "no week" (Codex P2 on #2675): as requireNora on a fault,
-  // her assistant answers that message, with no end date claimed and no free-account note.
-  const unread = await loadRoute({ isMember: false, noraWeek: Object.assign(new Error('fake failure on nora_previews'), { code: '57014' }) });
-  await unread.mod.POST(post(ask('what is on today')));
-  const u = unread.calls.ai[0];
-  for (const n of READ_NAMES) assert.ok(toolNames(u.body).includes(n), `${n} when the week could not be read`);
-  const uSys = String(u.body.input?.[0]?.content ?? JSON.stringify(u.body));
-  assert.doesNotMatch(uSys, /FREE ACCOUNT:/, 'an unread week was answered as a confirmed free account');
-  assert.doesNotMatch(uSys, /NORA FREE WEEK:/, 'an end date nobody read was claimed');
+test('no free week (owner, 2026-11-10): a free account gets the help desk, never her lookups, and is told assistant Nora is the membership', async () => {
+  const free = await loadRoute({ isMember: false });
+  await free.mod.POST(post(ask('what is on today')));
+  const f = free.calls.ai[0];
+  for (const n of READ_NAMES) assert.ok(!toolNames(f.body).includes(n), `${n} for a free account`);
+  const sys = String(f.body.input?.[0]?.content ?? JSON.stringify(f.body));
+  assert.match(sys, /FREE ACCOUNT:[^]*There is no free trial\. When they ask for a paid feature/);
+  assert.doesNotMatch(sys, /free week|NORA FREE WEEK|three workouts/i, 'a free week is still promised');
+  const route = (await import('node:fs')).readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../src/app/api/support/chat/route.ts'), 'utf8');
+  assert.doesNotMatch(route, /readNoraPreview|noraWeek|nora_previews/);
 });

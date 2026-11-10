@@ -62,7 +62,7 @@ import { toneInstruction } from '@/lib/ai/tone.mjs';
 import { formatMemberContext, UNAVAILABLE_NOTE } from '@/lib/ai/memberContext.mjs';
 import { formatCookContext, COOK_CONTEXT_HEADER } from '@/lib/ai/cookContext.mjs';
 import { rememberMemoryTool, forgetMemoryTool, draftBriefFromText, noraSessionZone, SETUP_TOOL, SETUP_PROMPT_NOTE } from '@/lib/ai/actions.mjs';
-import { computeMembership, readNoraPreview } from '@/lib/membership-core';
+import { computeMembership } from '@/lib/membership-core';
 import { noraTier, visitorGate, countQuestion, limitReply, requestIp, CHECK_REPLY, countBudget, budgetReply } from '@/lib/ai/noraLimits';
 import { greetingKind, greetingFor } from '@/lib/ai/noraGreeting.mjs';
 import { normalizeContext, formatContextNote, validZone, dayIn } from '@/lib/ai/noraContext.mjs';
@@ -578,12 +578,9 @@ const TEAM_QUOTE = '[A reply from the Shape team, quoted]';
 // Store. Without the note Nora, who has no read tools for such an account, could only guess why
 // something is locked, and a member whose card failed was never told to update it.
 const FREE_ACCOUNT_NOTE =
-  "FREE ACCOUNT: This signed-in account has no paid membership. Everything else in Shape is free with the account (logging, programs, Home, a weekly recap to share, the Score and the top 10 of the leaderboards, the community, coaches and messaging, and questions to you). The membership ($5 a month or $48 a year; included while they pay a coach on Shape) adds the paid features: you as their assistant (looking up their own data, logging and setting things up for them, voice, the weekly readout), Shape Radio, the AI helpers (recipes from text or a photo, an AI program draft), Cook Mode's voice, the full leaderboards with their exact rank, and the points Store. There is no free trial, but after their first three workouts they get a free week of you as their assistant, no card. When they ask for a paid feature, say it's part of the membership and that they can join from Settings, in one sentence, without pressing.";
+  "FREE ACCOUNT: This signed-in account has no paid membership. Everything else in Shape is free with the account (logging, programs, Home, a weekly recap to share, the Score and the top 10 of the leaderboards, the community, coaches and messaging, and questions to you). The membership ($5 a month or $48 a year; included while they pay a coach on Shape) adds the paid features: you as their assistant (looking up their own data, logging and setting things up for them, voice, the weekly readout), Shape Radio, the AI helpers (recipes from text or a photo, an AI program draft), Cook Mode's voice, the full leaderboards with their exact rank, and the points Store. There is no free trial. When they ask for a paid feature, say it's part of the membership and that they can join from Settings, in one sentence, without pressing.";
 const PAST_DUE_NOTE =
   "PAYMENT DIDN'T GO THROUGH: This account's $5 membership renewal failed and Stripe is retrying. Their account and every free feature work as usual; the paid features (you as their assistant, Shape Radio, the AI helpers, Cook Mode's voice, their place on the leaderboards and the points Store) are paused until the payment goes through. When something paid is locked, or they ask about billing, tell them to update their card: the Update your card button, or Settings → Manage subscription, both open the billing portal. Never call them a non-member or suggest joining again.";
-
-const noraWeekNote = (endsAt: string) =>
-  `NORA FREE WEEK: This free account is in its free week of you as an assistant, which started after its third workout and ends ${endsAt.slice(0, 10)} (UTC date). Until then you can look things up and draft actions for them as for a member. When they ask what happens after, say the assistant is part of the $5 membership (or $48 a year), in one sentence, without pressing; everything else they use stays free.`;
 
 const PERSON_NOTE =
   `TALK TO A PERSON: Under this chat there is a "Talk to a person" button. It sends their question and this conversation to the Shape team, and a person replies here in this chat and by email. When they need a person (a refund, an account change, a bug, anything you cannot do), tell them to tap it. You cannot send it yourself, so never say you have. A message that starts ${TEAM_QUOTE} is that reply: answer questions about it, and never contradict it with a guess.`;
@@ -1175,7 +1172,7 @@ async function askOpenAI(
   messages: ChatMessage[],
   propose: ProposeFn,
   tone: string | undefined,
-  member: { contextMsg: string | null; memberTools: typeof MEMBER_TOOLS; memoryCtx: MemoryCtx | null; cookMsg: string | null; reads: ReadCtx | null; coachTools: typeof COACH_TOOLS; adminTools?: typeof ADMIN_TOOLS; trainerTools: typeof TRAINER_TOOLS; nutritionTools?: typeof NUTRITION_TOOLS; trainerZone?: string; noCards?: boolean; isMember: boolean; pastDue?: boolean; noraWeekEnds?: string | null; signedIn?: boolean; teamReplies?: Set<string>; voice: boolean; locale: string | null; coach: CoachCtx; where?: { system: string; data: string | null }; form?: FormCtx | null; today?: string | null },
+  member: { contextMsg: string | null; memberTools: typeof MEMBER_TOOLS; memoryCtx: MemoryCtx | null; cookMsg: string | null; reads: ReadCtx | null; coachTools: typeof COACH_TOOLS; adminTools?: typeof ADMIN_TOOLS; trainerTools: typeof TRAINER_TOOLS; nutritionTools?: typeof NUTRITION_TOOLS; trainerZone?: string; noCards?: boolean; isMember: boolean; pastDue?: boolean; signedIn?: boolean; teamReplies?: Set<string>; voice: boolean; locale: string | null; coach: CoachCtx; where?: { system: string; data: string | null }; form?: FormCtx | null; today?: string | null },
   signal?: AbortSignal,
   sink?: StreamSink,
 ): Promise<{ reply: string; actions: SupportAction[]; model: string | null } | null> {
@@ -1212,7 +1209,7 @@ async function askOpenAI(
   const noCardsNote = member.noCards && !member.cookMsg ? `\n\n${NO_CARDS_NOTE}` : '';
   const personNote = member.signedIn && !member.noCards && !member.cookMsg ? `\n\n${PERSON_NOTE}` : '';
   const planNote = member.signedIn && !member.cookMsg
-    ? member.noraWeekEnds ? `\n\n${noraWeekNote(member.noraWeekEnds)}` : !member.isMember ? `\n\n${member.pastDue ? PAST_DUE_NOTE : FREE_ACCOUNT_NOTE}` : ''
+    ? !member.isMember ? `\n\n${member.pastDue ? PAST_DUE_NOTE : FREE_ACCOUNT_NOTE}` : ''
     : '';
   // Account setup rides with its tool: a member's turn on a chat that draws cards, never in the kitchen.
   const setupNote = member.memberTools.length && !member.noCards && !member.cookMsg ? `\n\n${SETUP_PROMPT_NOTE}` : '';
@@ -1537,25 +1534,6 @@ export async function POST(request: Request) {
   let membership: Awaited<ReturnType<typeof computeMembership>> | null = null;
   let factsEarly: Promise<{ facts: Record<string, unknown> | null; failed: boolean }> | null = null;
   if (actor) membership = await computeMembership(actor.supabase, actor.user.id, actor.user.email ?? null, { emailConfirmed: !!actor.user.email_confirmed_at }).catch(() => null);
-  // ⚠ A FREE ACCOUNT'S FREE WEEK OF NORA IS HER ASSISTANT, AS FOR A MEMBER (owner, 2026-11-10: it
-  // starts after the third completed workout, once, with no card; 2026-11-10-nora-free-week.sql).
-  // Her lookups, memory and action cards open for it; nothing else a member has does (Radio, the
-  // Store and the rest ask the membership themselves).
-  // ⚠ A WEEK THAT COULD NOT BE READ IS NOT "NO WEEK" (Codex P2 on #2675). Read as none, an account in
-  // its free week was answered by the help desk, and counted on the free tier, while the table could
-  // not be read. As requireNora on a fault, this message is answered by her assistant instead: the
-  // account's age and plan were read just above, so only the week is unknown. Her end-of-week note
-  // waits for a read that says when it ends.
-  let noraWeekEnds: string | null = null;
-  if (actor && membership && !membership.isMember && !membership.isKnownMinor) {
-    let week: Awaited<ReturnType<typeof readNoraPreview>> = null;
-    let weekUnread = false;
-    try { week = await readNoraPreview(actor.supabase, actor.user.id); } catch { weekUnread = true; }
-    if (weekUnread || week?.active) {
-      noraWeekEnds = week?.active ? week.endsAt : null;
-      membership = { ...membership, isMember: true };
-    }
-  }
   // An account's count for the day needs only its tier, so it runs beside the reads below. A
   // visitor's waits for the bot check, as it always has.
   const tier = noraTier(!!actor, membership);
@@ -1681,7 +1659,7 @@ export async function POST(request: Request) {
   const teamReplies = settledValue(await teamRepliesEarly);
   // How long the setup took before the model was asked: greppable beside the model's own line.
   console.log('[shape-ai]', JSON.stringify({ promptId: 'support.chat.setup', setupMs: Date.now() - startedAt, signedIn: !!actor }));
-  const ask = (sink?: StreamSink) => askOpenAI(messages, propose, body.tone, { contextMsg, memberTools, memoryCtx, cookMsg, reads, coachTools, adminTools, trainerTools, nutritionTools, trainerZone: zone, isMember, pastDue: !!membership?.pastDue, noraWeekEnds, signedIn: !!actor, teamReplies, voice, locale, coach, noCards, where, form, today }, request.signal, sink).catch(() => null);
+  const ask = (sink?: StreamSink) => askOpenAI(messages, propose, body.tone, { contextMsg, memberTools, memoryCtx, cookMsg, reads, coachTools, adminTools, trainerTools, nutritionTools, trainerZone: zone, isMember, pastDue: !!membership?.pastDue, signedIn: !!actor, teamReplies, voice, locale, coach, noCards, where, form, today }, request.signal, sink).catch(() => null);
   // What she answers, whatever happened: the model's reply, or the fallbacks below. The same
   // object either way; a streamed request gets it as the final `done` event.
   const answer = async (ai: Awaited<ReturnType<typeof ask>>): Promise<Record<string, unknown>> => {

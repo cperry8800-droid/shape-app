@@ -13,7 +13,7 @@ import { readJson } from '@/lib/request-utils';
 import { resolveActor } from '@/lib/ai/server';
 import { hasOpenAIKey, synthesizeSpeech } from '@/lib/ai';
 import { resolveVoiceWithDefault, speechInstructions, encodeSpokenText, SPOKEN_TEXT_HEADER } from '@/lib/ai/tone.mjs';
-import { requireNora } from '@/lib/require-membership';
+import { requireMembership } from '@/lib/require-membership';
 import { countBudget, budgetReply } from '@/lib/ai/noraLimits';
 
 export const runtime = 'nodejs';
@@ -26,7 +26,7 @@ const MAX_TTS_CHARS = 2000;
 // would serve (a dietitian, an admin: the website's own member check knew neither;
 // Codex, #2241). 200 { voice: true }, else the gate's own 401/402/403. No audio, no key.
 export async function GET(request: Request) {
-  const denied = await requireNora(request);
+  const denied = await requireMembership(request);
   if (denied) return denied;
   const actor = await resolveActor(request);
   if (!actor) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
@@ -34,7 +34,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const denied = await requireNora(request);
+  const denied = await requireMembership(request);
   if (denied) return denied;
   const actor = await resolveActor(request);
   if (!actor) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });

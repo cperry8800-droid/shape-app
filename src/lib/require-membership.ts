@@ -21,7 +21,7 @@
 
 import { NextResponse } from 'next/server';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
-import { computeMembership, GATE_STAMP_ACCOUNT, GATE_STAMP_HEADER, GATE_STAMP_NORA, GATE_STAMP_VALUE, paidRefusal, readNoraPreview } from '@/lib/membership-core';
+import { computeMembership, GATE_STAMP_ACCOUNT, GATE_STAMP_HEADER, GATE_STAMP_VALUE, paidRefusal } from '@/lib/membership-core';
 
 /**
  * Returns null when the caller may use PAID features (an active membership, an approved coach or
@@ -72,7 +72,7 @@ export async function requireMembership(request: Request): Promise<NextResponse 
  */
 export async function requireAccount(request: Request): Promise<NextResponse | null> {
   const stamp = request.headers.get(GATE_STAMP_HEADER);
-  if (stamp === GATE_STAMP_ACCOUNT || stamp === GATE_STAMP_VALUE || stamp === GATE_STAMP_NORA) return null;
+  if (stamp === GATE_STAMP_ACCOUNT || stamp === GATE_STAMP_VALUE) return null;
   try {
     const user = await currentUser(request);
     if (!user) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
@@ -84,32 +84,6 @@ export async function requireAccount(request: Request): Promise<NextResponse | n
     return null;
   } catch (e) {
     console.error('[require-account] enforcement fault — failing open:', e);
-    return null;
-  }
-}
-
-/**
- * Assistant Nora's routes' guard: a paid member (requireMembership's rule), or a free account in its
- * free week of Nora (owner, 2026-11-10; supabase-migrations/2026-11-10-nora-free-week.sql). Returns
- * null, or the 401/402/403 the route should return. Same layering: the edge gate's stamp (member or
- * nora) is the fast path, and a fault fails open with a loud log.
- */
-export async function requireNora(request: Request): Promise<NextResponse | null> {
-  const stamp = request.headers.get(GATE_STAMP_HEADER);
-  if (stamp === GATE_STAMP_VALUE || stamp === GATE_STAMP_NORA) return null;
-  try {
-    const user = await currentUser(request);
-    if (!user) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
-    const client = await clientForRequest(request);
-    const membership = await computeMembership(client, user.id, user.email ?? null, { emailConfirmed: !!user.email_confirmed_at, strictPaid: true });
-    if (membership.isKnownMinor) {
-      return NextResponse.json({ error: 'Shape is for adults 18 and over.', code: 'age_restricted' }, { status: 403 });
-    }
-    if (membership.isMember) return null;
-    if ((await readNoraPreview(client, user.id))?.active) return null;
-    return NextResponse.json(paidRefusal(membership), { status: 402 });
-  } catch (e) {
-    console.error('[require-nora] enforcement fault — failing open:', e);
     return null;
   }
 }

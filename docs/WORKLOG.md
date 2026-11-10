@@ -112,8 +112,8 @@ or past 12 KB.
   go to signed-in accounts (`/api/coaches/reviews`). Also: `src/lib/calendar-activities.ts`,
   `api/nutrition/meal-note` (private `meal-notes` bucket), `api/nutrition/voice` (Whisper),
   and the War Room board (`/warroom`). Nora's account setup: `src/lib/ai/accountSetup.mjs`.
-- **Free account, paid membership:** routes take `requireAccount` (free), `requireMembership`
-  (paid) or `requireNora` (paid or the free week); past due is free (`paidRefusal`).
+- **Free account, paid membership:** routes take `requireAccount` (free) or `requireMembership`
+  (paid; assistant Nora included, with no free week); past due is free (`paidRefusal`).
 - **Own radio station:** `services/station`, the engine's `NORA_MODE=station`, `radio/rotation.mjs`.
 - **Time zones:** one per account (`profiles.timezone`, `/api/me/timezone`); print through `shapeZone.mjs`.
 - ⚠ **A screen holding a copy of a `user_goals` doc** reads it again when something else writes

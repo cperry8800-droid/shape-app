@@ -12,7 +12,7 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { join, dirname, relative } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -32,7 +32,7 @@ const ADULT = { role: 'client', roles: ['client'], over_18: true, date_of_birth:
 const MINOR = { ...ADULT, over_18: false, date_of_birth: '2014-04-02' };
 
 /** A Supabase-shaped client answering the profile and the newest platform subscription. */
-function client({ profile = ADULT, status = null, fail = [], coached = false, week = null, missing = [] } = {}) {
+function client({ profile = ADULT, status = null, fail = [], coached = false, missing = [] } = {}) {
   return {
     from: (table) => {
       const q = {
@@ -46,7 +46,6 @@ function client({ profile = ADULT, status = null, fail = [], coached = false, we
           if (missing.includes(table)) return { data: null, error: { code: 'PGRST205', message: `Could not find the table 'public.${table}' in the schema cache` } };
           if (table === 'profiles') return { data: profile, error: null };
           if (table === 'platform_subscriptions') return { data: status ? { status } : null, error: null };
-          if (table === 'nora_previews') return { data: week, error: null };
           return { data: null, error: null };
         },
       };
@@ -91,12 +90,12 @@ test('1: coaching includes the membership: an active coach subscription pays, pa
 });
 
 // ── 2 ──────────────────────────────────────────────────────────────────────────────────────
-async function gate(path, { user = { id: UID, email: 'm@example.invalid', email_confirmed_at: 'x' }, profile = ADULT, status = null, week = null, fail = [], missing = [], coached = false } = {}) {
+async function gate(path, { user = { id: UID, email: 'm@example.invalid', email_confirmed_at: 'x' }, profile = ADULT, status = null, fail = [], missing = [], coached = false } = {}) {
   const mw = await loadRealModule(join(ROOT, 'src/lib/supabase/middleware.ts'), {
     typescript: true,
     registry: new Map([
       ['next/server', nextServer],
-      ['@supabase/ssr', { createServerClient: () => ({ auth: { getUser: async () => ({ data: { user } }) }, ...client({ profile, status, week, fail, missing, coached }) }) }],
+      ['@supabase/ssr', { createServerClient: () => ({ auth: { getUser: async () => ({ data: { user } }) }, ...client({ profile, status, fail, missing, coached }) }) }],
       ['@supabase/supabase-js', { createClient: () => ({}) }],
       ['@/lib/membership-core', core],
       ['@/lib/rate-limit', { checkRateLimit: async () => ({ allowed: true, remaining: 99, resetSeconds: 60, limit: 100 }), jwtSub: () => null }],
@@ -144,12 +143,12 @@ test('2: a member and a coach pass the paid paths, stamped as a member; signed o
 });
 
 // ── 3 ──────────────────────────────────────────────────────────────────────────────────────
-async function guards({ user = { id: UID, email: 'm@example.invalid', email_confirmed_at: 'x' }, profile = ADULT, status = null, week = null, fail = [], missing = [], coached = false } = {}) {
+async function guards({ user = { id: UID, email: 'm@example.invalid', email_confirmed_at: 'x' }, profile = ADULT, status = null, fail = [], missing = [], coached = false } = {}) {
   return loadRealModule(join(ROOT, 'src/lib/require-membership.ts'), {
     typescript: true,
     registry: new Map([
       ['next/server', nextServer],
-      ['@/lib/request-auth', { currentUser: async () => user, clientForRequest: async () => client({ profile, status, week, fail, missing, coached }) }],
+      ['@/lib/request-auth', { currentUser: async () => user, clientForRequest: async () => client({ profile, status, fail, missing, coached }) }],
       ['@/lib/membership-core', core],
     ]),
   });
@@ -195,7 +194,7 @@ test('4: every account-prefix route is guarded, the paid ones by requireMembersh
   const mw = read('src/lib/supabase/middleware.ts');
   const prefixes = ['client', 'nutrition', 'ai', 'insights', 'calendar', 'conversations', 'messages'];
   const serverOnly = new Set(['src/app/api/ai/notify/cron/route.ts', 'src/app/api/calendar/feed/[token]/route.ts']);
-  const { isPaidApiPath, isNoraApiPath } = await loadRealModule(join(ROOT, 'src/lib/supabase/middleware.ts'), {
+  const { isPaidApiPath } = await loadRealModule(join(ROOT, 'src/lib/supabase/middleware.ts'), {
     typescript: true,
     registry: new Map([['next/server', nextServer], ['@supabase/ssr', {}], ['@supabase/supabase-js', {}], ['@/lib/membership-core', core], ['@/lib/rate-limit', {}], ['@/lib/supabase/cookie-options', {}], ['@/lib/staff-two-factor.mjs', {}]]),
   });
@@ -206,10 +205,7 @@ test('4: every account-prefix route is guarded, the paid ones by requireMembersh
       seen += 1;
       const apiPath = '/' + relative('src/app', dirname(file)).replace(/\\/g, '/');
       const src = stripComments(read(file));
-      if (isNoraApiPath(apiPath) && apiPath !== '/api/ai/directive/override') {
-        assert.match(src, /requireNora\(request|requireNora\(req/, `${file}: assistant Nora's route checks the membership or the free week`);
-        assert.doesNotMatch(src, /requireMembership\(/, file);
-      } else if (isPaidApiPath(apiPath)) {
+      if (isPaidApiPath(apiPath)) {
         assert.match(src, /requireMembership\(request|requireMembership\(req/, `${file}: a paid route checks the membership`);
       } else {
         assert.match(src, /requireAccount\(request|requireAccount\(req/, `${file}: a free route checks the account`);
@@ -254,55 +250,29 @@ test('5: nothing that hires a coach asks for the membership any more; the 18+ st
   assert.doesNotMatch(stripComments(read('src/app/dashboard/layout.tsx')), /Shape is for members|platform_subscriptions/);
 });
 
-// ── the free week of Nora (owner, 2026-11-10) ───────────────────────────────────────────────
-const WEEK = { started_at: '2026-11-08T10:00:00Z', ends_at: new Date(Date.now() + 3 * 86400000).toISOString() };
-const ENDED = { started_at: '2026-10-01T10:00:00Z', ends_at: '2026-10-08T10:00:00Z' };
-const NORA_PATHS = ['/api/ai/speak', '/api/ai/transcribe', '/api/ai/proposals/confirm', '/api/ai/audit/undo', '/api/ai/weekly-readout', '/api/ai/notify'];
+// ── assistant Nora is the membership's: no free week (owner, 2026-11-10: "no you dont need to
+// complete 3 workouts. drop that. I thought Nora assistant was locked for free users") ──────────
+const NORA_PATHS = ['/api/ai/speak', '/api/ai/transcribe', '/api/ai/proposals', '/api/ai/proposals/confirm', '/api/ai/audit', '/api/ai/audit/undo', '/api/ai/weekly-readout', '/api/ai/notify', '/api/ai/directive'];
 
-test('free week: a free account in its week passes assistant Nora\'s routes, stamped as such; never the AI drafting or the recipes; an ended week does not', async () => {
+test('no free week: a free account is refused every one of assistant Nora\'s routes, at the gate and in the route; a member passes', async () => {
   for (const p of NORA_PATHS) {
-    const r = await gate(p, { week: WEEK });
-    assert.equal(r.status, 200, p);
-    assert.equal(r.stamp, 'nora', p);
-    assert.equal((await gate(p, { week: ENDED })).code, 'membership_required', `${p}: the week is over`);
-    assert.equal((await gate(p, { week: ENDED, status: 'past_due' })).code, 'payment_past_due', p);
+    assert.equal((await gate(p)).code, 'membership_required', `${p}: a free account reached assistant Nora`);
+    assert.equal((await gate(p, { status: 'past_due' })).code, 'payment_past_due', p);
+    assert.equal((await gate(p, { status: 'active' })).stamp, 'member', p);
   }
-  for (const p of ['/api/ai/draft-program', '/api/nutrition/recipe-parse', '/api/nutrition/recipe-photo']) {
-    assert.equal((await gate(p, { week: WEEK })).code, 'membership_required', `${p} is not Nora's`);
-  }
-  assert.equal((await gate('/api/client/plan', { week: WEEK })).stamp, 'account', 'a free route is the account\'s, week or not');
-});
-
-test('free week: requireNora takes the member and Nora stamps, and with none checks the week; requireMembership never takes it', async () => {
   const free = await guards();
-  assert.equal(await free.requireNora(stamped('member')), null);
-  assert.equal(await free.requireNora(stamped('nora')), null);
-  assert.equal((await free.requireNora(stamped('account'))).status, 402);
-  assert.equal(await (await guards({ week: WEEK })).requireNora(stamped(null)), null);
-  assert.equal((await (await guards({ week: ENDED })).requireNora(stamped(null))).status, 402);
-  assert.equal(await (await guards({ status: 'active' })).requireNora(stamped(null)), null);
-  assert.equal((await (await guards({ profile: MINOR, week: WEEK })).requireNora(stamped(null))).status, 403);
-  assert.equal((await free.requireMembership(stamped('nora'))).status, 402, 'a free week is not the membership');
-  assert.equal(await free.requireAccount(stamped('nora')), null);
-});
-
-// ⚠ A WEEK THAT COULD NOT BE READ IS NEVER A REFUSAL (Codex P2 ×2 on #2675). Read as "no week", the
-// edge gate and requireNora answered an account in its free week a 402 for as long as the table
-// could not be read; the read now throws, and each guard takes its fault path, as every other
-// read of the paid gate does.
-test('free week: a week that could not be read is no 402: the gate stamps nothing and requireNora fails open', async () => {
-  for (const p of NORA_PATHS) {
-    const r = await gate(p, { week: WEEK, fail: ['nora_previews'] });
-    assert.equal(r.status, 200, `${p}: the gate refused an unread week`);
-    assert.equal(r.stamp, null, `${p}: an unread week is stamped as something`);
+  // A "nora" stamp from an older gate passes nothing: only the member stamp skips the check.
+  assert.equal((await free.requireMembership(stamped('nora'))).status, 402);
+  assert.equal((await free.requireMembership(stamped(null))).status, 402);
+  assert.equal(await (await guards({ status: 'active' })).requireMembership(stamped(null)), null);
+  // Nothing of the free week is left: no migration, no read, no stamp, no guard of its own.
+  assert.equal(existsSync(join(ROOT, 'supabase-migrations/2026-11-10-nora-free-week.sql')), false, 'the free-week migration is back');
+  assert.equal(core.readNoraPreview, undefined);
+  assert.equal(core.GATE_STAMP_NORA, undefined);
+  for (const f of ['src/lib/membership-core.ts', 'src/lib/require-membership.ts', 'src/lib/supabase/middleware.ts', 'src/app/api/me/membership/route.ts', 'src/app/api/support/chat/route.ts', 'src/lib/ai/shapeKnowledge.mjs']) {
+    assert.doesNotMatch(stripComments(read(f)), /nora_previews|readNoraPreview|requireNora|GATE_STAMP_NORA|isNoraApiPath|noraPreview|noraWeek|free week/i, `${f}: the free week is still there`);
   }
-  assert.equal(await (await guards({ week: WEEK, fail: ['nora_previews'] })).requireNora(stamped(null)), null, 'requireNora refused an unread week');
-  // Before the migration there is no table, and so no week: refused, as a free account.
-  assert.equal((await gate(NORA_PATHS[0], { missing: ['nora_previews'] })).code, 'membership_required');
-  assert.equal((await (await guards({ missing: ['nora_previews'] })).requireNora(stamped(null))).status, 402);
-  // The read itself: a failure throws, a missing table is none.
-  await assert.rejects(core.readNoraPreview(client({ fail: ['nora_previews'] }), UID), (e) => /nora_previews/.test(e?.message));
-  assert.equal(await core.readNoraPreview(client({ missing: ['nora_previews'] }), UID), null);
+  for (const f of routes('src/app/api/ai')) assert.doesNotMatch(read(f), /requireNora/, `${f}: a guard of the free week`);
 });
 
 // ⚠ A FAILED READ OF WHAT PAYS IS A FAULT IN THE GUARDS, NEVER A CONFIRMED 402 (Codex P2 on #2675).
@@ -320,7 +290,6 @@ test('guards: a failed read of the plan or the coaching is no 402; a failed prof
     }
     const g = await guards(who);
     assert.equal(await g.requireMembership(stamped(null)), null, `requireMembership refused on ${fail}`);
-    assert.equal(await g.requireNora(stamped(null)), null, `requireNora refused on ${fail}`);
   }
   // Read, they decide as before: coaching pays, a free account is refused.
   assert.equal((await gate(PAID_PATHS[0], { coached: true })).stamp, 'member');
@@ -330,7 +299,7 @@ test('guards: a failed read of the plan or the coaching is no 402; a failed prof
   assert.equal((await (await guards({ status: 'active', fail: ['profiles'] })).requireMembership(stamped(null))).status, 403);
 });
 
-test('free week: /api/me/membership says whether Nora is on, and the week itself', async () => {
+test('/api/me/membership: `nora` is the membership, and there is no free week to report', async () => {
   const run = async (o) => {
     const route = await loadRealModule(join(ROOT, 'src/app/api/me/membership/route.ts'), {
       typescript: true,
@@ -343,41 +312,19 @@ test('free week: /api/me/membership says whether Nora is on, and the week itself
     const res = await route.GET(new Request('https://shape.test/api/me/membership'));
     return o.raw ? res : res.json();
   };
-  const week = await run({ week: WEEK });
-  assert.equal(week.member, false);
-  assert.equal(week.nora, true);
-  assert.equal(week.noraPreview.active, true);
-  assert.equal(week.noraPreview.endsAt, WEEK.ends_at);
-  const ended = await run({ week: ENDED });
-  assert.equal(ended.nora, false);
-  assert.equal(ended.noraPreview.active, false);
-  assert.equal((await run({ status: 'active' })).nora, true, 'a member has her anyway');
-  assert.equal((await run({})).noraPreview, null);
+  const free = await run({});
+  assert.equal(free.member, false);
+  assert.equal(free.nora, false, 'a free account has assistant Nora');
+  assert.equal('noraPreview' in free, false);
+  const paid = await run({ status: 'active' });
+  assert.equal(paid.member, true);
+  assert.equal(paid.nora, true);
   const coached = await run({ coached: true });
   assert.equal(coached.member, true);
+  assert.equal(coached.nora, true, 'coaching includes her');
   assert.equal(coached.includedWithCoach, true);
-  // ⚠ The week's read failing is no answer: a 503, so the app keeps an active week (Codex P2 on #2675).
-  const lost = await run({ week: WEEK, fail: ['nora_previews'], raw: true });
-  assert.equal(lost.status, 503);
-  // Before the migration there is no table, and so no week: an answer.
-  const before = await run({ missing: ['nora_previews'] });
-  assert.equal(before.nora, false);
-  assert.equal(before.noraPreview, null);
-});
-
-test('free week: the migration starts it after the third completed workout, once, for an unpaid account only; an account reads its own row and writes none', () => {
-  const sql = read('supabase-migrations/2026-11-10-nora-free-week.sql').replace(/^\s*--.*$/gm, '');
-  assert.match(sql, /^begin;$/m);
-  assert.match(sql, /^commit;\s*$/m);
-  assert.match(sql, /v_needed constant integer := 3;/);
-  assert.match(sql, /v_days constant integer := 7;/);
-  assert.match(sql, /if exists \(select 1 from public\.nora_previews p where p\.user_id = new\.client_id\) then\s+return new;/, 'once per account');
-  assert.match(sql, /where newest\.status = 'active'/);
-  assert.match(sql, /c\.status = 'active'/, 'a coached account is paid already');
-  assert.match(sql, /on conflict \(user_id\) do nothing;/);
-  assert.match(sql, /create policy "read own nora preview" on public\.nora_previews\s+for select to authenticated\s+using \(user_id = auth\.uid\(\)\);/);
-  assert.match(sql, /revoke all on public\.nora_previews from anon, authenticated;\ngrant select on public\.nora_previews to authenticated;/, 'read, never written, through the API');
-  assert.match(sql, /after insert or update of status on public\.workout_sessions/);
+  // A failed read is no answer: a 503, so clients keep what they knew.
+  assert.equal((await run({ status: 'active', fail: ['platform_subscriptions'], raw: true })).status, 503);
 });
 
 test('annual: the checkout takes the yearly price when asked, and refuses a year with none set; the plans route checks each interval', async () => {
