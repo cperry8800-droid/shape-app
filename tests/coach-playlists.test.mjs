@@ -80,6 +80,7 @@ test('the coach sends to real clients when signed in: one client, or all of them
 
 globalThis.ShapeI18n = { t: () => undefined };
 const { BSCoachPlaylists } = await loadBroadsheet(['BSCoachPlaylists'], SHIM);
+const CARD = await loadBroadsheet(['BSPlaylistCard'], SHIM);
 const DEMO = { who: 'Jordan', items: [{ k: 'Jordan Chen · Your trainer', title: 'Pull heavy.', meta: '52m · 95-138 BPM · 14 tracks' }] };
 
 test('signed out, the section shows the preview\'s sample playlists', () => {
@@ -141,6 +142,11 @@ test('a workout\'s playlist the coach never sent to the list is a card of its ow
   assert.match(engine.props.forLine, /· Intervals$/);
   assert.equal(engine.props.meta, '40m · 12 tracks');
   assert.equal(engine.props.kicker, 'Sam Ortiz · Your trainer', 'it names the coach who set it');
+  // The plan names it and nothing more (Codex on #2669: an Apple Music playlist read "Open in Spotify"): it is
+  // drawn bare, with no service and no link, and a carried card keeps its own.
+  assert.equal(engine.props.bare, true);
+  assert.equal(engine.props.url, undefined);
+  assert.equal(cardsOf(d).find((c) => c.props.title === 'Pull heavy.').props.bare, false);
   assert.ok(!cardsOf(d).some((c) => c.props.title === 'Sunday stretch'), 'a rest day plays nothing, though a coach-set rest keeps its playlist');
 }));
 
@@ -172,3 +178,23 @@ test('a workout\'s playlist with no coach named on its day names nobody, never "
   assert.ok(solo, 'no card for the workout\'s playlist');
   assert.equal(solo.props.kicker, null);
 }));
+
+test('a bare card wears no service: no Spotify mark, nothing to open, its name, workouts and meta', worded(() => {
+  const { BSPlaylistCard } = CARD;
+  const d = drive(BSPlaylistCard, { kicker: 'Sam Ortiz · Your trainer', title: 'Engine room', meta: '12 tracks', forLine: 'For Today · Intervals', bare: true, color: '#1db954' });
+  const nodes = d.nodes();
+  assert.ok(nodes.some((n) => n.props && n.props['data-playlist-bare'] === ''), 'not drawn bare');
+  assert.equal(nodes.filter((n) => n.type === 'button').length, 0, 'a bare card offers something to open');
+  assert.ok(!nodes.some((n) => n.props && n.props.role === 'button'), 'a bare card is a button');
+  assert.doesNotMatch(d.text, /Spotify|Apple Music/);
+  for (const s of ['Engine room', 'For Today · Intervals', '12 tracks', 'Sam Ortiz · Your trainer']) assert.ok(d.text.includes(s), `missing ${s}`);
+  assert.ok(!JSON.stringify(nodes.map((n) => n.props && n.props.style)).includes('#1db954'), 'it wears Spotify\'s green');
+}));
+
+test('the plan carries the day\'s playlist id when the builder saved one, and the app keeps it', () => {
+  const ROUTE = read('src/app/api/client/plan/route.ts');
+  assert.match(ROUTE, /playlist: payload\?\.playlist && typeof payload\.playlist === 'object'\s*\? playlistOf\(/);
+  assert.match(ROUTE, /return \{ \.\.\.\(id \? \{ id \} : \{\}\), name: String\(o\.name \?\? ''\), meta: String\(o\.meta \?\? ''\) \};/);
+  assert.match(CLIENT, /\{ \.\.\.\(w\.playlist\.id != null && String\(w\.playlist\.id\)\.trim\(\) \? \{ id: String\(w\.playlist\.id\)\.trim\(\) \} : \{\}\), name: String\(w\.playlist\.name\)\.trim\(\)/);
+  assert.match(CLIENT, /\bid: p\.id,\s*title: p\.name,/, 'the live list\'s cards lose their ids');
+});

@@ -174,9 +174,9 @@ test('a playlist matches its days by name, case and spacing aside; rest days pla
   const w = week();
   w[(TODAY + 6) % 7] = session('Late pull', { playlist: { name: 'pull day TEMPO' } });
   const uses = bsPlaylistUses(w, TODAY);
-  assert.deepEqual(uses.get('pull day tempo').days, [{ idx: TODAY, title: 'Upper Pull — Peak' }, { idx: (TODAY + 6) % 7, title: 'Late pull' }]);
-  assert.ok(!uses.has('sunday stretch'), 'a coach-set rest keeps its playlist but plays nothing');
-  assert.equal(uses.get('pull day tempo').coach, 'Sam Ortiz');
+  assert.deepEqual(uses.get('name:pull day tempo').days, [{ idx: TODAY, title: 'Upper Pull — Peak' }, { idx: (TODAY + 6) % 7, title: 'Late pull' }]);
+  assert.ok(!uses.has('name:sunday stretch'), 'a coach-set rest keeps its playlist but plays nothing');
+  assert.equal(uses.get('name:pull day tempo').coach, 'Sam Ortiz');
 });
 
 test('cards: the carried ones take their days, a day\'s own playlist gets a card, and this week\'s lead', () => {
@@ -192,4 +192,40 @@ test('cards: the carried ones take their days, a day\'s own playlist gets a card
   assert.equal(cards[1].meta, '12 tracks');
   assert.deepEqual(bsTrainPlaylistCards([], null, TODAY), [], 'no week, no cards');
   assert.deepEqual(bsTrainPlaylistCards([{ title: 'A' }], [], TODAY).map((c) => c.uses), [[]]);
+});
+
+// Codex on #2669: "a coach has two saved playlists with the same name, both cards … receive the same workout
+// uses". The builder saves the soundtrack's id on the day; the plan carries it, and a day matches by it.
+test('by id first: two playlists of one name each take only their own days', () => {
+  const w = week();
+  w[(TODAY + 1) % 7] = session('Pull A', { playlist: { id: 'a', name: 'Pull' } });
+  w[(TODAY + 2) % 7] = session('Pull B', { playlist: { id: 'b', name: 'Pull' } });
+  const cards = bsTrainPlaylistCards([{ id: 'b', title: 'Pull', k: 'second' }, { id: 'a', title: 'Pull', k: 'first' }], w, TODAY);
+  assert.deepEqual(cards.filter((c) => c.title === 'Pull').map((c) => [c.k, c.uses.map((u) => u.title)]), [['first', ['Pull A']], ['second', ['Pull B']]]);
+});
+
+test('a day saved before ids matches by name only when one card has that name, and claims none when two do', () => {
+  const w = week();
+  w[(TODAY + 1) % 7] = session('Old day', { playlist: { name: 'Pull' } });
+  const two = bsTrainPlaylistCards([{ id: 'a', title: 'Pull' }, { id: 'b', title: 'Pull' }], w, TODAY);
+  assert.deepEqual(two.filter((c) => c.title === 'Pull').map((c) => c.uses.length), [0, 0], 'which of the two is not ours to guess');
+  assert.ok(!two.some((c) => c.onlyOnDay && c.title === 'Pull'), 'nor a third card for it');
+  const one = bsTrainPlaylistCards([{ id: 'a', title: 'pull ' }], w, TODAY);
+  assert.deepEqual(one.find((c) => c.id === 'a').uses.map((u) => u.title), ['Old day']);
+});
+
+test('a day\'s soundtrack the list does not carry is a card of its own, and a nameless-id day of that name joins it', () => {
+  const w = week();
+  w[(TODAY + 1) % 7] = session('New day', { playlist: { id: 'z', name: 'Engine', meta: '9 tracks' }, coach: 'Sam Ortiz' });
+  w[(TODAY + 4) % 7] = session('Old day', { playlist: { name: 'engine' } });
+  const cards = bsTrainPlaylistCards([{ id: 'a', title: 'Something else' }], w, TODAY);
+  const engine = cards.filter((c) => bsPlaylistKey(c.title) === 'engine');
+  assert.equal(engine.length, 1, 'one card for one playlist');
+  assert.ok(engine[0].onlyOnDay);
+  assert.deepEqual(engine[0].uses.map((u) => u.title), ['New day', 'Old day']);
+  assert.equal(engine[0].coach, 'Sam Ortiz');
+  assert.equal(engine[0].meta, '9 tracks');
+  // A carried card whose id a day names takes the day even after a rename.
+  const renamed = bsTrainPlaylistCards([{ id: 'z', title: 'Engine room v2' }], w, TODAY);
+  assert.deepEqual(renamed.find((c) => c.title === 'Engine room v2').uses.map((u) => u.title), ['New day']);
 });

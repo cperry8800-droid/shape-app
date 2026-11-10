@@ -4265,8 +4265,10 @@ function bsBuildTrainProgram(workouts, t, tr) {
       // ("Chips on the client card") and the plan route has always delivered it, but
       // this mapping dropped it, so the app's Train hero never showed what the website
       // card does. Owner, 2026-10-07. Only a playlist with a name is one.
+      // Its saved soundtrack's id rides along when the builder saved one, so Train's Playlists tells two
+      // playlists of one name apart (Codex on #2669).
       playlist: w.playlist && String(w.playlist.name || '').trim()
-        ? { name: String(w.playlist.name).trim(), meta: String(w.playlist.meta || '').trim() }
+        ? { ...(w.playlist.id != null && String(w.playlist.id).trim() ? { id: String(w.playlist.id).trim() } : {}), name: String(w.playlist.name).trim(), meta: String(w.playlist.meta || '').trim() }
         : null,
       meta: [w.durationMin ? T('session:train.minutes', `${w.durationMin} min`, { min: w.durationMin }) : null, movesLabel].filter(Boolean).join(' · '),
       copy: w.description || (isSelf ? selfByline : T('session:train.programmedByCoach', 'Programmed by your coach.')),
@@ -4470,6 +4472,7 @@ function BSCoachPlaylists({ role, signedIn, demo, program = null, todayIdx = 0 }
       k: role === 'nutritionist'
         ? tr('nutrition:eat.playlistBy', { defaultValue: '{who} · Your nutritionist', who: p.coach_name || '' })
         : tr('session:train.playlistBy', { defaultValue: '{who} · Your trainer', who: p.coach_name || '' }),
+      id: p.id,
       title: p.name,
       meta: [p.tracks ? tr('coach:sound.tracksCount', { defaultValue: '{count} tracks', count: p.tracks }) : null, p.duration && p.duration !== '—' ? p.duration : null, p.bpm && p.bpm !== '—' ? `${p.bpm} BPM` : null, p.tag || null].filter(Boolean).join(' · '),
       url: p.url,
@@ -4480,8 +4483,10 @@ function BSCoachPlaylists({ role, signedIn, demo, program = null, todayIdx = 0 }
   // does not carry. "For Today · Upper Pull — Peak / Sat · Long run".
   let cards = items.map((p) => ({ ...p, uses: [] }));
   if (Array.isArray(program)) {
-    // A workout's own card names the coach who set it, or nobody (never " · Your trainer" with no name).
-    cards = bsTrainPlaylistCards(items, program, todayIdx).map((c) => (c.onlyOnDay ? { ...c, k: c.coach ? byOf(c.coach) : null } : c));
+    // A workout's own card names the coach who set it, or nobody (never " · Your trainer" with no name). The
+    // plan names it and nothing more: no link, no service, so it is drawn bare, never as Spotify's (Codex on
+    // #2669: an Apple Music playlist read "Open in Spotify").
+    cards = bsTrainPlaylistCards(items, program, todayIdx).map((c) => (c.onlyOnDay ? { ...c, k: c.coach ? byOf(c.coach) : null, bare: true } : c));
     if (!who) who = firstName(cards.find((c) => c.coach) && cards.find((c) => c.coach).coach);
   }
   if (!cards.length) return null;
@@ -4497,14 +4502,14 @@ function BSCoachPlaylists({ role, signedIn, demo, program = null, todayIdx = 0 }
       <BSFocusTitle kicker={tr('nutrition:eat.playlistsFrom', { defaultValue: 'From {who}', who })} title={tr('profile:playlists.playlists', { defaultValue: 'Playlists' })} />
       <div data-coach-playlists={role} style={{ padding: `12px ${t.padX}px 0`, display: 'flex', flexDirection: 'column', gap: 8 }}>
         {cards.map((p, i) => (
-          <BSPlaylistCard key={i} kicker={p.k} title={p.title} meta={p.meta} forLine={forLine(p.uses)} color={p.provider === 'apple' ? '#fa243c' : '#1db954'} provider={p.provider} url={p.url} tracks={p.tracks} />
+          <BSPlaylistCard key={i} kicker={p.k} title={p.title} meta={p.meta} forLine={forLine(p.uses)} bare={!!p.bare} color={p.provider === 'apple' ? '#fa243c' : '#1db954'} provider={p.provider} url={p.url} tracks={p.tracks} />
         ))}
       </div>
     </>
   );
 }
 
-function BSPlaylistCard({ kicker, title, meta, color, spotifyUrl, url, provider, tracks, forLine = null }) {
+function BSPlaylistCard({ kicker, title, meta, color, spotifyUrl, url, provider, tracks, forLine = null, bare = false }) {
   const t = useBS();
   // The workouts it plays with (Train), set apart from the meta in Train's rust, so which workout a
   // playlist is for reads at a glance (owner, 2026-11-10).
@@ -4635,6 +4640,23 @@ function BSPlaylistCard({ kicker, title, meta, color, spotifyUrl, url, provider,
     </div>),
     (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || document.body
   ) : null;
+
+  // Bare: a playlist the plan names and nothing more (a coach set it on a workout without sending it). No
+  // service is known and no link, so it wears no service's mark and offers nothing to open: its name, its
+  // workouts and its meta. (After the hooks, so a card that turns bare keeps its hook order.)
+  if (bare) {
+    return (
+      <div data-playlist-bare="" style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '10px 0', width: '100%' }}>
+        <div aria-hidden="true" style={{ width: 38, height: 38, flexShrink: 0, borderRadius: 10, border: `1px solid ${t.RULE}`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: t.INK70, fontSize: 17 }}>♪</div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          {kicker ? <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700, marginBottom: 2 }}>{kicker}</div> : null}
+          <div style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 15, color: t.INK, letterSpacing: '-0.01em' }}>{title}</div>
+          {forChip}
+          {meta ? <div style={{ fontFamily: t.MONO, fontSize: 8.5, color: t.INK50, marginTop: forChip ? 4 : 2, letterSpacing: '0.04em', lineHeight: 1.35 }}>{meta}</div> : null}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <>
