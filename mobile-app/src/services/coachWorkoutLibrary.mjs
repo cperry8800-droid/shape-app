@@ -87,3 +87,30 @@ export async function persistCoachWorkout(gateway, plan) {
   if (!saved?.id) throw new Error('Could not save. Your draft is still here.');
   return normalizeWorkoutPlan(saved);
 }
+
+// ── A playlist on a trainer's session (owner, 2026-11-10: "yes add the trainer picker too") ──
+// The coach's saved playlists (GET /api/coach/soundtracks) as the website's program builder lists them
+// (dashBuilder.jsx dbuPlaylistChoice: every playlist, `meta` "12 tracks"), and a session's `playlist` as
+// its DbuDayChips writes it: { id?, name, meta }, or null for none. The plan route carries it to the
+// member's session card and Train's Playlists ("For Today · Upper Pull — Peak", #2669).
+export function workoutPlaylistChoices(rows) {
+  return (Array.isArray(rows) ? rows : [])
+    .filter((x) => x && typeof x.name === 'string' && x.name.trim())
+    .map((x) => {
+      const n = Number(x.tracks);
+      const tracks = Number.isFinite(n) && n > 0 ? Math.round(n) : 0;
+      return { ...(x.id != null && x.id !== '' ? { id: x.id } : {}), name: x.name.trim(), meta: tracks ? tracks + (tracks === 1 ? ' track' : ' tracks') : '', tracks };
+    });
+}
+
+const hasPlaylistId = (p) => !!p && p.id != null && p.id !== '';
+/** A playlist's key in a picker: its saved id, else its name (a session saved before ids). */
+export const sessionPlaylistKey = (p) => (hasPlaylistId(p) ? `id:${p.id}` : `name:${(p && p.name) || ''}`);
+/** Whether a choice is the playlist a session carries: by id, by name for one saved without an id. */
+export const sameSessionPlaylist = (choice, value) => !!choice && !!value && (hasPlaylistId(value) ? choice.id === value.id : choice.name === value.name);
+/** A session's playlist as the website stores it: id, name and meta, or null for none. */
+export function sessionPlaylist(p) {
+  return p && typeof p.name === 'string' && p.name.trim()
+    ? { ...(hasPlaylistId(p) ? { id: p.id } : {}), name: p.name.trim(), meta: typeof p.meta === 'string' ? p.meta : '' }
+    : null;
+}
