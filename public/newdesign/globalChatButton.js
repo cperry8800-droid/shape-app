@@ -752,9 +752,14 @@
     if (delivered) return;
     window.__openChat(req, req && req.tab);
   }
+  // ONE WAITER (Codex on #2678): a second tap while the widget loads used to start a second poll,
+  // and once the first had seen the request delivered, the second opened a bare chat (Nora off).
+  // A tap during the boot only updates the stash and `waiting`; the one poll opens once.
+  var polling = false;
   function waitAndOpen(tries) {
-    if (typeof window.__openChat === "function") { flushOpen(); return; }
-    if (tries > 60) { openFallbackPanel(); return; }
+    if (tries === 0) { if (polling) return; polling = true; }
+    if (typeof window.__openChat === "function") { polling = false; flushOpen(); return; }
+    if (tries > 60) { polling = false; openFallbackPanel(); return; }
     window.setTimeout(function () { waitAndOpen(tries + 1); }, 80);
   }
   // On deployed pages the JSX is precompiled (scripts/build-newdesign.mjs) and

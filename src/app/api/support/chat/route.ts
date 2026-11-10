@@ -581,8 +581,10 @@ const READ_TOOLS = new Set([...MEMBER_READ_TOOLS.map((t) => t.name), ...COACH_TO
 // is a budget, and the reply is taken on the last round whatever is pending.
 const MAX_MODEL_ROUNDS = 5;
 const MAX_TOOL_CALLS = 10;
-// Said with a card when the model's own words for it never arrived (askOpenAI).
-const CARD_ONLY_REPLY = 'Here it is to review. Nothing changes until you confirm.';
+// Said with a card when the model's own words for it never arrived (askOpenAI). It speaks for the
+// card only: a memory chip in the same turn was already written, so never "nothing changes"
+// (Codex on #2678).
+const CARD_ONLY_REPLY = 'Here it is to review. Nothing on the card changes until you confirm.';
 const MAX_OUTPUT_TOKENS = 6000;
 
 const MEMORY_TOOLS = new Set(['remember', 'forget']);

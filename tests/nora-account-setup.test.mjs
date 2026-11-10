@@ -850,18 +850,18 @@ test('route: a drafted card outlives a failed or wordless follow-up; with no car
     const res = await (await r.mod.POST(chat('metric please'))).json();
     const card = res.actions.find((a) => a.type === 'proposal');
     assert.ok(card && card.action === 'set_up_account', `${label}: the card is still sent`);
-    assert.equal(res.reply, 'Here it is to review. Nothing changes until you confirm.', label);
+    assert.equal(res.reply, 'Here it is to review. Nothing on the card changes until you confirm.', label);
   }
   const none = await loadChat({ answers: [{ fail: true }] });
   const res = await (await none.mod.POST(chat('hello'))).json();
   assert.ok(!(res.actions || []).some((a) => a.type === 'proposal'));
-  assert.notEqual(res.reply, 'Here it is to review. Nothing changes until you confirm.', 'no card, no card line');
+  assert.notEqual(res.reply, 'Here it is to review. Nothing on the card changes until you confirm.', 'no card, no card line');
   // Codex on #2678: coach links (or a memory chip) are actions with nothing to confirm, so the
   // card line never speaks for them; the turn falls back as it always did.
   const links = await loadChat({ answers: [call('recommend_coaches', { focus: 'strength', kind: 'trainer' }), { fail: true }] });
   const lr = await (await links.mod.POST(chat('find me a strength trainer online'))).json();
   assert.ok(!(lr.actions || []).some((a) => a.type === 'proposal'));
-  assert.notEqual(lr.reply, 'Here it is to review. Nothing changes until you confirm.', 'coach links are not a card');
+  assert.notEqual(lr.reply, 'Here it is to review. Nothing on the card changes until you confirm.', 'coach links are not a card');
 });
 
 test('undo route: a refused undo says why (409 and its reason), not a bare 500', async () => {
@@ -924,7 +924,7 @@ test('the chat launcher: a request the widget took on mount is not opened again;
   assert.match(slice, /function waitAndOpen\(tries\)/);
   assert.match(src, /function openRichChat\(\) \{\n\s+if \(typeof window\.__openChat === "function"\) \{ flushOpen\(\); return; \}\n\s+if \(window\.__openChatRequest\) waiting = true;/, 'the boot remembers a waiting request');
   assert.match(src, /function openFallbackPanel\(\) \{\n(?:\s*\/\/.*\n)*\s+waiting = false;/, 'the fallback panel takes it itself');
-  const run = (stash) => {
+  const run = (stash, taps = 1) => {
     const timers = [];
     const calls = [];
     const win = {};
@@ -932,7 +932,7 @@ test('the chat launcher: a request the widget took on mount is not opened again;
     ctx.window.setTimeout = (fn) => timers.push(fn);
     vm.runInNewContext(slice + '\nthis.boot = function () { if (window.__openChatRequest) waiting = true; waitAndOpen(0); };', ctx);
     if (stash) win.__openChatRequest = stash;
-    ctx.boot();
+    for (let t = 0; t < taps; t += 1) ctx.boot(); // a second tap while the widget loads
     timers.shift()();                       // a poll before the widget exists
     // The widget mounts: it defines __openChat and takes a waiting request itself (chatWidget.jsx).
     win.__openChat = (arg, tab) => calls.push([arg, tab]);
@@ -947,4 +947,9 @@ test('the chat launcher: a request the widget took on mount is not opened again;
   const plain = run(null);
   assert.equal(plain.length, 1, 'a plain open still opens');
   assert.equal(plain[0][0], undefined);
+  // Codex on #2678: a double tap during the boot is one waiter, so Nora's request is not followed
+  // by a bare open that turns her off.
+  const doubled = run(req, 2);
+  assert.equal(doubled.length, 1, 'a double tap opens once: ' + JSON.stringify(doubled));
+  assert.deepEqual(JSON.parse(JSON.stringify(doubled[0])), [req, 'support']);
 });

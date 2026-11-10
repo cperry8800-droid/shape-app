@@ -21,6 +21,7 @@ export default {
     { name: 'the boot forgets a waiting request', file: LAUNCHER, find: '    if (window.__openChatRequest) waiting = true;\n', replace: '' },
     { name: 'every open after a boot is swallowed', file: LAUNCHER, find: 'var delivered = !req && waiting;', replace: 'var delivered = waiting || true;' },
     { name: 'the fallback panel leaves the flag up', file: LAUNCHER, find: '    // The panel takes the waiting request itself; a later bare open is a bare open.\n    waiting = false;\n', replace: '' },
+    { name: 'a double tap during the boot opens a bare chat (Codex on #2678)', file: LAUNCHER, find: '    if (tries === 0) { if (polling) return; polling = true; }\n', replace: '' },
     // ── One card a reply ──
     { name: 'a second setup card is drawn', file: ROUTE, find: "    if (name === 'set_up_account' && setupDrafted) {", replace: '    if (false) {' },
     { name: 'the first card is never counted', file: ROUTE, find: "    if (name === 'set_up_account') setupDrafted = true;\n", replace: '' },
@@ -29,6 +30,7 @@ export default {
     { name: 'a wordless follow-up drops the card', file: ROUTE, find: 'return reply ? { reply, actions, model: answeredBy } : hasCard() ? { reply: CARD_ONLY_REPLY, actions, model: answeredBy } : null;', replace: 'return reply ? { reply, actions, model: answeredBy } : null;' },
     { name: 'a failed follow-up with no card says the card line', file: ROUTE, find: 'if (!result.ok) return hasCard() ? { reply: CARD_ONLY_REPLY, actions, model: answeredBy } : null;', replace: 'if (!result.ok) return { reply: CARD_ONLY_REPLY, actions, model: answeredBy };' },
     { name: 'coach links get the card line (Codex on #2678)', file: ROUTE, find: "const hasCard = () => actions.some((a) => a.type === 'proposal');", replace: 'const hasCard = () => actions.length > 0;' },
+    { name: 'the card line speaks for the whole turn (Codex on #2678)', file: ROUTE, find: "'Here it is to review. Nothing on the card changes until you confirm.'", replace: "'Here it is to review. Nothing changes until you confirm.'" },
     // ── Undo says why ──
     { name: 'a refused undo is a bare 500 again', file: UNDO, find: "const refusal = e && typeof e === 'object' && (e as { undoRefused?: unknown }).undoRefused === true;", replace: 'const refusal = false;' },
     { name: 'the reason is dropped', file: UNDO, find: "return NextResponse.json({ error: 'undo_failed', message: (typeof message === 'string' && message) || 'I could not undo that change.' }, { status: 409 });", replace: "return NextResponse.json({ error: 'undo_failed' }, { status: 409 });" },
