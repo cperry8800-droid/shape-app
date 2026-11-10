@@ -19,15 +19,16 @@ export default {
     { name: 'a reviewer opening it is not shown', file: LIB, find: "  if (status === 'in_review') return 'in_review';", replace: '' },
 
     // ── the one to show: the caller's own only ──
-    { name: "someone else's row is picked", file: LIB, find: "  const mine = (Array.isArray(rows) ? rows : []).filter((r) => r && (", replace: "  const mine = (Array.isArray(rows) ? rows : []).filter((r) => r || (" },
-    { name: 'the address is matched case-sensitively', file: LIB, find: "    (mail && String(r.email || '').trim().toLowerCase() === mail)", replace: "    (mail && String(r.email || '').trim() === mail)" },
+    { name: "someone else's row is picked", file: LIB, find: "  const mine = (Array.isArray(rows) ? rows : []).filter((r) => r && String(r.email || '').trim().toLowerCase() === mail);", replace: "  const mine = (Array.isArray(rows) ? rows : []).filter((r) => r);" },
+    { name: 'the address is matched case-sensitively', file: LIB, find: "  const mine = (Array.isArray(rows) ? rows : []).filter((r) => r && String(r.email || '').trim().toLowerCase() === mail);", replace: "  const mine = (Array.isArray(rows) ? rows : []).filter((r) => r && String(r.email || '').trim() === mail);" },
+    { name: 'a client-written account id is ownership again', file: LIB, find: "  const mine = (Array.isArray(rows) ? rows : []).filter((r) => r && String(r.email || '').trim().toLowerCase() === mail);", replace: "  const mine = (Array.isArray(rows) ? rows : []).filter((r) => r && (String(r.email || '').trim().toLowerCase() === mail || (r.details && r.details.user_id)));" },
     { name: 'a decided one shows over an open one', file: LIB, find: "  const row = open[0] || mine.slice().sort(newest)[0];", replace: '  const row = mine.slice().sort(newest)[0];' },
     { name: 'an open one claims a decision date', file: LIB, find: "    decidedAt: OPEN.has(String(row.status)) ? null : (row.reviewed_at || null),", replace: '    decidedAt: row.reviewed_at || null,' },
 
     // ── the route ──
     { name: 'a signed-out caller is answered', file: ROUTE, find: "  if (!user) return privateJson({ error: 'Authentication required.' }, { status: 401 });", replace: '' },
     { name: 'a failed read answers "no application"', file: ROUTE, find: "  if (results.some((r) => r.error)) return privateJson({ error: 'Could not read your application.', code: 'unavailable' }, { status: 503 });", replace: '' },
-    { name: 'an open application past the newest ten is not read', file: ROUTE, find: "    newest(scoped(key).in('status', OPEN_STATUSES)),\n", replace: '' },
+    { name: 'an open application past the newest ten is not read', file: ROUTE, find: "    newest(scoped().in('status', OPEN_STATUSES)),\n", replace: '' },
     { name: 'the answer may be cached', file: ROUTE, find: "const PRIVATE_HEADERS = { 'Cache-Control': 'private, no-store, max-age=0' };", replace: "const PRIVATE_HEADERS = { 'Cache-Control': 'public, max-age=60' };" },
 
     // ── the app ──

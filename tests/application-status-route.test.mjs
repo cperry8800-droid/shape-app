@@ -24,34 +24,39 @@ test('the stage: submitted, in review, background check, and the three decisions
 });
 
 test('the one to show: the caller\'s own only, an open one before a decided one, the newest first', () => {
-  assert.equal(pickApplication([], { userId: 'u1', email: 'maya@x.com' }), null);
+  assert.equal(pickApplication([], { email: 'maya@x.com' }), null);
   // Someone else's rows are never picked, whatever the caller passes.
-  assert.equal(pickApplication([row({ email: 'other@x.com', details: { user_id: 'u2' } })], { userId: 'u1', email: 'maya@x.com' }), null);
-  // By address alone (approval matches by address), case-insensitively.
-  assert.equal(pickApplication([row({ email: 'Maya@X.com', details: {} })], { userId: 'u9', email: 'maya@x.com' }).role, 'trainer');
+  assert.equal(pickApplication([row({ email: 'other@x.com', details: { user_id: 'u2' } })], { email: 'maya@x.com' }), null);
+  // ⚠ A row tagged with the caller's account id is not theirs (Codex on #2667): /api/apply keeps the
+  // details a client sends, so anyone can write an id there.
+  assert.equal(pickApplication([row({ email: 'attacker@x.com', details: { user_id: 'u1' } })], { userId: 'u1', email: 'maya@x.com' }), null);
+  assert.equal(pickApplication([row()], {}), null, 'no address, nothing to find');
+  // By address (approval matches by address), case-insensitively.
+  assert.equal(pickApplication([row({ email: 'Maya@X.com', details: {} })], { email: 'maya@x.com' }).role, 'trainer');
   const rows = [
     row({ status: 'rejected', created_at: '2026-11-10T00:00:00Z', reviewed_at: '2026-11-11T00:00:00Z' }),
     row({ provider_type: 'nutritionist', status: 'in_review', created_at: '2026-11-08T00:00:00Z' }),
   ];
-  const got = pickApplication(rows, { userId: 'u1', email: 'maya@x.com' });
+  const got = pickApplication(rows, { email: 'maya@x.com' });
   assert.deepEqual(got, { role: 'nutritionist', stage: 'in_review', status: 'in_review', submittedAt: '2026-11-08T00:00:00Z', decidedAt: null });
   // A reviewer's stamp on an open one is not a decision.
-  assert.equal(pickApplication([row({ status: 'in_review', reviewed_at: '2026-11-09T12:00:00Z' })], { userId: 'u1' }).decidedAt, null);
-  const decided = pickApplication([rows[0]], { userId: 'u1' });
+  assert.equal(pickApplication([row({ status: 'in_review', reviewed_at: '2026-11-09T12:00:00Z' })], { email: 'maya@x.com' }).decidedAt, null);
+  const decided = pickApplication([rows[0]], { email: 'maya@x.com' });
   assert.equal(decided.stage, 'not_approved');
   assert.equal(decided.decidedAt, '2026-11-11T00:00:00Z');
   // Nothing the reviewer wrote is in the answer.
   assert.deepEqual(Object.keys(got).sort(), ['decidedAt', 'role', 'stage', 'status', 'submittedAt']);
 });
 
-test('the route: signed in, every read scoped to the caller by exact match, a failed read is 503, private', () => {
+test('the route: signed in, every read scoped to the caller\'s address by exact match, a failed read is 503, private', () => {
   assert.match(ROUTE, /const user = await currentUser\(request\);\s*if \(!user\) return privateJson\(\{ error: 'Authentication required\.' \}, \{ status: 401 \}\);/);
-  assert.match(ROUTE, /\.eq\('details->>user_id', user\.id\)/);
+  assert.doesNotMatch(ROUTE, /details->>user_id|userId: user\.id/, 'a client-written account id is not ownership');
+  assert.match(ROUTE, /if \(!email\) return privateJson\(\{ application: null \}\);/);
   assert.match(ROUTE, /\.eq\('email', email\)/);
   // The open ones are read on their own (Codex on #2667): a newest-ten window alone drops an open
   // application older than ten later decisions.
   assert.match(ROUTE, /const OPEN_STATUSES = \['pending', 'in_review'\];/);
-  assert.match(ROUTE, /newest\(scoped\(key\)\),\n\s+newest\(scoped\(key\)\.in\('status', OPEN_STATUSES\)\),/);
+  assert.match(ROUTE, /newest\(scoped\(\)\),\n\s+newest\(scoped\(\)\.in\('status', OPEN_STATUSES\)\),/);
   assert.doesNotMatch(ROUTE, /\.ilike\(|\.like\(|\.or\(/, 'a pattern match on an address can reach someone else\'s row');
   assert.match(ROUTE, /if \(results\.some\(\(r\) => r\.error\)\) return privateJson\([^)]*\{ status: 503 \}\)/);
   assert.match(ROUTE, /'Cache-Control': 'private, no-store, max-age=0'/);
