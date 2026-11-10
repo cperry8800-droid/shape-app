@@ -5313,6 +5313,8 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
   // Full plan opens the week as a sheet, every day with its moves (owner, 2026-11-10: "a pop up of the
   // actual full plan … showing the actual plan"); the calendar stays the week's Month view.
   const _trainWeekLabel = `${bsTrainProgram.trainingPhase || 'Build'} · ${tr('common:unit.weekN', { defaultValue: 'Week {n}', n: bsProgramWeek() })}`;
+  // A day's moves with the member's swaps on, for On deck and the full plan alike.
+  const _trainMovesOf = (i) => ((PROGRAM[i] && PROGRAM[i].moves) || []).map((r, j) => bsApplyMoveSwap(r, moveOverrides[`${i}:${j}`]));
   const _trainLinks = [
     { color: t.INK70, glyph: '▤', label: tr('session:train.fullPlan', { defaultValue: 'Full plan' }), tag: _trainWeekLabel, onOpen: () => setPlanAt(bsWeekdayIdx()) },
     ...(bsTrainSignedIn ? [
@@ -5338,7 +5340,7 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
           only what the page hands it; every door is the page's own. Edit · Yours, on a repeating day the
           member wrote, opens the builder on it with its moves as rows. */}
       <BSTrainDay
-        program={PROGRAM} day={day} onDay={setDay} onMonth={goCalendar} onPlan={(idx) => setPlanAt(Number.isInteger(idx) ? idx : bsWeekdayIdx())} cur={cur} moves={effMoves}
+        program={PROGRAM} day={day} onDay={setDay} onMonth={goCalendar} onPlan={(idx) => setPlanAt(Number.isInteger(idx) ? idx : bsWeekdayIdx())} movesOf={_trainMovesOf} cur={cur} moves={effMoves}
         swapped={effMoves.map((_, i) => !!moveOverrides[`${day}:${i}`])} isRest={isRestDay} when={_trainWhen} head={_trainHead}
         until={_trainUntil} weekN={bsProgramWeek()} coach={coachDayName} onRadio={goRadio} onBurn={() => setBurnOpen(true)}
         onStart={() => { try { window.ShapeAnalytics?.track?.('workout_started'); } catch (e) {} setSession(true); }}
@@ -5366,7 +5368,7 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
           portals out of the clean area and keeps its type (bsCleanSheet). */}
       {planAt != null && (
         <BSTrainPlanSheet program={PROGRAM} focusIdx={planAt} weekLabel={_trainWeekLabel} coach={bsTrainSignedIn ? (liveTrainCoach || null) : 'Jordan Chen'}
-          movesOf={(i) => ((PROGRAM[i] && PROGRAM[i].moves) || []).map((r, j) => bsApplyMoveSwap(r, moveOverrides[`${i}:${j}`]))}
+          movesOf={_trainMovesOf}
           onClose={() => setPlanAt(null)} onMonth={() => { setPlanAt(null); goCalendar(); }} />
       )}
       </BSCleanType>

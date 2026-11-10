@@ -160,7 +160,9 @@ export function BSTrainDay(p) {
           const idx = (todayIdx + off) % 7;
           const d = program[idx] || {};
           const rest = d.tag === 'REST';
-          const dm = rest ? [] : (Array.isArray(d.moves) ? d.moves : []);
+          // The moves as the page hands them, the member's swaps on (`movesOf`, the full plan's too), so the
+          // preview and the plan it opens never disagree (Codex on #2669).
+          const dm = rest ? [] : ((typeof p.movesOf === 'function' ? p.movesOf(idx) : d.moves) || []);
           const head = String(d.headline || d.title || '—').replace(/\s*\n\s*/g, ' ');
           const line = rest ? tr('session:train.restSub', { defaultValue: 'walk + mobility' }) : [d.timeLabel, d.meta].filter(Boolean).join(' · ');
           const tomorrow = off === 1;

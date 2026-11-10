@@ -511,7 +511,7 @@ test('Train hands the day and its doors to BSTrainDay, and a picked day moves th
   assert.equal(at((n) => n.props && n.props.tour === 'hero-train'), -1, 'the old lead is gone (BSTrainDay carries the tour anchor)');
   assert.equal(day.props.program.length, 7, 'the whole week');
   assert.ok(String(day.props.head || '').length > 0, 'the session has a title');
-  for (const k of ['onDay', 'onMonth', 'onPlan', 'onBurn', 'onStart', 'onSwap', 'onMove', 'onRadio']) assert.equal(typeof day.props[k], 'function', `${k} is not wired`);
+  for (const k of ['onDay', 'onMonth', 'onPlan', 'movesOf', 'onBurn', 'onStart', 'onSwap', 'onMove', 'onRadio']) assert.equal(typeof day.props[k], 'function', `${k} is not wired`);
   day.props.onMonth();
   day.props.onRadio();
   assert.equal(month, 1, 'Month view opens the calendar');
@@ -529,6 +529,7 @@ test('Train hands the day and its doors to BSTrainDay, and a picked day moves th
   d.render();
   let sheet = d.nodes().find(fn('BSTrainPlanSheet'));
   assert.ok(sheet, 'Full plan did not open the plan sheet');
+  assert.equal(sheet.props.movesOf, d.nodes().find(fn('BSTrainDay')).props.movesOf, 'On deck and the plan read the moves alike');
   assert.equal(month, 1, 'Full plan opened the calendar');
   assert.equal(sheet.props.focusIdx, (new Date().getDay() + 6) % 7, 'it opens on today');
   sheet.props.onClose();

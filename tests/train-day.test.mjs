@@ -280,3 +280,23 @@ test('every target is at least 44px tall, on a dark and a light paper, a session
   }
   paper = PAPERS.dark;
 });
+
+// Codex on #2669: On deck read a day's moves as written while the plan it opens showed the member's swaps.
+test('On deck reads the moves as the page hands them, the member\'s swaps on', async () => {
+  const todayIdx = (new Date().getDay() + 6) % 7;
+  const idx = (todayIdx + 1) % 7;
+  const host = document.createElement('div');
+  document.body.appendChild(host);
+  const root = ReactDOMClient.createRoot(host);
+  const asked = [];
+  const movesOf = (i) => { asked.push(i); return i === idx ? [{ n: '01', m: 'Lat pulldown', s: '4 × 10', l: '120 lb' }] : PROGRAM[i].moves; };
+  await React.act(async () => { root.render(React.createElement(D.BSTrainDay, { program: PROGRAM, day: todayIdx, cur: PROGRAM[todayIdx], moves: PROGRAM[todayIdx].moves, isRest: false, links: [], movesOf, onPlan() {} })); });
+  try {
+    const row = host.querySelector(`[data-ondeck-day="${idx}"]`);
+    if (PROGRAM[idx].tag !== 'REST') {
+      assert.match(row.textContent, /Lat pulldown/);
+      assert.doesNotMatch(row.textContent, /Pull-up/);
+    }
+    assert.ok(asked.includes((todayIdx + 2) % 7) || PROGRAM[(todayIdx + 2) % 7].tag === 'REST', 'each day on deck is asked for');
+  } finally { await React.act(async () => { root.unmount(); host.remove(); }); }
+});
