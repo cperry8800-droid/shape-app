@@ -85,7 +85,7 @@ test('a Back reopens Coaches on the coach whose profile was open', () => {
   assert.match(CLIENT, /if \(loc\.tab === 'market'\) \{ setMarketRole\(\(loc\.detail && loc\.detail\.role\) \|\| null\); setMarketCoach\(\(loc\.detail && loc\.detail\.coach\) \|\| null\); \}/);
   const mk = between(MARKET, 'function BSMarketplaceScreen({', '\n}\n');
   assert.match(mk, /const openCoachLoc = open && open\.provider_id != null && \(open\.provider_role === 'trainer' \|\| open\.provider_role === 'nutritionist'\)\n\s+\? \{ role: open\.provider_role, providerId: open\.provider_id, \.\.\.\(openListing \? \{ listing: true \} : null\), \.\.\.\(openViaNav \? \{ back: 'nav' \} : null\) \} : null;/);
-  assert.match(mk, /window\.ShapeNav\?\.announce\?\.\(openCoachLoc \? \{ detail: \{ \.\.\.\(initialRole \? \{ role: initialRole \} : null\), coach: openCoachLoc \} \} : null\);\n\s+return \(\) => window\.ShapeNav\?\.announce\?\.\(null\);/);
+  assert.match(mk, /window\.ShapeNav\?\.announce\?\.\(openCoachLoc \? \{ detail: \{ \.\.\.\(initialRole \? \{ role: initialRole \} : null\), coach: openCoachLoc \} \} : null, 'coaches'\);\n\s+return \(\) => window\.ShapeNav\?\.announce\?\.\(null, 'coaches'\);/);
   // The deep-open it rides back on reopens the listing when that was what was open.
   assert.match(mk, /if \(hit\) \{ setOpen\(hit\); setOpenNo\(null\); setOpenIntro\(false\); setOpenListing\(!!initialCoach\.listing\); setOpenViaNav\(initialCoach\.back === 'nav'\); setDeepMiss\(false\); \}/);
   // The announce sits above the screen's early returns, so it runs whatever the screen draws.
@@ -137,7 +137,7 @@ test('a Settings page opened straight from elsewhere goes back there; reached in
   }
   // Every page it can open on is announced, with whether it was landed on.
   assert.match(settings, /const navSub = editing \? 'edit-profile' : showIntegrations \? 'integrations' : showPricing \? 'pricing'\n\s+: showNotifications \? 'notifications' : showSessions \? 'sessions' : showHabits \? 'habits'\n(?:\s*\/\/[^\n]*\n)*\s+: showBusiness \? 'business' : showLibrary \? 'library' : showHours \? 'hours'\n\s+: detail === 'practice' \? 'practice' : '';/);
-  assert.match(settings, /window\.ShapeNav\?\.announce\?\.\(navLanded \? \{ sub: navSub, landed: true \} : \{ sub: navSub \}\);/);
+  assert.match(settings, /window\.ShapeNav\?\.announce\?\.\(navLanded \? \{ sub: navSub, landed: true \} : \{ sub: navSub \}, 'settings'\);/);
   // The shells: a jump onto a page lands; the gear and a Back to Settings' own page do not.
   assert.match(CLIENT, /const goSettings = \(\) => \{ if \(!showSettings\) navPush\(\); setSettingsStart\(''\); setSettingsLanded\(false\); setShowSettings\(true\); \};/);
   assert.match(CLIENT, /const goEditProfile = \(\) => \{ navPush\(\); setSettingsStart\('edit-profile'\); setSettingsLanded\(true\); setShowSettings\(true\); \};/);
@@ -171,7 +171,7 @@ test('a coach\'s client page opened by a jump goes back there, and a Back from i
     assert.match(screen, /if \(hit\) \{ setPreviewClient\(null\); setFullClient\(hit\); setFullViaNav\(openRequest\.back === 'nav'\); \}/, name);
     // By account, or a sample client (none) by name, as a notification finds one.
     assert.match(screen, /const fullAnnounce = fullClient && \(fullClient\.userId \|\| fullClient\.n\)\n\s+\? \{ \.\.\.\(fullClient\.userId \? \{ clientId: fullClient\.userId \} : \{ clientName: fullClient\.n \}\), \.\.\.\(fullViaNav \? \{ back: 'nav' \} : null\) \} : null;/, name);
-    assert.match(screen, /window\.ShapeNav\?\.announce\?\.\(fullAnnounce \? \{ detail: fullAnnounce \} : null\);/, name);
+    assert.match(screen, /window\.ShapeNav\?\.announce\?\.\(fullAnnounce \? \{ detail: fullAnnounce \} : null, 'clients'\);/, name);
     assert.match(screen, /const closeFull = \(\) => \{\n\s+const viaNav = fullViaNav;\n\s+setFullClient\(null\); setFullViaNav\(false\);\n\s+if \(viaNav && window\.ShapeNav\?\.canPop\?\.\(\)\) window\.ShapeNav\.back\(\);\n\s+\};/, name);
     assert.match(screen, /<BSProClientFullProfilePage client=\{fullClient\} onBack=\{closeFull\}/, name);
     assert.ok(screen.indexOf('const closeFull') < screen.indexOf('if (fullClient) {'), `${name}: the announce sits above the early returns`);
@@ -202,7 +202,7 @@ test('Home\'s own pages are announced and reopen on a Back; a reminder\'s Your m
   assert.match(home, /const homeSub = goalsPage \? 'goals' : morningsPage \? 'mornings' : habitsPage \? 'habits' : homeProgressPage \? 'progress' : '';/);
   // A reminder's Your mornings keeps its way back through a jump from it and the Back that returns (Codex P2 on #2683).
   assert.match(home, /const \[morningsViaNav, setMorningsViaNav\] = useStateBSC\(initialPage === 'mornings' && !!initialViaNav\);/);
-  assert.match(home, /const homeBackViaNav = homeSub === 'mornings' && morningsViaNav;\n\s+React\.useEffect\(\(\) => \{\n\s+window\.ShapeNav\?\.announce\?\.\(homeBackViaNav \? \{ sub: homeSub, back: 'nav' \} : \{ sub: homeSub \}\);/);
+  assert.match(home, /const homeBackViaNav = homeSub === 'mornings' && morningsViaNav;\n\s+React\.useEffect\(\(\) => \{\n\s+window\.ShapeNav\?\.announce\?\.\(homeBackViaNav \? \{ sub: homeSub, back: 'nav' \} : \{ sub: homeSub \}, 'home'\);/);
   assert.match(home, /else if \(initialPage === 'mornings'\) \{ setMorningsPage\(true\); setMorningsViaNav\(!!initialViaNav\); \}/);
   assert.ok(home.indexOf('const [morningsViaNav') < home.indexOf('const homeBackViaNav'), 'declared before the announce reads it');
   assert.ok(home.indexOf('const homeSub') < home.indexOf('  if (habitsPage) {'), 'the announce sits above the early returns');

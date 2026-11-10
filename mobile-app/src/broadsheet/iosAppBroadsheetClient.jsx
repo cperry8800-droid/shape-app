@@ -3592,8 +3592,8 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
   const homeSub = goalsPage ? 'goals' : morningsPage ? 'mornings' : habitsPage ? 'habits' : homeProgressPage ? 'progress' : '';
   const homeBackViaNav = homeSub === 'mornings' && morningsViaNav;
   React.useEffect(() => {
-    window.ShapeNav?.announce?.(homeBackViaNav ? { sub: homeSub, back: 'nav' } : { sub: homeSub });
-    return () => window.ShapeNav?.announce?.(null);
+    window.ShapeNav?.announce?.(homeBackViaNav ? { sub: homeSub, back: 'nav' } : { sub: homeSub }, 'home');
+    return () => window.ShapeNav?.announce?.(null, 'home');
   }, [homeSub, homeBackViaNav]);
   React.useEffect(() => {
     if (!initialPage) return;
@@ -11293,8 +11293,8 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
     onCookWithConsumed();
   }, [cookWith && cookWith.nonce]);
   React.useEffect(() => {
-    window.ShapeNav?.announce?.({ sub: view });
-    return () => window.ShapeNav?.announce?.(null);
+    window.ShapeNav?.announce?.({ sub: view }, 'eat');
+    return () => window.ShapeNav?.announce?.(null, 'eat');
   }, [view]);
   const [skRecipe, setSkRecipe] = useStateBSC(null); // selected Shape Kitchen recipe
   const [previewMealId, setPreviewMealId] = useStateBSC(null);
@@ -22665,8 +22665,8 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
     : openChat && openChat.channelId != null && !String(openChat.channelId).startsWith('sample') ? { channel: { id: openChat.channelId, name: openChat.n, memberCount: openChat.memberCount, isHost: openChat.isHost }, ...(backViaNav ? { back: 'nav' } : null) }
     : null;
   React.useEffect(() => {
-    window.ShapeNav?.announce?.(chatNavDetail ? { detail: chatNavDetail } : null);
-    return () => window.ShapeNav?.announce?.(null);
+    window.ShapeNav?.announce?.(chatNavDetail ? { detail: chatNavDetail } : null, 'chat');
+    return () => window.ShapeNav?.announce?.(null, 'chat');
   }, [JSON.stringify(chatNavDetail)]);
   const loadCoachThreads = React.useCallback(() => {
     if (!window.ShapeMessages?.listDirectCoachThreads) return;
@@ -29443,8 +29443,8 @@ function BSClientMe(props) {
   React.useEffect(() => { if (initialPage) onStartConsumed(); }, []);
   const meNavSub = showScore ? 'score' : showStore ? 'store' : '';
   React.useEffect(() => {
-    window.ShapeNav?.announce?.({ sub: meNavSub });
-    return () => window.ShapeNav?.announce?.(null);
+    window.ShapeNav?.announce?.({ sub: meNavSub }, 'me');
+    return () => window.ShapeNav?.announce?.(null, 'me');
   }, [meNavSub]);
   const scoreProfile = _bsUseLiveScore(SHAPE_SCORE_PROFILES.client);
   const auth = (typeof window !== 'undefined' && window.ShapeAuth && window.ShapeAuth.getCachedState && window.ShapeAuth.getCachedState()) || {};
@@ -33559,8 +33559,8 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     : detail === 'practice' ? 'practice' : '';
   const navLanded = !!navSub && navSub === landedOn;
   React.useEffect(() => {
-    window.ShapeNav?.announce?.(navLanded ? { sub: navSub, landed: true } : { sub: navSub });
-    return () => window.ShapeNav?.announce?.(null);
+    window.ShapeNav?.announce?.(navLanded ? { sub: navSub, landed: true } : { sub: navSub }, 'settings');
+    return () => window.ShapeNav?.announce?.(null, 'settings');
   }, [navSub, navLanded]);
   // Persist the profile identity across sessions/devices via user_goals. Read again when Nora's
   // account setup (or its Undo) changes the name from her sheet; a key typed into stays theirs.

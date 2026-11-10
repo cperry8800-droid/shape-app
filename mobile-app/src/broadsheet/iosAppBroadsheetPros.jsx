@@ -2605,8 +2605,8 @@ function BSTrainerClients({ openRequest = null, onOpenConsumed = () => {} } = {}
   const fullAnnounce = fullClient && (fullClient.userId || fullClient.n)
     ? { ...(fullClient.userId ? { clientId: fullClient.userId } : { clientName: fullClient.n }), ...(fullViaNav ? { back: 'nav' } : null) } : null;
   useEffectBSP(() => {
-    window.ShapeNav?.announce?.(fullAnnounce ? { detail: fullAnnounce } : null);
-    return () => window.ShapeNav?.announce?.(null);
+    window.ShapeNav?.announce?.(fullAnnounce ? { detail: fullAnnounce } : null, 'clients');
+    return () => window.ShapeNav?.announce?.(null, 'clients');
   }, [JSON.stringify(fullAnnounce)]); // eslint-disable-line react-hooks/exhaustive-deps
   const closeFull = () => {
     const viaNav = fullViaNav;
@@ -6988,8 +6988,8 @@ function BSNutriClients({ openRequest = null, onOpenConsumed = () => {} } = {}) 
   const fullAnnounce = fullClient && (fullClient.userId || fullClient.n)
     ? { ...(fullClient.userId ? { clientId: fullClient.userId } : { clientName: fullClient.n }), ...(fullViaNav ? { back: 'nav' } : null) } : null;
   useEffectBSP(() => {
-    window.ShapeNav?.announce?.(fullAnnounce ? { detail: fullAnnounce } : null);
-    return () => window.ShapeNav?.announce?.(null);
+    window.ShapeNav?.announce?.(fullAnnounce ? { detail: fullAnnounce } : null, 'clients');
+    return () => window.ShapeNav?.announce?.(null, 'clients');
   }, [JSON.stringify(fullAnnounce)]); // eslint-disable-line react-hooks/exhaustive-deps
   const closeFull = () => {
     const viaNav = fullViaNav;

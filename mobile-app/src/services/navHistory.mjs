@@ -7,7 +7,7 @@
 
 const BS_NAV_CAP = 30;
 let _stack = [];
-let _announced = null;
+let _announced = new Map(); // key → partial, in the order each first announced
 
 function _eq(a, b) {
   if (a === b) return true;
@@ -28,7 +28,7 @@ export function bsNavPop() { return _stack.pop() || null; }
 export function bsNavPeek() { return _stack[_stack.length - 1] || null; }
 export function bsNavCanPop() { return _stack.length > 0; }
 export function bsNavSize() { return _stack.length; }
-export function bsNavClear() { _stack = []; _announced = null; }
+export function bsNavClear() { _stack = []; _announced = new Map(); }
 export function bsNavReplaceTop(loc) {
   if (!loc || typeof loc !== 'object') return false;
   if (_stack.length) _stack[_stack.length - 1] = loc; else _stack.push(loc);
@@ -36,11 +36,29 @@ export function bsNavReplaceTop(loc) {
 }
 
 // ── Announce register: surfaces that own nav-relevant sub-state stamp a
-// partial ({ sub } / { detail }) here; every push composes it over the
-// shell-visible location. null clears (call on close/unmount).
-export function bsNavAnnounce(partial) { _announced = partial && typeof partial === 'object' ? partial : null; }
-export function bsNavAnnounced() { return _announced; }
-export function bsNavCompose(shellLoc) { return _announced ? { ...shellLoc, ..._announced } : { ...shellLoc }; }
+// partial ({ sub } / { detail }) here, EACH UNDER ITS OWN KEY ('home', 'chat',
+// 'settings', …); every push composes every live partial over the
+// shell-visible location, in the order they announced (a re-announce moves to
+// the end), so an overlay that mounted over a page (Settings over a client's
+// page) wins a key they share. null clears that key's only (call on close/unmount). It was one slot,
+// last write wins: Settings closing over a client's page announced null and
+// wiped the page's own, so the next jump from that page forgot it (Codex P2 on
+// #2683; BSGoals' note on the same slot).
+export function bsNavAnnounce(partial, key = '') {
+  if (partial && typeof partial === 'object') _announced.set(key, partial);
+  else _announced.delete(key);
+}
+// One key's partial, or (no key) every live one merged; null when there is none.
+export function bsNavAnnounced(key) {
+  if (key !== undefined) return _announced.get(key) || null;
+  if (!_announced.size) return null;
+  return [..._announced.values()].reduce((a, p) => ({ ...a, ...p }), {});
+}
+export function bsNavCompose(shellLoc) {
+  let out = { ...shellLoc };
+  for (const p of _announced.values()) out = { ...out, ...p };
+  return out;
+}
 
 // ── Guard-entry decisions (the hardware-back bridge, spec §5). ONE browser
 // history entry stands in for the whole stack. The invariant these three keep:
