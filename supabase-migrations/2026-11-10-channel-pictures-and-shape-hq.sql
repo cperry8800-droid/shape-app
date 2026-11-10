@@ -8,19 +8,65 @@
 --    (a tracker, or anything else). The check holds it to <this channel's id>/<file name>.
 -- 2. channels.read_only: a channel members read and only Shape posts in (the service role, as
 --    the PR Wall's automatic posts are written). Shape HQ is the first.
+--    channels.official: Shape's own channel (the PR Wall, Shape HQ), which wears Shape's mark and
+--    is pinned for everyone. A flag, not "no owner": created_by is ON DELETE SET NULL, so a
+--    deleted member's channel has no owner either, and a host could clear their own.
+--    Members can set neither flag, nor change who owns a channel (channels_guard_shape_fields);
+--    a channel is read-only only if it is Shape's; one official channel per name.
 -- 3. The channel-pictures bucket: public to read, written only by the channel's host, into the
 --    folder named by the channel's id (public.can_edit_channel_picture).
 -- 4. Members post channel messages only where the channel takes posts.
 -- 5. Shape HQ, system-owned like the PR Wall, read-only, with Shape's welcome as its first message.
 --
 -- Until this runs, both apps read channels with `select *` and treat a missing column as none:
--- no picture, and every channel open to posts, as today.
+-- no picture, every channel open to posts, and a channel with no owner as Shape's, as today.
 
 begin;
 
 -- ── 1 + 2 · the columns ─────────────────────────────────────────────────────────────────
 alter table public.channels add column if not exists picture_path text;
 alter table public.channels add column if not exists read_only boolean not null default false;
+alter table public.channels add column if not exists official boolean not null default false;
+
+-- The PR Wall the server posts PRs into (post_my_pr_to_wall: the ownerless "PR Wall") is Shape's,
+-- marked once: a later run does not mark a deleted member's channel of that name.
+update public.channels set official = true
+where id = (select id from public.channels where name = 'PR Wall' and created_by is null order by created_at limit 1)
+  and not exists (select 1 from public.channels where official and lower(name) = 'pr wall');
+
+alter table public.channels drop constraint if exists channels_read_only_official_check;
+alter table public.channels add constraint channels_read_only_official_check
+  check (not read_only or official);
+
+create unique index if not exists channels_official_name_key on public.channels (lower(name)) where official;
+
+-- A member's request (create_channel and the table alike) cannot make a channel Shape's or
+-- read-only, or change who owns one. Shape's own requests carry no member (the service role, the
+-- SQL editor, an account deletion's ON DELETE SET NULL through auth.admin.deleteUser), and the
+-- triggers that set a channel's last message change neither.
+create or replace function public.channels_guard_shape_fields()
+returns trigger
+language plpgsql
+set search_path = public, pg_temp
+as $$
+begin
+  if auth.uid() is null then return new; end if;
+  if tg_op = 'INSERT' then
+    if new.official or new.read_only then
+      raise exception 'Only Shape makes an official or read-only channel.' using errcode = '42501';
+    end if;
+  elsif new.official is distinct from old.official
+     or new.read_only is distinct from old.read_only
+     or new.created_by is distinct from old.created_by then
+    raise exception 'Only Shape changes who owns a channel, or whether it is official or read-only.' using errcode = '42501';
+  end if;
+  return new;
+end;
+$$;
+drop trigger if exists channels_guard_shape_fields on public.channels;
+create trigger channels_guard_shape_fields
+  before insert or update on public.channels
+  for each row execute function public.channels_guard_shape_fields();
 
 alter table public.channels drop constraint if exists channels_picture_path_check;
 alter table public.channels add constraint channels_picture_path_check
@@ -82,21 +128,21 @@ create policy "members post channel messages" on public.channel_messages
   );
 
 -- ── 5 · Shape HQ ────────────────────────────────────────────────────────────────────────
-insert into public.channels (name, description, created_by, visibility, read_only)
-select 'Shape HQ', 'The official Shape channel: product news, drops and events.', null, 'public', true
+insert into public.channels (name, description, created_by, visibility, read_only, official)
+select 'Shape HQ', 'The official Shape channel: product news, drops and events.', null, 'public', true, true
 where not exists (
-  select 1 from public.channels where lower(name) = 'shape hq' and created_by is null
+  select 1 from public.channels where official and lower(name) = 'shape hq'
 );
 
 update public.channels set read_only = true
-where lower(name) = 'shape hq' and created_by is null and not read_only;
+where official and lower(name) = 'shape hq' and not read_only;
 
 -- Shape's welcome, once (a channel with nothing in it reads as abandoned). The trigger on
 -- channel_messages sets the channel's last message from it.
 insert into public.channel_messages (channel_id, sender_id, author_name, body)
 select c.id, null, 'Shape', 'Welcome to Shape HQ. Product news, drops and events from the Shape team land here.'
 from public.channels c
-where lower(c.name) = 'shape hq' and c.created_by is null
+where c.official and lower(c.name) = 'shape hq'
   and not exists (select 1 from public.channel_messages m where m.channel_id = c.id);
 
 commit;

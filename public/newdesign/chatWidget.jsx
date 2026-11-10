@@ -615,8 +615,10 @@ function cwChannelThreads(rows, members, me, unread, when, pictureUrl) {
       unread: (unread && unread[c.id]) || 0, group: true,
       joined: !!mine, host: !!((mine && mine.role === "host") || (me && c.created_by === me)),
       private: c.visibility === "private", pinned: !!(mine && mine.pinned),
-      // Shape's own channel (system-owned); a member's channel named "Shape HQ" is not one.
-      official: !c.created_by,
+      // Shape's own channel, by its flag (2026-11-10-channel-pictures-and-shape-hq.sql), which only
+      // Shape sets. Not "no owner": a deleted member's channel has none either. Before the
+      // migration has run there is no flag, and the ownerless channel (the PR Wall) is Shape's.
+      official: c.official === true || (c.official === undefined && !c.created_by),
       // The host's picture, its address built by this client from the stored path.
       picture: (c.picture_path && typeof pictureUrl === "function") ? (pictureUrl(c.picture_path) || null) : null,
       // A channel only Shape posts in (Shape HQ).

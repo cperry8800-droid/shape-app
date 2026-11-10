@@ -161,12 +161,16 @@ async function mount({ signedIn = true, db = null } = {}) {
 
 const world = () => ({
   channels: [
-    { id: 'ch-run', name: 'sunday-run-club', description: 'Long runs', created_by: 'u9', visibility: 'public', last_message: 'See you at 6', last_message_at: '2026-11-10T09:00:00Z' },
-    { id: 'ch-pr', name: 'PR Wall', description: 'Every public member’s new personal records, automatically.', created_by: null, visibility: 'public', last_message: 'New PRs land here.', last_message_at: '2026-06-14T21:22:06Z' },
-    { id: 'ch-mine', name: 'macro-mondays', description: '', created_by: 'u1', visibility: 'public', last_message: '', last_message_at: null, picture_path: 'ch-mine/a.jpg' },
-    { id: 'ch-hq', name: 'Shape HQ', description: 'The official Shape channel: product news, drops and events.', created_by: null, visibility: 'public', read_only: true, last_message: 'Welcome to Shape HQ.', last_message_at: '2026-11-10T06:00:00Z' },
+    // As the table reads once the migration has run: every row carries `official`.
+    { id: 'ch-run', name: 'sunday-run-club', description: 'Long runs', created_by: 'u9', official: false, visibility: 'public', last_message: 'See you at 6', last_message_at: '2026-11-10T09:00:00Z' },
+    { id: 'ch-pr', name: 'PR Wall', description: 'Every public member’s new personal records, automatically.', created_by: null, official: true, visibility: 'public', last_message: 'New PRs land here.', last_message_at: '2026-06-14T21:22:06Z' },
+    { id: 'ch-mine', name: 'macro-mondays', description: '', created_by: 'u1', official: false, visibility: 'public', last_message: '', last_message_at: null, picture_path: 'ch-mine/a.jpg' },
+    { id: 'ch-hq', name: 'Shape HQ', description: 'The official Shape channel: product news, drops and events.', created_by: null, official: true, visibility: 'public', read_only: true, last_message: 'Welcome to Shape HQ.', last_message_at: '2026-11-10T06:00:00Z' },
     // A member's channel named after Shape's: not Shape's, so not pinned and not marked as Shape's.
-    { id: 'ch-fake', name: 'PR Wall', description: '', created_by: 'u5', visibility: 'public', last_message: '', last_message_at: '2026-11-01T00:00:00Z' },
+    { id: 'ch-fake', name: 'PR Wall', description: '', created_by: 'u5', official: false, visibility: 'public', last_message: '', last_message_at: '2026-11-01T00:00:00Z' },
+    // A deleted member's channel: created_by is ON DELETE SET NULL, so it has no owner, and it is
+    // still not Shape's.
+    { id: 'ch-orphan', name: 'Shape HQ', description: '', created_by: null, official: false, visibility: 'public', last_message: '', last_message_at: '2026-10-01T00:00:00Z' },
   ],
   channel_members: [
     { channel_id: 'ch-run', user_id: 'u9', role: 'host', pinned: false },
@@ -188,7 +192,7 @@ test('a member sees the real channels, in the app\'s order, and not the sample',
   const m = await mount({ db: fakeDb({ tables, log }) });
   try {
     const r = m.rows();
-    assert.equal(r.length, 5, 'five real channels: ' + r.join(' | '));
+    assert.equal(r.length, 6, 'six real channels: ' + r.join(' | '));
     assert.ok(!r.some((x) => /shape-community/.test(x)), 'the sample channel is still listed');
     assert.match(r[0], /Shape HQ/, 'Shape HQ is pinned first, for everyone');
     assert.match(r[1], /PR Wall/, 'then the PR Wall');
@@ -201,13 +205,17 @@ test('a member sees the real channels, in the app\'s order, and not the sample',
     assert.ok(fake, 'a member\'s channel named PR Wall is missing');
     assert.doesNotMatch(fake.textContent, /SHAPE/, 'a member\'s channel is marked as Shape\'s');
     assert.equal(fake.querySelector('[data-channel-mark]').getAttribute('data-channel-mark'), 'initials', 'a member\'s channel wears Shape\'s trophy');
+    const orphan = [...m.doc.querySelectorAll('.chw-row')].slice(3).find((x) => /Shape HQ/.test(x.textContent));
+    assert.ok(orphan, 'a deleted member\'s channel named Shape HQ is missing, or pinned as Shape\'s');
+    assert.doesNotMatch(orphan.textContent, /SHAPE/, 'a deleted member\'s channel is marked as Shape\'s');
+    assert.equal(orphan.querySelector('[data-channel-mark]').getAttribute('data-channel-mark'), 'initials', 'a deleted member\'s channel wears Shape\'s triangles');
     assert.equal(m.row('Shape HQ').querySelector('[data-channel-mark]').getAttribute('data-channel-mark'), 'shape', 'Shape HQ does not wear the triangles');
     const pic = m.row('macro-mondays').querySelector('[data-channel-mark="picture"] img');
     assert.ok(pic, 'the host\'s picture is not drawn');
     assert.equal(pic.getAttribute('src'), 'https://cdn.test/channel-pictures/ch-mine/a.jpg', 'the address is not built from the stored path');
     assert.match(m.row('sunday-run-club').textContent, /JOIN/, 'a channel you are not in says Join');
     assert.match(m.row('sunday-run-club').textContent, /2/, 'its unread count comes from channel_unread');
-    assert.equal(m.row('PR Wall').querySelector('.chw-pin'), null, 'Shape\'s own channel cannot be unpinned');
+    assert.ok(!m.row('PR Wall').querySelector('.chw-pin'), 'Shape\'s own channel cannot be unpinned');
   } finally { await m.done(); }
 });
 
@@ -235,11 +243,11 @@ test('a channel you are not in offers Join, and joining writes your own member r
   try {
     await m.click(m.row('sunday-run-club'));
     assert.ok(m.doc.querySelector('[data-channel-join]'), 'no Join bar');
-    assert.equal(m.doc.querySelector('.cw-composer'), null, 'the composer shows before joining');
+    assert.ok(!m.doc.querySelector('.cw-composer'), 'the composer shows before joining');
     await m.click(m.button('Join'));
     const ins = log.find((x) => x[0] === 'insert' && x[1] === 'channel_members');
     assert.deepEqual(ins[2], { channel_id: 'ch-run', user_id: 'u1', role: 'member' }, 'joined as someone else, or as host');
-    assert.equal(m.doc.querySelector('[data-channel-join]'), null, 'still asked to join');
+    assert.ok(!m.doc.querySelector('[data-channel-join]'), 'still asked to join');
     assert.ok(m.doc.querySelector('.cw-composer'), 'no composer once joined');
     assert.match(m.doc.querySelector('[data-chat-panel]').textContent, /2 members · Long runs/, 'the member count did not move');
     assert.doesNotMatch(m.row('sunday-run-club').textContent, /JOIN/, 'the row still says Join');
@@ -256,7 +264,7 @@ test('a refused join says so and posts nothing', async () => {
     const bar = m.doc.querySelector('[data-channel-join]');
     assert.ok(bar, 'the Join bar went away on a refusal');
     assert.match(bar.textContent, /Couldn.t join/);
-    assert.equal(m.doc.querySelector('.cw-composer'), null);
+    assert.ok(!m.doc.querySelector('.cw-composer'));
   } finally { await m.done(); }
 });
 
@@ -332,11 +340,15 @@ test('Shape HQ is pinned only when it is real', () => {
   const S = {};
   new Function('S', `${SRC.slice(role, SRC.indexOf('\n}\n', role) + 3)}\n${SRC.slice(at, end)}\nS.f = cwChannelThreads;`)(S);
   const when = () => 'now';
-  const none = S.f([{ id: 'a', name: 'run' }, { id: 'p', name: 'PR Wall' }], [], 'u1', {}, when);
+  // Before the migration has run: no flag, and the ownerless channel is Shape's, as before.
+  const none = S.f([{ id: 'a', name: 'run', created_by: 'u2' }, { id: 'p', name: 'PR Wall' }], [], 'u1', {}, when);
   assert.deepEqual(none.map((t) => t.name), ['PR Wall', 'run'], 'no canned Shape HQ');
-  const real = S.f([{ id: 'a', name: 'run' }, { id: 'p', name: 'PR Wall' }, { id: 'h', name: 'Shape HQ' }], [], 'u1', {}, when);
-  assert.deepEqual(real.map((t) => t.name), ['Shape HQ', 'PR Wall', 'run'], 'a real HQ goes first');
+  assert.ok(none[0].official && none[0].pinned && !none[1].official, 'before the migration, the ownerless PR Wall is not Shape\'s');
+  // After: the flag alone. An ownerless channel without it (a deleted member's) is not Shape's.
+  const real = S.f([{ id: 'a', name: 'run', created_by: 'u2', official: false }, { id: 'p', name: 'PR Wall', official: true }, { id: 'o', name: 'Shape HQ', created_by: null, official: false }, { id: 'h', name: 'Shape HQ', official: true }], [], 'u1', {}, when);
+  assert.deepEqual(real.map((t) => t.channelId), ['h', 'p', 'a', 'o'], 'the real HQ, then the PR Wall, then the rest');
   assert.ok(real[0].official && real[0].pinned && real[1].official, 'Shape\'s two are pinned and marked');
+  assert.ok(!real[3].official && !real[3].pinned, 'a deleted member\'s channel named Shape HQ is taken for Shape\'s');
 });
 
 test('Shape HQ is read, not posted in: no composer and no Join', async () => {
@@ -345,9 +357,9 @@ test('Shape HQ is read, not posted in: no composer and no Join', async () => {
     await m.click(m.row('Shape HQ'));
     assert.ok(m.doc.querySelector('[data-channel-readonly]'), 'no note that only Shape posts here');
     assert.match(m.doc.querySelector('[data-channel-readonly]').textContent, /Only Shape posts here/);
-    assert.equal(m.doc.querySelector('.cw-composer'), null, 'a composer in a read-only channel');
-    assert.equal(m.doc.querySelector('[data-channel-join]'), null, 'Join in a read-only channel');
-    assert.equal(m.doc.querySelector('[data-channel-picture]'), null, 'Shape\'s channel offers a picture change');
+    assert.ok(!m.doc.querySelector('.cw-composer'), 'a composer in a read-only channel');
+    assert.ok(!m.doc.querySelector('[data-channel-join]'), 'Join in a read-only channel');
+    assert.ok(!m.doc.querySelector('[data-channel-picture]'), 'Shape\'s channel offers a picture change');
   } finally { await m.done(); }
 });
 
@@ -357,7 +369,7 @@ test('the host changes the channel\'s picture: into its folder, then its path on
   const m = await mount({ db: fakeDb({ tables, log }) });
   try {
     await m.click(m.row('sunday-run-club'));
-    assert.equal(m.doc.querySelector('[data-channel-picture]'), null, 'a channel you do not host offers a picture change');
+    assert.ok(!m.doc.querySelector('[data-channel-picture]'), 'a channel you do not host offers a picture change');
     await m.click(m.row('macro-mondays'));
     const btn = m.doc.querySelector('[data-channel-picture]');
     assert.ok(btn, 'the host is not offered a picture change');

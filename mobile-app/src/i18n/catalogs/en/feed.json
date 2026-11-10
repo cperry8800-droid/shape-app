@@ -416,6 +416,6 @@
   "thread.voicePreview": "Voice note · {time}",
   "channels.changePicture": "Change the channel’s picture",
   "channels.pictureSaved": "Picture saved",
-  "channels.pictureError": "Couldn’t save the picture — try again.",
+  "channels.pictureError": "Couldn’t save the picture. Try again.",
   "channels.readOnly": "Only Shape posts here"
 }

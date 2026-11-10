@@ -8411,10 +8411,12 @@ async function listChannels() {
       pinned: !!(mine && mine.pinned),
       last: c.last_message || '', lastAt: c.last_message_at,
       // The host's picture, built from its storage path by this client (never a stored URL);
-      // a channel only Shape posts in; and Shape's own (system-owned) channels.
+      // a channel only Shape posts in; and Shape's own channels, by the flag only Shape sets (not
+      // "no owner": a deleted member's channel has none either; before the migration has run there
+      // is no flag, and the ownerless PR Wall is Shape's).
       picture: channelPictureUrl(c.picture_path),
       readOnly: c.read_only === true,
-      official: !c.created_by,
+      official: c.official === true || (c.official === undefined && !c.created_by),
     };
   });
   rows.sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0)); // pinned first; stable otherwise

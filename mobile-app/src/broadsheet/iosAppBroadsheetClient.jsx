@@ -23476,8 +23476,11 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
           // Shape HQ is the official channel — always pinned to the very top for
           // every profile. Use the member's real HQ channel if they have one
           // (so it opens), else a canonical entry.
-          const _isHQ = (c) => (c && (c.name || '').toLowerCase() === 'shape hq');
-          const _isPRWall = (c) => (c && (c.name || '').toLowerCase() === 'pr wall');
+          // Shape's own only (listChannels' `official`, or the sample's): a member's channel named
+          // "Shape HQ" or "PR Wall" is not pinned here as Shape's.
+          const _shapeOwn = (c) => !!c && (c.official === true || String(c.id || '').startsWith('sample-'));
+          const _isHQ = (c) => _shapeOwn(c) && (c.name || '').toLowerCase() === 'shape hq';
+          const _isPRWall = (c) => _shapeOwn(c) && (c.name || '').toLowerCase() === 'pr wall';
           const _realHQ = chList.find(_isHQ);
           const _hqSeed = BS_SAMPLE_CHANNELS.find(c => c.id === 'sample-shapehq') || {};
           const _shapeHQ = _realHQ

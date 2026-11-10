@@ -93,7 +93,8 @@ test('the install is BY TAB ID, waits for the hydrate, and never clobbers a draf
   // lacks (chatWidget.jsx; Codex on #2391 — dropping the read kept a server-only coach thread out),
   // and the mount test in nora-thread-load-retry.test.mjs drives it.
   assert.match(BLOCK, /if \(dirtyRef\.current\) \{\n\s+setThreadsByTab\(prev => prev\.map\(\(list, i\) => \{/, 'a real read can clobber what the member typed');
-  assert.match(BLOCK, /const add = live\.filter\(\(t\) => t\.conversationId && !have\.has\(t\.conversationId\)\);\n\s+return add\.length \? \[\.\.\.\(list \|\| \[\]\), \.\.\.add\] : list;/, 'the typed-in copy only gains the missing conversations');
+  // A thread is known by its conversation, a channel by its id (the real channels, 2026-11-10).
+  assert.match(BLOCK, /const key = \(t\) => \(t && \(t\.conversationId \|\| \(t\.channelId \? "ch:" \+ t\.channelId : null\)\)\) \|\| null;\n\s+const have = new Set\(\(list \|\| \[\]\)\.map\(key\)\.filter\(Boolean\)\);\n\s+const add = live\.filter\(\(t\) => key\(t\) && !have\.has\(key\(t\)\)\);\n\s+return add\.length \? \[\.\.\.\(list \|\| \[\]\), \.\.\.add\] : list;/, 'the typed-in copy only gains the missing conversations and channels');
 });
 
 test('the hydrate publishes its completion as STATE, not only a ref', () => {
