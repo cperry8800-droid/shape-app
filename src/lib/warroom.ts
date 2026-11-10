@@ -625,6 +625,18 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
 
   return [
     {
+      section: 'Runway: the Runaway connector\'s tools run without a prompt, as Higgsfield\'s do (#2682). No migration',
+      items: [
+        { label: 'Owner, 2026-11-10: "i just want to make sure this integration is live on my repo" … "like higgsfield is" … "add the runaway rule"', status: 'done' },
+        { label: '#2682 .claude/settings.json allows mcp__Runaway beside mcp__Higgsfield. Runaway is the claude.ai connector to Runway (runway.com), connected the same day: images, video, music, speech, sound effects and workflows from chat, on the workspace picked at sign-in ("Chris", personal)', status: 'done' },
+        { label: '#2682 review: Codex clean on 9e9911f (no findings); CodeRabbit not asked. npm test 10,708 (10,701 pass, 0 fail, 7 skipped). CI green on 9e9911f', status: 'done' },
+        { label: 'OWNER — the Runway workspace is on the free plan (500 credits on 2026-11-10): images and background removal only. Video, video editing, music, speech, sound effects and upscaling need a paid plan', status: 'manual' },
+        { label: 'OWNER — an older custom connector, "runaway" (lowercase), still waits to be reconnected; it duplicates Runaway, so remove it in claude.ai', status: 'manual' },
+        { label: 'OWNER DECISION — a Runway page in the admin console (gen4.5 text-to-video through the developer API with @runwayml/sdk, admin only). The developer API is its own account with its own credits (Developer Portal: 0 credits on 2026-11-10; gen4.5 is 12 credits a second at $0.01 a credit, so 5 s is $0.60). Its key is saved on the Claude cloud environment, not in Vercel', status: 'pending' },
+        { label: 'Left by #2682: the Runway Dev plugin (runway-api@claude-plugins-official: Runway API docs and Dev account tools) is not on in claude.ai, and its tools (mcp__plugin_runway-api_runway-dev) are not in the allow list', status: 'pending' },
+      ],
+    },
+    {
       section: 'Tutorials, PR 1 of 3: a five-stop coach welcome, a guide for every coach dashboard page, Skip tour on every step, the app tour fixed and replayable (#2677). No migration',
       items: [
         { label: 'Owner, 2026-11-10: "we need create tutorials for dashboard on website for coaches and tutorial for new accounts on the app. They need to show all features" … approving the proposal: "Go to all recommendations. Also have viewing the tutorial once initially, have the option to go through it again at a later date if user wants to. Also make sure user has option to cancel tutorial if they don\'t want it"', status: 'done' },
