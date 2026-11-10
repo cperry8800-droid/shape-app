@@ -177,6 +177,14 @@ export function bsClientWorkoutForDay(weekIdx) {
 // the calendar for each day. Mirrors the day shape of bsBuildTrainProgram (the
 // live-plan builder): { d, kicker, title, tag, tagColor, accent, headline, meta,
 // copy, moves:[{n,m,s,l,cue}], total, coachLine }, plus time/timeLabel.
+// The preview's sample playlists (iosAppBroadsheetRadio.jsx's BS_COACH_PLAYLISTS) on the sample workouts
+// they were made for, as a coach sets a playlist on a day in the builder: the session card chips it, On
+// deck and the full plan show it, and Playlists says which workout each plays with.
+const BS_DEMO_DAY_PLAYLISTS = {
+  'Upper Pull — Peak': { name: 'Pull day tempo', meta: '52m · 14 tracks' },
+  'Long run · 75 min': { name: 'Riverside long run', meta: '1h 50m · 24 tracks' },
+};
+
 export function bsBuildDemoTrainProgram(t) {
   const DOW = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
   const monday = new Date(); monday.setHours(0, 0, 0, 0);
@@ -218,6 +226,7 @@ export function bsBuildDemoTrainProgram(t) {
       moves,
       total: cardio ? `${moves.length} segment${moves.length === 1 ? '' : 's'}` : `${moves.length} move${moves.length === 1 ? '' : 's'}`,
       coachLine: (detail && detail.note) || 'Move with intent. Quality over load.',
+      playlist: BS_DEMO_DAY_PLAYLISTS[item.title] || null,
     };
   });
 }

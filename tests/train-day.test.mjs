@@ -67,18 +67,17 @@ function Page({ calls, initial = 2 }) {
   return React.createElement(D.BSTrainDay, {
     program: PROGRAM, day: d, cur, moves: cur.moves, swapped: cur.moves.map((_, i) => i === 1),
     isRest: cur.tag === 'REST', when: 'Today · 8:00 AM', head: cur.headline, until: null, weekN: 31, coach: 'Jordan Chen',
-    onDay: (i) => { calls.day.push(i); setD(i); }, onMonth: () => { calls.month += 1; }, onBurn: () => { calls.burn += 1; },
+    onDay: (i) => { calls.day.push(i); setD(i); }, onMonth: () => { calls.month += 1; }, onPlan: (i) => { calls.plan.push(i); }, onBurn: () => { calls.burn += 1; },
     onStart: () => { calls.start += 1; }, onSwap: () => { calls.swap += 1; }, onMove: (i) => calls.move.push(i), onRadio: () => { calls.radio += 1; },
     onEditYours: null, adjust: null,
     links: [
-      { color: '#34d6c5', glyph: '♪', label: 'Music from Jordan', tag: 'For today', onOpen: () => { calls.link.push('music'); } },
       { color: 'rgba(0,0,0,0.7)', glyph: '▤', label: 'Full plan', tag: 'Build · Week 31', onOpen: () => { calls.link.push('plan'); } },
     ],
     // The page's own BSFindCoachBar, handed in only for a member who pays no trainer.
     findCoach: React.createElement('button', { type: 'button', 'data-test-find': '', onClick: () => calls.link.push('find'), style: { minHeight: 44 } }, 'Find a coach'),
   });
 }
-const freshCalls = () => ({ day: [], month: 0, burn: 0, start: 0, swap: 0, move: [], radio: 0, link: [] });
+const freshCalls = () => ({ day: [], month: 0, plan: [], burn: 0, start: 0, swap: 0, move: [], radio: 0, link: [] });
 const flush = () => React.act(async () => { await new Promise((r) => setTimeout(r, 0)); });
 async function mount(props) {
   const host = document.createElement('div');
@@ -171,24 +170,60 @@ test('a rest day: a Rest chip for Start, no Swap, no program, and no soundtrack 
   } finally { await m.close(); }
 });
 
-test('On deck: the next three days, each opening on the page; Plan, the links and the find-a-coach bar call the page', async () => {
+// Owner, 2026-11-10: "the full plan and on deck just brings you to the monthly calendar page, there should be a
+// better preview of what actually is 'on deck'".
+test('On deck: the next three days as previews, each opening the full plan on its day; Plan, the links and the find-a-coach bar call the page', async () => {
   const calls = freshCalls();
   const m = await mount({ calls });
   try {
     const todayIdx = (new Date().getDay() + 6) % 7;
     const rows = [...m.q('[data-train-ondeck]').querySelectorAll('button')];
     assert.equal(rows.length, 3);
-    const first = PROGRAM[(todayIdx + 1) % 7];
-    assert.match(rows[0].textContent, new RegExp(first.tag === 'REST' ? 'Active rest' : first.headline.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
-    await m.click(rows[0]);
-    assert.deepEqual(calls.day, [(todayIdx + 1) % 7]);
+    rows.forEach((row, i) => {
+      const idx = (todayIdx + i + 1) % 7;
+      const d = PROGRAM[idx];
+      assert.equal(row.getAttribute('data-ondeck-day'), String(idx));
+      assert.match(row.textContent, new RegExp(d.tag === 'REST' ? 'Active rest' : d.headline.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+      const dow = new Date(); dow.setDate(dow.getDate() - todayIdx + idx);
+      assert.equal(row.querySelector('[data-ondeck-dow]').textContent, new Intl.DateTimeFormat('en-US', { weekday: 'short' }).format(dow), 'the day');
+      if (d.tag === 'REST') {
+        assert.ok(!row.querySelector('[data-ondeck-moves]') && !row.querySelector('[data-ondeck-playlist]'), 'a rest day previews no moves and no playlist');
+        return;
+      }
+      assert.match(row.textContent, /8:00 AM/, 'its time');
+      assert.ok(row.textContent.includes(d.meta), 'its length and effort');
+      const shown = [...row.querySelector('[data-ondeck-moves]').children].filter((c) => !/more/.test(c.textContent));
+      assert.equal(shown.length, Math.min(3, d.moves.length), 'its first moves');
+      assert.ok(shown[0].textContent.includes(d.moves[0].m), 'the first move by name');
+      assert.equal(!!row.querySelector('[data-ondeck-playlist]'), !!d.playlist, 'the playlist the coach set on it');
+      if (d.playlist) assert.match(row.querySelector('[data-ondeck-playlist]').textContent, new RegExp(d.playlist.name));
+    });
+    assert.match(rows[0].textContent, /Tomorrow/, 'tomorrow says so');
+    assert.ok(!rows[1].textContent.includes('Tomorrow'));
+    await m.click(rows[1]);
+    assert.deepEqual(calls.plan, [(todayIdx + 2) % 7], 'a day opens the full plan on that day');
+    assert.deepEqual(calls.day, [], 'not the page\'s day, which is scrolled out of sight');
     await m.click(m.btn(/^Plan →$/));
-    assert.equal(calls.month, 1, 'Plan opens the calendar');
-    await m.click(m.btn(/Music from Jordan/));
+    assert.deepEqual(calls.plan, [(todayIdx + 2) % 7, null], 'Plan opens the full plan');
+    assert.equal(calls.month, 0, 'not the calendar');
     await m.click(m.btn(/Full plan/));
     await m.click(m.q('[data-test-find]'));
-    assert.deepEqual(calls.link, ['music', 'plan', 'find']);
+    assert.deepEqual(calls.link, ['plan', 'find']);
   } finally { await m.close(); }
+});
+
+test('On deck counts the moves past its first three', async () => {
+  const many = [...moves, { n: '03', m: 'Face pull', s: '3 × 15', l: '30 lb' }, { n: '04', m: 'Incline curl', s: '3 × 12', l: '25 lb' }, { n: '05', m: 'Farmer carry', s: '3 × 40 m', l: '70 lb' }];
+  const todayIdx = (new Date().getDay() + 6) % 7;
+  const idx = (todayIdx + 1) % 7;
+  const was = PROGRAM[idx];
+  PROGRAM[idx] = day('Big pull day', { moves: many });
+  const m = await mount({ calls: freshCalls() });
+  try {
+    const row = m.q(`[data-ondeck-day="${idx}"]`);
+    assert.match(row.textContent, /\+2 more/);
+    assert.ok(!row.textContent.includes('Incline curl'), 'the fourth move waits for the plan');
+  } finally { PROGRAM[idx] = was; await m.close(); }
 });
 
 test('on a day you programmed, Edit and the lit Start keep their 44px targets apart', () => {

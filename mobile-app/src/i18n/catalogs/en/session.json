@@ -170,6 +170,8 @@
   "train.onDeck": "On deck",
   "train.openSession": "Open session",
   "train.plan": "Plan",
+  "train.moreMoves": "+{count} more",
+  "train.playlistFor": "For {workouts}",
   "train.previewEyebrow": "Preview · Read-only",
   "train.programKicker": "The program",
   "train.programWeek": "{name} · Week {week}",

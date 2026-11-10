@@ -170,6 +170,8 @@
   "train.onDeck": "Na gaba",
   "train.openSession": "Zama na kyauta",
   "train.plan": "Shiri",
+  "train.moreMoves": "+{count} ƙari",
+  "train.playlistFor": "Don {workouts}",
   "train.previewEyebrow": "Duba · Karatu kawai",
   "train.programKicker": "Shirin",
   "train.programWeek": "{name} · Mako {week}",

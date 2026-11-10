@@ -170,6 +170,8 @@
   "train.onDeck": "Als Nächstes",
   "train.openSession": "Freie Einheit",
   "train.plan": "Plan",
+  "train.moreMoves": "+{count} weitere",
+  "train.playlistFor": "Für {workouts}",
   "train.previewEyebrow": "Vorschau · Nur lesen",
   "train.programKicker": "Das Programm",
   "train.programWeek": "{name} · Woche {week}",
