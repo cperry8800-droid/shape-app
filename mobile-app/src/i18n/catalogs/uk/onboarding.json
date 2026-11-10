@@ -441,7 +441,7 @@
   "apply.status.submittedSub": "Ми отримали вашу заявку й документи.",
   "apply.status.submittedSubNoDocs": "Ми отримали вашу заявку.",
   "apply.status.review": "На розгляді",
-  "apply.status.reviewSub": "Очікує на перевірку фахівцем Shape.",
+  "apply.status.reviewSub": "Далі фахівець Shape перегляне вашу кваліфікацію.",
   "apply.status.bg": "Перевірка біографії",
   "apply.status.bgSub": "Checkr надішле вам захищене посилання на пошту.",
   "apply.status.decision": "Рішення",

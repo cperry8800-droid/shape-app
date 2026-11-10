@@ -400,7 +400,11 @@ test('a successful send shows where it stands and clears the draft; Done leaves'
     assert.match(p.text(), /Thanks, Maya\. Here is where it stands\./);
     const stages = [...p.el.querySelectorAll('[data-apply-stage]')];
     assert.deepEqual(stages.map((s) => s.getAttribute('data-apply-stage')), ['submitted', 'review', 'bg', 'decision']);
-    assert.equal(stages[1].getAttribute('aria-current'), 'step', 'In review is where it stands');
+    // Submitted is where it stands (Codex on #2667): the row is pending, which the server and Settings call
+    // Submitted until a reviewer opens it; In review is the next step, never claimed.
+    assert.equal(stages[0].getAttribute('aria-current'), 'step', 'Submitted is where it stands');
+    assert.equal(stages[1].getAttribute('aria-current'), null, 'In review is not claimed');
+    assert.match(stages[1].textContent, /Next, a Shape reviewer reads your credentials\./);
     assert.match(stages[0].textContent, /Submitted/);
     assert.match(stages[0].textContent, new RegExp(new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric' }).format(new Date())), 'with today\'s date');
     assert.match(p.text(), /Usually 2–3 business days\. We'll email you, and you can see where it stands in Settings, under Coach on Shape\./);

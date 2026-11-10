@@ -636,5 +636,6 @@
   "coachApply.sent": "отправлена {date}",
   "coachApply.usually": "обычно 2–3 рабочих дня",
   "coachApply.submitted": "Отправлена",
-  "coachApply.unavailable": "Не удалось проверить заявку · нажмите, чтобы повторить"
+  "coachApply.unavailable": "Не удалось проверить заявку · нажмите, чтобы повторить",
+  "coachApply.checking": "Проверяем заявку…"
 }

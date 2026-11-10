@@ -636,5 +636,6 @@
   "coachApply.sent": "you send am {date}",
   "coachApply.usually": "e dey take 2–3 work days",
   "coachApply.submitted": "Don send",
-  "coachApply.unavailable": "We no fit check your application · tap make we try again"
+  "coachApply.unavailable": "We no fit check your application · tap make we try again",
+  "coachApply.checking": "We dey check your application…"
 }

@@ -636,5 +636,6 @@
   "coachApply.sent": "an aika {date}",
   "coachApply.usually": "yawanci kwanakin aiki 2–3",
   "coachApply.submitted": "An aika",
-  "coachApply.unavailable": "Ba a iya duba neman ka ba · danna don sake gwadawa"
+  "coachApply.unavailable": "Ba a iya duba neman ka ba · danna don sake gwadawa",
+  "coachApply.checking": "Ana duba neman ka…"
 }

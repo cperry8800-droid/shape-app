@@ -441,7 +441,7 @@
   "apply.status.submittedSub": "Abbiamo la tua candidatura e i tuoi documenti.",
   "apply.status.submittedSubNoDocs": "Abbiamo la tua candidatura.",
   "apply.status.review": "In valutazione",
-  "apply.status.reviewSub": "In attesa che un revisore di Shape legga le tue qualifiche.",
+  "apply.status.reviewSub": "Poi un revisore di Shape legge le tue qualifiche.",
   "apply.status.bg": "Controllo dei precedenti",
   "apply.status.bgSub": "Checkr ti invia un link sicuro via email.",
   "apply.status.decision": "Decisione",

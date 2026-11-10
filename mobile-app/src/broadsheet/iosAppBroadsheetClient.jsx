@@ -779,6 +779,13 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
   // never from jump-destination screens (radio/store aren't tab stops). Coaches
   // ('market') is a root tab since 2026-11-09, between Eat and Chat.
   const [navSlideCls, navSlide] = useBSNavSlide(tab);
+  // One way into a root tab, for the tab bar and the swipes alike (Codex on #2667): entering Coaches from
+  // another tab opens it on Both, so a role a jump picked earlier (Train's "Find a trainer") is that
+  // jump's, never the tab's.
+  const enterTab = (k) => {
+    if (k === 'market' && tab !== 'market') { setMarketRole(null); setMarketCoach(null); }
+    setTab(k);
+  };
   const onNavGesture = (intent) => {
     if (intent === 'back') {
       if (navBack()) return;
@@ -792,7 +799,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
     const next = bsNavStepTab(BS_MEMBER_TABS, tab, intent);
     if (!next) return;
     navSlide(intent === 'next-tab' ? 'l' : 'r');
-    setTab(next);
+    enterTab(next);
   };
   navJumpRef.current = { navPush, goSettings, goEditProfile, goIntegrations, goCycle, goScore, onNavGesture };
   useBSNavGestureHandler(navJumpRef);
@@ -1371,7 +1378,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
           (Train's "Find a trainer") is that jump's, not the tab's. */}
       <BSTabBar
         active={tab}
-        onChange={(k) => { if (k === 'market' && tab !== 'market') { setMarketRole(null); setMarketCoach(null); } setTab(k); }}
+        onChange={enterTab}
         tabs={BS_MEMBER_TABS.map((key) => ({
           home:   { key: 'home',   label: tr('common:nav.home',    { defaultValue: 'Home' }) },
           train:  { key: 'train',  label: tr('common:nav.train',   { defaultValue: 'Train' }) },
@@ -32296,12 +32303,14 @@ function BSLanguageSetting({ t }) {
 // or, once they have applied, where it stands (`app`, /api/me/application through
 // window.ShapeApplications.myStatus, by its stage): Submitted, In review or Background check, amber;
 // Approved, teal; Not approved, unlit; with the application, the day it was sent and, while it waits,
-// "usually 2–3 business days". A withdrawn application, or none at all, is the door. ⚠ A read that
-// failed ({ unavailable }) says so, and a tap reads it again: it never opens an application over one
-// it could not see.
+// "usually 2–3 business days". A withdrawn application, or none at all, is the door. ⚠ While the read
+// is out (undefined) the row says Checking and its tap waits; a read that failed ({ unavailable }) says
+// so, and a tap reads it again: neither opens an application over one it has not seen.
 function bsCoachApplyRow(app, { tr, amber = '#d8a23a', teal = '#34d6c5', unlit = '#777777', locale } = {}) {
   const title = tr('settings:coachApply.title', { defaultValue: 'Coach on Shape' });
   // Its tap reads again (`retry`), never a fresh application over one it could not see (Codex on #2667).
+  // Still being read: it says so, and its tap waits (`wait`).
+  if (app === undefined) return { title, summary: tr('settings:coachApply.checking', { defaultValue: 'Checking your application…' }), detail: 'coachapply', wait: true };
   if (app && app.unavailable) return { title, summary: tr('settings:coachApply.unavailable', { defaultValue: 'Couldn’t check your application · tap to try again' }), detail: 'coachapply', wrap: true, retry: true };
   const st = app && app.stage !== 'withdrawn' ? app.stage : null;
   const tag = st === 'submitted' ? { text: tr('settings:coachApply.submitted', { defaultValue: 'Submitted' }), color: amber }
@@ -33091,11 +33100,15 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     return r === 'trainer' || r === 'nutritionist' || r === 'dietitian'
       || accountRoles.some((x) => x === 'trainer' || x === 'nutritionist' || x === 'dietitian');
   })();
-  const [coachApp, setCoachApp] = useStateBSC(null);
+  // ⚠ undefined WHILE IT IS READ (Codex on #2667): the row says so and its tap waits, so no fresh
+  // application opens over one the read has not yet seen; null is "none" (the door).
+  const [coachApp, setCoachApp] = useStateBSC(undefined);
   const [coachAppReads, setCoachAppReads] = useStateBSC(0);
   React.useEffect(() => {
-    if (isCoachRole || accountIsCoach || !window.ShapeApplications?.myStatus) return undefined;
+    if (isCoachRole || accountIsCoach) return undefined;
+    if (!window.ShapeApplications?.myStatus) { setCoachApp(null); return undefined; }
     let live = true;
+    setCoachApp(undefined);
     Promise.resolve(window.ShapeApplications.myStatus()).then(
       (a) => { if (live) setCoachApp(a && (a.unavailable || (a.role && a.stage)) ? a : null); },
       () => { if (live) setCoachApp({ unavailable: true }); },
@@ -34563,6 +34576,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
           also={alsoRows}
           onOpen={(d) => {
             if (d === 'coachapply') {
+              if (coachAppRow && coachAppRow.wait) return;
               if (coachAppRow && coachAppRow.retry) setCoachAppReads((n) => n + 1);
               else setShowApply(true);
               return;

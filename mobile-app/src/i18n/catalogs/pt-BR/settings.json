@@ -636,5 +636,6 @@
   "coachApply.sent": "enviada em {date}",
   "coachApply.usually": "em geral 2–3 dias úteis",
   "coachApply.submitted": "Enviada",
-  "coachApply.unavailable": "Não foi possível verificar sua inscrição · toque para tentar de novo"
+  "coachApply.unavailable": "Não foi possível verificar sua inscrição · toque para tentar de novo",
+  "coachApply.checking": "Verificando sua inscrição…"
 }

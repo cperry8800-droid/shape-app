@@ -636,5 +636,6 @@
   "coachApply.sent": "đã gửi {date}",
   "coachApply.usually": "thường 2–3 ngày làm việc",
   "coachApply.submitted": "Đã gửi",
-  "coachApply.unavailable": "Không thể kiểm tra đơn của bạn · chạm để thử lại"
+  "coachApply.unavailable": "Không thể kiểm tra đơn của bạn · chạm để thử lại",
+  "coachApply.checking": "Đang kiểm tra đơn của bạn…"
 }

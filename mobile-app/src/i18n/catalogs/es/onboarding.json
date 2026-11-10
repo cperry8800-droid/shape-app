@@ -441,7 +441,7 @@
   "apply.status.submittedSub": "Tenemos tu solicitud y tus documentos.",
   "apply.status.submittedSubNoDocs": "Tenemos tu solicitud.",
   "apply.status.review": "En revisión",
-  "apply.status.reviewSub": "Esperando a que alguien de Shape lea tus credenciales.",
+  "apply.status.reviewSub": "Después, alguien de Shape lee tus credenciales.",
   "apply.status.bg": "Verificación de antecedentes",
   "apply.status.bgSub": "Checkr te envía un enlace seguro por correo.",
   "apply.status.decision": "Decisión",

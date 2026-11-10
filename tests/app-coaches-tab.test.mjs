@@ -75,7 +75,9 @@ test('the nav: six tabs, Coaches between Eat and Chat, in the tab bar\'s order a
   assert.match(client, /market: \{ key: 'market', label: tr\('common:nav\.coaches', \{ defaultValue: 'Coaches' \}\) \},/);
   assert.match(client, /const next = bsNavStepTab\(BS_MEMBER_TABS, tab, intent\);/);
   // Tapping Coaches opens it on Both; the tab is a root, so it draws no ← Back.
-  assert.match(client, /onChange=\{\(k\) => \{ if \(k === 'market' && tab !== 'market'\) \{ setMarketRole\(null\); setMarketCoach\(null\); \} setTab\(k\); \}\}/);
+  // The bar and the swipes enter a tab one way (enterTab): Coaches from elsewhere opens on Both.
+  assert.match(client, /onChange=\{enterTab\}/);
+  assert.match(client, /if \(k === 'market' && tab !== 'market'\) \{ setMarketRole\(null\); setMarketCoach\(null\); \}/);
   assert.match(client, /market: {2}<BSMarketplaceScreen initialRole=\{marketRole\} initialCoach=\{marketCoach\} onCoachConsumed=\{\(\) => setMarketCoach\(null\)\} onProfile=\{goSettings\} goChat=\{goChat\} \/>,/);
   // The chrome draws Coaches as its own icon, a whistle in the other icons' line, filled when lit.
   const chrome = read('iosAppBroadsheet.jsx');
@@ -398,6 +400,11 @@ const tr = (k, o = {}) => new IntlMessageFormat(String(o.defaultValue ?? k), 'en
 test('Settings › Coach on Shape: the door, or the stage the route says, with what was sent', async () => {
   const door = client.bsCoachApplyRow(null, { tr });
   assert.deepEqual(door, { title: 'Coach on Shape', summary: 'Apply as a trainer or nutritionist', detail: 'coachapply' });
+  // While the status is read: not the door, and its tap waits.
+  const reading = client.bsCoachApplyRow(undefined, { tr });
+  assert.equal(reading.summary, 'Checking your application…');
+  assert.equal(reading.wait, true);
+  assert.equal(reading.tag, undefined);
   assert.deepEqual(client.bsCoachApplyRow({ role: 'trainer', stage: 'withdrawn', submittedAt: '2026-11-01T10:00:00Z' }, { tr }).summary, 'Apply as a trainer or nutritionist', 'a withdrawn application is the door again');
   // ⚠ A failed read is not "no application": it says so, and offers no fresh Apply over one it could not see.
   const unread = client.bsCoachApplyRow({ unavailable: true }, { tr });
@@ -432,7 +439,15 @@ test('Settings › Coach on Shape: the door, or the stage the route says, with w
   // profiles.role 'client' with the coach role in roles[] (Codex on #2667).
   assert.match(src, /\|\| accountRoles\.some\(\(x\) => x === 'trainer' \|\| x === 'nutritionist' \|\| x === 'dietitian'\);/);
   assert.ok(src.indexOf('const accountRoles = bsAccountRoles(') < src.indexOf('const accountIsCoach = ('), 'the roles are read before the guard');
-  assert.match(src, /if \(d === 'coachapply'\) \{\n\s+if \(coachAppRow && coachAppRow\.retry\) setCoachAppReads\(\(n\) => n \+ 1\);\n\s+else setShowApply\(true\);\n\s+return;\n\s+\}/, 'a failed read retries on a tap; only a read row opens the application');
+  assert.match(src, /if \(d === 'coachapply'\) \{\n\s+if \(coachAppRow && coachAppRow\.wait\) return;\n\s+if \(coachAppRow && coachAppRow\.retry\) setCoachAppReads\(\(n\) => n \+ 1\);\n\s+else setShowApply\(true\);\n\s+return;\n\s+\}/, 'a row still reading waits, a failed read retries; only a read row opens the application');
+  // ⚠ Unread is not "none" (Codex on #2667): the state starts undefined, each read sets it back, and a
+  // missing reader is none.
+  assert.match(src, /const \[coachApp, setCoachApp\] = useStateBSC\(undefined\);/);
+  assert.match(src, /if \(!window\.ShapeApplications\?\.myStatus\) \{ setCoachApp\(null\); return undefined; \}\n\s+let live = true;\n\s+setCoachApp\(undefined\);/);
+  // One way into a root tab for the bar and the swipes: entering Coaches from elsewhere opens it on Both.
+  assert.match(src, /const enterTab = \(k\) => \{\n\s+if \(k === 'market' && tab !== 'market'\) \{ setMarketRole\(null\); setMarketCoach\(null\); \}\n\s+setTab\(k\);\n\s+\};/);
+  assert.match(src, /navSlide\(intent === 'next-tab' \? 'l' : 'r'\);\n\s+enterTab\(next\);/, 'a swipe into Coaches kept a jump\'s role');
+  assert.match(src, /onChange=\{enterTab\}/);
   assert.match(src, /if \(showApply && window\.BSProviderApplicationScreen\) \{/);
   const backend = fs.readFileSync(join(ROOT, 'mobile-app/src/services/shapeBackend.js'), 'utf8');
   assert.match(backend, /const res = await shapeApiFetch\('\/api\/me\/application'\);\n\s+if \(!res\.ok\) return \{ unavailable: true \};/, 'a refusal or failure is unavailable, never "none"');

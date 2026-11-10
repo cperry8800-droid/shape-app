@@ -636,5 +636,6 @@
   "coachApply.sent": "gesendet am {date}",
   "coachApply.usually": "meist 2–3 Werktage",
   "coachApply.submitted": "Eingereicht",
-  "coachApply.unavailable": "Status gerade nicht abrufbar · zum erneuten Versuch tippen"
+  "coachApply.unavailable": "Status gerade nicht abrufbar · zum erneuten Versuch tippen",
+  "coachApply.checking": "Bewerbung wird geprüft …"
 }

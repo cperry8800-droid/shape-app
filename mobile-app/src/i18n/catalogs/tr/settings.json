@@ -636,5 +636,6 @@
   "coachApply.sent": "{date} gönderildi",
   "coachApply.usually": "genelde 2–3 iş günü",
   "coachApply.submitted": "Gönderildi",
-  "coachApply.unavailable": "Başvurun kontrol edilemedi · tekrar denemek için dokun"
+  "coachApply.unavailable": "Başvurun kontrol edilemedi · tekrar denemek için dokun",
+  "coachApply.checking": "Başvurun kontrol ediliyor…"
 }

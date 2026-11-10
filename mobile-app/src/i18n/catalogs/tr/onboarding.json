@@ -441,7 +441,7 @@
   "apply.status.submittedSub": "Başvurun ve belgelerin bize ulaştı.",
   "apply.status.submittedSubNoDocs": "Başvurun bize ulaştı.",
   "apply.status.review": "İncelemede",
-  "apply.status.reviewSub": "Bir Shape incelemecisinin belgelerini okuması bekleniyor.",
+  "apply.status.reviewSub": "Ardından bir Shape incelemecisi belgelerini okur.",
   "apply.status.bg": "Geçmiş kontrolü",
   "apply.status.bgSub": "Checkr sana e-postayla güvenli bir bağlantı gönderir.",
   "apply.status.decision": "Karar",

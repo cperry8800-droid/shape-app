@@ -636,5 +636,6 @@
   "coachApply.sent": "dikirim {date}",
   "coachApply.usually": "biasanya 2–3 hari kerja",
   "coachApply.submitted": "Terkirim",
-  "coachApply.unavailable": "Tidak dapat memeriksa lamaran Anda · ketuk untuk mencoba lagi"
+  "coachApply.unavailable": "Tidak dapat memeriksa lamaran Anda · ketuk untuk mencoba lagi",
+  "coachApply.checking": "Memeriksa lamaran Anda…"
 }

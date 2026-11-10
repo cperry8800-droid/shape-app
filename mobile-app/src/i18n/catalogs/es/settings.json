@@ -636,5 +636,6 @@
   "coachApply.sent": "enviada el {date}",
   "coachApply.usually": "suele tardar 2–3 días hábiles",
   "coachApply.submitted": "Enviada",
-  "coachApply.unavailable": "No se pudo comprobar tu solicitud · toca para reintentar"
+  "coachApply.unavailable": "No se pudo comprobar tu solicitud · toca para reintentar",
+  "coachApply.checking": "Comprobando tu solicitud…"
 }

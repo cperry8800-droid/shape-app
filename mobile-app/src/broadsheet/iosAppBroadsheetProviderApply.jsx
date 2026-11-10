@@ -38,7 +38,7 @@ import { REQUIRED_ATTESTATIONS, attestationsComplete } from '../../../src/lib/co
 //     in her composer. Her fill card writes through window.shapeNoraForm (the rules in
 //     src/lib/ai/noraForms.mjs): listed fields only, never a document, an agreement, an attestation or a
 //     license row, and never the send. A step holding values she filled says so.
-//   · After the send: where it stands (Submitted · In review · Background check · Decision).
+//   · After the send: where it stands (Submitted, now · In review · Background check · Decision).
 // In the member app the screen covers the whole phone surface, the tab bar included (portalled into
 // #bs-phone-surface above the nav, under Nora's sheet). On the sign-in route it stays where Main draws
 // it, under Main's own "Ask Nora" door, so it does not portal.
@@ -1017,8 +1017,10 @@ function BSProviderApplicationScreen({ initialRole = 'trainer', onBack }) {
     const sentFiles = fileList().length > 0;
     const first = apStr(values.firstName);
     const stages = [
-      { key: 'submitted', done: true, title: tr('onboarding:apply.status.submitted', { defaultValue: 'Submitted' }), sub: sentFiles ? tr('onboarding:apply.status.submittedSub', { defaultValue: 'We have your application and documents.' }) : tr('onboarding:apply.status.submittedSubNoDocs', { defaultValue: 'We have your application.' }), when: today },
-      { key: 'review', now: true, title: tr('onboarding:apply.status.review', { defaultValue: 'In review' }), sub: tr('onboarding:apply.status.reviewSub', { defaultValue: 'Waiting for a Shape reviewer to read your credentials.' }) },
+      // ⚠ SUBMITTED IS WHERE IT STANDS (Codex on #2667): a new row is `pending`, which the server and
+      // Settings call Submitted until a reviewer opens it; In review is the step after, never claimed here.
+      { key: 'submitted', now: true, title: tr('onboarding:apply.status.submitted', { defaultValue: 'Submitted' }), sub: sentFiles ? tr('onboarding:apply.status.submittedSub', { defaultValue: 'We have your application and documents.' }) : tr('onboarding:apply.status.submittedSubNoDocs', { defaultValue: 'We have your application.' }), when: today },
+      { key: 'review', title: tr('onboarding:apply.status.review', { defaultValue: 'In review' }), sub: tr('onboarding:apply.status.reviewSub', { defaultValue: 'Next, a Shape reviewer reads your credentials.' }) },
       { key: 'bg', title: tr('onboarding:apply.status.bg', { defaultValue: 'Background check' }), sub: tr('onboarding:apply.status.bgSub', { defaultValue: 'Checkr emails you a secure link.' }) },
       { key: 'decision', title: tr('onboarding:apply.status.decision', { defaultValue: 'Decision' }), sub: tr('onboarding:apply.status.decisionSub', { defaultValue: 'We email you the decision.' }) },
     ];
@@ -1055,6 +1057,7 @@ function BSProviderApplicationScreen({ initialRole = 'trainer', onBack }) {
                       <div style={{ marginTop: -7, padding: '10px 13px', borderRadius: 14, border: `1px solid ${t.isLight ? 'rgba(10,122,114,0.4)' : 'rgba(52,214,197,0.45)'}`, background: t.isLight ? 'rgba(10,122,114,0.06)' : 'rgba(52,214,197,0.09)' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                           <span style={{ flex: 1, minWidth: 0, fontFamily: BS_CLEAN_HEAD, fontSize: 16, fontWeight: 650, color: tealText }}>{s.title}</span>
+                          {s.when ? <span style={{ flex: 'none', fontFamily: BS_CLEAN_SANS, fontSize: 13.5, fontWeight: 500, color: t.INK70 }}>{s.when}</span> : null}
                           <span style={{ flex: 'none', padding: '2px 8px', borderRadius: 6, background: t.isLight ? 'rgba(10,122,114,0.12)' : 'rgba(52,214,197,0.16)', fontFamily: BS_CLEAN_SANS, fontSize: 11.5, fontWeight: 700, color: tealText }}>{tr('onboarding:apply.status.now', { defaultValue: 'Now' })}</span>
                         </div>
                         <div style={{ marginTop: 3, fontFamily: BS_CLEAN_SANS, fontSize: 13.5, fontWeight: 500, lineHeight: 1.4, color: t.INK70 }}>{s.sub}</div>

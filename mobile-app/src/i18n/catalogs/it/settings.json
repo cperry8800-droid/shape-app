@@ -636,5 +636,6 @@
   "coachApply.sent": "inviata il {date}",
   "coachApply.usually": "di solito 2–3 giorni lavorativi",
   "coachApply.submitted": "Inviata",
-  "coachApply.unavailable": "Impossibile controllare la tua candidatura · tocca per riprovare"
+  "coachApply.unavailable": "Impossibile controllare la tua candidatura · tocca per riprovare",
+  "coachApply.checking": "Controllo della tua candidatura…"
 }
