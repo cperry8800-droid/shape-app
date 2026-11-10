@@ -412,5 +412,10 @@
   "thread.voiceNotSent": "E no send",
   "thread.voiceFailed": "The voice note no fit send.",
   "thread.voicePreview": "Voice note · {time}",
-  "composer.signInToSend": "Sign in make you send message"
+  "composer.signInToSend": "Sign in make you send message",
+  "channels.changePicture": "Change di channel picture",
+  "channels.pictureSaved": "Picture don save",
+  "channels.pictureError": "We no fit save di picture — try again.",
+  "channels.openError": "We no fit open di channel — try again.",
+  "channels.readOnly": "Na only Shape dey post for here"
 }

@@ -412,5 +412,10 @@
   "thread.voiceNotSent": "Не отправлено",
   "thread.voiceFailed": "Не удалось отправить голосовое сообщение.",
   "thread.voicePreview": "Голосовое сообщение · {time}",
-  "composer.signInToSend": "Войдите, чтобы отправлять сообщения"
+  "composer.signInToSend": "Войдите, чтобы отправлять сообщения",
+  "channels.changePicture": "Сменить изображение канала",
+  "channels.pictureSaved": "Изображение сохранено",
+  "channels.pictureError": "Не удалось сохранить изображение — попробуйте снова.",
+  "channels.openError": "Не удалось открыть канал — попробуйте снова.",
+  "channels.readOnly": "Здесь публикует только Shape"
 }

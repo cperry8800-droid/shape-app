@@ -412,5 +412,10 @@
   "thread.voiceNotSent": "Nicht gesendet",
   "thread.voiceFailed": "Die Sprachnachricht konnte nicht gesendet werden.",
   "thread.voicePreview": "Sprachnachricht · {time}",
-  "composer.signInToSend": "Melde dich an, um Nachrichten zu senden"
+  "composer.signInToSend": "Melde dich an, um Nachrichten zu senden",
+  "channels.changePicture": "Bild des Kanals ändern",
+  "channels.pictureSaved": "Bild gespeichert",
+  "channels.pictureError": "Bild konnte nicht gespeichert werden – versuch es erneut.",
+  "channels.openError": "Kanal konnte nicht geöffnet werden – versuch es erneut.",
+  "channels.readOnly": "Hier postet nur Shape"
 }

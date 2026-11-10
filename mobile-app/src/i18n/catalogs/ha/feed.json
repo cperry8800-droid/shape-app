@@ -412,5 +412,10 @@
   "thread.voiceNotSent": "Ba a aika ba",
   "thread.voiceFailed": "Ba a iya aika saƙon murya ba.",
   "thread.voicePreview": "Saƙon murya · {time}",
-  "composer.signInToSend": "Shiga don aika saƙonni"
+  "composer.signInToSend": "Shiga don aika saƙonni",
+  "channels.changePicture": "Canza hoton tashar",
+  "channels.pictureSaved": "An adana hoton",
+  "channels.pictureError": "An kāsa adana hoton — sāke gwadawa.",
+  "channels.openError": "An kāsa buɗe tashar — sāke gwadawa.",
+  "channels.readOnly": "Shape kaɗai ke wallafawa a nan"
 }

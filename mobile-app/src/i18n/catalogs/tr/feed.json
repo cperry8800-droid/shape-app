@@ -412,5 +412,10 @@
   "thread.voiceNotSent": "Gönderilmedi",
   "thread.voiceFailed": "Sesli mesaj gönderilemedi.",
   "thread.voicePreview": "Sesli mesaj · {time}",
-  "composer.signInToSend": "Mesaj göndermek için giriş yap"
+  "composer.signInToSend": "Mesaj göndermek için giriş yap",
+  "channels.changePicture": "Kanalın resmini değiştir",
+  "channels.pictureSaved": "Resim kaydedildi",
+  "channels.pictureError": "Resim kaydedilemedi — tekrar dene.",
+  "channels.openError": "Kanal açılamadı — tekrar dene.",
+  "channels.readOnly": "Burada yalnızca Shape paylaşım yapar"
 }

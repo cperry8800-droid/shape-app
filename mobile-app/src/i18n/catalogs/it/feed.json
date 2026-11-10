@@ -412,5 +412,10 @@
   "thread.voiceNotSent": "Non inviato",
   "thread.voiceFailed": "Impossibile inviare il messaggio vocale.",
   "thread.voicePreview": "Messaggio vocale · {time}",
-  "composer.signInToSend": "Accedi per inviare messaggi"
+  "composer.signInToSend": "Accedi per inviare messaggi",
+  "channels.changePicture": "Cambia l’immagine del canale",
+  "channels.pictureSaved": "Immagine salvata",
+  "channels.pictureError": "Impossibile salvare l’immagine — riprova.",
+  "channels.openError": "Impossibile aprire il canale — riprova.",
+  "channels.readOnly": "Qui pubblica solo Shape"
 }
