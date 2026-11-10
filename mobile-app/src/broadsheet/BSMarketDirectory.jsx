@@ -313,9 +313,10 @@ function MktDirFilterSheet({ f }) {
               {(f.goals || []).map((g) => (
                 <button key={g.key} type="button" data-mkt-goal={g.key} aria-pressed={!!g.on} onClick={g.onToggle}
                   style={{ minWidth: 0, minHeight: 44, padding: 0, border: 0, background: 'transparent', cursor: 'pointer' }}>
-                  <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6, height: 36, padding: '0 11px', borderRadius: 11, boxSizing: 'border-box',
-                    background: g.on ? t.INK : D.track, color: g.on ? t.PAPER : t.INK, border: `1px solid ${g.on ? t.INK : D.border}`, fontFamily: t.DISPLAY, fontSize: 13, fontWeight: 600 }}>
-                    <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{g.label}</span>
+                  {/* A long goal ("Prenatal & postnatal") takes a second line rather than losing its end. */}
+                  <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6, minHeight: 36, padding: '7px 11px', borderRadius: 11, boxSizing: 'border-box', textAlign: 'left',
+                    background: g.on ? t.INK : D.track, color: g.on ? t.PAPER : t.INK, border: `1px solid ${g.on ? t.INK : D.border}`, fontFamily: t.DISPLAY, fontSize: 13, fontWeight: 600, lineHeight: 1.2 }}>
+                    <span style={{ minWidth: 0, overflowWrap: 'anywhere' }}>{g.label}</span>
                     <span style={{ flex: 'none', fontWeight: 650, opacity: 0.6, fontVariantNumeric: 'tabular-nums' }}>{g.count}</span>
                   </span>
                 </button>

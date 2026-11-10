@@ -236,6 +236,54 @@ test('the filters: each one on is a chip that takes it off, the button counts th
   assert.equal(f().open, false);
 });
 
+test('every goal the website has (owner: "make sure all goals are here"): the same ids and patterns, a role\'s own only', () => {
+  // The same goals, filed by the same patterns, as the website's matcher (public/newdesign/marketplace.jsx).
+  const web = fs.readFileSync(join(ROOT, 'public/newdesign/marketplace.jsx'), 'utf8');
+  const app = read('iosAppBroadsheetMarketplace.jsx');
+  const ids = (src, open) => [...src.slice(src.indexOf(open), src.indexOf('];', src.indexOf(open))).matchAll(/id: ["'](\w+)["']/g)].map((m) => m[1]);
+  const webIds = ids(web, 'const MK_GOALS = [');
+  assert.ok(webIds.length >= 21, 'the website lists its goals');
+  assert.deepEqual(ids(app, 'const BSM_GOALS = ['), webIds);
+  const rx = (src, open) => Object.fromEntries([...src.slice(src.indexOf(open), src.indexOf('};', src.indexOf(open))).matchAll(/^\s+(\w+): (\/.+\/i),$/gm)].map((m) => [m[1], m[2]]));
+  assert.deepEqual(rx(app, 'const BSM_GOAL_RX = {'), rx(web, 'const MK_GOAL_RX = {'));
+  // The categories a listing files under are the keyword table's, the list the website's test reads.
+  const cats = /const BSM_MARKETPLACE_CATEGORIES = \{([\s\S]*?)\n\};/.exec(app);
+  const table = /const BSM_CAT_KEYWORDS = \{([\s\S]*?)\n\};/.exec(app);
+  assert.ok(cats && table);
+  for (const side of ['Trainer', 'Nutritionist']) {
+    const listed = [...new RegExp(`${side}: \\[([^\\]]*)\\]`).exec(cats[1])[1].matchAll(/'([^']+)'/g)].map((m) => m[1]).sort();
+    const body = table[1].split(/\n {2}Nutritionist: \[/)[side === 'Trainer' ? 0 : 1];
+    const keyed = [...body.matchAll(/^\s+\['([^']+)', \[/gm)].map((m) => m[1]).sort();
+    assert.deepEqual(listed, keyed, side);
+  }
+  delete globalThis.ShapeAuth;
+  // Both: the six, and every other goal an example coach is filed under, each with its count.
+  const both = screen().dir().props.filters;
+  const CARDS = ['strength', 'fatloss', 'endurance', 'mobility', 'nutrition', 'general'];
+  for (const k of CARDS) assert.ok(both.goals.some((g) => g.key === k), k);
+  assert.ok(both.goals.length > CARDS.length, 'the role-specific goals show once a coach is filed under them');
+  for (const g of both.goals) {
+    if (!CARDS.includes(g.key)) assert.ok(g.count > 0, `${g.key} shows with no coach under it`);
+    assert.notEqual(g.label, g.key, `${g.key} has words`);
+  }
+  // A trainer's goals only on Trainers, a nutritionist's only on Nutritionists.
+  const NU = ['nutrition', 'weight', 'muscle', 'gut', 'plant', 'prenatal', 'mealprep', 'medical', 'longevity'];
+  const TR = ['running', 'hyrox', 'hiit', 'bodybuilding', 'functional', 'home', 'women'];
+  const trainers = screen({ initialRole: 'trainer' }).dir().props.filters;
+  assert.ok(!trainers.goals.some((g) => NU.includes(g.key)), 'a nutritionist\'s goal on Trainers');
+  const nutri = screen({ initialRole: 'nutritionist' }).dir().props.filters;
+  assert.ok(!nutri.goals.some((g) => TR.includes(g.key)), 'a trainer\'s goal on Nutritionists');
+  // A role leaves behind the goals it can't hold.
+  const s = screen();
+  const nuGoal = s.dir().props.filters.goals.find((g) => NU.includes(g.key));
+  const trGoal = s.dir().props.filters.goals.find((g) => TR.includes(g.key));
+  assert.ok(nuGoal && trGoal, 'the example roster files coaches under both kinds');
+  nuGoal.onToggle(); s.d.render();
+  s.dir().props.filters.goals.find((g) => g.key === trGoal.key).onToggle(); s.d.render();
+  s.dir().props.filters.onRole('Trainers'); s.d.render();
+  assert.deepEqual(s.dir().props.filters.applied.map((a) => a.key), [`goal:${trGoal.key}`]);
+});
+
 test('the sheet: goals with counts, a city picker, a budget per unit, how you meet, open intro; "Not listed yet" where nothing is', () => {
   delete globalThis.ShapeAuth;
   const s = screen({ initialRole: 'trainer' });

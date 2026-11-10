@@ -58,9 +58,19 @@ function bsmRoleWord(tr, isNutri) {
 // ═══════════════════════════════════════════════════════════
 // ── THE COACHES TAB'S FILTERS AND SORTS (owner, 2026-11-09; the website's, public/newdesign/marketplace.jsx) ──
 // The goals a member trains for, each found in a coach's own words (their category, specialties and
-// tags) by the website's patterns, so the two surfaces file a coach under the same goals. Sports
-// nutrition is a nutritionist's goal only; a coach none of them matches is General fitness.
-const BSM_GOALS = ['strength', 'fatloss', 'endurance', 'mobility', 'nutrition', 'general'];
+// tags) by the website's patterns (MK_GOALS / MK_GOAL_RX there), so the two surfaces file a coach under
+// the same goals. Every goal is here (owner, of the website's matcher: "make sure all goals are here
+// and this actually works"): the six `card` goals always show in the sheet, the rest once a coach of
+// the role is filed under one. `nu` goals are a nutritionist's only, `tr` goals a trainer's only; a
+// coach none of them matches is General fitness.
+const BSM_GOALS = [
+  { id: 'strength', card: true }, { id: 'fatloss', card: true }, { id: 'endurance', card: true },
+  { id: 'mobility', card: true }, { id: 'nutrition', card: true, nu: true }, { id: 'general', card: true },
+  { id: 'running', tr: true }, { id: 'hyrox', tr: true }, { id: 'hiit', tr: true }, { id: 'bodybuilding', tr: true },
+  { id: 'functional', tr: true }, { id: 'home', tr: true }, { id: 'women', tr: true },
+  { id: 'weight', nu: true }, { id: 'muscle', nu: true }, { id: 'gut', nu: true }, { id: 'plant', nu: true },
+  { id: 'prenatal', nu: true }, { id: 'mealprep', nu: true }, { id: 'medical', nu: true }, { id: 'longevity', nu: true },
+];
 const BSM_GOAL_RX = {
   strength: /strength|hypertroph|powerlift|bodybuild|barbell|olympic|weightlift|kettlebell|calisthen|physique|muscle|bulk|recomp|crossfit/i,
   fatloss: /fat|weight ?(loss|mgmt|management)|weightloss|lean|\bcut|hiit|metcon|keto|fasting|low-carb|conditioning/i,
@@ -68,7 +78,24 @@ const BSM_GOAL_RX = {
   mobility: /mobil|rehab|recover|yoga|pilates|post-op|physio|physical therap|senior|balance|posture|pelvic|postpartum|breath|flexib|return/i,
   nutrition: /sport|performance|athlete|hydration|fuel|supplement|contest/i,
   general: /home|functional|family|general|habit|meal prep|dance|boxing|combat|beginner|women|prenatal|wellness|longevity|healthspan|plant|gut|clinical|medical|cultural|budget|vegan|full body|fullbody|kids/i,
+  running: /\brun\b|running|runner|marathon|\b5k\b|\b10k\b|trail|ultra|track/i,
+  hyrox: /hyrox/i,
+  hiit: /hiit|metcon|interval|tabata/i,
+  bodybuilding: /bodybuild|physique|hypertroph/i,
+  functional: /functional|hybrid|crossfit|calisthen/i,
+  home: /at home|\bhome\b|no equipment/i,
+  women: /women|female|postpartum|pelvic/i,
+  weight: /weight|fat loss|\blean/i,
+  muscle: /muscle|bulk|mass gain/i,
+  gut: /\bgut\b|\bibs\b|digest|microbiome|functional nutrition/i,
+  plant: /plant|vegan|vegetarian/i,
+  prenatal: /prenatal|postnatal|pregnan|fertility/i,
+  mealprep: /meal prep|batch cook/i,
+  medical: /medical|clinical|condition|diabet|pcos|renal|cardiac|kidney/i,
+  longevity: /longevity|healthspan|\bag(e|)ing\b/i,
 };
+// Whether a role's coaches can be filed under a goal ('Both' holds every goal).
+const bsmGoalFits = (g, role) => !((g.nu && role === 'Trainers') || (g.tr && role === 'Nutritionists'));
 // The sorts, in the picker's order. Best match is the goal's fit, then an open intro, then the rating;
 // nothing paid ranks a coach higher.
 const BSM_SORTS = ['best', 'rated', 'price', 'years'];
@@ -160,6 +187,14 @@ function formatProviderCategory(value) {
 // Map a live provider's free-text specialty/tags → the closest marketplace
 // FILTER category, so every real coach is filterable (not just demo coaches).
 // Ordered most-specific → general; falls back to the role's base category.
+// The categories a listing is filed under, each role's: bsmFilterCategory's table below
+// (BSM_CAT_KEYWORDS) names exactly these. The website's goal matcher reads this list to prove every
+// category has a goal of its own (tests/marketplace-page.test.mjs), and tests/app-coaches-tab.test.mjs
+// holds it equal to the table.
+const BSM_MARKETPLACE_CATEGORIES = {
+  Trainer: ['Strength & Resistance', 'Cardio & Endurance', 'Pure Running', 'Hyrox', 'Mobility, Recovery & Rehab', 'Functional & Hybrid', 'Bodybuilding', 'HIIT', 'Fat Burn', 'At Home', 'Just for Women'],
+  Nutritionist: ['Sports Performance & Hydration', 'Performance Nutrition', 'Medical & Condition-Specific', 'Muscle Gain / Bulking', 'Gut Health & Functional Nutrition', 'Longevity & Healthspan', 'Weight Mgmt', 'Plant-Based', 'Prenatal', 'Meal Prep'],
+};
 const BSM_CAT_KEYWORDS = {
   Trainer: [
     ['Hyrox', ['hyrox']],
@@ -702,8 +737,8 @@ function bsmGoalsOf(c) {
   const nutri = getPublicProfileKind(c) === 'nutritionist';
   const out = new Set();
   for (const g of BSM_GOALS) {
-    if (g === 'nutrition' && !nutri) continue;
-    if (BSM_GOAL_RX[g].test(text)) out.add(g);
+    if ((g.nu && !nutri) || (g.tr && nutri)) continue;
+    if (BSM_GOAL_RX[g.id].test(text)) out.add(g.id);
   }
   if (!out.size) out.add('general');
   return out;
@@ -1059,12 +1094,29 @@ function BSMarketplaceScreen({ onBack = null, onProfile, initialRole, goChat, in
     mobility: tr('marketplace:goal.mobility', { defaultValue: 'Mobility & rehab' }),
     nutrition: tr('marketplace:goal.nutrition', { defaultValue: 'Sports nutrition' }),
     general: tr('marketplace:goal.general', { defaultValue: 'General fitness' }),
+    running: tr('marketplace:goal.running', { defaultValue: 'Running' }),
+    hyrox: tr('marketplace:goal.hyrox', { defaultValue: 'Hyrox' }),
+    hiit: tr('marketplace:goal.hiit', { defaultValue: 'HIIT' }),
+    bodybuilding: tr('marketplace:goal.bodybuilding', { defaultValue: 'Bodybuilding' }),
+    functional: tr('marketplace:goal.functional', { defaultValue: 'Functional & hybrid' }),
+    home: tr('marketplace:goal.home', { defaultValue: 'At home' }),
+    women: tr('marketplace:goal.women', { defaultValue: 'Just for women' }),
+    weight: tr('marketplace:goal.weight', { defaultValue: 'Weight management' }),
+    muscle: tr('marketplace:goal.muscle', { defaultValue: 'Muscle gain' }),
+    gut: tr('marketplace:goal.gut', { defaultValue: 'Gut health' }),
+    plant: tr('marketplace:goal.plant', { defaultValue: 'Plant-based' }),
+    prenatal: tr('marketplace:goal.prenatal', { defaultValue: 'Prenatal & postnatal' }),
+    mealprep: tr('marketplace:goal.mealprep', { defaultValue: 'Meal prep' }),
+    medical: tr('marketplace:goal.medical', { defaultValue: 'Medical & conditions' }),
+    longevity: tr('marketplace:goal.longevity', { defaultValue: 'Longevity' }),
   }[g] || g);
   const meetWord = (m) => (m === 'inperson' ? tr('marketplace:meet.inPerson', { defaultValue: 'In person' }) : m === 'remote' ? tr('marketplace:meet.remote', { defaultValue: 'Remote' }) : tr('marketplace:meet.either', { defaultValue: 'Either' }));
   const set = (patch) => setF((prev) => ({ ...prev, ...patch }));
-  // Goals a nutritionist can't be filed under drop off the sheet on Trainers (and the reverse holds:
-  // Sports nutrition is a nutritionist's only).
-  const goalKeys = BSM_GOALS.filter((g) => !(g === 'nutrition' && pill === 'Trainers'));
+  // The sheet's goals: the role's own (a nutritionist's drop off on Trainers, a trainer's on
+  // Nutritionists); the six card goals always, any other once a coach is filed under it or it is on.
+  const goalKeys = BSM_GOALS
+    .filter((g) => bsmGoalFits(g, pill) && (g.card || f.goals.includes(g.id) || count({ ...f, goals: [g.id] }) > 0))
+    .map((g) => g.id);
   const sessionRange = pill !== 'Nutritionists' ? priceRange('session') : null;
   const monthRange = pill !== 'Trainers' ? priceRange('month') : null;
   // Each filter that is on, as a chip that takes it off (the Filters button's count is how many).
@@ -1076,13 +1128,13 @@ function BSMarketplaceScreen({ onBack = null, onProfile, initialRole, goChat, in
     f.maxMonth != null ? { key: 'maxMonth', label: tr('marketplace:filters.upToMonth', { defaultValue: 'Up to ${amount}/month', amount: f.maxMonth }), onRemove: () => set({ maxMonth: null }) } : null,
     f.meet !== 'either' ? { key: 'meet', label: meetWord(f.meet), onRemove: () => set({ meet: 'either' }) } : null,
   ].filter(Boolean);
-  // A role leaves behind the filters it can't hold: Sports nutrition on Trainers, a unit's budget the
+  // A role leaves behind the filters it can't hold: another role's goals, a unit's budget the
   // role is not priced in, a city none of its coaches is in.
   const pickRole = (r) => {
     setPill(r);
     setF((prev) => ({
       ...prev,
-      goals: r === 'Trainers' ? prev.goals.filter((g) => g !== 'nutrition') : prev.goals,
+      goals: prev.goals.filter((id) => bsmGoalFits(BSM_GOALS.find((g) => g.id === id) || {}, r)),
       maxSession: r === 'Nutritionists' ? null : prev.maxSession,
       maxMonth: r === 'Trainers' ? null : prev.maxMonth,
     }));
