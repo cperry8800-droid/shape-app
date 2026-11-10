@@ -136,7 +136,7 @@ test('a Settings page opened straight from elsewhere goes back there; reached in
     assert.match(settings, new RegExp(`onBack=\\{backFrom\\('${page}', `), page);
   }
   // Every page it can open on is announced, with whether it was landed on.
-  assert.match(settings, /const navSub = editing \? 'edit-profile' : showIntegrations \? 'integrations' : showPricing \? 'pricing'\n\s+: showNotifications \? 'notifications' : showSessions \? 'sessions' : showHabits \? 'habits'\n\s+: showBusiness \? 'business' : detail === 'practice' \? 'practice'\n[^\n]*\n\s+: showLibrary \? 'library' : showHours \? 'hours' : '';/);
+  assert.match(settings, /const navSub = editing \? 'edit-profile' : showIntegrations \? 'integrations' : showPricing \? 'pricing'\n\s+: showNotifications \? 'notifications' : showSessions \? 'sessions' : showHabits \? 'habits'\n(?:\s*\/\/[^\n]*\n)*\s+: showBusiness \? 'business' : showLibrary \? 'library' : showHours \? 'hours'\n\s+: detail === 'practice' \? 'practice' : '';/);
   assert.match(settings, /window\.ShapeNav\?\.announce\?\.\(navLanded \? \{ sub: navSub, landed: true \} : \{ sub: navSub \}\);/);
   // The shells: a jump onto a page lands; the gear and a Back to Settings' own page do not.
   assert.match(CLIENT, /const goSettings = \(\) => \{ if \(!showSettings\) navPush\(\); setSettingsStart\(''\); setSettingsLanded\(false\); setShowSettings\(true\); \};/);
@@ -211,7 +211,8 @@ test('Settings\' Library and Your hours come back to themselves after their jump
   const settings = between(CLIENT, 'function BSSettings({', '\n}\n');
   assert.match(settings, /const \[showHours, setShowHours\] = useStateBSC\(initialPage === 'hours'\);/);
   assert.match(settings, /const \[showLibrary, setShowLibrary\] = useStateBSC\(initialPage === 'library'\);/);
-  assert.match(settings, /: showLibrary \? 'library' : showHours \? 'hours' : '';/);
+  // Named before the pane it sits in: Your hours is open over Your practice (Codex P2 on #2683).
+  assert.match(settings, /: showBusiness \? 'business' : showLibrary \? 'library' : showHours \? 'hours'\n\s+: detail === 'practice' \? 'practice' : '';/);
   // Each reopens over the pane it sits in, so its ← lands there: Library in More, Your hours in Your practice.
   assert.match(settings, /useStateBSC\(initialPage === 'practice' \|\| initialPage === 'hours' \? 'practice' : initialPage === 'library' \? 'more' : ''\);/);
   // Their jumps push first, so the announced page is what comes back.

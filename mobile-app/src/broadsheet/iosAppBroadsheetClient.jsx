@@ -33550,9 +33550,10 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   // whether it was landed on, so its ← still leaves Settings after that Back (2026-11-10).
   const navSub = editing ? 'edit-profile' : showIntegrations ? 'integrations' : showPricing ? 'pricing'
     : showNotifications ? 'notifications' : showSessions ? 'sessions' : showHabits ? 'habits'
-    : showBusiness ? 'business' : detail === 'practice' ? 'practice'
-    // Library (Browse coaches) and Your hours (Open calendar) jump out too, and come back to themselves.
-    : showLibrary ? 'library' : showHours ? 'hours' : '';
+    // Library (Browse coaches) and Your hours (Open calendar) jump out too, and come back to themselves. A
+    // page is named before the pane it sits in: Your hours is open over Your practice (Codex P2 on #2683).
+    : showBusiness ? 'business' : showLibrary ? 'library' : showHours ? 'hours'
+    : detail === 'practice' ? 'practice' : '';
   const navLanded = !!navSub && navSub === landedOn;
   React.useEffect(() => {
     window.ShapeNav?.announce?.(navLanded ? { sub: navSub, landed: true } : { sub: navSub });
