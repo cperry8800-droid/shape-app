@@ -34,6 +34,7 @@ import { bsUserGoalsRevHook } from '../services/userGoalsRefresh.mjs';
 const useBSUserGoalsRev = bsUserGoalsRevHook(React);
 const BSM2_LOOK_KINDS = ['profile_custom'];
 import { bsCoachCardLook } from '../services/coachCardLook.mjs';
+import { bsCompareToggle, bsCompareMeets, BS_COMPARE_MAX } from '../services/coachCompare.mjs';
 
 // The i18n translator for this module. Mirrors client.jsx's useShapeTr —
 // self-contained on the window globals (ShapeI18n/ShapeLocale), so this module
@@ -1018,6 +1019,10 @@ function BSMarketplaceScreen({ onBack = null, onProfile, initialRole, goChat, in
   const [query, setQuery] = useStateBSM2('');
   const [filtersOpen, setFiltersOpen] = useStateBSM2(false);
   const [open, setOpen] = useStateBSM2(null);
+  // Compare (owner, 2026-11-11: "yes i want compare on app"): up to three coaches picked from the rows, kept
+  // while the list is filtered or a coach is opened, and the side-by-side sheet over the page.
+  const [cmpKeys, setCmpKeys] = useStateBSM2([]);
+  const [cmpOpen, setCmpOpen] = useStateBSM2(false);
   // The tapped coach's 1-based position in the list (LISTING Nº) — null from the
   // picks and the plan rail, which aren't numbered rows.
   const [openNo, setOpenNo] = useStateBSM2(null);
@@ -1284,8 +1289,18 @@ function BSMarketplaceScreen({ onBack = null, onProfile, initialRole, goChat, in
       look: c.provider_user_id && !bsmIsDemoCoach(c) ? bsCoachCardLook(cardByUser[c.provider_user_id], getPublicProfileKind(c) === 'nutritionist' ? 'nutritionist' : 'trainer', c.provider_user_id) : null,
       onOpen: () => { setOpenNo(n); setOpenIntro(false); setOpen(c); },
       onIntro: () => { setOpenNo(n); setOpenIntro(true); setOpen(c); },
+      // What Compare reads: the years, how they meet (every coach remote: coachCompare.mjs), the city,
+      // the credentials, and whether a free intro is open (not for a coach full and taking none).
+      years: Number.isFinite(Number(c.years)) && Number(c.years) > 0 ? Number(c.years) : null,
+      meet: bsCompareMeets(c.format),
+      city: bsmCityOf(c),
+      creds: getCoachCertifications(c).join(' · ') || null,
+      introOpen: !(atCapacity && !(times && times.length)),
+      compare: { on: cmpKeys.includes(c.id), can: cmpKeys.includes(c.id) || cmpKeys.length < BS_COMPARE_MAX, onToggle: () => setCmpKeys((k) => bsCompareToggle(k, c.id)) },
     };
   };
+  // The coaches picked to compare, in the order picked, from everyone (a filter that hides one keeps it).
+  const cmpCoaches = cmpKeys.map((k) => everyone.find((c) => c.id === k)).filter(Boolean);
   // Editors' picks: the listings Shape features (an example roster's best rated, labelled Example),
   // in the role picked. Nothing paid puts a coach here.
   const inRole = (c) => bsmPass(c, BSM_FILTERS0, pill, '', now);
@@ -1351,7 +1366,14 @@ function BSMarketplaceScreen({ onBack = null, onProfile, initialRole, goChat, in
       sort={sort} sorts={BSM_SORTS} onSort={setSort}
       planTab={planTab} onPlanTab={setPlanTab} plans={tabPlans}
       // The application door, on the role picked (a trainer's on Both).
-      onApply={() => setApplyRole(pill === 'Nutritionists' ? 'nutritionist' : 'trainer')} />
+      onApply={() => setApplyRole(pill === 'Nutritionists' ? 'nutritionist' : 'trainer')}
+      compare={{
+        cards: cmpCoaches.map((c) => { const card = mktDirCard(c); return { ...card, onOpen: () => { setCmpOpen(false); card.onOpen(); }, onIntro: () => { setCmpOpen(false); card.onIntro(); } }; }),
+        open: cmpOpen && cmpCoaches.length > 1,
+        onOpen: () => setCmpOpen(true), onClose: () => setCmpOpen(false),
+        onRemove: (key) => setCmpKeys((k) => k.filter((x) => x !== key)),
+        onClear: () => { setCmpKeys([]); setCmpOpen(false); },
+      }} />
   );
 }
 
