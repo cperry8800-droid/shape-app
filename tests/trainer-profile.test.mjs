@@ -647,11 +647,13 @@ test('signed out, the trainer\'s own page is the new profile with sample content
     assert.deepEqual(summitParts(), ['coaching', 'programs', 'workouts']);
     assert.match(summitPart('coaching').textContent, /Members start working with you from here/);
     // The sample's work (owner, 2026-11-04): its two programs and every program day and video as a workout;
-    // no floor plan, and no coaching card (the coaching is the storefront, a member's).
+    // no floor plan. It is the coach's own page, so their coaching card stays, under the workouts (the
+    // storefront is a member's).
     assert.deepEqual([...summitPart('programs').querySelectorAll('[data-program]')].map((p) => (p.textContent.match(/Strong in 12|Barbell basics/) || [''])[0]), ['Strong in 12', 'Barbell basics']);
     assert.match(summitPart('programs').textContent, /12\s*Weeks.*Strong in 12.*6\s*Weeks.*Barbell basics/, 'each with its weeks');
     assert.equal(summitPart('workouts').querySelectorAll('[data-workout]').length, 7, 'five program days and two videos');
-    assert.ok(!document.querySelector('[data-coaching-card]'));
+    assert.ok(summitPart('workouts').querySelector('[data-coaching-card]'), 'their own coaching card');
+    assert.equal(document.querySelectorAll('[data-coaching-card]').length, 1, 'once');
     assert.equal(document.querySelectorAll('[data-station]').length, 0, 'no floor plan');
     assert.ok(camp('replays'), 'the replays camp');
     const replays = [...document.querySelectorAll('[data-replay]')];

@@ -906,7 +906,9 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
   const posts = useCpwPosts(live ? uid : null, isSelf);
   const postRows = posts.rows;
   const cards = React.useMemo(() => postRows.map((r) => K.bsCoachCardFromRow(r)).filter((c) => c && (isSelf || (typeof lvFeedVisible === "function" ? lvFeedVisible(c.vis, false) : true))), [postRows, isSelf]);
-  const programs = nutri ? [] : sample ? (sample.programs || []) : K.bsCoachPrograms(ownPlans);
+  // Every program the read returned (BS_WORK_SALE_MAX), for the Summit sells them all; the Studio reads
+  // the first BS_WORK_PROGRAMS_MAX of them.
+  const programs = nutri ? [] : sample ? (sample.programs || []) : K.bsCoachPrograms(ownPlans, K.BS_WORK_SALE_MAX);
   const workouts = nutri ? [] : sample ? (sample.workouts || []) : K.bsWorkoutVideos(cards);
   const replays = nutri ? [] : sample ? (sample.replays || []) : cards.filter((c) => c.breakdown && Array.isArray(c.breakdown.rows) && c.breakdown.rows.length && !c.video);
   const plates = !nutri ? [] : sample ? (sample.plates || []) : cards.filter((c) => c.meal);
@@ -1032,7 +1034,10 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
   const hasRange = nutri ? mealPlans.length > 0 || (live && salePlans.state === "error") : (!!(studioModel && (studioModel.programs.length || studioModel.workouts.length)) || workFailed || studioCoaching);
   // Its Programs (Meal plans) head and cards: only with plans to show, a read of them that failed, or to the coach
   // saying where they go; a coach with workouts and no programs has no empty "Programs." over the workouts.
-  const summitPlans = nutri || isSelf || workFailed || !!(studioModel && studioModel.programs.length);
+  // The Summit's programs: every one the coach sells, the Studio's rows first (bsSalePrograms), so none
+  // past the Studio's twelve goes unsold now that the storefront's price list is gone.
+  const salePrograms = studioModel ? K.bsSalePrograms(studioModel, programs) : [];
+  const summitPlans = nutri || isSelf || workFailed || salePrograms.length > 0;
   const hasWords = !!(quotes.length || revLocked || reviews.failed || reviews.count > 0);
   // The camps, the app's list in its order (PARITY §1): [key, kind, the name on the tab and the spine].
   const campList = isPrivate ? [["words", "Words", "Reviews"]] : [
@@ -1316,7 +1321,7 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
             {summitPlans ? <div data-summit-head="" style={{ paddingTop: 10, borderTop: `2px solid ${INK}`, marginBottom: 16 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12 }}>
                 <h3 style={{ margin: 0, fontFamily: CPW_DISPLAY, fontWeight: 600, fontSize: 25, lineHeight: "28px", letterSpacing: "-0.01em", color: INK }}>{nutri ? "Meal plans" : "Programs"}<span style={{ color: ACC }}>.</span></h3>
-                {(nutri ? mealPlans.length : (studioModel ? studioModel.programs.length : 0)) ? <span style={{ fontFamily: CPW_DISPLAY, fontSize: 25, lineHeight: "28px", color: ink(0.6), fontVariantNumeric: "tabular-nums" }}>{nutri ? mealPlans.length : studioModel.programs.length}</span> : null}
+                {(nutri ? mealPlans.length : salePrograms.length) ? <span style={{ fontFamily: CPW_DISPLAY, fontSize: 25, lineHeight: "28px", color: ink(0.6), fontVariantNumeric: "tabular-nums" }}>{nutri ? mealPlans.length : salePrograms.length}</span> : null}
               </div>
               <p style={{ margin: "3px 0 0", fontSize: 13.5, lineHeight: "19px", color: ink(0.78) }}>{nutri ? "Open a plan to see a day of its meals." : "Open a program to see its weeks and its first week."}</p>
             </div> : null}
@@ -1325,7 +1330,7 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
                 failed={live && salePlans.state === "error"} onRetry={salePlans.retry} onOpen={(pl) => { if (pl) setSheet({ kind: "mealPlan", pl }); }} sample={!!sample} startLabel="Start" />
             ) : (
               <React.Fragment>
-                {summitPlans ? <CpwRange T={T} items={studioModel ? studioModel.programs.map((p) => ({ ...p, tag: String((p.pr && p.pr.plan && p.pr.plan.category) || "Program").replace(/_/g, " "), poster: p.pr ? p.pr.poster : null })) : []}
+                {summitPlans ? <CpwRange T={T} items={salePrograms.map((p) => ({ ...p, tag: String((p.pr && p.pr.plan && p.pr.plan.category) || "Program").replace(/_/g, " "), poster: p.pr ? p.pr.poster : null }))}
                   failed={workFailed} failedWhat={isSelf ? "Couldn't read all of your work just now." : `Couldn't read all of ${first}'s work just now.`} onRetry={retryWork}
                   onOpen={(pr) => { if (pr) setSheet({ kind: "program", pr }); }} sample={!!sample} sells={listed} /> : null}
                 {/* The workouts; the monthly coaching is the storefront's, above (a sample's, the card after them). */}
@@ -1875,7 +1880,7 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
       ) : null}
       {sheet && sheet.kind === "program" ? (
         <CpwProgramSheet T={T} pr={sheet.pr} sells={listed} onClose={() => setSheet(null)} onWork={() => { setSheet(null); openWork(); }} onAsk={isSelf ? null : () => { setSheet(null); message(); }}
-          item={studioModel ? studioModel.programs.find((x) => x.id === String(sheet.pr.id)) || null : null}
+          item={salePrograms.find((x) => x.id === String(sheet.pr.id)) || null}
           days={studioModel ? studioModel.workouts.filter((w) => w.kind === "day" && w.program && w.program.id === String(sheet.pr.id)).sort((a, b) => a.key.localeCompare(b.key, "en", { numeric: true })) : []}
           onBuy={() => { const pl = sheet.pr.plan || {}; lvBuyPlan({ name: pl.name, price: sheet.pr.price, planId: pl.id, providerId: pl.provider_id || pl.providerId || providerId, providerRole: pl.provider_role || pl.providerRole || role }); }} />
       ) : null}

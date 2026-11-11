@@ -23,7 +23,7 @@ export default {
     { name: 'work: a plain-http video plays', file: WORK,
       find: "const httpsUrl = (u) => typeof u === 'string' && u.length <= 2048 && /^https:\\/\\/[^\\s]+$/i.test(u);", replace: "const httpsUrl = (u) => typeof u === 'string' && u.length <= 2048 && /^https?:\\/\\/[^\\s]+$/i.test(u);" },
     { name: 'work: no cap on programs', file: WORK,
-      find: "    if (out.length >= BS_WORK_PROGRAMS_MAX) break;\n", replace: "" },
+      find: "    if (out.length >= cap) break;\n", replace: "" },
     { name: 'work: no weeks from the builder', file: WORK,
       find: "weeks: preview.weeks || (isObj(pl.detail) && Number.isInteger(pl.detail.weeks) && pl.detail.weeks > 0 && pl.detail.weeks <= 52 ? pl.detail.weeks : null),", replace: "weeks: preview.weeks || null," },
     { name: 'work: a price with no $', file: WORK,

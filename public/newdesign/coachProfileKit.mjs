@@ -17,7 +17,7 @@
 export {
   STUDIO_KIT, STUDIO_WORDS, bsStudioSvg, bsStudioRoom, bsStudioSpot, bsStudioDrawOrder, bsStudioFrame, BS_STUDIO_W, BS_STUDIO_H,
 } from './studioKit.mjs';
-export { bsCoachPrograms, bsWorkoutVideos, bsStudioWork, bsStudioModel, bsWorkPaid, bsWorkPrice, bsPlateNoteDays, energySplit } from './coachWork.mjs';
+export { bsCoachPrograms, bsSalePrograms, BS_WORK_SALE_MAX, bsWorkoutVideos, bsStudioWork, bsStudioModel, bsWorkPaid, bsWorkPrice, bsPlateNoteDays, energySplit } from './coachWork.mjs';
 export { BS_COACH_STATS, bsCoachStatFigures, bsCoachHeadline } from './coachWork.mjs';
 // A plan's "what's inside": the app's preview model (the same parsers delivery uses; a meal plan's
 // public read carries two meals and the counts, never the menus).

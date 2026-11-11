@@ -610,6 +610,35 @@ test('the Summit: coaching, then the programs or meal plans as cards, then the w
   await m.unmount();
 });
 
+test('the Summit sells every program the coach publishes, past the Studio\'s twelve; on their own page the coach keeps their coaching card', async () => {
+  // The price list sold every plan the read returned; its cards must too (coachWork.mjs's BS_WORK_SALE_MAX).
+  const many = Array.from({ length: 15 }, (_, i) => ({ ...PLAN, id: `p${i + 1}`, name: `Block ${i + 1}` }));
+  fullCoach({ salePlans: many });
+  let m = await mount(page());
+  const programs = camp('summit').querySelector('[data-summit-part="programs"]');
+  assert.deepEqual([...programs.querySelectorAll('[data-climb-program]')].map((c) => c.getAttribute('data-climb-program')), many.map((p) => p.id), 'all fifteen, in their order');
+  await click(programs.querySelector('[data-climb-program="p15"] [data-climb-start]'));
+  assert.equal(world.bought && world.bought.plan.id, 'p15', 'the fifteenth buys');
+  await click(programs.querySelector('[data-climb-program="p14"] [data-program-open]'));
+  assert.match($('[data-program-sheet]').textContent, /Block 14/, 'and opens its sheet');
+  await m.unmount();
+  // Their own page: the storefront draws nothing for the coach, so their coaching card (its price) stays,
+  // under the workouts; with no monthly price the Summit's line says so, and there is no card.
+  fullCoach({ me: 'u-maya' });
+  m = await mount(page({ isSelf: true }));
+  const card = camp('summit').querySelector('[data-summit-part="workouts"] [data-coaching-card]');
+  assert.ok(card, 'their coaching card');
+  assert.match(card.textContent, /\$180/);
+  assert.ok(!camp('summit').querySelector('[data-summit-no-prices]'));
+  await m.unmount();
+  // (With no plan to pay for either: a paid plan is a price, and the line stays away.)
+  fullCoach({ me: 'u-maya', salePlans: [], provider: { ...world.provider, price: 0 } });
+  m = await mount(page({ isSelf: true }));
+  assert.ok(!$('[data-coaching-card]') && !$('[data-studio-coaching]'), 'no card, and no second line to say so');
+  assert.match(camp('summit').querySelector('[data-summit-no-prices]').textContent, /once your listing has a monthly price/);
+  await m.unmount();
+});
+
 // ── The coach's accent: the drawing, never the words ─────────────────────────────────────────
 const colorOf = (hex) => { const d = document.createElement('div'); d.style.color = hex; return d.style.color; };
 test("the accent the coach picked paints the drawing, the labels and the tabs at its readable step; Book keeps the role's rust", async () => {

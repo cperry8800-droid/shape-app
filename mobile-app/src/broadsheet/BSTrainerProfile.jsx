@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom';
 import { bsProfileLook, bsLookPosition, bsProfileStudio, bsProfileCover, bsProfileKitchen, bsProfileAbout, bsProfilePrompts, bsProfileFocus, bsProfilePicks, bsProfileDescriptions, bsProfileProgramFor, bsProfileLinkable, bsProfileLinkHref, bsProfileLinkText, bsPromptLabel, BS_PROFILE_LINK_KEYS, BS_PROFILE_LINK_GLYPHS } from '../services/profileCustom.mjs';
 import { bsProfileFilm, bsProfileBizCard, bsProfilePinnedReviews, bsProfilePinned, bsProfileSong, bsSpotifyEmbed, bsPinKindLabel, bsCleanText, BS_FILM_CAPTION_MAX, BS_PINNED_REVIEWS_MAX } from '../services/profileCustom.mjs';
 import { STUDIO_WORDS } from '../services/studioKit.mjs';
-import { bsCoachPrograms, bsWorkoutVideos, bsStudioModel, bsWorkPaid, bsWorkPrice, bsPlateNoteDays, energySplit, bsCoachStatFigures, bsCoachHeadline } from '../services/coachWork.mjs';
+import { bsCoachPrograms, bsSalePrograms, BS_WORK_SALE_MAX, bsWorkoutVideos, bsStudioModel, bsWorkPaid, bsWorkPrice, bsPlateNoteDays, energySplit, bsCoachStatFigures, bsCoachHeadline } from '../services/coachWork.mjs';
 import { BSStudioWorkTab, bsStudioHeat, bsFocusWordLabel, bsStudioWeekday, bsStudioForLabel } from './BSCoachStudio.jsx';
 import { createMobileVideoComponents } from '../services/videoComponents.mjs';
 import { bsProjectAvailability, bsIsZone, bsDayStartInZone } from '../services/coachAvailability.mjs';
@@ -580,7 +580,9 @@ function TrainerPage({ theme = null, person, role = 'trainer', onBack, onMessage
   // Their programs (the public preview of each), the workouts they posted on video, and the sessions
   // they logged without one (a session with a video is a workout, and keeps its sets).
   const postCards = nutri || demo ? [] : posts.map((p) => (W.bsProfileCardFromPost ? W.bsProfileCardFromPost(p, 'Trainer') : null)).filter(Boolean);
-  const programs = nutri ? [] : demo ? (demo.programs || []) : bsCoachPrograms(salePlans);
+  // Every program the read returned (BS_WORK_SALE_MAX), for the Summit sells them all; the Studio
+  // reads the first BS_WORK_PROGRAMS_MAX of them.
+  const programs = nutri ? [] : demo ? (demo.programs || []) : bsCoachPrograms(salePlans, BS_WORK_SALE_MAX);
   // This profile's own plans: an account that coaches as both a trainer and a nutritionist publishes
   // under each, and each row carries its role (a meal plan is a nutritionist's), so the trainer's
   // sheet never lists or checks out a nutrition plan (Codex P2 on b76e074).
@@ -862,7 +864,10 @@ function TrainerPage({ theme = null, person, role = 'trainer', onBack, onMessage
   const winsShown = isPrivate || demo || (reviews && reviews.locked) ? [] : wins;
   // Words leaves out what Proof shows; with no Proof (a sample), the pinned ones stay in Words.
   const quotesRest = winsShown.length ? quotes.filter((r) => !r.pinned) : quotes;
-  const rangePrograms = !nutri && studioModel ? studioModel.programs.map((p) => ({ key: p.key, id: p.id, name: p.name, price: p.pr && p.pr.sample ? null : p.price, paid: p.paid && !(p.pr && p.pr.sample), weeks: p.weeks, perWeek: p.perWeek, desc: p.desc, forSaid: bsStudioForLabel(tr, p.forWho), poster: p.pr ? p.pr.poster : null, pr: p.pr })) : [];
+  // The Summit's programs: every one the coach sells, the Studio's rows first (bsSalePrograms), so none
+  // past the Studio's twelve goes unsold now that the price list is gone.
+  const salePrograms = !nutri && studioModel ? bsSalePrograms(studioModel, programs) : [];
+  const rangePrograms = salePrograms.map((p) => ({ key: p.key, id: p.id, name: p.name, price: p.pr && p.pr.sample ? null : p.price, paid: p.paid && !(p.pr && p.pr.sample), weeks: p.weeks, perWeek: p.perWeek, desc: p.desc, forSaid: bsStudioForLabel(tr, p.forWho), poster: p.pr ? p.pr.poster : null, pr: p.pr }));
   // A meal plan's Start buys it: a real, paid plan with the listing that sells it, never a sample's, and
   // only on a live listing, as the Work-with sheet sold them (an unfinished or suspended listing sells
   // nothing here: Codex P1 on 196314b).
@@ -897,7 +902,7 @@ function TrainerPage({ theme = null, person, role = 'trainer', onBack, onMessage
   //   programs  each program as its card (See the climb: its sheet and preview; Start: its checkout), or
   //             a nutritionist's meal plans (Start: the storefront's checkout, for a real, paid plan).
   //   workouts  a trainer's workouts, the studio's (BSCoachStudio.jsx) with no coaching card: the
-  //             coaching is the first part.
+  //             coaching is the first part. On the coach's own page their coaching card stays here.
   // On the coach's own page, the first part is the line for what members do here; the programs and the
   // workouts say what to add.
   const coachingDesc = (!nutri && descs && typeof descs.coaching === 'string' && descs.coaching) || '';
@@ -942,9 +947,12 @@ function TrainerPage({ theme = null, person, role = 'trainer', onBack, onMessage
           : plansError || (plansUnread ? null : <div style={{ padding: '14px 18px 0 14px' }}><BSClimbEmpty text={tr('profile:trainer.programsEmptySelf', { defaultValue: 'Publish a program and it shows here with its preview video, for members to buy.' })} /></div>)}
       </div>
     ) : null);
+  // The coach's own page keeps their coaching card (the price, what it includes, their line) under the
+  // workouts: the storefront above draws nothing for the coach, and with no price the line above says so.
+  const selfCoaching = isSelf && !!(studioModel && studioModel.coaching);
   const summitWorkouts = studioModel && (isSelf || studioModel.workouts.length) ? (
     <div data-summit-part="workouts">
-      <BSStudioWorkTab t={t} tr={tr} locale={locale} ACC={ACC} ink={ink} DISPLAY={DISPLAY} MONO={MONO} gutter={14} stickyTop={pinnedTop + 47} showPrograms={false} showCoaching={false}
+      <BSStudioWorkTab t={t} tr={tr} locale={locale} ACC={ACC} ink={ink} DISPLAY={DISPLAY} MONO={MONO} gutter={14} stickyTop={pinnedTop + 47} showPrograms={false} showCoaching={selfCoaching}
         model={studioModel} first={first} isSelf={isSelf} heat={bsStudioHeat(t, 'teal', ACC)} hasMessage={hasMessage}
         onProgram={(pr) => { if (pr) setSheet({ kind: 'program', pr }); }} onVideo={(v) => { if (v) setSheet({ kind: 'replay', r: v, i: 0 }); }}
         onWork={toSummit} onMessage={() => onMessage && onMessage(person)}
@@ -1164,8 +1172,8 @@ function TrainerPage({ theme = null, person, role = 'trainer', onBack, onMessage
           onClose={() => setSheet(null)} />
       ) : null}
       {sheet && sheet.kind === 'program' ? (() => {
-        const item = studioModel ? studioModel.programs.find((x) => x.id === String(sheet.pr.id)) || null : null;
-        const at = studioModel ? studioModel.programs.findIndex((x) => x.id === String(sheet.pr.id)) : -1;
+        const item = salePrograms.find((x) => x.id === String(sheet.pr.id)) || null;
+        const at = salePrograms.findIndex((x) => x.id === String(sheet.pr.id));
         return (
           <BSClimbProgramSheet pr={sheet.pr} nutri={nutri} first={first} isSelf={isSelf} color={at >= 0 ? CLIMB_PEAK_COLORS[at % CLIMB_PEAK_COLORS.length] : null}
             item={item ? { desc: item.desc, forSaid: bsStudioForLabel(tr, item.forWho) } : null}

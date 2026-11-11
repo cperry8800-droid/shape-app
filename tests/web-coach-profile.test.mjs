@@ -318,6 +318,26 @@ test('Subscribe goes through the one checkout path, with the code typed before t
   await p.unmount();
 });
 
+test('the Summit sells every program the coach publishes, past the Studio\'s twelve', async () => {
+  // The storefront's price list sold every plan the read returned; the Summit's cards must too.
+  WIDE = true;
+  const many = Array.from({ length: 15 }, (_, i) => ({ ...PLANS[0], id: `p${i + 1}`, name: `Block ${i + 1}` }));
+  const calls = backend({ plans: () => ({ data: many, error: null }) });
+  const p = await mount(LIVE);
+  const summit = document.querySelector('[data-camp="summit"]');
+  const cards = [...summit.querySelectorAll('[data-summit-range] [data-program]')];
+  assert.equal(cards.length, 15, 'all fifteen');
+  assert.match(cards[14].textContent, /Block 15/, 'in their order');
+  assert.match(summit.querySelector('[data-summit-head]').textContent, /15/, 'and counted');
+  await React.act(async () => cards[14].querySelector('[data-program-open]').click());
+  assert.match(document.querySelector('[data-program-sheet]').textContent, /Block 15/);
+  await React.act(async () => document.querySelector('[data-program-sheet] [data-program-buy]').click());
+  await settle();
+  const post = calls.find((c) => c.url === '/api/stripe/checkout-session');
+  assert.equal(post && post.body.item.planId, 'p15', 'the fifteenth buys');
+  await p.unmount();
+});
+
 test('a plan read that fails says so, with Try again, and never reads as "no plans"', async () => {
   WIDE = true;
   let fail = true; let reads = 0;
