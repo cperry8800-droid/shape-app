@@ -1,4 +1,5 @@
 import { BS_PREF_OPTIONS, bsPrefOptionLabel, bsPrefOptionToken } from './prefOptions.mjs';
+import { BS_PROFILE_CUSTOM_KIND, bsProfileCustomWrite } from './profileCustom.mjs';
 
 // Website names map to the app's existing account documents. An explicit empty
 // value wins over legacy data, so clearing on either surface stays cleared.
@@ -63,16 +64,30 @@ export async function loadSettings(db) {
   return {userId,profile:projectSettings(legacy,docs)};
 }
 const lanes=new WeakMap();
+// One document written with `apply(doc)` over `doc`, the copy just read. The profile doc is written by
+// four other editors too, so its write is compare-and-set on its rev (profileCustom.mjs
+// bsProfileCustomWrite): a save elsewhere since the read makes it read again and apply the same
+// change to that copy. Every other kind keeps the account-bound upsert. Resolves the doc saved.
+async function writeDoc(db,kind,doc,apply,expectedUserId,failMsg) {
+  if(kind===BS_PROFILE_CUSTOM_KIND) {
+    const res=await bsProfileCustomWrite(db,expectedUserId,apply,{stored:doc});
+    if(res.reason==='account-changed') throw new Error('Your account changed. Reload Settings before editing.');
+    if(!res.ok) throw new Error(res.error?.message || failMsg);
+    return res.doc;
+  }
+  const next=apply(doc);
+  const result=await db.saveUserGoals(kind,next,{expectedUserId});
+  if(!result || result.error)throw new Error(result?.error?.message || failMsg);
+  return next;
+}
 export function saveAccountDocPatch(db,kind,patch,expectedUserId) {
   const work=async()=>{
     if(!expectedUserId)throw new Error('Sign in before saving.');
     await owner(db,expectedUserId);
-    const doc=await db.getUserGoals(kind);
+    const doc=await db.getUserGoals(kind,{expectedUserId});
     if(doc==null)throw new Error('Could not read your latest settings. Please retry.');
     await owner(db,expectedUserId);
-    const next={...doc,...patch};
-    const result=await db.saveUserGoals(kind,next,{expectedUserId});
-    if(!result || result.error)throw new Error(result?.error?.message || 'Could not save. Please retry.');
+    const next=await writeDoc(db,kind,doc,(d)=>({...d,...patch}),expectedUserId,'Could not save. Please retry.');
     await owner(db,expectedUserId);
     return next;
   };
@@ -101,18 +116,20 @@ export function saveSettingsPatch(db,patch,expectedUserId) {
     // All reads must succeed before any writes. Only edited fields are merged.
     const docs=new Map();
     for(const kind of groups.keys()) {
-      const doc=await db.getUserGoals(kind);
+      const doc=await db.getUserGoals(kind,{expectedUserId});
       if(doc==null)throw new Error('Could not read your latest settings. Nothing was saved; please retry.');
       docs.set(kind,doc);
     }
     await owner(db,expectedUserId);
     for(const [kind,edits] of groups) {
-      const next={...docs.get(kind)};
-      for(const {key,nested,value} of edits) {
-        if(nested) next[nested]={...(next[nested]||{}),[key]:value}; else next[key]=value;
-      }
-      const result=await db.saveUserGoals(kind,next,{expectedUserId});
-      if(!result || result.error) throw new Error(result?.error?.message||'Could not save your settings. Please retry.');
+      const apply=(doc)=>{
+        const out={...doc};
+        for(const {key,nested,value} of edits) {
+          if(nested) out[nested]={...(out[nested]||{}),[key]:value}; else out[key]=value;
+        }
+        return out;
+      };
+      const next=await writeDoc(db,kind,docs.get(kind),apply,expectedUserId,'Could not save your settings. Please retry.');
       if(kind==='client_identity' && edits.some(e=>e.key==='name')) {
         await owner(db,expectedUserId);
         const mirrored=await db.client.from('profiles').update({full_name:next.name}).eq('id',expectedUserId);

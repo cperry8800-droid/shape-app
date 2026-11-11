@@ -26,4 +26,5 @@ export {
   BS_FOCUS_MAX, BS_FOCUS_WORD_MAX, BS_FOCUS_PRESETS, BS_PICKS_MAX, BS_DESC_MAX, BS_DESCS_MAX, BS_FOR_WORDS_MAX, BS_FOR_PRESETS,
   bsProfileFocus, bsProfilePicks, bsProfileDescriptions, bsProfileProgramFor,
   BS_PUBLIC_STATS, bsProfilePublicStats,
+  BS_PROFILE_CUSTOM_KIND, BS_PROFILE_CAS_TRIES, bsProfileRev, bsProfileRevToken, bsProfileCustomWrite,
 } from '../../../public/newdesign/profileCustom.mjs';

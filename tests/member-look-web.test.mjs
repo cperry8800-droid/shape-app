@@ -77,6 +77,8 @@ function backend() {
   const writes = [];
   // The save reads the doc as stored first (it merges onto it): here, the doc the editor opened with.
   window.shapeDb = { getUserGoals: async (kind) => (kind === 'profile_custom' ? JSON.parse(JSON.stringify(opened)) : null),
+    // The profile doc is written compare-and-set on its rev (profileCustom.mjs bsProfileCustomWrite).
+    saveUserGoalsIfRev: async (kind, data) => { writes.push({ user_id: 'u1', kind, data }); return { ok: true }; },
     client: { auth: { getUser: async () => ({ data: { user: { id: 'u1' } } }) }, from: () => ({ upsert: async (row) => { writes.push(row); return {}; } }) } };
   return writes;
 }

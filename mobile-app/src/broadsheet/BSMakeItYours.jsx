@@ -11,7 +11,7 @@ import {
   BS_FILM_CAPTION_MAX, BS_BIZ_NAME_MAX, BS_BIZ_WHERE_MAX, BS_BIZ_HOURS_MAX, BS_BIZ_HANDLE_MAX, BS_PINNED_REVIEWS_MAX,
   BS_PIN_TITLE_MAX, BS_PIN_NOTE_MAX, BS_PIN_METRIC_MAX, BS_SONG_LABEL_MAX, BS_HERO_STATS_MAX, BS_COACH_FILM_MAX_MB, BS_PIN_KINDS,
   bsProfileFilm, bsProfileBizCard, bsProfilePinnedReviews, bsProfilePinned, bsProfileSong, bsSpotifyEmbed, bsPinKindLabel,
-  BS_PUBLIC_STATS, bsProfilePublicStats, bsLookPos,
+  BS_PUBLIC_STATS, bsProfilePublicStats, bsLookPos, bsProfileCustomWrite,
 } from '../services/profileCustom.mjs';
 import { BS_COACH_STATS, bsCoachHeadlineKeys } from '../services/coachWork.mjs';
 import { bsFocusWordLabel, bsStudioForLabel } from './BSCoachStudio.jsx';
@@ -1796,12 +1796,14 @@ export function BSMakeItYours({ role = 'trainer', demo = false, ownerUid = null,
       return;
     }
     // The film is held to the coach's own coach-media folder when it was changed here; one not changed
-    // rides through as stored, as every key this editor did not change.
-    const clean = bsNormalizeProfileCustom(withChanges(base), uid, filmChanged ? { filmBucket: 'coach-media' } : undefined);
-    let res;
-    try { res = await window.shapeDb?.saveUserGoals?.('profile_custom', clean, { expectedUserId: uid }); } catch (ex) { res = { error: ex }; }
+    // rides through as stored, as every key this editor did not change. The write is compare-and-set on
+    // the doc's rev: a save elsewhere that lands after the read above makes it read again and put the
+    // same changes over that (bsProfileCustomWrite; owner, 2026-11-11, on #2707).
+    const res = await bsProfileCustomWrite(window.shapeDb, uid,
+      (stored) => bsNormalizeProfileCustom(withChanges(stored), uid, filmChanged ? { filmBucket: 'coach-media' } : undefined), { stored: base });
     setBusy(false);
-    if (!res || res.error) { setErr((res && res.error && res.error.message) || tr('profile:mine.errSave', { defaultValue: "Couldn't save. Nothing changed; try again." })); return; }
+    if (!res || !res.ok) { setErr((res && res.error && res.error.message) || tr('profile:mine.errSave', { defaultValue: "Couldn't save. Nothing changed; try again." })); return; }
+    const clean = res.doc;
     onSaved && onSaved(clean);
     thenTool();
   };

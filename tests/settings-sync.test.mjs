@@ -26,7 +26,8 @@ test('website patches round-trip to app documents without replacing sibling sett
  const f=fixture({client_identity:{name:'Old',photo:'photo.jpg'},profile_custom:{bio:'bio',links:{youtube:'video',x:'old'}}});
  await saveSettingsPatch(f.db,{displayName:'New',twitter:'',primaryGoal:'Build muscle'},'a');
  assert.deepEqual(f.docs.client_identity,{name:'New',photo:'photo.jpg'});
- assert.deepEqual(f.docs.profile_custom,{bio:'bio',links:{youtube:'video',x:''}});
+ // The profile doc's write moves its rev on (profileCustom.mjs bsProfileCustomWrite).
+ assert.deepEqual(f.docs.profile_custom,{bio:'bio',links:{youtube:'video',x:''},rev:1});
  assert.equal(f.docs.client_training_prefs.primary_goal,bsPrefOptionToken('primary_goal','Build muscle'));
  const web=await loadSettings(f.db);assert.equal(web.profile.displayName,'New');assert.equal(web.profile.twitter,'');
 });

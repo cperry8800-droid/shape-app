@@ -461,9 +461,11 @@ test('a coach\'s headline and About go through Make it yours\' own cleaner; an A
   ], { roles: ['trainer'] });
   assert.equal(built.diff.find((d) => d.field === 'aboutStory').before, 'Old story');
   await setup.applySetupCells(db, ME, built.cells, 'apply');
-  assert.deepEqual(db.goal('profile_custom'), { look: { paper: 'bone' }, line: 'Strength for busy parents', about: { story: 'Twelve years under the bar.', languages: 'English', years: 12, how: 'both', where: 'Austin, TX' } });
+  // Each write moves the doc's rev on, so an app or website save that read it before is made to read
+  // again rather than undo this (profileCustom.mjs bsProfileCustomWrite).
+  assert.deepEqual(db.goal('profile_custom'), { look: { paper: 'bone' }, line: 'Strength for busy parents', about: { story: 'Twelve years under the bar.', languages: 'English', years: 12, how: 'both', where: 'Austin, TX' }, rev: 1 });
   await setup.applySetupCells(db, ME, built.cells, 'undo');
-  assert.deepEqual(db.goal('profile_custom'), { look: { paper: 'bone' }, about: { story: 'Old story', languages: 'English' } });
+  assert.deepEqual(db.goal('profile_custom'), { look: { paper: 'bone' }, about: { story: 'Old story', languages: 'English' }, rev: 2 });
 
   const legacy = accountDb({ goals: { profile_custom: { about: { story: 'Old', how: 'carrier pigeon' } } } });
   const b2 = (await preview(legacy, [{ field: 'basedIn', value: 'Austin' }], { roles: ['trainer'] })).built;
@@ -646,7 +648,7 @@ test('a coach is drafted their profile through the scaffold; a member asking the
   assert.deepEqual(p.preview.diff.map((d) => [d.field, d.after]), [['headline', 'Strength for busy parents'], ['yearsCoaching', '9 years']]);
   const c = await coach.confirm(p.token);
   assert.equal(c.ok, true);
-  assert.deepEqual(db.goal('profile_custom'), { line: 'Strength for busy parents', about: { years: 9 } });
+  assert.deepEqual(db.goal('profile_custom'), { line: 'Strength for busy parents', about: { years: 9 }, rev: 1 });
   const member = await scaffold(accountDb({ goals: {} })).propose({ changes: [{ field: 'headline', value: 'Hi' }] });
   assert.equal(member.ok, false);
   assert.match(member.message, /Headline \(for coaches only\)/);

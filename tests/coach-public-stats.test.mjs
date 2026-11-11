@@ -263,3 +263,32 @@ test('Make it yours → What\'s public: four switches, all off until the coach t
   assert.equal(world.saved, null);
   await m.unmount();
 });
+
+// Compare-and-set (owner, 2026-11-11, on #2707): a save elsewhere that lands between Make it yours' read and
+// its write is kept; the switches go over the newer doc (profileCustom.mjs bsProfileCustomWrite).
+test('Make it yours: a save elsewhere that lands mid-write is kept, and the switches go over it', async () => {
+  reset({ stored: { bio: 'Kept', rev: 2 } });
+  let conflicts = 0;
+  const db = window.shapeDb;
+  window.shapeDb = {
+    ...db,
+    saveUserGoalsIfRev: async (k, d, expectedRev, uid) => {
+      assert.equal(uid, 'u-maya');
+      if (!conflicts && world.stored.rev === 2) world.stored = { ...world.stored, line: 'Saved on the website', rev: 3 };
+      if (String(world.stored.rev) !== String(expectedRev)) { conflicts += 1; return { conflict: true }; }
+      world.saved = { k, d }; world.stored = d;
+      return { ok: true };
+    },
+  };
+  try {
+    const m = await mount(editor());
+    await click(sw('since'));
+    await click($('[data-save-mine]'));
+    await m.unmount();
+  } finally { window.shapeDb = db; }
+  assert.equal(conflicts, 1, 'the write did not compare on the rev it read');
+  assert.deepEqual(world.saved.d.publicStats, ['since']);
+  assert.equal(world.saved.d.line, 'Saved on the website', 'the website\'s save, landed mid-write, was undone');
+  assert.equal(world.saved.d.rev, 4);
+  assert.deepEqual(world.onSaved.doc, world.saved.d, 'the page was handed another doc than the one saved');
+});
