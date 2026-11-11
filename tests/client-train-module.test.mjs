@@ -117,12 +117,14 @@ test('a rest day with additions has work to start; another day, a failed read an
 })
 
 test('Train runs the plan\'s rows, and a rest day with work offers Start on no assigned workout', () => {
-  assert.match(page, /bsTrainSessionPlan\(\{ moves: effMoves, isRest: isRestDay, isToday: day === bsWeekdayIdx\(\), read: _coachRead, date: coachDate \}\)/)
+  assert.match(page, /bsTrainSessionPlan\(\{ moves: effMoves, isRest: isRestDay, isToday: _planKnown && day === bsWeekdayIdx\(\), read: _coachRead, date: coachDate \}\)/)
+  // Only once the plan read has answered (Codex P1 on #2694): before it, every day of the empty week is REST.
+  assert.match(page, /const _planKnown = !bsTrainSignedIn \|\| planLoaded;/)
   assert.match(page, /moves=\{openSession \? \[\] : bsSessionMoves\(sessionRows\)\}/, 'the session runs the rows, additions included')
   assert.doesNotMatch(page, /bsSessionMoves\(effMoves\)/, 'never the program alone')
   assert.match(page, /clientWorkoutId=\{openSession \|\| coachOnlyDay \? null : cur\.workoutId\}/, 'a rest day\'s additions write to no assigned workout')
   assert.match(page, /isRest=\{isRestDay && !coachOnlyDay\}/, 'a rest day with additions shows Start')
-  assert.match(page, /coachRead=\{_coachRead\} coachDate=\{coachDate\} onCoachRetry=\{coachEx\.retry\}/, 'the list is drawn off the same read')
+  assert.match(page, /coachRead=\{_coachRead\} coachDate=\{coachDate\} onCoachRetry=\{coachEx\.retry\} coachInSession=\{_planKnown\}/, 'the list is drawn off the same read')
   // With no plan, or a plan that did not load, the list stands alone with its Start these.
   assert.equal((page.match(/<BSCoachExercisesView read=\{_coachRead\} date=\{coachTodayDate\} today onRetry=\{coachEx\.retry\} \/>/g) || []).length, 2)
   assert.equal((page.match(/useBSCoachExercises\(\)/g) || []).length, 1, 'one read for the page')
@@ -136,5 +138,5 @@ test('on Train with a plan, today\'s list says the exercises are in the session 
   const alone = drive(EX.BSCoachExercisesView, { read: READ, date: '2026-11-09', today: true })
   assert.equal(alone.buttons().filter((b) => b.label.startsWith('Start these')).length, 2, 'standing alone, each trainer\'s list starts')
   const day = stripComments(fs.readFileSync(path.join(ROOT, 'mobile-app/src/broadsheet/BSTrainDay.jsx'), 'utf8'))
-  assert.match(day, /<BSCoachExercisesView read=\{p\.coachRead\} date=\{p\.coachDate\} today=\{day === todayIdx\} dayLabel=\{shortDay\(day\)\} onRetry=\{p\.onCoachRetry\} inSession \/>/)
+  assert.match(day, /<BSCoachExercisesView read=\{p\.coachRead\} date=\{p\.coachDate\} today=\{day === todayIdx\} dayLabel=\{shortDay\(day\)\} onRetry=\{p\.onCoachRetry\} inSession=\{p\.coachInSession !== false\} \/>/)
 })

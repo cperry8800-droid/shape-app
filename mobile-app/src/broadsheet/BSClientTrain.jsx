@@ -191,7 +191,12 @@ export function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () =
   const coachDate = bsCoachExerciseDate(day, new Date(), _coachAccountToday);
   const coachTodayDate = bsCoachExerciseDate(bsWeekdayIdx(), new Date(), _coachAccountToday);
   // A rest day the trainer added work to (coachOnlyDay): Start runs the additions alone, on no assigned workout.
-  const _coachPlan = bsTrainSessionPlan({ moves: effMoves, isRest: isRestDay, isToday: day === bsWeekdayIdx(), read: _coachRead, date: coachDate });
+  // ⚠ NOT BEFORE THE PLAN IS READ (Codex P1 on #2694). Until ShapePlan answers, PROGRAM is the empty week
+  // (every day REST), so additions read first made today a rest day with work: Start ran them alone, on no
+  // assigned workout, and the moves that arrived a moment later were left out. A signed-in member's day is
+  // joined only once the plan read has finished; the signed-out demo has no read to wait for.
+  const _planKnown = !bsTrainSignedIn || planLoaded;
+  const _coachPlan = bsTrainSessionPlan({ moves: effMoves, isRest: isRestDay, isToday: _planKnown && day === bsWeekdayIdx(), read: _coachRead, date: coachDate });
   const sessionRows = _coachPlan.rows;
   const coachOnlyDay = _coachPlan.restWithWork;
   const _coachGroups = coachOnlyDay ? bsCoachExerciseGroups(_coachRead, coachDate) : [];
@@ -317,7 +322,7 @@ export function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () =
       <BSTrainDay
         program={PROGRAM} day={day} onDay={setDay} onMonth={goCalendar} onPlan={(idx) => setPlanAt(Number.isInteger(idx) ? idx : bsWeekdayIdx())} movesOf={_trainMovesOf} cur={cur} moves={effMoves}
         swapped={effMoves.map((_, i) => !!moveOverrides[`${day}:${i}`])} isRest={isRestDay && !coachOnlyDay} when={_trainWhen} head={_trainHead}
-        coachRead={_coachRead} coachDate={coachDate} onCoachRetry={coachEx.retry}
+        coachRead={_coachRead} coachDate={coachDate} onCoachRetry={coachEx.retry} coachInSession={_planKnown}
         until={_trainUntil} weekN={bsProgramWeek()} coach={coachDayName} onRadio={goRadio} onBurn={() => setBurnOpen(true)}
         onStart={() => { try { window.ShapeAnalytics?.track?.('workout_started'); } catch (e) {} setSession(true); }}
         onSwap={() => setSwapIdx('pick')} onMove={(i) => setSwapIdx(i)}

@@ -357,3 +357,32 @@ test('Train with no program, coached or not, and with a failed plan read, mounts
   assert.equal(coachExercises(failed).length, 1, 'a plan that did not load leaves the additions, which are their own read');
   delete globalThis.window.ShapePlan;
 });
+
+// ⚠ TODAY'S ADDITIONS JOIN THE DAY ONLY ONCE THE PLAN IS KNOWN (Codex P1 on #2694). Until ShapePlan answers,
+// Train holds the empty week, every day REST; additions read first made today a rest day with work, and
+// Start ran them alone, on no assigned workout, leaving out the moves that arrived a moment later.
+test('Train joins today\'s added exercises to the day only once the plan read has answered', async () => {
+  globalThis.window.ShapeAuth = { getCachedState: () => ({ user: { id: 'member-a' } }) };
+  const added = { status: 'ready', today: today(), days: { [today()]: [{ id: 'x1', providerId: '7', coachName: 'Coach Kim', name: 'Sled push', sets: '4', reps: '20 m', sentAt: '2026-11-10T01:00:00.000Z' }] } };
+  globalThis.window.ShapeCoachFeed = { exercises: async () => added, subscribeExercises: () => () => {} };
+  try {
+    globalThis.window.ShapePlan = { get: () => new Promise(() => {}) };
+    const waiting = drive(BSClientTrain, { onProfile() {} });
+    await settle(); waiting.render(); await settle(); waiting.render();
+    const early = trainDay(waiting);
+    assert.ok(early, 'setup: the deck draws while the plan is read');
+    assert.equal(early.props.coachRead.status, 'ready', 'setup: the additions answered first');
+    assert.equal(early.props.isRest, true, 'no Start for the additions alone before the plan is known');
+    assert.equal(early.props.coachInSession, false, 'and the list does not say they are in the session yet');
+
+    // The plan answers with today's workout: Start runs its moves, then the additions.
+    const { d } = await trainPage({ ...delivered(), scheduledDate: today() });
+    await settle(); d.render();
+    const day = trainDay(d);
+    assert.equal(day.props.isRest, false)
+    assert.equal(day.props.coachInSession, true)
+  } finally {
+    delete globalThis.window.ShapeCoachFeed;
+    delete globalThis.window.ShapePlan;
+  }
+});

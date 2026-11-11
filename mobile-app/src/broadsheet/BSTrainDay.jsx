@@ -157,7 +157,7 @@ export function BSTrainDay(p) {
 
       {/* The exercises the trainer added to this day from the Live console, under the day's own program. */}
       {p.coachRead
-        ? <BSCoachExercisesView read={p.coachRead} date={p.coachDate} today={day === todayIdx} dayLabel={shortDay(day)} onRetry={p.onCoachRetry} inSession />
+        ? <BSCoachExercisesView read={p.coachRead} date={p.coachDate} today={day === todayIdx} dayLabel={shortDay(day)} onRetry={p.onCoachRetry} inSession={p.coachInSession !== false} />
         : <BSCoachExercises dayIdx={day} today={day === todayIdx} dayLabel={shortDay(day)} />}
 
       {/* This week — on deck: the next three days after today, from the same week as the calendar and Home.

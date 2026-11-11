@@ -333,7 +333,7 @@ test('Train\'s day draws the section for the day picked', () => {
   const src = readFileSync(join(ROOT, 'mobile-app/src/broadsheet/BSTrainDay.jsx'), 'utf8')
   assert.match(src, /import \{ BSCoachExercises, BSCoachExercisesView \} from '\.\/BSCoachExercises\.jsx';/)
   // Off the page's read when it hands one in (Train's, which runs today's in the session), else its own.
-  assert.match(src, /<BSCoachExercisesView read=\{p\.coachRead\} date=\{p\.coachDate\} today=\{day === todayIdx\} dayLabel=\{shortDay\(day\)\} onRetry=\{p\.onCoachRetry\} inSession \/>/)
+  assert.match(src, /<BSCoachExercisesView read=\{p\.coachRead\} date=\{p\.coachDate\} today=\{day === todayIdx\} dayLabel=\{shortDay\(day\)\} onRetry=\{p\.onCoachRetry\} inSession=\{p\.coachInSession !== false\} \/>/)
   assert.match(src, /<BSCoachExercises dayIdx=\{day\} today=\{day === todayIdx\} dayLabel=\{shortDay\(day\)\} \/>/)
   // Ahead of On deck: the day's own program, then what the trainer added to it.
   assert.ok(src.indexOf('<BSCoachExercisesView') < src.indexOf("tr('session:train.onDeck'"))
