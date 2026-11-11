@@ -133,7 +133,7 @@ async function evaluateSnapshot(admin: ReturnType<typeof createAdminClient>, use
     ? await Promise.all([
       loadCoachThresholds(admin, userId, snapshot.role),
       loadCoachContext(admin, userId),
-      loadClientBreaks(admin, (Array.isArray(snapshot.clients) ? snapshot.clients : []).map(coachRecordId).filter((v): v is string => !!v), now),
+      loadClientBreaks(admin, userId, (Array.isArray(snapshot.clients) ? snapshot.clients : []).map(coachRecordId).filter((v): v is string => !!v), now),
     ])
     : [null, null, null];
   // The reader's language: a member's notices, and a coach's alert titles and digest.

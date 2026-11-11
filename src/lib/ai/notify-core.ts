@@ -256,18 +256,35 @@ export type ClientBreak = { until: string; by: string | null; backAt?: string };
 // roster (candidatesFor `clientBreaks`); a client away then reads clear, and the decision drops an alert
 // held for them (coachSeen). null when the breaks can't be read (or the table isn't there yet): the
 // roster is read as it was saved. A zone that can't be read leaves `backAt` out (the coach's day).
-export async function loadClientBreaks(admin: SupabaseClient, clientIds: string[], now: Date): Promise<Map<string, ClientBreak | null> | null> {
-  const ids = [...new Set((Array.isArray(clientIds) ? clientIds : []).filter((v) => typeof v === 'string' && v))].slice(0, 100);
+// ⚠ ONLY THE COACH'S OWN CLIENTS (CodeRabbit's security check on #2705). The stored roster is the
+// coach's own user_goals row, which they may write directly, with any role and any ids, and this read
+// runs as the service role: unchecked, a forged roster would push a stranger's break, and the day it
+// ended, to whoever wrote it. A client is read only when is_coach_on_client would answer for this coach
+// (an active, trialing or past-due subscription to a listing they own); the rest are left out, read as
+// saved. A check that can't be made reads nothing (null).
+export async function loadClientBreaks(admin: SupabaseClient, coachId: string, clientIds: string[], now: Date): Promise<Map<string, ClientBreak | null> | null> {
+  const asked = [...new Set((Array.isArray(clientIds) ? clientIds : []).filter((v) => typeof v === 'string' && v))].slice(0, 100);
   const out = new Map<string, ClientBreak | null>();
-  if (!ids.length) return out;
+  if (!asked.length || typeof coachId !== 'string' || !coachId) return out;
   try {
     // 16 days of UTC's calendar: get_client_pause's 15 in the member's own, whichever side of UTC.
     const floor = new Date(now.getTime() - 16 * 86_400_000).toISOString().slice(0, 10);
-    const [pauses, zones] = await Promise.all([
-      admin.from('client_pauses').select('id, client_id, from_on, until_on, set_by_role').in('client_id', ids).gte('until_on', floor),
-      admin.from('profiles').select('id, timezone').in('id', ids),
+    // One round trip: the coach's listings, the clients' subscriptions, their breaks and their zones.
+    const [trainers, nutritionists, subs, pauses, zones] = await Promise.all([
+      admin.from('trainers').select('id').eq('owner_id', coachId),
+      admin.from('nutritionists').select('id').eq('owner_id', coachId),
+      admin.from('subscriptions').select('client_id, provider_id, provider_role').in('client_id', asked).in('status', ['active', 'trialing', 'past_due']),
+      admin.from('client_pauses').select('id, client_id, from_on, until_on, set_by_role').in('client_id', asked).gte('until_on', floor),
+      admin.from('profiles').select('id, timezone').in('id', asked),
     ]);
+    if (trainers.error || nutritionists.error || subs.error || !Array.isArray(subs.data)) return null;
     if (pauses.error || !Array.isArray(pauses.data)) return null;
+    const own = (r: { data: unknown }) => new Set((Array.isArray(r.data) ? r.data as { id?: unknown }[] : []).map((x) => String(x.id)));
+    const tIds = own(trainers), nIds = own(nutritionists);
+    const coached = new Set((subs.data as { client_id?: unknown; provider_id?: unknown; provider_role?: unknown }[])
+      .filter((x) => (x.provider_role === 'trainer' && tIds.has(String(x.provider_id))) || (x.provider_role === 'nutritionist' && nIds.has(String(x.provider_id))))
+      .map((x) => String(x.client_id)));
+    const ids = asked.filter((id) => coached.has(id));
     const zoneOf = zones.error || !Array.isArray(zones.data) ? null
       : new Map((zones.data as { id?: unknown; timezone?: unknown }[]).map((z) => [String(z.id), normalizeZone(z.timezone) || 'UTC']));
     const latest = new Map<string, { id: number; from_on: string; until_on: string; set_by_role: unknown }>();
