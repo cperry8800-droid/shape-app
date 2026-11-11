@@ -299,6 +299,14 @@ test('a sheet that is saving holds a Back until it is done, as its scrim does', 
   const client = read('mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx');
   for (const held of ['bsDialogRef(busy ? null : onClose)', 'bsDialogRef(starting ? null : () => setStartSheet(false))', 'bsDialogRef(drafting ? null : () => setDraft(null))']) assert.ok(client.includes(held), held);
   for (const f of FILES) assert.doesNotMatch(f.src, /bsDialogRef\(\(\) => !\w+ &&/, `${f.rel}: a guarded close is a closable sheet`);
+  // A sheet told it is busy holds a Back too: the Store's redemption, whose caller makes Cancel a no-op while
+  // it redeems (Codex P2 on #2696). Any dialog component taking a busy prop must hold its close on it.
+  assert.match(between(client, 'function BSRedeemConfirmSheet({', '\n}\n'), /<div ref=\{bsDialogRef\(busy \? null : onCancel\)\} role="dialog"/);
+  for (const f of FILES) {
+    for (const m of f.src.matchAll(/\nfunction (\w+)\(\{[^}]*\bbusy\b[^}]*\}\) \{[\s\S]*?\n\}\n/g)) {
+      for (const r of m[0].matchAll(/bsDialogRef\(([^)]*)\)/g)) assert.match(r[1], /^busy\b|\bbusy \? null/, `${f.rel} ${m[1]}: bsDialogRef(${r[1]}) ignores busy`);
+    }
+  }
   // The push ask's Back is its Not now, which snoozes it.
   assert.match(read('mobile-app/src/broadsheet/iosAppBroadsheetMain.jsx'), /<div ref=\{bsDialogRef\(later\)\} role="dialog" aria-modal="true"/);
 });

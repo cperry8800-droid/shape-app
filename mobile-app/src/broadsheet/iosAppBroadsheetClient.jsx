@@ -31367,7 +31367,7 @@ function BSRedeemConfirmSheet({ t, item, balance, busy, onCancel, onConfirm }) {
   );
   const sheet = (
     <div onClick={onCancel} style={{ position: 'absolute', inset: 0, zIndex: 60, background: 'rgba(8,7,6,0.55)', display: 'flex', alignItems: 'flex-end' }}>
-      <div ref={bsDialogRef(onCancel)} role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()} style={{ width: '100%', background: t.PAPER, borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: `20px ${t.padX}px calc(20px + env(safe-area-inset-bottom, 0px))`, borderTop: `1px solid ${t.RULE}` }}>
+      <div ref={bsDialogRef(busy ? null : onCancel)} role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()} style={{ width: '100%', background: t.PAPER, borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: `20px ${t.padX}px calc(20px + env(safe-area-inset-bottom, 0px))`, borderTop: `1px solid ${t.RULE}` }}>
         <div style={{ fontFamily: t.BODY, fontSize: 12.5, fontWeight: 600, color: t.INK50 }}>{tr('store:redeem.confirm', { defaultValue: 'Confirm redemption' })}</div>
         <div style={{ fontFamily: t.DISPLAY, fontSize: 22, fontWeight: 700, letterSpacing: '-0.02em', color: t.INK, margin: '4px 0 14px' }}>{item.name}</div>
         <div style={{ borderRadius: 14, border: `1px solid ${t.HAIR}`, background: `${t.INK}07`, padding: '6px 14px' }}>
