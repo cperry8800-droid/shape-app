@@ -353,6 +353,41 @@ test('an alert held for a client off the roster altogether is dropped, live and 
   check(hourly, 'hourly');
 });
 
+test('a muted member on a break still loses what was held from before it, and is sent nothing (Codex on #2705)', async () => {
+  // Held by quiet hours before they muted; the break then began, and would end, inside the mute.
+  const move = { type: 'directive', key: 'self', sig: 'Focus|Log dinner||2026-11-09', title: 'Your move today', body: 'Log dinner', route: 'home', data: { move: 'log', lever: 'food' }, priority: 'high', channels: { push: true }, at: Date.now() - 3600e3 };
+  const state0 = { date: 'never', pendingDigest: [move], types: { 'directive:self': { sig: move.sig, at: move.at } } };
+  const iso = (days) => new Date(Date.now() + days * DAY).toISOString().slice(0, 10);
+  const member = (pauses, muted = true) => ({ user_goals: [
+    { user_id: 'm1', kind: 'notify_snapshot', data: { role: 'client', at: Date.now(), record: { profile: { id: 'm1', name: 'Me' }, progressRead: { state: 'ready' } } } },
+    { user_id: 'm1', kind: 'notify_state', data: structuredClone(state0) },
+  ], notification_settings: [{ user_id: 'm1', muted }], client_pauses: pauses });
+  // Away: the held notice goes, and its stamp, so one true again after the break is sent then; nothing now.
+  const away = member([{ id: 1, client_id: 'm1', from_on: iso(-1), until_on: iso(7), set_by_role: 'member' }]);
+  db = notifyDb(away);
+  delivered.length = 0;
+  await runCron();
+  assert.deepEqual(delivered, [], 'muted: nothing sent');
+  assert.deepEqual(docOf(away, 'notify_state').pendingDigest, []);
+  assert.ok(!('directive:self' in docOf(away, 'notify_state').types), 'the stamp is released');
+  // Muted with no break, or one long over: the state is left as it was, the held notice with it.
+  for (const pauses of [[], [{ id: 2, client_id: 'm1', from_on: iso(-30), until_on: iso(-20), set_by_role: 'member' }]]) {
+    const here = member(pauses);
+    db = notifyDb(here);
+    delivered.length = 0;
+    await runCron();
+    assert.deepEqual([delivered, docOf(here, 'notify_state')], [[], state0]);
+  }
+  // A coach's muted run reads no break and writes nothing.
+  const coach = { user_goals: [
+    { user_id: 'coach-1', kind: 'notify_snapshot:trainer', data: { role: 'trainer', at: Date.now(), clients: [rosterClient('t1', { trainer: daysAgo(8) })] } },
+  ], notification_settings: [{ user_id: 'coach-1', muted: true }], client_pauses: [{ id: 3, client_id: 'coach-1', from_on: iso(-1), until_on: iso(7), set_by_role: 'member' }], ...coaching('coach-1', { trainer: ['t1'] }) };
+  db = notifyDb(coach);
+  delivered.length = 0;
+  await runCron();
+  assert.deepEqual([delivered, docOf(coach, 'notify_state:trainer')], [[], undefined]);
+});
+
 // ── The engine audit of 2026-11-11 ─────────────────────────────────────────
 // F1: a roster is posted only when the coach opens the website or the app, and the run read it against
 // the hour it ran, for up to 14 days. Its dates never moved, so a client who logged every day read "No

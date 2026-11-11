@@ -449,7 +449,15 @@ function dashPauseBounds() {
   const n = new Date();
   return { min: iso(n), max: iso(new Date(n.getFullYear(), n.getMonth(), n.getDate() + 90)) };
 }
+// ⚠ ONE EDITOR A CLIENT (Codex on #2705). The drawer keeps its sections mounted when the coach picks
+// another row, so the last client's break, date and editing state stayed live while the new one's loaded,
+// and "End the break" ended the new client's on the last one's state. Keyed by the client, it starts at
+// Loading… for each, as the app's case file does (key 'pause:' + clientUid).
 function DashSecPause({ rec }) {
+  const id = rec && rec.profile && rec.profile.id;
+  return <DashPauseEditor key={"pause:" + String(id || "")} rec={rec} />;
+}
+function DashPauseEditor({ rec }) {
   const id = rec && rec.profile && rec.profile.id;
   const live = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(id || ""));
   const [read, setRead] = React.useState({ kind: "loading" });

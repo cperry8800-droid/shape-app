@@ -24,7 +24,7 @@ const SIG = 'mobile-app/src/services/shapeSignals.js';
 const HB = 'mobile-app/src/services/habitBreak.mjs';
 const BE = 'mobile-app/src/services/shapeBackend.js';
 export default {
-  test: 'node --test tests/client-pause.test.mjs tests/client-pause-sql.test.mjs tests/coach-alert-memory.test.mjs tests/member-engine-reasons.test.mjs tests/dash-signals.test.mjs tests/app-roster-loading.test.mjs tests/habit-break.test.mjs',
+  test: 'node --test tests/client-pause.test.mjs tests/client-pause-sql.test.mjs tests/coach-alert-memory.test.mjs tests/member-engine-reasons.test.mjs tests/dash-signals.test.mjs tests/app-roster-loading.test.mjs tests/habit-break.test.mjs tests/client-pause-web-editor.test.mjs',
   mutations: [
     // ── the migration ──────────────────────────────────────────────────────────
     { name: 'the table has no row level security', file: SQL,
@@ -179,6 +179,12 @@ export default {
       find: '  return breaks.some((b) => !!b && b.from <= to && b.until >= from);', replace: '  return breaks.some((b) => !!b && b.from <= to);' },
     { name: 'the hourly run reads a coach\'s roster with the breaks it was saved with (Codex on #2705)', file: CORE,
       find: '    const fresh = access ? access.breaks : null;', replace: '    const fresh = null;' },
+    { name: 'a muted member on a break keeps what was held from before it, for when they unmute (Codex on #2705)', file: CRON,
+      find: '    if (!isCoachRole(snapshot.role)) await purgeHeldWhileMuted(admin, userId, snapshot.role, prefs);\n', replace: '' },
+    { name: 'a muted member with no break loses what is held', file: CRON,
+      find: '  if (!(await loadMemberPaused(admin, userId, now, prefs.tz, { asService: true }))) return;\n  const last = await readNotifyState(admin, userId, role);', replace: '  const last = await readNotifyState(admin, userId, role);' },
+    { name: 'the website\'s break editor keeps the last client\'s break when the coach picks another (Codex on #2705)', file: ROSTER,
+      find: '  return <DashPauseEditor key={"pause:" + String(id || "")} rec={rec} />;', replace: '  return <DashPauseEditor rec={rec} />;' },
     { name: 'a break read fresh carries no read time, so one over since the save never says "Back from a break" (Codex on #2705)', file: CORE,
       find: '      return { ...(c as Record<string, unknown>), pause: b ? { ...b, readAt } : null };', replace: '      return { ...(c as Record<string, unknown>), pause: b ?? null };' },
     { name: 'a break read fresh is dated to the roster\'s save, not the run', file: CORE,
