@@ -77,6 +77,26 @@ test('a flag\'s signature is the same in any zone, so a dismissal made on the ph
   assert.equal(mine.sig, 'last:2026-10-25T10:00:00.000Z');
 });
 
+// Codex on #2703: across a daylight-saving change the wall clock gains or loses an hour, and elapsed
+// time must not. 2026-11-01 is the fall-back night in Los Angeles (2 am PDT is 1 am PST at 09:00Z).
+test('a reply\'s hours and a snooze\'s end are real elapsed time inside a scope, across a DST change (F2)', () => {
+  const tuned = E.resolveThresholds({ REPLY_WAIT_HOURS: 2 }, 'trainer').thresholds;
+  const rec = { profile: { id: 'r1', name: 'R' }, progressRead: { state: 'ready' }, foodLogs: { lastLoggedOn: '2026-10-31', daysLogged7d: 6 }, checkIn: { lastWeekOf: '2026-10-26' }, replyWait: { trainer: '2026-11-01T07:00:00Z' } };
+  const at = new Date('2026-11-01T09:30:00Z'); // 2.5 hours on, 1:30 am PST on the wall
+  const reply = E.inZone(LA, at, (t) => E.getTriageFeed('trainer', [rec], t, tuned))[0].flags.find((f) => f.key === 'reply_waiting');
+  assert.ok(reply, 'two and a half hours is over a two-hour line');
+  assert.equal(reply.reason, 'Their message has waited 2 hours for your reply');
+  // A snooze is held to its own instant, in any zone: one that ended half an hour ago has ended, and
+  // one that ends in half an hour still holds.
+  const now = new Date('2026-11-11T12:00:00Z');
+  const quiet = { profile: { id: 'r2', name: 'S' }, progressRead: { state: 'ready' }, foodLogs: { lastLoggedOn: '2026-11-10', daysLogged7d: 6 }, checkIn: { lastWeekOf: '2026-11-09' }, lastContact: { trainer: '2026-11-01T10:00:00Z' } };
+  const sig = E.getTriageFeed('trainer', [quiet], now)[0].flags.find((f) => f.key === 'contact_gap').sig;
+  const snoozed = (mins) => ({ ...quiet, dismissals: [{ key: 'contact_gap', sig, until: new Date(+now + mins * 60e3).toISOString() }] });
+  const shows = (rec2) => E.inZone('Australia/Sydney', now, (t) => E.getTriageFeed('trainer', [rec2], t))[0].flags.some((f) => f.key === 'contact_gap');
+  assert.equal(shows(snoozed(-30)), true, 'a snooze that ended half an hour ago');
+  assert.equal(shows(snoozed(30)), false, 'a snooze with half an hour to go');
+});
+
 // ── F4: a check-in from before they hired this coach ─────────────────────────
 test('a check-in from before the client joined is not one: a new client is not red on day one (F4)', () => {
   const now = new Date('2026-11-11T12:00:00Z');

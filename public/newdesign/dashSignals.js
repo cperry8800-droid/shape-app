@@ -281,7 +281,12 @@
   // ⚠ SYNCHRONOUS, AS withThresholds IS: one scope at a time, put back before anything else runs.
   // ⚠ A FLAG'S SIGNATURE NEVER CARRIES A MOVED INSTANT (instantKey): a coach's dismissal is matched
   // on the signature the device wrote, and a shifted one would let a dismissed flag push again.
+  // ⚠ AND ELAPSED TIME IS MEASURED BETWEEN REAL INSTANTS (Codex on #2703): the wall clock gains or
+  // loses an hour across a daylight-saving change, so a reply that had waited 2.5 hours on the
+  // fall-back night read 1.5 and a 2-hour alert never fired. A reply's hours and a snooze's end compare
+  // instants (instantNow, parseDate); only days, weeks and weekdays read the wall clock.
   var _zone = null;
+  var _zoneAt = null;
   var _zoneFmt = {};
   function zoneFormatter(zone) {
     if (typeof zone !== "string" || !zone) return null;
@@ -308,8 +313,11 @@
     // Inside a scope already, or no zone this engine can read: the clock as it is.
     if (_zone || !zoneFormatter(zone)) return fn(at);
     _zone = zone;
-    try { return fn(wallClock(at, zone)); } finally { _zone = null; }
+    _zoneAt = at;
+    try { return fn(wallClock(at, zone)); } finally { _zone = null; _zoneAt = null; }
   }
+  // The real instant behind a scope's wall clock, for elapsed time; outside a scope, `now` itself.
+  function instantNow(now) { return _zone && _zoneAt ? _zoneAt : now; }
   // A time written with its zone (Z or an offset): an instant, which a scope moves to the wall clock.
   var EXPLICIT_ZONE = /(?:[zZ]|[+-]\d\d(?::?\d\d)?)$/;
   function parseDate(v) {
@@ -1132,12 +1140,12 @@
     if (!rw || typeof rw !== "object") return null;
     var disc = disciplineForRole(role);
     var own = disc === "training" ? "trainer" : disc === "nutrition" ? "nutritionist" : null;
-    var since = own ? toDate(rw[own]) : null;
+    var since = own ? parseDate(rw[own]) : null;
     if (!since) return null;
-    var hours = Math.floor((now.getTime() - since.getTime()) / 3600000);
+    var hours = Math.floor((instantNow(now).getTime() - since.getTime()) / 3600000);
     if (!(hours >= THRESHOLDS.REPLY_WAIT_HOURS)) return null;
     var said = hours >= 48 ? Math.floor(hours / 24) + " days" : hours + " hours";
-    return { key: "reply_waiting", label: "Reply " + (hours >= 48 ? Math.floor(hours / 24) + "d" : hours + "h"), reason: "Their message has waited " + said + " for your reply", figures: { hours: hours }, sig: "since:" + instantKey(rw[own]) };
+    return { key: "reply_waiting", label: "Reply " + (hours >= 48 ? Math.floor(hours / 24) + "d" : hours + "h"), reason: "Their message has waited " + said + " for your reply", figures: { hours: hours }, sig: "since:" + since.toISOString() };
   }
 
   // The coach's program (or plan) running out with nothing lined up next: the cue to write the next
@@ -1362,12 +1370,12 @@
   // (Snooze). An unreadable `until` is an expired one: the flag comes back rather than vanishing.
   function isDismissed(dismissals, flag, now) {
     if (!flag || !Array.isArray(dismissals)) return false;
-    var at = (now instanceof Date ? now : new Date()).getTime();
+    var at = instantNow(now instanceof Date ? now : new Date()).getTime();
     for (var i = 0; i < dismissals.length; i++) {
       var d = dismissals[i];
       if (!d || d.key !== flag.key || typeof d.sig !== "string" || d.sig !== flag.sig) continue;
       if (d.until != null && d.until !== "") {
-        var u = toDate(d.until);
+        var u = parseDate(d.until);
         if (!u || u.getTime() <= at) continue;
       }
       return true;
