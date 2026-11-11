@@ -357,6 +357,57 @@ test('a break covers its own days only: not the days before it began, and still 
   assert.equal(PAUSE.pauseCovers(by.get('b'), '2026-11-08', '2026-11-14'), true);
   assert.equal(PAUSE.pauseCovers(undefined, '2026-11-11'), false);
 });
+test('a member on a break is sent none of the reminders they set, each held to its own day (Codex on #2705)', async () => {
+  const { mock } = await import('node:test');
+  const run = async (reminders, pauses, { failPauses = false } = {}) => {
+    const sent = [], fired = [], asked = [];
+    const admin = {
+      from(table) {
+        const q = { _in: null, _gte: null,
+          select() { return q; }, eq() { return q; }, order() { return q; },
+          in(k, v) { q._in = v; return q; }, gte(k, v) { q._gte = v; return q; },
+          range: async () => ({ data: reminders, error: null }),
+          update(patch) { return { eq: async (_k, id) => { fired.push({ id, ...patch }); return { error: null }; } }; },
+          then(resolve, reject) {
+            if (table !== 'client_pauses') return Promise.resolve({ data: [], error: null }).then(resolve, reject);
+            asked.push({ ids: q._in, floor: q._gte });
+            if (failPauses) return Promise.resolve({ data: null, error: { message: 'down' } }).then(resolve, reject);
+            return Promise.resolve({ data: pauses.filter((p) => q._in.includes(p.client_id) && p.until_on >= q._gte), error: null }).then(resolve, reject);
+          },
+        };
+        return q;
+      },
+    };
+    const mod = await loadRealModule(join(ROOT, 'src/app/api/cron/reminders/route.ts'), {
+      typescript: true,
+      registry: new Map([
+        ['next/server', { NextResponse: { json: (b, init) => ({ status: init?.status ?? 200, json: async () => b }) } }],
+        ['@/lib/supabase/admin', { createAdminClient: () => admin }],
+        ['@/lib/notify', { createNotification: async (_c, n) => { sent.push(n.data.reminderId); return true; } }],
+      ]),
+    });
+    process.env.CRON_SECRET = 'cron-test';
+    mock.timers.enable({ apis: ['Date'], now: Date.UTC(2026, 10, 21, 8, 0) });
+    try {
+      await mod.GET(new Request('https://x/api/cron/reminders', { headers: { 'x-cron-secret': 'cron-test' } }));
+      return { sent, fired, asked };
+    } finally { mock.timers.reset(); }
+  };
+  const r = (id, user, tz = 'UTC') => ({ id, user_id: user, kind: 'weigh_in', label: '', at_time: '08:00', days: [0, 1, 2, 3, 4, 5, 6], tz, last_fired_on: null });
+  const pauses = [
+    { client_id: 'away', from_on: '2026-11-18', until_on: '2026-11-25' },
+    { client_id: 'back', from_on: '2026-11-10', until_on: '2026-11-20' },
+    { client_id: 'last', from_on: '2026-11-15', until_on: '2026-11-21' },
+  ];
+  const out = await run([r('r1', 'away'), r('r2', 'back'), r('r3', 'last'), r('r4', 'free')], pauses);
+  assert.deepEqual(out.sent, ['r2', 'r4'], 'away, and on the last day away, nothing; back, or never away, as before');
+  assert.deepEqual(out.fired.map((f) => [f.id, f.last_fired_on]), [['r1', '2026-11-21'], ['r2', '2026-11-21'], ['r3', '2026-11-21'], ['r4', '2026-11-21']], 'one held back is done for its day, not asked again each run');
+  assert.deepEqual(out.asked, [{ ids: ['away', 'back', 'last', 'free'], floor: '2026-11-19' }], 'one read, for the members with a reminder due');
+  // A reminder's own day: 08:00 on the 21st UTC is still the 20th in Honolulu, before that break ended there.
+  assert.deepEqual((await run([{ ...r('r5', 'back', 'Pacific/Honolulu'), at_time: '22:00' }], pauses)).sent, []);
+  // A breaks read that fails holds none back.
+  assert.deepEqual((await run([r('r1', 'away'), r('r4', 'free')], pauses, { failPauses: true })).sent, ['r1', 'r4']);
+});
 test('the Score takes no penalty for a day a break covers, and a member away is not reminded to prep', () => {
   const score = read('src/app/api/cron/score-accountability/route.ts');
   assert.match(score, /\.from\('client_pauses'\)\n          \.select\('client_id, from_on, until_on'\)\n          \.in\('client_id', ids\)\n          \.gte\('until_on', lastMonday\)/);

@@ -17,6 +17,7 @@ const PROS = 'mobile-app/src/broadsheet/iosAppBroadsheetPros.jsx';
 const CLIENT = 'mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx';
 const ROSTER = 'public/newdesign/dashRoster.jsx';
 const NOTES = 'src/lib/ai/notifications.mjs';
+const REM = 'src/app/api/cron/reminders/route.ts';
 const WEB = 'public/supabase.js';
 export default {
   test: 'node --test tests/client-pause.test.mjs tests/client-pause-sql.test.mjs tests/coach-alert-memory.test.mjs tests/member-engine-reasons.test.mjs tests/dash-signals.test.mjs',
@@ -144,7 +145,7 @@ export default {
     { name: 'the hourly run does not say whose roster it is', file: CRON,
       find: '      loadClientBreaks(admin, userId, ', replace: "      loadClientBreaks(admin, '', " },
     { name: 'a failed breaks read wipes the breaks the roster was saved with', file: CORE,
-      find: '    if (pauses.error || !Array.isArray(pauses.data)) return null;', replace: '    if (pauses.error || !Array.isArray(pauses.data)) { for (const id of ids) out.set(id, null); return out; }' },
+      find: '    if (pauses.error || !Array.isArray(pauses.data)) return null;', replace: '    if (pauses.error || !Array.isArray(pauses.data)) { for (const id of asked) out.set(id, null); return out; }' },
     { name: 'the oldest break is read fresh, not the latest', file: CORE,
       find: '      if (!had || row.from_on > had.from_on || ', replace: '      if (!had || row.from_on < had.from_on || ' },
     { name: 'a break long over is read fresh', file: CORE,
@@ -173,6 +174,16 @@ export default {
       find: '    const list = out.get(r.client_id) || [];', replace: '    const list = [];' },
     { name: 'a failed pauses read charges the chunk anyway', file: SCORE,
       find: '      if (pausesRes.error && !pausesMissing) {', replace: '      if (false) {' },
+    { name: 'a member away is sent the reminders they set (Codex on #2705)', file: REM,
+      find: '      if (pauseCovers(away.get(r.user_id), date)) {', replace: '      if (false) {' },
+    { name: 'a reminder held back is asked again every run', file: REM,
+      find: "        await admin.from('user_scheduled_reminders').update({ last_fired_on: date }).eq('id', r.id);\n        continue;\n      }\n      if (r.kind === 'daily_checkin'", replace: "        continue;\n      }\n      if (r.kind === 'daily_checkin'" },
+    { name: 'a reminder is held to the server\'s day, not its own', file: REM,
+      find: '      if (pauseCovers(away.get(r.user_id), date)) {', replace: '      if (pauseCovers(away.get(r.user_id), now.toISOString().slice(0, 10))) {' },
+    { name: 'a failed breaks read holds every reminder back', file: REM,
+      find: '      if (error) continue;\n      for (const [id, breaks] of pausesByClient(data))', replace: "      if (error) { for (const id of ids) out.set(id, [{ from: '0000-01-01', until: '9999-12-31' }]); continue; }\n      for (const [id, breaks] of pausesByClient(data))" },
+    { name: 'every break ever is read for the reminders', file: REM,
+      find: ".in('client_id', ids.slice(i, i + 200)).gte('until_on', floor);", replace: ".in('client_id', ids.slice(i, i + 200));" },
     { name: 'a member away is reminded to prep', file: PREP,
       find: '      if (pauseCovers(breaksBy.get(userId), today)) continue;\n', replace: '' },
     // ── the app ────────────────────────────────────────────────────────────────
