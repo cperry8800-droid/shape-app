@@ -552,8 +552,9 @@ test('both Home surfaces consult the pref', () => {
   assert.match(src, /function useBSDailyCheckinPref\(\) \{ return useBSDailyCheckinPrefState\(\)\.on; \}/);
   assert.match(src, /engineFlag && !bsCheckinLeadSuppressed\(engineFlag, checkinPrefOn\)/,
     'the LEAD must consult the rule, or the loudest check-in surface ignores the pref');
-  assert.match(src, /\{checkinDue && checkinPrefOn &&/,
-    'the WEEKLY bulletin derives from a missing row and must also consult the pref');
+  // The weekly line is on Team now, with the coaches it is for (owner, 2026-11-11): one check-in on Home.
+  assert.match(src, /weekly=\{!sample && checkinDue && checkinPrefOn &&/,
+    'the WEEKLY line derives from a missing row and must also consult the pref');
 });
 
 // ⚠ SUPPRESSING A LEAD IS ONLY HALF THE BEHAVIOUR — the other half is that Home then leads

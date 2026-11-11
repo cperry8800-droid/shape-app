@@ -360,7 +360,7 @@ const UNCOVERED = new Set([
   'Client::BSStepsHistory', 'Client::BSStrengthCard', 'Client::BSStrengthHistory',
   'Client::BSSubprocessorsPage', 'Client::BSSwapSheet', 'Client::BSTermsPage',
   'Client::BSVideoCall', 'Client::BSWeekendsCard',
-  'Client::BSWeeklyCheckin', 'Client::BSWeeklyReadoutCard',
+  'Client::BSWeeklyReadoutCard',
   // ⚠ SURFACED BY THE ATTRIBUTE-CONTAINER WALK, AND ITS ONE STRING IS AN ARIA
   // LABEL: BSSearchMsgBtn renders `aria-label={`Message ${name}`}` — invisible
   // while the walk only read direct attribute literals, so a screen-reader user
@@ -995,7 +995,9 @@ test('MEASUREMENT — the numbers the record has to carry', () => {
   // Preview is gone and messaging is free (owner, 2026-11-10), so a session with no account is asked
   // to sign in by BSSignInToSend (BSPaidLock.jsx), keyed under feed:composer.signInToSend in all 13
   // locales. BSMessageComposer stays UNCOVERED with one string fewer: 418 -> 417.
-  assert.equal(noneStrings, 417, 'the untranslated surfaces changed how much they hardcode — update the number AND say so in the PR');
+  // The Weekly check-in, redrawn in Home's look (owner, 2026-11-11), moved to BSWeeklyCheckin.jsx with its
+  // words under home:weekly.* in all 13 locales. Its line left UNCOVERED with its 18 strings: 417 -> 399.
+  assert.equal(noneStrings, 399, 'the untranslated surfaces changed how much they hardcode — update the number AND say so in the PR');
   // 33 -> 32: BSScoreStandingChart left with the Score page's ladder (see partStrings above).
   // BSTerrainProfile is fully translated now (2026-10-31): 32 -> 31.
   // MktComboCard and MktRow went with the directory's redesign (2026-11-04, see partStrings): 31 -> 29.
@@ -1007,7 +1009,8 @@ test('MEASUREMENT — the numbers the record has to carry', () => {
   // BSMealLogged left for PARTIAL (2026-11-04): 77 -> 76.
   // The coach application and its document pickers are translated whole (2026-11-09): 76 -> 74.
   // The Find a coach bars (BSFindCoachBar) are translated (the Coaches tab, 2026-11-09): 74 -> 73.
-  assert.equal(none.length, 73, 'untranslated-surface count moved — regenerate UNCOVERED and the record');
+  // The Weekly check-in is translated in its own module (2026-11-11): 73 -> 72.
+  assert.equal(none.length, 72, 'untranslated-surface count moved — regenerate UNCOVERED and the record');
   // Floors, not equalities: a new component with a translator and no copy of its
   // own moves both of these without changing anything this file is about.
   // ⚠ The JSX floor dropped 358 → 357 when BSCosmicWordmark — an orphaned

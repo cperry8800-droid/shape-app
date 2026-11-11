@@ -1,0 +1,99 @@
+// The avatar photo is placed before it is saved (owner, 2026-11-11: "need to be able to drag and reposition
+// profile pic on avatar"): services/avatarCrop.mjs's frame, BSAvatarPositioner.jsx's sheet, and the client's
+// Change photo / Reposition on Edit profile and the profile pages.
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import * as A from '../mobile-app/src/services/avatarCrop.mjs';
+
+const read = (p) => readFileSync(new URL(`../${p}`, import.meta.url), 'utf8');
+const near = (a, b, eps = 1e-9) => Math.abs(a - b) < eps;
+
+test('the frame: the square always inside the photo, the short side filling it at zoom 1', () => {
+  // A landscape photo, 2000 × 1000: at zoom 1 the square is 1000 px and can move sideways only.
+  assert.deepEqual(A.bsAvClamp(2000, 1000, null), { x: 0.5, y: 0.5, zoom: 1 });
+  assert.deepEqual(A.bsAvRect(2000, 1000, null), { sx: 500, sy: 0, side: 1000 });
+  assert.deepEqual(A.bsAvClamp(2000, 1000, { x: 0, y: 0, zoom: 1 }), { x: 0.25, y: 0.5, zoom: 1 }, 'kept inside the photo');
+  assert.deepEqual(A.bsAvClamp(2000, 1000, { x: 2, y: -1, zoom: 99 }), { x: 1 - 0.0625, y: 0.125, zoom: A.BS_AV_ZOOM_MAX });
+  assert.deepEqual(A.bsAvClamp(2000, 1000, { zoom: 0.2 }).zoom, 1, 'never zoomed out past the photo');
+  assert.deepEqual(A.bsAvClamp(2000, 1000, { x: NaN, y: 'a', zoom: undefined }), { x: 0.5, y: 0.5, zoom: 1 });
+});
+
+test('a drag moves the photo with the finger; a zoom keeps the point under the fingers still', () => {
+  // Frame 250 px showing a 1000 px square: 4 source px per screen px. Dragging right 50 px moves the
+  // square 200 px left.
+  const p = A.bsAvPan(2000, 1000, null, 50, 0, 250);
+  assert.ok(near(p.x, (1000 - 200) / 2000), String(p.x));
+  assert.equal(p.y, 0.5, 'nothing to move vertically at zoom 1');
+  // Zoom at the centre keeps the centre.
+  const z = A.bsAvZoomAt(2000, 1000, null, 2);
+  assert.ok(near(z.x, 0.5) && near(z.y, 0.5) && z.zoom === 2);
+  // Zoom at the top-left corner of the frame keeps that photo point at the corner.
+  const before = A.bsAvRect(2000, 1000, null);
+  const zc = A.bsAvZoomAt(2000, 1000, null, 2, 0, 0);
+  const after = A.bsAvRect(2000, 1000, zc);
+  assert.ok(near(after.sx, before.sx) && near(after.sy, before.sy), JSON.stringify({ before, after }));
+  assert.equal(after.side, 500);
+});
+
+test('the kept photo: at most 1080 px, never enlarged; it is used again only while it made the avatar', () => {
+  assert.deepEqual(A.bsAvFit(4000, 3000), { w: 1080, h: 810 });
+  assert.deepEqual(A.bsAvFit(300, 200), { w: 300, h: 200 });
+  const photo = 'data:image/jpeg;base64,' + 'A'.repeat(200) + 'xyz';
+  const doc = { src: 'data:image/jpeg;base64,BIG', pos: { x: 0.4, y: 0.5, zoom: 2 }, made: A.bsAvMark(photo) };
+  assert.equal(A.bsAvSourceFits(doc, photo), true);
+  assert.equal(A.bsAvSourceFits(doc, photo + 'changed'), false, 'a photo changed elsewhere since is a different square');
+  assert.equal(A.bsAvSourceFits(null, photo), false);
+  assert.equal(A.bsAvSourceFits({ ...doc, src: '' }, photo), false);
+  assert.equal(A.bsAvMark(''), '');
+});
+
+test('the sheet and its doors: a picked photo is placed, then saved; Reposition starts from the kept photo', () => {
+  const sheet = read('mobile-app/src/broadsheet/BSAvatarPositioner.jsx');
+  assert.match(sheet, /ref=\{bsDialogRef\(busy \? null : cancel\)\} role="dialog" aria-modal="true"/, 'a Back cancels, except while saving');
+  assert.match(sheet, /el\.style\.cssText = 'position:absolute;inset:0;z-index:1300;';/, 'its own box over the surface (.bs-paper-grain > * is relative)');
+  assert.match(sheet, /if \(res && res\.error\) \{ setBusy\(false\); setErr\(tr\('settings:edit\.photoFailed'/, 'a failed save says so on the sheet');
+  assert.match(sheet, /onPointerDown=\{onDown\} onPointerMove=\{onMove\} onPointerUp=\{onUp\} onPointerCancel=\{onUp\} onKeyDown=\{onKey\}/);
+  const client = read('mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx');
+  assert.match(client, /function bsSavePositionedPhoto\(\{ photo, source, pos \}\) \{[\s\S]{0,200}return bsSaveIdentity\(\{ photo \}\)\.then/, 'the square every avatar reads');
+  assert.match(client, /saveUserGoals\?\.\('client_photo_source', \{ src: source, pos, made: bsAvMark\(photo\)/, 'the photo as picked, kept privately');
+  assert.match(client, /const fits = bsAvSourceFits\(doc, photo\);\s*return bsOpenPhotoPositioner\(\{ src: fits \? doc\.src : photo, pos: fits \? doc\.pos : null/);
+  assert.match(client, /\.then\(\(src\) => \(src \? bsOpenPhotoPositioner\(\{ src, onSave: bsSavePositionedPhoto \}\) : null\)\)/, 'Change photo places it first');
+  assert.match(client, /bsAvReadFile\(f\)\s*\.then\(\(src\) => bsOpenPhotoPositioner\(\{ src, onSave: bsSavePositionedPhoto \}\)\)/, 'the profile pages too');
+  assert.match(client, /data-edit-photo="reposition" onClick=\{\(\) => bsRepositionProfilePhoto\(photoSaved\)\}/);
+  assert.match(client, /onClick=\{shownPhoto \? \(\) => bsRepositionProfilePhoto\(photoSaved\) : undefined\}/, 'the avatar itself opens it');
+});
+
+// Save said nothing: toasts are a no-op app-wide, so a taken handle or a failed write left the page as it
+// was, and a Save with nothing changed did nothing at all (owner, 2026-11-11: "save changes button not
+// working").
+test('Edit profile: Save shows Saving…, closes when saved or when nothing changed, and says a failure on the page', () => {
+  const client = read('mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx');
+  const save = client.slice(client.indexOf('const saveEdit = async () => {'), client.indexOf('const cancelEdit = () =>'));
+  assert.match(save, /if \(editBusyRef\.current\) return;\s*editBusyRef\.current = true;\s*setEditSave\(\{ busy: true, err: '' \}\);/, 'one save at a time');
+  assert.match(save, /if \(!Object\.keys\(fields\)\.length\) \{ try \{ await _bsIdentitySaveChain; \} catch \(e\) \{\} setEditing\(false\); return ''; \}/, 'nothing typed: Save is Done, after a photo still saving');
+  assert.match(save, /if \(!result \|\| result\.error\) return tr\('settings:edit\.saveFailed'/);
+  assert.doesNotMatch(save, /__bsToast/, 'nothing said through the no-op toast');
+  assert.match(client, /\{editSave\.err \? <div role="alert" data-edit-save-error=""/);
+  assert.match(client, /label=\{editSave\.busy \? tr\('profile:log\.saving', \{ defaultValue: 'Saving…' \}\) : tr\('settings:edit\.saveChanges'/);
+});
+
+test('every new word is in all 13 catalogs', () => {
+  const locales = ['de', 'en', 'es', 'fr', 'ha', 'id', 'it', 'pcm', 'pt-BR', 'ru', 'tr', 'uk', 'vi'];
+  const settings = ['edit.saveFailed', 'edit.photoFailed', 'edit.positionTitle', 'edit.positionHint', 'edit.positionStage', 'edit.zoom', 'edit.positionReset', 'edit.usePhoto', 'edit.reposition', 'edit.addPhoto', 'edit.photoUnreadable'];
+  const home = ['team.weeklyFor', 'team.weeklyForCoaches', 'weekly.kicker', 'weekly.title', 'weekly.sub', 'weekly.already', 'weekly.rate', 'weekly.rateScale', 'weekly.rateAria',
+    'weekly.r.trainingAdherence', 'weekly.r.nutritionAdherence', 'weekly.r.sleep', 'weekly.r.energy', 'weekly.r.stress', 'weekly.r.hunger', 'weekly.optional', 'weekly.body', 'weekly.weight',
+    'weekly.measurements', 'weekly.m.waist', 'weekly.m.hips', 'weekly.m.chest', 'weekly.m.arm', 'weekly.m.thigh', 'weekly.m.calf', 'weekly.photos', 'weekly.pose.front', 'weekly.pose.side',
+    'weekly.pose.back', 'weekly.photosPrivate', 'weekly.words', 'weekly.wins', 'weekly.struggles', 'weekly.question', 'weekly.send', 'weekly.signIn', 'weekly.failed'];
+  for (const loc of locales) {
+    const cat = (ns) => JSON.parse(read(`mobile-app/src/i18n/catalogs/${loc}/${ns}.json`));
+    const s = cat('settings'), h = cat('home'), o = cat('onboarding');
+    for (const k of settings) assert.ok(String(s[k] || '').trim(), `${loc}: settings:${k}`);
+    for (const k of home) assert.ok(String(h[k] || '').trim(), `${loc}: home:${k}`);
+    assert.match(h['team.weeklyFor'], /\{name\}/, `${loc}: the coach's name is interpolated`);
+    assert.match(h['weekly.weight'], /\{unit\}/, `${loc}: the unit is interpolated`);
+    assert.ok(String(o['apply.nora.unavailable'] || '').trim(), `${loc}: onboarding:apply.nora.unavailable`);
+    assert.ok(!('nora.ask' in o) && !('apply.nora.fallback' in o), `${loc}: the removed door's words are gone`);
+    assert.doesNotMatch(o['login.ctaSignInAs'] + o['login.ctaJoinAs'], /·/, `${loc}: no "Transmit ·" on the sign-in buttons`);
+  }
+});

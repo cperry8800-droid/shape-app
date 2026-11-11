@@ -132,6 +132,9 @@ import { BSSearchKitchenRecipe } from './BSSearchKitchenRecipe.jsx';
 import { BSFocusTitle, BSFocusLead, BSFocusCountdown, BSFocusActions, BSFocusLink, BSFocusMealShop } from './BSFocus.jsx';
 import { bsFocusMin, bsFocusArrival, bsFocusUntil, bsFocusPrevStop, bsFocusSlot, bsSaveShopBy, bsReadSkippedMeals, bsSaveSkippedMeals, bsGroceryItemKey, bsMealShopItems, bsGroceryIsGot, bsReadGotItems, bsSaveGotItems, bsToggleGot } from '../services/focusLayout.mjs';
 import { bsDialogRef } from '../services/dialogBack.mjs';
+import { bsOpenPhotoPositioner, bsPickPhotoFile, bsAvReadFile } from './BSAvatarPositioner.jsx';
+import { BSWeeklyCheckin } from './BSWeeklyCheckin.jsx';
+import { bsAvMark, bsAvSourceFits } from '../services/avatarCrop.mjs';
 
 // Every call to Shape's server goes through the backend's ShapeApi.fetch: the API base in
 // front and the live sign-in token. A root-relative '/api/…' fetch reaches nothing in the
@@ -3919,7 +3922,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
     return <BSHabitsPage tweaks={tweaks} setTweak={setTweak} accent={t.GREEN} onBack={() => setHabitsPage(false)} onOpenScore={() => { setHabitsPage(false); goScore?.(); }} />;
   }
   if (checkinPage) {
-    return <BSWeeklyCheckin onBack={() => { setCheckinPage(false); setCheckinDue(false); }} />;
+    return <BSWeeklyCheckin onBack={() => setCheckinPage(false)} onSent={() => { setCheckinDue(false); setCheckinPage(false); }} />;
   }
   if (homeProgressPage) {
     return <BSClientProgress onBack={() => setHomeProgressPage(false)} />;
@@ -4122,9 +4125,8 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
         <BSWaterLine />
         <BSHomeHabitsRow tour="hero-habits" tweaks={tweaks} setTweak={setTweak} onOpen={() => setHabitsPage(true)} onTicked={bsScoreDirty} />
       </BSMorningPanel>
-      {checkinDue && checkinPrefOn && !(engineFlag && engineFlag.lever === 'checkin') && (
-        <BSHomeBulletin label={tr('home:bulletin.weeklyCheckin', { defaultValue: 'Weekly check-in due' })} detail={tr('home:bulletin.weeklyCheckinDetail', { defaultValue: '2 min' })} onOpen={() => setCheckinPage(true)} />
-      )}
+      {/* The Weekly check-in is not here: it is the coach's form, a line on Team with the coaches it is for
+          (BSHomeTeam.jsx), so Home asks for one check-in, the morning's (owner, 2026-11-11). */}
       {/* With Check-ins off, the quiet door to Your mornings: nothing is asked, the history still shows. */}
       <BSTodayNudge variant="row" onOpen={() => setMorningsPage(true)} />
 
@@ -4189,6 +4191,8 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
             // Who wrote the meal plan (the plan read's nutritionist id): Team files the meals under them.
             mealCoachId={sample ? 'sample-nutritionist' : ((livePlan && livePlan.meals && livePlan.meals.coachId) ?? null)}
             showFindCoach={!teamCoaches.length && coachesKnown}
+            // Due when this week has no row, with Check-ins on, and not while Your move already asks for it.
+            weekly={!sample && checkinDue && checkinPrefOn && !(engineFlag && engineFlag.lever === 'checkin') ? { onOpen: () => setCheckinPage(true) } : null}
             onFindCoach={() => goMarket?.()} onCoaches={() => goChat()} onCalendar={goCalendar} />
         );
       })()}
@@ -14415,37 +14419,39 @@ function BSFacetAvatar({ size = 72, c = '#34d6c5', initial = 'S', name = '', pho
   );
 }
 
-// Programmatic photo picker (for buttons like Settings → Change photo): opens a
-// file dialog, resizes to a small square JPEG, persists to client_identity.photo
-// + window.ShapeIdentity, broadcasts shape:identity, and calls back with the URL.
+// The profile photo, placed before it is saved (owner, 2026-11-11: "need to be able to drag and reposition
+// profile pic on avatar"). A picked photo opens Position your photo (BSAvatarPositioner.jsx); Use photo saves
+// the square every avatar reads through the serialized writer (it keeps avatarMode and every other field),
+// then keeps the photo as picked, privately, for Reposition (user_goals 'client_photo_source', read by its
+// owner alone). The positioner says a failed save on screen, since toasts are a no-op.
+function bsSavePositionedPhoto({ photo, source, pos }) {
+  const uid = window.ShapeAuth?.getCachedState?.()?.user?.id;
+  return bsSaveIdentity({ photo }).then((res) => {
+    if (!res || res.error) return res || { error: { message: 'Could not save your photo.' } };
+    // A failure here costs only the next Reposition its whole photo: it then starts from the square.
+    try {
+      Promise.resolve(window.shapeDb?.saveUserGoals?.('client_photo_source', { src: source, pos, made: bsAvMark(photo), at: new Date().toISOString() }, { expectedUserId: uid })).catch(() => {});
+    } catch (e) {}
+    return res;
+  });
+}
+// Change photo: the file picker, then the positioner. `cb` gets the saved square.
 function bsPickProfilePhoto(cb) {
-  try {
-    const input = document.createElement('input');
-    input.type = 'file'; input.accept = 'image/*';
-    input.onchange = () => {
-      const f = input.files && input.files[0];
-      if (!f) return;
-      const reader = new FileReader();
-      reader.onload = () => {
-        const img = new Image();
-        img.onload = () => {
-          let url = reader.result;
-          try { const S = 256, cv = document.createElement('canvas'); cv.width = S; cv.height = S; const ctx = cv.getContext('2d'); const scale = Math.max(S / img.width, S / img.height), w = img.width * scale, h = img.height * scale; ctx.drawImage(img, (S - w) / 2, (S - h) / 2, w, h); url = cv.toDataURL('image/jpeg', 0.82); } catch (e) {}
-          // Optimistic cache update (instant avatar refresh), then persist through
-          // the serialized writer (preserves avatarMode + any other fields).
-          try { window.ShapeIdentity = { ...(window.ShapeIdentity || {}), photo: url }; window.dispatchEvent(new Event('shape:identity')); } catch (e) {}
-          bsSaveIdentity({ photo: url }).then((res) => {
-            if (res && res.error) { window.__bsToast?.(/log/i.test(res.error.message || '') ? 'Sign in to save your photo' : "Couldn't save photo — try again", 'err'); }
-            else { window.__bsToast?.('Photo updated', 'ok'); }
-          });
-          if (cb) cb(url);
-        };
-        img.src = reader.result;
-      };
-      reader.readAsDataURL(f);
-    };
-    input.click();
-  } catch (e) {}
+  bsPickPhotoFile()
+    .then((src) => (src ? bsOpenPhotoPositioner({ src, onSave: bsSavePositionedPhoto }) : null))
+    .then((res) => { if (res && cb) cb(res.photo); })
+    .catch(() => {});
+}
+// Reposition: the photo as it was picked, where it was left, while it is still the one the avatar shows;
+// otherwise (no kept photo, or a photo changed on the website since) the avatar's own square.
+function bsRepositionProfilePhoto(cb) {
+  const photo = bsValidPhoto(window.ShapeIdentity && window.ShapeIdentity.photo);
+  if (!photo) return Promise.resolve(null);
+  const read = window.shapeDb?.getUserGoals ? Promise.resolve(window.shapeDb.getUserGoals('client_photo_source')).catch(() => null) : Promise.resolve(null);
+  return read.then((doc) => {
+    const fits = bsAvSourceFits(doc, photo);
+    return bsOpenPhotoPositioner({ src: fits ? doc.src : photo, pos: fits ? doc.pos : null, onSave: bsSavePositionedPhoto });
+  }).then((res) => { if (res && cb) cb(res.photo); return res; }).catch(() => null);
 }
 
 // Profile avatar photo — load your saved photo, pick a new one (resized to a
@@ -14468,33 +14474,17 @@ function useBSProfilePhoto(person, isSelf) {
     return () => window.removeEventListener('shape:identity', again);
   }, [isSelf]);
   const onPick = (e) => {
-    const f = e.target.files && e.target.files[0];
+    const input = e.target;
+    const f = input.files && input.files[0];
     if (!f) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      const img = new Image();
-      img.onload = () => {
-        let url = reader.result;
-        try {
-          const S = 256, cv = document.createElement('canvas'); cv.width = S; cv.height = S;
-          const ctx = cv.getContext('2d');
-          const scale = Math.max(S / img.width, S / img.height), w = img.width * scale, h = img.height * scale;
-          ctx.drawImage(img, (S - w) / 2, (S - h) / 2, w, h);
-          url = cv.toDataURL('image/jpeg', 0.82);
-        } catch (e2) {}
-        setPhoto(url);
-        // Optimistic cache update (instant refresh), then persist through the
-        // serialized writer (preserves avatarMode + any other fields).
-        try { window.ShapeIdentity = { ...(window.ShapeIdentity || {}), photo: url }; window.dispatchEvent(new Event('shape:identity')); } catch (e2) {}
-        bsSaveIdentity({ photo: url }).then((res) => {
-          if (res && res.error) { window.__bsToast?.(/log/i.test(res.error.message || '') ? 'Sign in to save your photo' : "Couldn't save photo — try again", 'err'); }
-          else { window.__bsToast?.('Photo updated', 'ok'); }
-        });
-      };
-      img.src = reader.result;
-    };
-    reader.readAsDataURL(f);
+    // The photo is placed in the avatar before it is saved (bsSavePositionedPhoto), as on Edit profile.
+    bsAvReadFile(f)
+      .then((src) => bsOpenPhotoPositioner({ src, onSave: bsSavePositionedPhoto }))
+      .then((res) => { if (res) setPhoto(res.photo); })
+      .catch(() => {})
+      .finally(() => { try { input.value = ''; } catch (e2) {} });
   };
+
   return { photo, fileRef, onPick };
 }
 
@@ -28103,35 +28093,6 @@ function BSIndexRow({ label, figure, status, due, done, onOpen }) {
   );
 }
 
-// BSHomeBulletin — a slim 40px one-liner ABOVE the lead, for a due time-sensitive
-// item (max 2 on the page). Hairline top+bottom, pulsing 6px tick, mono label +
-// detail, trailing ›. Renders only while its caller decides it's due — this
-// component itself is unconditional (the caller gates visibility).
-// The Focus design board's link row (owner, 2026-10-11: "it should look just
-// like the design"): an accent spine, the pulsing tick, the name, the detail as
-// an accent tag, a dotted leader and an arrow.
-function BSHomeBulletin({ label, detail, onOpen }) {
-  const t = useBS();
-  const accent = t.ACCENT || (t.isLight ? '#0a8f87' : '#34d6c5');
-  return (
-    <button
-      type="button" onClick={onOpen} aria-label={`${label} · ${detail || ''}`.trim()}
-      style={{
-        display: 'flex', alignItems: 'center', gap: 9, margin: `8px ${t.padX}px 0`, width: `calc(100% - ${t.padX * 2}px)`, minHeight: 48, boxSizing: 'border-box',
-        border: 0, borderLeft: `3px solid ${accent}`, borderTop: `1px solid ${t.HAIR}`, borderBottom: `1px solid ${t.HAIR}`, background: 'transparent',
-        padding: '4px 4px 4px 12px', textAlign: 'left', cursor: 'pointer', font: 'inherit', color: 'inherit',
-      }}
-    >
-      <span aria-hidden style={{ flexShrink: 0, width: 16, display: 'flex', justifyContent: 'center' }}>
-        <span style={{ width: 7, height: 7, borderRadius: 999, background: accent, ...(!bsSdReduced() ? { animation: 'bsPlatePulse 1.8s ease-in-out infinite' } : null) }} />
-      </span>
-      <span style={{ fontFamily: t.DISPLAY, fontWeight: 400, fontSize: 15, color: t.INK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{label}</span>
-      {detail ? <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 8, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: accent, whiteSpace: 'nowrap' }}>{detail}</span> : null}
-      <span aria-hidden style={{ flex: 1, minWidth: 12, borderBottom: `1.5px dotted ${t.RULE}`, transform: 'translateY(-2px)' }} />
-      <span aria-hidden style={{ flexShrink: 0, color: accent, fontSize: 14, fontWeight: 700 }}>→</span>
-    </button>
-  );
-}
 
 // ON THE WALL — Home's entry point into the Wall (review 2026-09-10 §7:
 // "a Home masthead card 'On the wall' with the latest co-signed PR").
@@ -28787,175 +28748,8 @@ function BSMeGoalCard({ onOpen }) {
   );
 }
 
-const BS_CHECKIN_RATINGS = [
-  ['trainingAdherence', 'Training adherence', '#c0533b'],
-  ['nutritionAdherence', 'Nutrition adherence', '#d8b25a'],
-  ['sleep', 'Sleep quality', '#8a5cf6'],
-  ['energy', 'Energy', '#34d6c5'],
-  ['stress', 'Stress · 10 = calm', '#7ed4ff'],
-  ['hunger', 'Hunger control', '#e8b14a'],
-];
-// ⚠ THE CHECK-IN ASKED HOW WELL THEY FOLLOWED A PLAN THEY DID NOT HAVE (client-onboarding review, M16).
-// An adherence question is asked only for a discipline with a plan; until the plan read answers (or if
-// it fails) every question is asked, as before. The website's check-in applies the same rule.
-function bsCheckinRatings(plans) {
-  if (!plans) return BS_CHECKIN_RATINGS;
-  return BS_CHECKIN_RATINGS.filter(([k]) => (k === 'trainingAdherence' ? plans.training : k === 'nutritionAdherence' ? plans.nutrition : true));
-}
-// What is saved is what was asked (Codex on #2378), as on the website: a hidden adherence score is not
-// written back. A rating the form does not know is kept as it came.
-function bsCheckinRatingsToSave(ratings, plans) {
-  const asked = new Set(bsCheckinRatings(plans).map(([k]) => k));
-  const known = new Set(BS_CHECKIN_RATINGS.map(([k]) => k));
-  const out = {};
-  for (const [k, v] of Object.entries(ratings || {})) if (asked.has(k) || !known.has(k)) out[k] = v;
-  return out;
-}
-const BS_MEASURE_SITES = [['waist', 'Waist'], ['hips', 'Hips'], ['chest', 'Chest'], ['arm', 'Upper arm'], ['thigh', 'Thigh'], ['calf', 'Calf']];
-function BSWeeklyCheckin({ onBack }) {
-  const t = useBS();
-  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
-  _bsScrollTopOnMount();
-  const loggedIn = !!(typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.().user);
-  const [ratings, setRatings] = useStateBSC({});
-  const [wins, setWins] = useStateBSC('');
-  const [struggles, setStruggles] = useStateBSC('');
-  const [question, setQuestion] = useStateBSC('');
-  const [weight, setWeight] = useStateBSC('');
-  const [meas, setMeas] = useStateBSC({});
-  const [photos, setPhotos] = useStateBSC({}); // pose → { file, url } until submit
-  const [busy, setBusy] = useStateBSC(false);
-  const [doneWeek, setDoneWeek] = useStateBSC(false);
-  const [plans, setPlans] = useStateBSC(null);
-  React.useEffect(() => {
-    if (!loggedIn || !window.ShapePlan?.get) return undefined;
-    let on = true;
-    // A part the read could not answer asks its adherence question, as a failed read always did.
-    window.ShapePlan.get().then((p) => { if (on && p) setPlans(bsPlanCheckinParts(p)); }).catch(() => {});
-    return () => { on = false; };
-  }, [loggedIn]);
-  // Prefill this week's check-in when it exists — saving again updates it.
-  React.useEffect(() => {
-    if (!loggedIn) return undefined;
-    let on = true;
-    window.ShapeCheckins?.mine?.(1).then((rows) => {
-      if (!on || !rows || !rows.length) return;
-      const r = rows.find((x) => String(x.week_of) === window.ShapeCheckins.weekOf());
-      if (!r) return;
-      setDoneWeek(true);
-      setRatings(r.ratings || {});
-      setWins(r.wins || ''); setStruggles(r.struggles || ''); setQuestion(r.question || '');
-      if (r.weight != null) setWeight(String(r.weight));
-    }).catch(() => {});
-    return () => { on = false; };
-  }, [loggedIn]);
-  const pickPhoto = (pose) => (e) => {
-    const file = e.target.files && e.target.files[0];
-    e.target.value = '';
-    if (!file || !/^image\//.test(file.type || '')) return;
-    setPhotos((p) => { try { if (p[pose] && p[pose].url) URL.revokeObjectURL(p[pose].url); } catch (err) {} return { ...p, [pose]: { file, url: URL.createObjectURL(file) } }; });
-  };
-  const submit = async () => {
-    if (!loggedIn) { window.__bsToast?.('Sign in to check in', 'err'); return; }
-    setBusy(true);
-    try {
-      await window.ShapeCheckins.submit({ ratings: bsCheckinRatingsToSave(ratings, plans), wins, struggles, question, weight: weight || null, unit: t.isMetric ? 'kg' : 'lb' });
-      const entries = Object.entries(meas).filter(([, v]) => v).map(([site, v]) => ({ site, value: parseFloat(v) }));
-      if (entries.length) { try { await window.ShapeMeasurements.log(entries, { unit: t.isMetric ? 'cm' : 'in' }); } catch (e) {} }
-      if (weight) { try { await window.ShapeWeighIns?.log?.({ weight: parseFloat(weight), unit: t.isMetric ? 'kg' : 'lb' }); } catch (e) {} }
-      for (const pose of ['front', 'side', 'back']) {
-        const p = photos[pose];
-        if (p && p.file) { try { await window.ShapeProgressPhotos.upload(p.file, { pose }); } catch (e) {} }
-      }
-      window.__bsToast?.('Check-in saved — your coach can see it', 'ok');
-      onBack();
-    } catch (e) {
-      window.__bsToast?.(e?.message || 'Could not save the check-in', 'err');
-    } finally { setBusy(false); }
-  };
-  // Full-bleed section bands — edge to edge, inner content keeps the page gutter.
-  const card = { borderTop: `1px solid ${t.RULE}`, borderBottom: `1px solid ${t.RULE}`, background: t.PAPER2, padding: `14px ${t.padX}px`, marginBottom: 12 };
-  const lbl = { fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, marginBottom: 8 };
-  const ta = { width: '100%', boxSizing: 'border-box', minHeight: 62, padding: '10px 12px', border: `1px solid ${t.RULE}`, background: t.PAPER, borderRadius: 8, fontFamily: t.DISPLAY, fontSize: 14, color: t.INK, outline: 'none', resize: 'vertical' };
-  const numIn = { width: '100%', boxSizing: 'border-box', padding: '9px 10px', border: `1px solid ${t.RULE}`, background: t.PAPER, borderRadius: 8, fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK, outline: 'none', textAlign: 'center' };
-  return (
-    <BSPage>
-      <BSDetailHeader onBack={onBack} kicker="Weekly check-in" title={<>How did the<br/>week go?</>} />
-      <div style={{ padding: '8px 0 28px' }}>
-        {doneWeek && (
-          <div style={{ ...card, borderLeft: `3px solid ${teal}`, background: `${teal}10`, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.08em', textTransform: 'uppercase', color: teal, fontWeight: 700 }}>Already checked in this week — saving again updates it.</div>
-        )}
-        <div style={card}>
-          <div style={lbl}>Rate the week · 1–10</div>
-          {bsCheckinRatings(plans).map(([k, label, c], idx) => (
-            <div key={k} style={{ padding: '9px 0', borderTop: idx === 0 ? 0 : `1px solid ${t.HAIR}` }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 7 }}>
-                <span style={{ fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 600, color: t.INK }}>{label}</span>
-                <span style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 800, color: c, fontVariantNumeric: 'tabular-nums' }}>{ratings[k] || '—'}</span>
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(10, 1fr)', gap: 4 }}>
-                {Array.from({ length: 10 }).map((_, i) => {
-                  const v = i + 1; const on = Number(ratings[k]) >= v; const sel = Number(ratings[k]) === v;
-                  return <button key={v} onClick={() => setRatings((r) => ({ ...r, [k]: v }))} aria-label={`${label} ${v} of 10`} style={{ height: 22, borderRadius: 3, border: `1px solid ${sel ? c : t.RULE}`, background: on ? (sel ? c : `${c}66`) : 'transparent', cursor: 'pointer', padding: 0 }} />;
-                })}
-              </div>
-            </div>
-          ))}
-        </div>
-        <div style={card}>
-          <div style={lbl}>Body · optional</div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 9, marginBottom: 10 }}>
-            <label style={{ display: 'block' }}>
-              <span style={{ ...lbl, marginBottom: 5, display: 'block' }}>Weight ({t.isMetric ? 'kg' : 'lb'})</span>
-              <input value={weight} onChange={(e) => setWeight(e.target.value.replace(/[^0-9.]/g, ''))} inputMode="decimal" placeholder="—" style={numIn} />
-            </label>
-            <div />
-          </div>
-          <div style={{ ...lbl, marginBottom: 5 }}>Measurements ({t.isMetric ? 'cm' : 'in'})</div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
-            {BS_MEASURE_SITES.map(([site, label]) => (
-              <label key={site} style={{ display: 'block' }}>
-                <span style={{ display: 'block', fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700, marginBottom: 4 }}>{label}</span>
-                <input value={meas[site] || ''} onChange={(e) => { const v = e.target.value.replace(/[^0-9.]/g, ''); setMeas((m) => ({ ...m, [site]: v })); }} inputMode="decimal" placeholder="—" style={numIn} />
-              </label>
-            ))}
-          </div>
-        </div>
-        <div style={card}>
-          <div style={lbl}>Progress photos · optional</div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
-            {['front', 'side', 'back'].map((pose) => (
-              <label key={pose} style={{ display: 'block', cursor: 'pointer' }}>
-                <input type="file" accept="image/*" onChange={pickPhoto(pose)} style={{ display: 'none' }} />
-                <span style={{ display: 'grid', placeItems: 'center', height: 92, borderRadius: 6, border: `1px ${photos[pose] ? 'solid' : 'dashed'} ${photos[pose] ? teal : t.RULE}`, background: photos[pose] ? `url(${photos[pose].url}) center/cover` : t.PAPER, overflow: 'hidden' }}>
-                  {!photos[pose] && <span style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>＋ {pose}</span>}
-                </span>
-              </label>
-            ))}
-          </div>
-          <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50 }}>Private — only you and your coaches can see these.</div>
-        </div>
-        <div style={card}>
-          <div style={lbl}>The week in words</div>
-          <div style={{ marginBottom: 10 }}>
-            <div style={{ ...lbl, marginBottom: 5 }}>Wins — what went well?</div>
-            <textarea value={wins} onChange={(e) => setWins(e.target.value)} style={ta} />
-          </div>
-          <div style={{ marginBottom: 10 }}>
-            <div style={{ ...lbl, marginBottom: 5 }}>Struggles — what got in the way?</div>
-            <textarea value={struggles} onChange={(e) => setStruggles(e.target.value)} style={ta} />
-          </div>
-          <div>
-            <div style={{ ...lbl, marginBottom: 5 }}>A question for your coach</div>
-            <textarea value={question} onChange={(e) => setQuestion(e.target.value)} style={{ ...ta, minHeight: 46 }} />
-          </div>
-        </div>
-        <button onClick={submit} disabled={busy} style={{ display: 'block', width: `calc(100% - ${t.padX * 2}px)`, margin: `0 ${t.padX}px`, padding: '15px', borderRadius: 5, clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)', border: 0, background: teal, color: '#04201d', cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.7 : 1, fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>{busy ? 'Saving…' : 'Send check-in →'}</button>
-      </div>
-      <BSFooter right="Check-in" />
-    </BSPage>
-  );
-}
+// The Weekly check-in, its ratings and its measures are BSWeeklyCheckin.jsx's (owner, 2026-11-11: redrawn
+// in Home's look, in its own module, with its words in every catalog).
 
 // ── HEALTH PROFILE (intake) — the health screening ───────────────────────────
 // PAR-Q+ screening + injuries / medications / emergency contact. Stored in
@@ -33571,8 +33365,26 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       }
     }).catch(() => {});
   }, [identityRev]);
-  const startEdit = () => { touchedRef.current = new Set(); setDraft(seedDraft()); setEditing(true); };
-  const saveEdit  = async () => {
+  // ⚠ SAVE SAYS WHAT HAPPENED ON THE PAGE (owner, 2026-11-11: "save changes button not working"). Toasts
+  // are a no-op app-wide (BSToastHost), so a taken handle or a failed write left the page as it was with
+  // nothing said, and a Save with nothing changed did nothing at all. Now Save shows Saving…, closes the
+  // page once saved (or at once when nothing changed, after a photo still saving), and a failure is a line
+  // over the buttons, with the draft kept.
+  const [editSave, setEditSave] = useStateBSC({ busy: false, err: '' });
+  const editBusyRef = React.useRef(false);
+  const startEdit = () => { touchedRef.current = new Set(); setDraft(seedDraft()); setEditSave({ busy: false, err: '' }); setEditing(true); };
+  const saveEdit = async () => {
+    if (editBusyRef.current) return;
+    editBusyRef.current = true;
+    setEditSave({ busy: true, err: '' });
+    let err = '';
+    try { err = (await saveEditFields()) || ''; }
+    catch (e) { err = tr('settings:edit.saveFailed', { defaultValue: 'Couldn’t save your profile. Your changes are still here; try again.' }); }
+    editBusyRef.current = false;
+    setEditSave({ busy: false, err });
+  };
+  // Resolves '' once saved and closed, or the line to show.
+  const saveEditFields = async () => {
     // ⚠ ONLY WHAT THE MEMBER TOUCHED IS WRITTEN (see touchedRef). The draft is a copy
     // of `identity`, which also carries `goal` (the Goal page's own field, written by
     // its own editor) and the persona's `accent`, and its untouched keys may still be
@@ -33616,7 +33428,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       const want = typed.toLowerCase();
       let claimed = false;
       try { if (/^[a-z0-9][a-z0-9._]{2,19}$/.test(want)) { await window.ShapeAuth.claimUsername(want); claimed = true; } } catch (e) {}
-      if (!claimed) { window.__bsToast?.(window.ShapeI18n?.t?.('onboarding:login.err.usernameTaken') || 'That username is taken or invalid — try another.', 'err'); return; }
+      if (!claimed) return tr('onboarding:login.err.usernameTaken', { defaultValue: 'That username is taken or invalid — try another.' });
     }
     const location = String(draft.location || '').trim();
     const bio = String(draft.bio || '');
@@ -33630,18 +33442,21 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     if (touched.has('bio')) fields.bio = bio;
     if (touched.has('handle')) fields.handle = handle;
 
-    if (!Object.keys(fields).length) return;
+    // Nothing typed: Save is Done. A photo placed from this page saves on its own (bsSavePositionedPhoto)
+    // through the same chain, so the page closes once that has landed.
+    if (!Object.keys(fields).length) { try { await _bsIdentitySaveChain; } catch (e) {} setEditing(false); return ''; }
     const patch = fields;
     const result = await bsSaveIdentity(patch);
-    if (!result || result.error) { window.__bsToast?.(result?.error?.message || 'Could not save your profile.', 'err'); return; }
+    if (!result || result.error) return tr('settings:edit.saveFailed', { defaultValue: 'Couldn’t save your profile. Your changes are still here; try again.' });
     setIdentity(prev => ({ ...prev, ...fields })); setEditing(false);
     if (touched.has('location')) setLocationKnown(!!location);
     if (touched.has('bio')) setBioKnown(!!bio.trim());
     if (touched.has('handle')) setHandleKnown(!!handle);
     // Mirror the display name to the auth-cached profile so other surfaces pick it up.
     if (touched.has('name')) { try { window.ShapeAuth?.updateProfileName?.(name); } catch (e) {} }
+    return '';
   };
-  const cancelEdit = () => setEditing(false);
+  const cancelEdit = () => { if (editBusyRef.current) return; setEditSave({ busy: false, err: '' }); setEditing(false); };
 
   // Editable account fields (Account pane) — edited via an in-app sheet.
   const accountUser=window.ShapeAuth?.getCachedState?.()?.user;
@@ -33769,9 +33584,9 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   );
 
   // Cancel · Save (the Edit profile page): Cancel drawn as Sign out is, Save filled with the deeper teal.
-  const PassportBtn = ({ label, onClick, fill, grow = true }) => (
-    <button type="button" onClick={onClick} style={{
-      flex: grow ? 1 : '0 0 auto', minWidth: 0, minHeight: 44, padding: '10px 20px', borderRadius: 10, cursor: 'pointer',
+  const PassportBtn = ({ label, onClick, fill, grow = true, busy = false }) => (
+    <button type="button" onClick={onClick} disabled={busy} aria-busy={busy || undefined} style={{
+      flex: grow ? 1 : '0 0 auto', minWidth: 0, minHeight: 44, padding: '10px 20px', borderRadius: 10, cursor: busy ? 'default' : 'pointer', opacity: busy && !fill ? 0.5 : 1,
       border: `1px solid ${fill ? sTealInk : t.RULE}`, background: fill ? sTealInk : 'transparent',
       boxShadow: fill && !t.isLight ? `0 0 16px ${bsTHexA(sTeal, 0.35)}` : 'none',
       color: fill ? sOnTeal : t.INK70, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800,
@@ -34768,6 +34583,10 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
           const card = { ...plate(16), padding: 14 };
           const pronounOpts = ['She/Her', 'He/Him', 'They/Them'];
           const bioLen = (draft.bio || '').length;
+          const hasPhoto = !!bsMyPhotoRaw();
+          // Reposition only while the avatar shows the photo; Initials keeps it stored, unshown.
+          const shownPhoto = (draft.avatarMode === 'initials') ? null : (bsMyPhotoRaw() || null);
+          const photoSaved = () => setTweak && setTweak('identityVersion', Date.now());
           return (
             <div style={{ padding: `0 ${t.padX}px 8px` }}>
               {group(tr('settings:edit.photoAvatar', { defaultValue: 'Photo & avatar' }), true)}
@@ -34776,11 +34595,20 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
                   The tier line reads the same role-aware `scoreProfile` as the plate. */}
               <div data-settings-edit-photo="" style={{ ...plate(18, true), overflow: 'hidden' }}>
                 <div style={{ display: 'flex', gap: 13, alignItems: 'center', padding: 14 }}>
-                  <BSFacetAvatar size={54} c={acc} initial={(draft.initials || '').trim().toUpperCase().slice(0, 2) || bsInitials(draft.name)} name={draft.name} photo={(draft.avatarMode === 'initials') ? null : (bsMyPhotoRaw() || null)} editable onEdit={() => bsPickProfilePhoto(() => setTweak && setTweak('identityVersion', Date.now()))} BG={t.PAPER} />
+                  <BSFacetAvatar size={64} c={acc} initial={(draft.initials || '').trim().toUpperCase().slice(0, 2) || bsInitials(draft.name)} name={draft.name} photo={shownPhoto} editable onEdit={() => bsPickProfilePhoto(photoSaved)}
+                    // The avatar itself opens Position your photo when it shows one (owner, 2026-11-11).
+                    onClick={shownPhoto ? () => bsRepositionProfilePhoto(photoSaved) : undefined}
+                    label={shownPhoto ? tr('settings:edit.reposition', { defaultValue: 'Reposition photo' }) : undefined} BG={t.PAPER} />
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontFamily: t.DISPLAY, fontSize: 18, fontWeight: 600, letterSpacing: '-0.02em', color: t.INK, lineHeight: 1.1, ...ell }}>{draft.name || identity.name}</div>
                     <span style={{ ...led(slotInk(settingsTierC)), marginTop: 7, maxWidth: '100%' }}>{lamp(slotInk(settingsTierC))}<span style={ell}>{tr('settings:edit.tierColor', { tier: scoreProfile.tier, defaultValue: '{tier} tier color' })}</span></span>
                   </div>
+                </div>
+                {/* Change photo and Reposition: a picked photo is placed in the avatar before it is saved, and a
+                    saved one moved again (BSAvatarPositioner.jsx). */}
+                <div style={{ display: 'flex', gap: 6, padding: '0 14px 14px' }}>
+                  <button type="button" data-edit-photo="change" onClick={() => bsPickProfilePhoto(photoSaved)} style={cell(false)}>{tr(hasPhoto ? 'profile:avatar.changePhoto' : 'settings:edit.addPhoto', { defaultValue: hasPhoto ? 'Change photo' : 'Add a photo' })}</button>
+                  {shownPhoto ? <button type="button" data-edit-photo="reposition" onClick={() => bsRepositionProfilePhoto(photoSaved)} style={cell(false)}>{tr('settings:edit.reposition', { defaultValue: 'Reposition photo' })}</button> : null}
                 </div>
                 <div style={{ padding: '12px 14px 14px', borderTop: `1px solid ${t.HAIR}` }}>
                   {/* Show in avatar — two cells, exactly one on (app-wide: photo or the initials gem) */}
@@ -34839,9 +34667,10 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
               </div>
 
               {/* Cancel · Save at the 44px row: Cancel as Sign out is, Save filled. */}
-              <div style={{ display: 'flex', gap: 8, marginTop: 18 }}>
-                <PassportBtn label={tr('settings:action.cancel', { defaultValue: 'Cancel' })} onClick={cancelEdit} grow={false} />
-                <PassportBtn label={tr('settings:edit.saveChanges', { defaultValue: 'Save changes' })} onClick={saveEdit} fill />
+              {editSave.err ? <div role="alert" data-edit-save-error="" style={{ marginTop: 16, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', lineHeight: 1.5, color: t.RUST }}>{editSave.err}</div> : null}
+              <div style={{ display: 'flex', gap: 8, marginTop: editSave.err ? 10 : 18 }}>
+                <PassportBtn label={tr('settings:action.cancel', { defaultValue: 'Cancel' })} onClick={cancelEdit} grow={false} busy={editSave.busy} />
+                <PassportBtn label={editSave.busy ? tr('profile:log.saving', { defaultValue: 'Saving…' }) : tr('settings:edit.saveChanges', { defaultValue: 'Save changes' })} onClick={saveEdit} fill busy={editSave.busy} />
               </div>
             </div>
           );
