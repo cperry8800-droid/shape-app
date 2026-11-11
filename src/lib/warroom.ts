@@ -628,6 +628,16 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
 
   return [
     {
+      section: 'Joint attention reads each co-coach\'s own flag settings (#2691). One migration, waiting on the owner',
+      items: [
+        { label: 'Owner, 2026-11-10, on joint attention reading the co-coach\'s side at Shape\'s house line: "yes fix this please"', status: 'done' },
+        { label: '#2691 get_care_team_flag_lines (2026-11-10-care-team-flag-lines.sql): a client\'s other coaches\' flag tuning, to a coach on that client only (is_coach_on_client); the member, a former or unrelated coach and a signed-out caller read nothing, and anon cannot run it. Only the numbers leave: the thresholds object\'s numeric, capitalised policy keys, never the rest of the settings document. Probed on a PostgreSQL 16 copy, and a second run changes nothing', status: 'done' },
+        { label: '#2691 The overview (shared-overview.ts) puts each co-coach\'s numbers on their care-team entry as flagLines, never the caller\'s; before the migration runs (PGRST202) or when the read fails, no entry carries any and the team is unaffected', status: 'done' },
+        { label: '#2691 dashSignals.js: the record keeps a co-coach\'s numbers (careTeamFrom), and joint attention reads the co-coach\'s side at them, resolved over their role\'s house defaults (jointLeg); a refused or missing number reads at the house line. The website and the app both read joint attention off the overview\'s record', status: 'done' },
+        { label: 'OWNER: run supabase-migrations/2026-11-10-care-team-flag-lines.sql in the Supabase SQL editor; until then joint attention reads the co-coach\'s side at the house line, as before (#2691)', status: 'pending' },
+      ],
+    },
+    {
       section: 'Client flags for each coach, trainer vs nutritionist: red is two areas or a safety flag, no broken streak for coaches, logging and intake are the nutritionist\'s, each role\'s own Settings (#2690). No migration',
       items: [
         { label: 'Owner, 2026-11-10, with a screenshot of the flags list: "you need to make sure these are relevant to each coach. Trainer vs nutritionist", "that will be its own PR", "there should be industry research done as to what alerts each coach would want", "the shape engine may need to be adjusted accordingly", then, on the red rule and the streak, "include both"', status: 'done' },
@@ -641,7 +651,7 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'From the research, new nutritionist rules on data Shape has: fast weight loss (amber over 1% a week from week 3; a safety red at 1 kg a week for 2 weeks with hunger, low energy or low intake), calories well under target (counted only with hunger, low energy or fast loss), days on target in place of the weekly average, a weigh-in gap and early non-response on a weight goal', status: 'pending' },
         { label: 'From the research, changes to rules already there: recovery bands per device (Oura and Garmin read differently from WHOOP; the recovery record needs its provider), low recovery as context for a nutritionist even as the only coach, leaving partly logged days out of the intake averages (a stats SQL change), and optionally a coach\'s score drop without the community and sleep points', status: 'pending' },
         { label: 'Later, needing new data: a pain or injury report after a workout, a disordered-eating screen. Referral wording by credential (a dietitian vs a nutritionist) comes with the safety flags it words', status: 'pending' },
-        { label: 'Joint attention reads the co-coach\'s side at their role\'s house defaults, since a coach can\'t read another coach\'s tuning: a nutritionist who moved their own food-log gap can see a joint case the trainer doesn\'t, or the reverse', status: 'pending' },
+        { label: 'Joint attention read the co-coach\'s side at their role\'s house defaults, since a coach couldn\'t read another coach\'s tuning: fixed in #2691 (get_care_team_flag_lines), once its migration runs', status: 'done' },
         { label: 'Nora\'s Today, when a client\'s overview does not come back, reads a record without the care team: a trainer sees that client\'s food-log gap as the nutritionist\'s until the overview reads', status: 'pending' },
         { label: 'OWNER: Today and Clients as a trainer and as a nutritionist: fewer reds, each with two areas or a health screening behind it; Settings → Client flags in your own groups', status: 'manual' },
       ],

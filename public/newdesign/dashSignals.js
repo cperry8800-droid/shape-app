@@ -1817,12 +1817,39 @@
     return null;
   }
   // One side of joint attention, read at its own coach's line. The viewer's side keeps the set this
-  // runs in (their own tuning); the co-coach's side reads at that role's house defaults, since their
-  // tuning is theirs. Read inside the viewer's set, a trainer judged the nutrition side by their own
-  // 5-day food-log gap, and the two coaches disagreed on who needed a joint note.
+  // runs in (their own tuning). The co-coach's side reads at THEIR tuning, which the overview carries on
+  // their care-team entry (flagLines, from get_care_team_flag_lines), resolved over their role's house
+  // defaults; with none on the record (not read yet, or the read failed) it reads at those defaults.
+  // Read inside the viewer's set, a trainer judged the nutrition side by their own 5-day food-log gap,
+  // and the two coaches disagreed on who needed a joint note.
   function jointLeg(c, now, legRole, viewer) {
     var run = function () { return evaluateClient(c, now, legRole).flags; };
-    return disciplineForRole(legRole) === disciplineForRole(viewer) ? run() : withThresholds(defaultsForRole(legRole), run);
+    if (disciplineForRole(legRole) === disciplineForRole(viewer)) return run();
+    var lines = coCoachLines(c, legRole);
+    return withThresholds(lines ? resolveThresholds(lines, legRole).thresholds : defaultsForRole(legRole), run);
+  }
+  // The flag tuning of the co-coach who holds `legRole` on this client: the same entry coCoachFor picks
+  // (the first of that role with a user id), so the note's coach and the line it was read at agree.
+  function coCoachLines(c, legRole) {
+    var list = c && Array.isArray(c.coCoaches) ? c.coCoaches : [];
+    for (var i = 0; i < list.length; i++) {
+      var x = list[i];
+      if (!x || typeof x.userId !== "string" || !x.userId) continue;
+      var xr = x.role === "dietitian" ? "nutritionist" : x.role;
+      if (disciplineForRole(xr) !== disciplineForRole(legRole)) continue;
+      return flagLinesOf(x.flagLines);
+    }
+    return null;
+  }
+  // A care-team entry's flag tuning as the engine takes it: a plain object of finite numbers, or none.
+  function flagLinesOf(v) {
+    if (!v || typeof v !== "object" || Array.isArray(v)) return null;
+    var out = {}, any = false;
+    for (var k in v) {
+      if (!Object.prototype.hasOwnProperty.call(v, k)) continue;
+      if (typeof v[k] === "number" && isFinite(v[k])) { out[k] = v[k]; any = true; }
+    }
+    return any ? out : null;
   }
   function findJointAttention(clients, now, thresholds, role) {
     if (thresholds) return withThresholds(thresholds, function () { return findJointAttention(clients, now, null, role); });
@@ -2485,7 +2512,13 @@
       var r = m.role === "dietitian" ? "nutritionist" : m.role;
       if (r === "trainer" || r === "nutritionist") {
         has[r] = true;
-        if (!m.isMe && typeof m.userId === "string" && m.userId) co.push({ role: r, userId: m.userId, name: m.name || null });
+        if (!m.isMe && typeof m.userId === "string" && m.userId) {
+          var entry = { role: r, userId: m.userId, name: m.name || null };
+          // Their flag tuning, for joint attention (jointLeg); only when the overview carried some.
+          var lines = flagLinesOf(m.flagLines);
+          if (lines) entry.flagLines = lines;
+          co.push(entry);
+        }
       }
     }
     var pros = has;

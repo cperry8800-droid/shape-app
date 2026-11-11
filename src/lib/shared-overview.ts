@@ -153,7 +153,7 @@ export async function buildSharedOverview(supabase: OverviewClient, { clientId, 
   // `profiles`). PostgREST 400s an unknown column, the error was dropped with `?? []`, and even
   // the caller's OWN care-team entry vanished. Providers have no avatar column; the UI falls back
   // to initials.
-  const [trainersRes, nutriRes, cpRes, coachesRes] = await Promise.all([
+  const [trainersRes, nutriRes, cpRes, coachesRes, linesRes] = await Promise.all([
     trainerIds.length
       ? supabase.from('trainers').select('id, name, owner_id').in('id', trainerIds)
       : Promise.resolve({ data: [] as Array<{ id: number; name: string; owner_id: string | null }> }),
@@ -166,6 +166,10 @@ export async function buildSharedOverview(supabase: OverviewClient, { clientId, 
     // nutritionist), and a member may pay two trainers (owner, 2026-10-16), who share the training
     // section and so need each other in the care team.
     supabase.rpc('get_client_coaches', { p_client_id: clientId }),
+    // Each other coach's flag tuning (2026-11-10-care-team-flag-lines.sql), so joint attention reads
+    // the co-coach's side of a joint note at their own line. The member and anyone not coaching this
+    // client get no rows.
+    supabase.rpc('get_care_team_flag_lines', { p_client_id: clientId }),
   ]);
   type ClientCoach = { provider_role: 'trainer' | 'nutritionist'; provider_id: number; name: string | null; owner_id: string | null; since: string | null };
   // ⚠ BEFORE THE MIGRATION RUNS, THE FUNCTION IS NOT THERE (PostgREST's PGRST202), and treating that as
@@ -236,7 +240,27 @@ export async function buildSharedOverview(supabase: OverviewClient, { clientId, 
       isMe: false,
     }));
 
-  const careTeam = [...trainers, ...nutritionists, ...counterparts, ...sameRole];
+  // A co-coach's flag tuning rides on their care-team entry as `flagLines` (a coach has one settings
+  // document, whatever their listings). Only numbers leave here; the engine still refuses a key it
+  // can't tune and a value out of range. ⚠ NOT DEPLOYED (PGRST202) OR FAILED, NO ENTRY CARRIES LINES:
+  // the engine then reads that side at its role's house defaults, exactly as before, and the care
+  // team itself is unaffected (the joint note is a hint, never the team's membership).
+  const linesMissing = (linesRes.error as { code?: string } | null)?.code === 'PGRST202';
+  if (linesRes.error && !linesMissing) console.error('[shared-overview] get_care_team_flag_lines failed:', linesRes.error.message);
+  const linesBy = new Map<string, Record<string, number>>();
+  const lineRows = !linesRes.error && Array.isArray(linesRes.data) ? linesRes.data as Array<{ owner_id?: unknown; thresholds?: unknown }> : [];
+  for (const row of lineRows) {
+    if (!row || typeof row.owner_id !== 'string' || !row.thresholds || typeof row.thresholds !== 'object' || Array.isArray(row.thresholds)) continue;
+    const clean: Record<string, number> = {};
+    for (const [k, v] of Object.entries(row.thresholds as Record<string, unknown>)) {
+      if (typeof v === 'number' && Number.isFinite(v)) clean[k] = v;
+    }
+    // A coach who tuned nothing carries nothing: their side reads at the house line either way.
+    if (Object.keys(clean).length) linesBy.set(row.owner_id, clean);
+  }
+  const careTeam = [...trainers, ...nutritionists, ...counterparts, ...sameRole].map((m) => (
+    !m.isMe && m.userId && linesBy.has(m.userId) ? { ...m, flagLines: linesBy.get(m.userId) } : m
+  ));
 
   // Sessions window: 30d back, 60d ahead.
   const now = new Date();
