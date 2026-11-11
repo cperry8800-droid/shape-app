@@ -144,7 +144,19 @@ test("scView: the member's streak, best run, heatmap and last week, from The Rec
   assert.equal(v.heat[83], 2, "today's 10 points");
   assert.equal(v.heat[81], 3, 'two days ago, 30 points');
   assert.equal(v.heat[79], 0, 'a tier bonus counted as activity');
-  assert.equal(v.lastWeek, 36, 'days 7-13 ago');
+  assert.equal(v.lastWeek, 36, 'days 8-15 ago, the window before week_gain\'s');
+  // Net on week_gain's basis, and disjoint from it (Codex on #2701): week_gain runs from midnight
+  // seven days ago, so day 7 is this week's; a penalty counts; a tier bonus and a Store buy do not.
+  const edge = S.scView(STANDING, { history: [
+    day(7, [{ delta: 20, source_kind: 'workout' }]),
+    day(9, [{ delta: 15, source_kind: 'workout' }, { delta: -5, source_kind: 'penalty' }]),
+    day(12, [{ delta: 300, source_kind: 'tier_bonus' }, { delta: -900, source_kind: 'store_redeem' }]),
+    day(15, [{ delta: 4, source_kind: 'habit' }]),
+    day(16, [{ delta: 100, source_kind: 'workout' }]),
+  ] }, NOW);
+  assert.equal(edge.lastWeek, 14);
+  const down = S.scView(STANDING, { history: [day(10, [{ delta: -12, source_kind: 'penalty' }])] }, NOW);
+  assert.equal(down.lastWeek, -12, 'a week of penalties reads as a gain');
   // A streak waits for today to close: with nothing today it runs to yesterday.
   const noToday = S.scView(STANDING, { history: RECORD.history.slice(1) }, NOW);
   assert.equal(noToday.streak, 2);
@@ -255,6 +267,26 @@ test('no component shows the example member\'s figures without a label, itself o
     return !(parents.length && parents.every((p) => info.get(p).labelled));
   });
   assert.deepEqual(unlabelled, [], 'these show the example member\'s figures with no label: ' + unlabelled.join(', '));
+});
+
+test('a tier-locked reward stays locked for a Legend member who can afford it (Codex on #2701)', async () => {
+  // The Store shows it "Tier locked" and /api/store/redeem refuses it with 403, so a Redeem
+  // button here would send the member to a reward they cannot take.
+  const v = S.scView({ ...STANDING, points_total: 16000, spendable_balance: 40000, current_tier: { name: 'Legend', threshold: 15000 }, next_tier: null, points_to_next: 0 }, null, NOW);
+  const out = await render(S.ScoreRewards, { v });
+  const locked = S.REWARDS.filter((r) => r.locked);
+  assert.ok(locked.length >= 1, 'no tier-locked reward to check');
+  for (const r of locked) {
+    const card = [...out.el.querySelectorAll('article')].find((a) => a.textContent.includes(r.title));
+    assert.ok(card, `"${r.title}" is not on the page`);
+    const btn = card.querySelector('button');
+    assert.equal(btn.disabled, true, `"${r.title}" offers a Redeem the Store refuses`);
+    assert.doesNotMatch(btn.textContent, /Redeem/);
+  }
+  const open = S.REWARDS.find((r) => !r.locked);
+  const openCard = [...out.el.querySelectorAll('article')].find((a) => a.textContent.includes(open.title));
+  assert.equal(openCard.querySelector('button').disabled, false, 'an affordable reward is not redeemable');
+  await out.close();
 });
 
 test("the Rewards cards are the Store's own items at the Store's own prices", () => {

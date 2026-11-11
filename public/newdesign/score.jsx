@@ -170,8 +170,20 @@ function scView(score, record, now) {
   }
   const level = (p) => (p <= 0 ? 0 : p < 10 ? 1 : p < 25 ? 2 : p < 45 ? 3 : 4);
   const heat = Array.from({ length: 84 }, (_, i) => level(days.get(scIsoDay(today - (83 - i) * SC_DAY)) || 0));
+  // The week before, on week_gain's own basis: week_gain is net (penalties in, Store and tier
+  // bonuses out) from midnight UTC seven days ago, so day offsets 0-7. The window before it is
+  // offsets 8-15, net on the same basis (Codex on #2701: positive-only days 7-13 overlapped it).
+  const net = new Map();
+  for (const d of Array.isArray(record.history) ? record.history : []) {
+    if (!d || typeof d.date !== "string") continue;
+    for (const r of Array.isArray(d.rows) ? d.rows : []) {
+      const x = Number(r && r.delta);
+      if (!Number.isFinite(x) || r.source_kind === "tier_bonus" || r.source_kind === "store_redeem") continue;
+      net.set(d.date, (net.get(d.date) || 0) + x);
+    }
+  }
   let lastWeek = 0;
-  for (let k = 7; k < 14; k++) lastWeek += days.get(scIsoDay(today - k * SC_DAY)) || 0;
+  for (let k = 8; k <= 15; k++) lastWeek += net.get(scIsoDay(today - k * SC_DAY)) || 0;
   return { ...v, streak, best: Math.max(best, streak), active: heat.filter((x) => x > 0).length, heat, lastWeek };
 }
 
@@ -205,7 +217,7 @@ function ScoreHero({ v = null, loading = false }) {
   const streakLine = v ? (v.streak == null ? "" : `${v.streak}-DAY STREAK`) : loading ? "" : `${STREAK}-DAY STREAK`;
   const stats = v
     ? [
-        [`${v.weekGain < 0 ? "−" : "+"}${Math.abs(v.weekGain).toLocaleString()}`, "Points this week", v.lastWeek == null ? "last 7 days" : `vs ${v.lastWeek.toLocaleString()} the week before`],
+        [`${v.weekGain < 0 ? "−" : "+"}${Math.abs(v.weekGain).toLocaleString()}`, "Points this week", v.lastWeek == null ? "last 7 days" : `vs ${v.lastWeek < 0 ? "−" : ""}${Math.abs(v.lastWeek).toLocaleString()} the week before`],
         [v.streak == null ? "—" : `${v.streak}d`, "Current streak", v.best == null ? "" : `personal best ${v.best}d`],
         [v.tier, "Tier", v.next ? `${v.toNext.toLocaleString()} to ${v.next}` : "the top tier"],
         [v.balance.toLocaleString(), "Available to spend", "in the Store"],
@@ -570,10 +582,11 @@ function ScoreLedger(props) {
   );
 }
 
-function RewardCard({ r, balance = 940, tierIdx = null }) {
+function RewardCard({ r, balance = 940 }) {
   const ref = React.useRef(null);
-  // A Peak-tier reward opens for a member at Peak or above; for the example and a visitor it stays locked.
-  const locked = !!r.locked && !(tierIdx != null && tierIdx >= 3);
+  // A tier-locked reward stays locked for everyone: the Store shows it "Tier locked" and
+  // /api/store/redeem refuses it, so a Redeem here would lead nowhere (Codex on #2701).
+  const locked = !!r.locked;
   const canAfford = !locked && balance != null && r.cost <= balance;
   const onMove = (e) => {
     if (SC_RPR || !ref.current) return;
@@ -619,7 +632,7 @@ function ScoreRewards({ v = null, loading = false }) {
             </div>
           </div>
           <div className="sc-rewards" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 22, perspective: "1400px" }}>
-            {REWARDS.map((r, i) => <RewardCard key={i} r={r} balance={balance} tierIdx={v ? v.tierIdx : null} />)}
+            {REWARDS.map((r, i) => <RewardCard key={i} r={r} balance={balance} />)}
           </div>
         </div>
       </ScReveal>
