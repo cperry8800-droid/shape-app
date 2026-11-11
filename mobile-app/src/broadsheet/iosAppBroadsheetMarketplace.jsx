@@ -23,7 +23,7 @@ import { bsProjectAvailability, bsSlotsByDay, bsIsZone } from '../services/coach
 import { viewerZone, partsInZone, dayKey, formatTime, formatDate } from '../services/shapeZone.mjs';
 // The member's coaches, off the plan read, as Home's Team reads them (the Coaches tab's Your team).
 import { bsHomeCoachesOf } from '../services/homeWeek.mjs';
-import { bsPlanPreview } from '../services/planPreview.mjs';
+import { BSPlanPreviewSheet } from './BSPlanPreviewSheet.jsx';
 import { bsNormalizeListingMedia } from '../services/listingMedia.mjs';
 // The directory ("Find your coach.") draws in its own module; this one keeps every rule it reads.
 import { BSMarketDirectory } from './BSMarketDirectory.jsx';
@@ -34,6 +34,7 @@ import { bsUserGoalsRevHook } from '../services/userGoalsRefresh.mjs';
 const useBSUserGoalsRev = bsUserGoalsRevHook(React);
 const BSM2_LOOK_KINDS = ['profile_custom'];
 import { bsCoachCardLook } from '../services/coachCardLook.mjs';
+import { bsCompareToggle, bsCompareMeets, bsCompareRows, bsComparePriceRank, BS_COMPARE_MAX } from '../services/coachCompare.mjs';
 
 // The i18n translator for this module. Mirrors client.jsx's useShapeTr —
 // self-contained on the window globals (ShapeI18n/ShapeLocale), so this module
@@ -890,10 +891,13 @@ function bsmPass(c, f, role, q, now) {
     if (p.per === 'session' && f.maxSession != null && p.amount > f.maxSession) return false;
     if (p.per === 'month' && f.maxMonth != null && p.amount > f.maxMonth) return false;
   }
+  // Every coach on Shape coaches remotely through the app (owner, 2026-11-11: "every coach should have
+  // remote listed"), so Remote is every coach and only In person narrows the list. The city rule keeps
+  // reading what the listing states (Remote or Hybrid), so a city still narrows it.
   const inPerson = c.format === 'In-person' || c.format === 'Hybrid';
-  const remote = c.format === 'Remote' || c.format === 'Hybrid';
-  if ((f.meet === 'inperson' && !inPerson) || (f.meet === 'remote' && !remote)) return false;
-  if (f.city !== 'Anywhere' && bsmCityOf(c) !== f.city && !(f.meet !== 'inperson' && remote)) return false;
+  const statedRemote = c.format === 'Remote' || c.format === 'Hybrid';
+  if (f.meet === 'inperson' && !inPerson) return false;
+  if (f.city !== 'Anywhere' && bsmCityOf(c) !== f.city && !(f.meet !== 'inperson' && statedRemote)) return false;
   if (f.openWeek && !bsmWithinWeek(c, now)) return false;
   if (q) {
     const hay = [c.name, c.specialty, c.category, ...(c.spec || []), c.cred, ...getCoachCertifications(c), bsmCityOf(c)].filter(Boolean).join(' ').toLowerCase();
@@ -908,13 +912,16 @@ function bsmPass(c, f, role, q, now) {
 function bsmFiltersForRole(f, role, everyone, now) {
   const pool = (everyone || []).filter((c) => bsmPass(c, BSM_FILTERS0, role, '', now));
   const cities = new Set(pool.map(bsmCityOf).filter(Boolean));
-  // A way of meeting no listing states can't be chosen (the sheet hides it), so it can't stay on.
-  const meetKnown = pool.some((c) => c.format === 'In-person' || c.format === 'Remote' || c.format === 'Hybrid');
+  // Every coach meets remotely (owner, 2026-11-11), so How you meet is known whenever the role has a coach:
+  // a live listing that states no format is Remote (Codex on #2715: the control went with the live roster).
+  const meetKnown = pool.length > 0;
+  // In person stays on only while some coach meets in person; kept, it would hide every live coach (Codex on #2667).
+  const inPersonKnown = pool.some((c) => c.format === 'In-person' || c.format === 'Hybrid');
   return {
     ...f,
     goals: f.goals.filter((id) => bsmGoalFits(BSM_GOALS.find((g) => g.id === id) || {}, role)),
     city: f.city === 'Anywhere' || cities.has(f.city) ? f.city : 'Anywhere',
-    meet: meetKnown ? f.meet : 'either',
+    meet: !meetKnown || (f.meet === 'inperson' && !inPersonKnown) ? 'either' : f.meet,
     maxSession: role === 'Nutritionists' ? null : f.maxSession,
     maxMonth: role === 'Trainers' ? null : f.maxMonth,
   };
@@ -1018,6 +1025,13 @@ function BSMarketplaceScreen({ onBack = null, onProfile, initialRole, goChat, in
   const [query, setQuery] = useStateBSM2('');
   const [filtersOpen, setFiltersOpen] = useStateBSM2(false);
   const [open, setOpen] = useStateBSM2(null);
+  // Compare (owner, 2026-11-11: "yes i want compare on app"): up to three coaches picked from the rows, kept
+  // while the list is filtered or a coach is opened, and the side-by-side sheet over the page.
+  const [cmpKeys, setCmpKeys] = useStateBSM2([]);
+  const [cmpOpen, setCmpOpen] = useStateBSM2(false);
+  // The roster the picks were made on (read below); a hook, so it sits with the others, above every early
+  // return (Codex on #2718: below them, opening a coach changed the hook count).
+  const cmpRosterRef = React.useRef(null);
   // The tapped coach's 1-based position in the list (LISTING Nº) — null from the
   // picks and the plan rail, which aren't numbered rows.
   const [openNo, setOpenNo] = useStateBSM2(null);
@@ -1157,7 +1171,8 @@ function BSMarketplaceScreen({ onBack = null, onProfile, initialRole, goChat, in
   // prices some listing states, so no filter offers a match nobody has.
   const rolePool = everyone.filter((c) => bsmPass(c, BSM_FILTERS0, pill, '', now));
   const cities = Array.from(new Set(rolePool.map(bsmCityOf).filter(Boolean))).sort((a, b) => a.localeCompare(b));
-  const meetKnown = rolePool.some((c) => c.format === 'In-person' || c.format === 'Remote' || c.format === 'Hybrid');
+  // How you meet: every coach is Remote (owner, 2026-11-11), so the control is there whenever the role has a coach.
+  const meetKnown = rolePool.length > 0;
   const priceRange = (per) => {
     const xs = rolePool.map(bsmPriceOf).filter((p) => p && p.per === per).map((p) => p.amount);
     if (!xs.length) return null;
@@ -1284,8 +1299,45 @@ function BSMarketplaceScreen({ onBack = null, onProfile, initialRole, goChat, in
       look: c.provider_user_id && !bsmIsDemoCoach(c) ? bsCoachCardLook(cardByUser[c.provider_user_id], getPublicProfileKind(c) === 'nutritionist' ? 'nutritionist' : 'trainer', c.provider_user_id) : null,
       onOpen: () => { setOpenNo(n); setOpenIntro(false); setOpen(c); },
       onIntro: () => { setOpenNo(n); setOpenIntro(true); setOpen(c); },
+      // What Compare reads: the years, how they meet (every coach remote: coachCompare.mjs), the city,
+      // the credentials, and whether a free intro is open (not for a coach full and taking none).
+      years: Number.isFinite(Number(c.years)) && Number(c.years) > 0 ? Number(c.years) : null,
+      meet: bsCompareMeets(c.format),
+      city: bsmCityOf(c),
+      creds: getCoachCertifications(c).join(' · ') || null,
+      // A free intro is open only where one can be booked: a coach with a Shape account (or an example's
+      // own flow), not full with no times. A listing with no account behind it has no booking (Codex on #2718).
+      bookable: !!(c.provider_user_id || bsmIsDemoCoach(c)),
+      introOpen: !!(c.provider_user_id || bsmIsDemoCoach(c)) && !(atCapacity && !(times && times.length)),
+      compare: { max: BS_COMPARE_MAX, on: cmpKeys.includes(c.id), can: cmpKeys.includes(c.id) || cmpKeys.length < BS_COMPARE_MAX, onToggle: () => setCmpKeys((k) => bsCompareToggle(k, c.id)) },
     };
   };
+  // The picks are of one roster: the example coaches shown while the live listings are read, or the live
+  // ones. Their ids share a shape (t1, n2…), so a pick made on one roster is cleared when the other lands,
+  // never read as another person there (Codex on #2718).
+  const cmpRoster = remoteCoaches ? 'live' : 'example';
+  if (cmpRosterRef.current !== cmpRoster) { cmpRosterRef.current = cmpRoster; if (cmpKeys.length) { setCmpKeys([]); setCmpOpen(false); } }
+  // The coaches picked to compare, in the order picked, from everyone (a filter that hides one keeps it).
+  const cmpCoaches = (cmpRosterRef.current === cmpRoster ? cmpKeys : []).map((k) => everyone.find((c) => c.id === k)).filter(Boolean);
+  const cmpCards = cmpCoaches.map((c) => { const card = mktDirCard(c); return { ...card, onOpen: () => { setCmpOpen(false); card.onOpen(); }, onIntro: () => { setCmpOpen(false); card.onIntro(); } }; });
+  // Compare's rows, read here (coachCompare.mjs): each coach's words, the best where one coach alone tops a
+  // row that can be ranked, and whether every coach answers the same. The view only draws them.
+  const cmpOnPage = tr('marketplace:compare.onPage', { defaultValue: 'On their page' });
+  const cmpPrice = (p) => (!p ? cmpOnPage : p.per === 'month'
+    ? tr('marketplace:price.perMonth', { defaultValue: '${amount}/month', amount: p.amount })
+    : tr('marketplace:price.perSession', { defaultValue: '${amount}/session', amount: p.amount }));
+  const cmpRowsIn = [
+    { key: 'price', label: tr('marketplace:compare.rowPrice', { defaultValue: 'Price' }), text: (c) => cmpPrice(c.price), rank: bsComparePriceRank(cmpCards, (c) => c.price) },
+    { key: 'rating', label: tr('marketplace:compare.rowRating', { defaultValue: 'Rating' }), text: (c) => (c.score ? tr('marketplace:compare.score', { defaultValue: '{score}/10', score: Number(c.score).toFixed(1) }) : tr('marketplace:rating.new', { defaultValue: 'New' })), rank: (c) => (c.score ? Number(c.score) : null) },
+    { key: 'years', label: tr('marketplace:compare.rowYears', { defaultValue: 'Experience' }), text: (c) => (c.years ? tr('marketplace:compare.years', { defaultValue: '{count, plural, one {# year} other {# years}}', count: c.years }) : '—'), rank: (c) => c.years },
+    { key: 'meet', label: tr('marketplace:filters.meet', { defaultValue: 'How you meet' }), text: (c) => (c.meet === 'both' ? tr('marketplace:compare.meetBoth', { defaultValue: 'In person + remote' }) : tr('marketplace:meet.remote', { defaultValue: 'Remote' })) },
+    { key: 'city', label: tr('marketplace:compare.rowCity', { defaultValue: 'City' }), text: (c) => c.city || cmpOnPage },
+    { key: 'next', label: tr('marketplace:compare.rowNext', { defaultValue: 'Next open' }), text: (c) => (c.next ? c.next.text : cmpOnPage) },
+    { key: 'intro', label: tr('marketplace:compare.rowIntro', { defaultValue: 'Free intro' }), text: (c) => (c.introOpen ? tr('marketplace:compare.yes', { defaultValue: 'Yes' }) : tr('marketplace:compare.no', { defaultValue: 'No' })) },
+    { key: 'verified', label: tr('marketplace:compare.rowVerified', { defaultValue: 'Verified by Shape' }), text: (c) => (c.verified ? tr('marketplace:compare.verifiedYes', { defaultValue: '✓ Yes' }) : tr('marketplace:compare.notYet', { defaultValue: 'Not yet' })) },
+    { key: 'creds', label: tr('marketplace:compare.rowCreds', { defaultValue: 'Credentials' }), text: (c) => c.creds || '—' },
+  ];
+  const cmpRows = bsCompareRows(cmpCards, cmpRowsIn).map((r, i) => ({ ...r, label: cmpRowsIn[i].label }));
   // Editors' picks: the listings Shape features (an example roster's best rated, labelled Example),
   // in the role picked. Nothing paid puts a coach here.
   const inRole = (c) => bsmPass(c, BSM_FILTERS0, pill, '', now);
@@ -1351,7 +1403,15 @@ function BSMarketplaceScreen({ onBack = null, onProfile, initialRole, goChat, in
       sort={sort} sorts={BSM_SORTS} onSort={setSort}
       planTab={planTab} onPlanTab={setPlanTab} plans={tabPlans}
       // The application door, on the role picked (a trainer's on Both).
-      onApply={() => setApplyRole(pill === 'Nutritionists' ? 'nutritionist' : 'trainer')} />
+      onApply={() => setApplyRole(pill === 'Nutritionists' ? 'nutritionist' : 'trainer')}
+      compare={{
+        cards: cmpCards, rows: cmpRows,
+        open: cmpOpen && cmpCoaches.length > 1,
+        onOpen: () => setCmpOpen(true), onClose: () => setCmpOpen(false),
+        // Under two, the sheet closes for good: adding a second coach later waits for the tray's Compare (Codex on #2718).
+        onRemove: (key) => { const next = cmpKeys.filter((x) => x !== key); setCmpKeys(next); if (next.length < 2) setCmpOpen(false); },
+        onClear: () => { setCmpKeys([]); setCmpOpen(false); },
+      }} />
   );
 }
 
@@ -1761,193 +1821,6 @@ function BSPublicActionPanel({ action, coach, onClose, onConfirm, onMessageSent,
   // nothing was the other option and is worse — a tapped BUY would open no sheet.
   const surface = (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || null;
   return surface ? createPortal(panel, surface) : panel;
-}
-
-// ── The plan preview sheet ("what's inside", spec 2026-07-24) ────────────────
-// A buyer could see a name, a price and one line of meta before paying. This
-// opens the coach's OWN authored outline. Every row comes from bsPlanPreview,
-// which parses coach_plans.detail.blocks through the same planOutline parsers
-// the Assign flow uses — so a preview can never describe a plan differently
-// from how it is delivered, and a plan with no authored outline shows the
-// honest "the coach hasn't published an outline" state rather than a fabricated
-// one. Portals into #bs-phone-surface + position:absolute (the sheet rule).
-function BSPlanPreviewSheet({ plan, isNutri, roleColor, teal, onBuy, onClose }) {
-  const t = useBS();
-  const tr = useShapeTr();
-  if (!plan) return null;
-  const p = bsPlanPreview(plan, { isNutri });
-  // `p.kind === null` is the EXPECTED state for a published plan with no
-  // authored outline — it is not evidence the product is a single session.
-  // Falling through to "Single session" mislabelled every empty nutrition plan
-  // and every empty multi-week trainer program. The plan still declares what it
-  // is, so the fallback reads the same `category` the shelf above buckets this
-  // very row by (`singleMatch`), plus the role.
-  const planCat = String((plan && plan.category) || '').toLowerCase();
-  const isSinglePlan = isNutri ? /meal/.test(planCat) : /workout|single/.test(planCat);
-  const eyebrowKind = p.kind
-    || (isNutri ? 'menu' : (isSinglePlan ? 'session' : 'split'));
-  // 'block' (a Week 1..N outline) reads as a Program — same as a weekday split.
-  // Both are multi-session products; only the unit shape differs.
-  const eyebrow = (eyebrowKind === 'split' || eyebrowKind === 'block' || eyebrowKind === 'program')
-    ? tr('marketplace:preview.eyebrowProgram', { defaultValue: 'Program' })
-    : eyebrowKind === 'menu'
-      ? tr('marketplace:preview.eyebrowMenu', { defaultValue: 'Meal plan' })
-      : tr('marketplace:preview.eyebrowSession', { defaultValue: 'Single session' });
-
-  const register = [];
-  if (p.weeks) register.push([tr('marketplace:preview.weeks', { defaultValue: 'Weeks' }), String(p.weeks)]);
-  if (p.sessionsPerWeek) register.push([tr('marketplace:preview.perWeek', { defaultValue: 'Days / wk' }), String(p.sessionsPerWeek)]);
-  // A program's units are its days, which Days / wk already counts.
-  if (p.units.length && p.kind !== 'program') register.push([
-    p.kind === 'menu' ? tr('marketplace:preview.meals', { defaultValue: 'Meals' }) : tr('marketplace:preview.moves', { defaultValue: 'Entries' }),
-    String(p.units.length),
-  ]);
-
-  // A program's day carries its moves' names (a public preview's whole content): the day,
-  // then its moves on a line under it.
-  const dayRow = (u, i) => (
-    <div key={i} data-preview-day="" style={{ padding: '9px 0', borderBottom: `1px solid ${t.HAIR}` }}>
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-        <span style={{ flexShrink: 0, minWidth: 46, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', color: t.INK50 }}>{u.label}</span>
-        <span style={{ minWidth: 0, fontFamily: t.DISPLAY, fontSize: 14, color: t.INK }}>{u.title}</span>
-      </div>
-      <div style={{ marginTop: 3, paddingLeft: 54, fontFamily: t.DISPLAY, fontSize: 12.5, lineHeight: 1.45, color: t.INK70 }}>{u.moves.concat(u.more > 0 ? [`＋${u.more}`] : []).join(' · ')}</div>
-    </div>
-  );
-  const row = (u, i) => (Array.isArray(u.moves) ? dayRow(u, i) :
-    <div key={i} style={{ display: 'flex', alignItems: 'baseline', gap: 8, padding: '9px 0', borderBottom: `1px solid ${t.HAIR}`, opacity: u.rest ? 0.55 : 1 }}>
-      {u.label ? <span style={{ flexShrink: 0, minWidth: 46, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', color: t.INK50 }}>{u.label}</span> : null}
-      <span style={{ minWidth: 0, fontFamily: t.DISPLAY, fontSize: 14, color: t.INK }}>{u.title}</span>
-      <span aria-hidden style={{ flex: 1, borderBottom: `1px dotted ${t.INK}47`, transform: 'translateY(-3px)', minWidth: 10 }} />
-      <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, color: t.INK70, fontVariantNumeric: 'tabular-nums' }}>
-        {u.rest ? tr('marketplace:preview.rest', { defaultValue: 'Rest' })
-          : u.scheme ? u.scheme
-            : u.load ? u.load
-              : (u.kcal != null ? `${u.kcal} kcal` : '')}
-      </span>
-    </div>
-  );
-
-  const sheet = (
-    <div onClick={onClose} style={{ position: 'absolute', inset: 0, zIndex: 210, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end' }}>
-      <div
-        ref={bsDialogRef(onClose)}
-        onClick={(e) => e.stopPropagation()}
-        role="dialog"
-        aria-modal="true"
-        aria-label={tr('marketplace:preview.aria', { defaultValue: "What's inside {name}", name: plan.name || '' })}
-        className="bs-hide-scroll"
-        style={{ width: '100%', boxSizing: 'border-box', maxHeight: '82%', overflowY: 'auto', background: t.PAPER, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderTop: `1px solid ${t.RULE}`, padding: `18px ${t.padX}px calc(18px + env(safe-area-inset-bottom, 0px))`, boxShadow: '0 -20px 50px rgba(0,0,0,0.4)' }}
-      >
-        <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.22em', textTransform: 'uppercase', color: roleColor }}>
-          {eyebrow}{plan.price ? ` · ${plan.price}` : ''}
-        </div>
-        <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 22, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK, lineHeight: 1.1 }}>
-          {plan.name}<span style={{ color: roleColor }}>.</span>
-        </div>
-        <div aria-hidden style={{ margin: '12px 0 2px', height: 2, background: `linear-gradient(90deg, ${t.INK}, ${teal} 72%, transparent)` }} />
-
-        {p.media.length > 0 && (
-          <div style={{ margin: '12px 0 2px', display: 'flex', gap: 7, flexWrap:'wrap' }}>
-            {p.media.map((m, i) => (
-              <div key={i} style={{ flex: 'none', width:m.type==='video'?'100%':132, height:m.type==='video'?'auto':96, minWidth:0, overflow: 'hidden', background: t.PAPER2, border: `1px solid ${t.HAIR}` }}>
-                {m.type === 'video'
-                  ? <ShapeVideoPlayer value={m}/>
-                  : <img src={m.url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
-              </div>
-            ))}
-          </div>
-        )}
-
-        {register.length > 0 && (
-          <div style={{ display: 'flex', gap: 22, marginTop: 14 }}>
-            {register.map(([label, value]) => (
-              <div key={label}>
-                <div style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>{label}</div>
-                <div style={{ fontFamily: t.DISPLAY, fontSize: 20, fontWeight: 700, color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{value}</div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {p.kind ? (
-          <>
-            <div style={{ marginTop: 16, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50 }}>
-              {tr('marketplace:preview.outline', { defaultValue: 'The outline' })}
-            </div>
-            {/* C1a — a per-day menu's SEVEN DAYS are the table of contents and
-                the differentiator being paid for, so they render free. Counts
-                only: no locked meal's text is in `p.days`, so nothing here can
-                leak paid content. Without this strip the model carried the
-                structure and the buyer never saw it — the sheet showed a sample
-                day plus a locked count, which is what a single-day menu looks
-                like too. */}
-            {p.perDay && Array.isArray(p.days) && (
-              <div style={{ marginTop: 8, display: 'flex', gap: 6 }}>
-                {p.days.map((d) => (
-                  <div key={d.label} style={{ flex: 1, textAlign: 'center', padding: '7px 0', border: `1px solid ${d.count ? t.HAIR : 'transparent'}`, background: d.count ? `${teal}14` : 'transparent', opacity: d.count ? 1 : 0.4 }}>
-                    <div style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.1em', color: t.INK50 }}>{d.label}</div>
-                    <div style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: 13, fontWeight: 700, color: d.count ? t.INK : t.INK50, fontVariantNumeric: 'tabular-nums' }}>{d.count || '—'}</div>
-                  </div>
-                ))}
-              </div>
-            )}
-            {p.perDay && (
-              <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>
-                {/* "Menus vary by day", not "a different menu each day" — perDay
-                    fires on ONE differing day (Mon/Wed/Fri overrides + four
-                    inherited defaults is the normal authored shape), so the
-                    stronger claim would overstate what several real plans
-                    deliver. Copy on a paid surface states what is true of
-                    every plan it renders on. */}
-                {tr('marketplace:preview.perDay', { defaultValue: 'Menus vary by day · meals per day' })}
-              </div>
-            )}
-            <div style={{ marginTop: 4 }}>{p.free.map(row)}</div>
-            {p.locked > 0 && (
-              <div style={{ marginTop: 10, padding: '10px 0', borderTop: `1px dashed ${t.INK}3d`, textAlign: 'center', fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50 }}>
-                {tr('marketplace:preview.locked', { defaultValue: '＋{count} more · unlocked when you buy', count: p.locked })}
-              </div>
-            )}
-            {/* A program's public preview carries names, weeks and days only
-                (bsProgramReduce); say what buying adds. */}
-            {p.namesOnly && (
-              <div data-preview-names-only="" style={{ marginTop: p.locked > 0 ? 0 : 10, paddingBottom: 4, textAlign: 'center', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>
-                {tr('marketplace:preview.namesOnly', { defaultValue: 'Sets, loads, cues and exercise videos unlock when you buy' })}
-              </div>
-            )}
-          </>
-        ) : (
-          <div style={{ marginTop: 16, fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 13.5, lineHeight: 1.5, color: t.INK70 }}>
-            {tr('marketplace:preview.noOutline', { defaultValue: "This coach hasn't published an outline for this one yet." })}
-          </div>
-        )}
-
-        {p.note ? (
-          <div style={{ marginTop: 14, paddingLeft: 11, borderLeft: `3px solid ${roleColor}` }}>
-            <div style={{ fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 14, lineHeight: 1.5, color: t.INK }}>{p.note}</div>
-          </div>
-        ) : null}
-
-        <div style={{ display: 'flex', gap: 12, marginTop: 16, alignItems: 'center' }}>
-          <button onClick={onClose} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: '13px 10px', minHeight: 44, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK }}>
-            <span style={{ borderBottom: `2px solid ${t.INK}59`, paddingBottom: 2 }}>{tr('marketplace:sheet.close', { defaultValue: 'Close' })}</span>
-          </button>
-          {plan.price ? (
-            <button onClick={onBuy} style={{ flex: 1, padding: 14, border: 0, background: teal, color: t.isLight ? '#fff' : '#04201d', cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', clipPath: 'polygon(0 0, calc(100% - 11px) 0, 100% 11px, 100% 100%, 0 100%)' }}>
-              {tr('marketplace:preview.buy', { defaultValue: 'Buy · {price} →', price: plan.price })}
-            </button>
-          ) : null}
-        </div>
-      </div>
-    </div>
-  );
-
-  // Surface-only, no document.body fallback — body is where a sheet escapes the
-  // phone frame to (the bug PR #1825 fixes), so the guard must not offer it as a
-  // target. Absent surface renders in place: contained, not outside the frame.
-  const surface = (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || null;
-  return surface ? createPortal(sheet, surface) : sheet;
 }
 
 // ── Demo catalogue (signed-out preview ONLY) ─────────────────────────────────

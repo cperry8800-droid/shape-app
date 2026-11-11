@@ -927,6 +927,10 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
     programFor: isPrivate ? null : K.bsProfileProgramFor(custom && custom.programFor),
     picks: isPrivate ? [] : K.bsProfilePicks(custom && custom.picks),
   });
+  // The Summit's programs: every one the coach sells, the Studio's rows first (bsSalePrograms), so none
+  // past the Studio's twelve goes unsold now that the storefront's price list is gone. The head's program
+  // figures (the stats, the milestones) count these, not the Studio's twelve.
+  const salePrograms = studioModel ? K.bsSalePrograms(studioModel, programs) : [];
   // What Work with lists: a coach's published plans, or the sample's own, as the app's sheet does
   // (BSTrainerProfile sheetPlans): a trainer's programs, or a nutritionist's meal plans (#2557).
   // Programs are empty for a nutritionist, so reading only them left the sample's sheet with no
@@ -1011,7 +1015,7 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
   const songEmbed = song ? K.bsSpotifyEmbed(song.url) : null;
   const statFigures = K.bsCoachStatFigures({
     reviews: reviews.count > 0 ? { avg: reviews.avg, count: reviews.count } : null,
-    years: aboutDoc && aboutDoc.years, programs: studioModel ? studioModel.programs.length : 0, workouts: studioModel ? studioModel.workouts.length : 0,
+    years: aboutDoc && aboutDoc.years, programs: salePrograms.length, workouts: studioModel ? studioModel.workouts.length : 0,
     replays: replays.length, recipes: kitchen && kitchen.recipes ? kitchen.recipes.length : 0, plates: plateDays.length, certs: credList.length,
   });
   const headline = isPrivate ? [] : K.bsCoachHeadline(custom && custom.heroStats, role, statFigures);
@@ -1034,9 +1038,6 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
   const hasRange = nutri ? mealPlans.length > 0 || (live && salePlans.state === "error") : (!!(studioModel && (studioModel.programs.length || studioModel.workouts.length)) || workFailed || studioCoaching);
   // Its Programs (Meal plans) head and cards: only with plans to show, a read of them that failed, or to the coach
   // saying where they go; a coach with workouts and no programs has no empty "Programs." over the workouts.
-  // The Summit's programs: every one the coach sells, the Studio's rows first (bsSalePrograms), so none
-  // past the Studio's twelve goes unsold now that the storefront's price list is gone.
-  const salePrograms = studioModel ? K.bsSalePrograms(studioModel, programs) : [];
   const summitPlans = nutri || isSelf || workFailed || salePrograms.length > 0;
   const hasWords = !!(quotes.length || revLocked || reviews.failed || reviews.count > 0);
   // The camps, the app's list in its order (PARITY §1): [key, kind, the name on the tab and the spine].
@@ -1190,7 +1191,10 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
     return [...picked, ...more].slice(0, 3);
   })();
   const years = aboutDoc && aboutDoc.years ? aboutDoc.years : null;
-  const howSaid = !aboutDoc || !aboutDoc.how ? "" : aboutDoc.how === "online" ? "Remote" : aboutDoc.how === "in_person" ? "In person" : "In person + remote";
+  // Every coach coaches remotely through the app (owner, 2026-11-11: "every coach should have remote listed"):
+  // one who meets in person reads In person + remote.
+  // A coach who has not said how they meet is Remote, as the Coaches page lists them (Codex on #2715).
+  const howSaid = aboutDoc && (aboutDoc.how === "in_person" || aboutDoc.how === "both") ? "In person + remote" : "Remote";
   const pronounsSaid = !isPrivate && live && row && typeof row.pronouns === "string" && row.pronouns.trim().length <= 24 ? row.pronouns.trim() : "";
   const discipline = focusWords.length ? focusWords.join(" · ") : (specialty || (nutri ? "Nutritionist" : "Coach"));
   // Milestones on the route, only from figures there are: their years coaching, the programs they
@@ -1198,7 +1202,7 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
   const milestones = isPrivate ? [] : [
     years ? `${years} ${years === 1 ? "year" : "years"} coaching` : null,
     nutri ? (kitchen && kitchen.recipes && kitchen.recipes.length ? `${kitchen.recipes.length} ${kitchen.recipes.length === 1 ? "recipe" : "recipes"}` : null)
-      : (studioModel && studioModel.programs.length ? `${studioModel.programs.length} ${studioModel.programs.length === 1 ? "program" : "programs"}` : null),
+      : (salePrograms.length ? `${salePrograms.length} ${salePrograms.length === 1 ? "program" : "programs"}` : null),
   ].filter(Boolean);
   // The wire: what really happened, newest first. Their next open time, their newest posts, the programs
   // or plans they publish. Nothing for a section that is unread.
@@ -1213,6 +1217,18 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
   // ── Overlays ──
   const [sheet, setSheet] = React.useState(null); // { kind: 'reviews'|'piece'|'program'|'mealPlan'|'replay'|'plateDay'|'recipe', … }
   const [editing, setEditing] = React.useState(false);
+  // The doc read again: the living profile reads the page's row again on a return to the tab after 3 s
+  // away, on Nora's account setup and on an Edit profile save (livingProfilePage.jsx), so an edit made in
+  // the app shows here without a reload. The page takes the new row's doc unless Edit profile is open over
+  // it (that editor merges its own changes at save), and a read that landed while it was open is older
+  // than that save, so a save marks it seen. A re-read that fails leaves the row, and the page, as they are.
+  const rowCustomKey = live ? JSON.stringify((row && row.custom) || null) : null;
+  const seenRowCustom = React.useRef(rowCustomKey);
+  React.useEffect(() => {
+    if (!live || editing || seenRowCustom.current === rowCustomKey) return;
+    seenRowCustom.current = rowCustomKey;
+    setCustom((row && row.custom) || null);
+  }, [live, rowCustomKey, editing]);
   const [shared, setShared] = React.useState("");
   const railRef = React.useRef(null);
   // Work with: the Summit, the one place to buy, its storefront brought into view, on a phone as on a
@@ -1904,7 +1920,7 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
       {sheet && sheet.kind === "recipe" ? (
         <CpwRecipeSheet T={T} K={K} r={sheet.r} onClose={() => setSheet(null)} />
       ) : null}
-      {editing && canEdit ? <ProfileCustomizer key={uid || "self"} initial={custom} c={ACC} coach ownerUid={uid} ownerName={name} onClose={() => setEditing(false)} onSave={(doc) => { setCustom(doc); setEditing(false); }} /> : null}
+      {editing && canEdit ? <ProfileCustomizer key={uid || "self"} initial={custom} c={ACC} coach ownerUid={uid} ownerName={name} onClose={() => setEditing(false)} onSave={(doc) => { seenRowCustom.current = rowCustomKey; setCustom(doc); setEditing(false); }} /> : null}
     </div>
   );
 }
@@ -2225,7 +2241,7 @@ function CpwAboutTab({ T, K, about, prompts, links: linksIn, certs, gallery = []
   const links = part === "about" ? null : linksIn;
   const biz = part === "about" ? null : bizIn;
   const { pal, ACC, INK, ink, first, isSelf } = T;
-  const how = !about || !about.how ? null : about.how === "online" ? "Coaches online" : about.how === "in_person" ? "Coaches in person" : "Coaches online and in person";
+  const how = !about || !about.how ? null : about.how === "online" ? "Coaches online" : "Coaches online and in person"; // in person includes online (howSaid)
   const facts = about ? [
     about.years ? `Coaching for ${about.years} ${about.years === 1 ? "year" : "years"}` : null,
     [how, about.where].filter(Boolean).join(" · ") || null,

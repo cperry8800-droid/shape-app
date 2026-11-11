@@ -143,7 +143,7 @@ test('mobile controls translate on locale changes, including validation, with ca
 test('buyer plan preview renders a provider player instead of feeding a page URL to native video',async()=>{
   globalThis.__VITE_ENV__={};
   window.useBS=()=>({INK:'#111',INK50:'#777',PAPER:'#fff',PAPER2:'#eee',HAIR:'#ccc',MONO:'monospace',DISPLAY:'serif',padX:16});
-  const {Preview}=await loadRealModule(fileURLToPath(new URL('../mobile-app/src/broadsheet/iosAppBroadsheetMarketplace.jsx',import.meta.url)),{registry:new Map([['react',React],['react-dom',require('react-dom')]]),appendExports:'exports.Preview=BSPlanPreviewSheet;'});
+  const PreviewMod=await loadRealModule(fileURLToPath(new URL('../mobile-app/src/broadsheet/BSPlanPreviewSheet.jsx',import.meta.url)),{registry:new Map([['react',React],['react-dom',require('react-dom')]])}); const Preview=PreviewMod.BSPlanPreviewSheet;
   const root=createRoot(document.getElementById('root'));
   await React.act(async()=>root.render(React.createElement(Preview,{plan:{name:'Strength',detail:{media:[{type:'video',url:'https://youtu.be/M7lc1UVf-VE'}]}},onClose:()=>{}})));
   const watch=[...document.querySelectorAll('button')].find(b=>b.textContent.startsWith('▷ Watch'));
@@ -156,7 +156,7 @@ test('buyer plan preview renders a provider player instead of feeding a page URL
 test('a program from the public functions previews names and its one free video, and says what buying unlocks',async()=>{
   globalThis.__VITE_ENV__={};
   window.useBS=()=>({INK:'#111',INK50:'#777',INK70:'#555',PAPER:'#fff',PAPER2:'#eee',HAIR:'#ccc',RULE:'#999',MONO:'monospace',DISPLAY:'serif',padX:16});
-  const {Preview}=await loadRealModule(fileURLToPath(new URL('../mobile-app/src/broadsheet/iosAppBroadsheetMarketplace.jsx',import.meta.url)),{registry:new Map([['react',React],['react-dom',require('react-dom')]]),appendExports:'exports.Preview=BSPlanPreviewSheet;'});
+  const PreviewMod=await loadRealModule(fileURLToPath(new URL('../mobile-app/src/broadsheet/BSPlanPreviewSheet.jsx',import.meta.url)),{registry:new Map([['react',React],['react-dom',require('react-dom')]])}); const Preview=PreviewMod.BSPlanPreviewSheet;
   const root=createRoot(document.getElementById('root'));
   const reduced={preview:true,media:[{type:'video',url:'https://youtu.be/M7lc1UVf-VE'}],blocks:['Bench press','Incline press','Cable fly','Dip'].map((name,i)=>({week:0,day:0,dayName:'Push',name,text:name,...(i?{}:{equipment:'Barbell'})}))};
   await React.act(async()=>root.render(React.createElement(Preview,{plan:{name:'Rack Strength',price:'$40',detail:reduced},onClose:()=>{},onBuy:()=>{}})));
@@ -167,6 +167,10 @@ test('a program from the public functions previews names and its one free video,
   assert.match(text,/Sets, loads, cues and exercise videos unlock when you buy/);
   assert.equal(document.querySelectorAll('[data-preview-names-only]').length,1);
   assert.equal([...document.querySelectorAll('button')].filter(b=>b.textContent.startsWith('▷ Watch')).length,1,'the one free video');
+  // The marketplace hands no canBuy: a priced plan is for sale (the coach page passes its card's rule).
+  assert.match(document.querySelector('[data-preview-buy]').textContent,/^Buy/,'Buy');
+  await React.act(async()=>root.render(React.createElement(Preview,{plan:{name:'Rack Strength',price:'$40',detail:reduced},canBuy:false,onClose:()=>{},onBuy:()=>{}})));
+  assert.ok(!document.querySelector('[data-preview-buy]'),'canBuy false: nothing to buy');
   // A builder's program: its first week's days, each with its moves, and Program, not Single session.
   const days={preview:true,weeks:4,media:[],firstWeek:[{week:0,day:0,dayName:'Push',weekday:0,moves:2},{week:0,day:1,dayName:'Pull',weekday:2,moves:3}],blocks:[['Push',0,'Bench press'],['Push',0,'Dip'],['Pull',2,'Row'],['Push',0,'Fly']].map(([dayName,weekday,name],i)=>({week:i===3?1:0,day:weekday?1:0,dayName,weekday,name,text:name}))};
   await React.act(async()=>root.render(React.createElement(Preview,{plan:{name:'Rack Strength',detail:days},onClose:()=>{}})));

@@ -214,3 +214,20 @@ test("the member's own page takes a doc read again, and an editor's save outlive
   assert.equal(rootDiv().getAttribute('data-dk-page'), 'forest', "the older read undid the editor's save");
   await React.act(async () => root.unmount()); root = null;
 });
+
+// The climb background (profile_custom.climbBg, picked in Edit profile → Appearance or the app's Customize) was
+// painted on no member page. It is the kit's wash over the page's paper, as a coach's page lays it.
+test('the member page lays the climb background picked over its paper, and none leaves it as it was', async () => {
+  await mount(page({ climbBg: 'dusk', look: { paper: 'bone', accent: 'rust' } }));
+  assert.equal(rootDiv().getAttribute('data-dk-climb-bg'), 'dusk', 'the climb background is painted nowhere');
+  const bg = rootDiv().getAttribute('style');
+  assert.ok(bg.includes('rgba(138, 92, 246, 0.3)') || bg.includes('rgba(138,92,246,0.30)'), `the wash is not Dusk's: ${bg}`);
+  // Over the stock paper too: a wash with no paper picked.
+  await mount(page({ climbBg: 'ember' }));
+  assert.equal(rootDiv().getAttribute('data-dk-climb-bg'), 'ember');
+  for (const custom of [{}, { climbBg: '' }, { climbBg: 'neon' }, { climbBg: 7 }]) {
+    await mount(page(custom));
+    assert.equal(rootDiv().getAttribute('data-dk-climb-bg'), null, `${JSON.stringify(custom)}: a wash was laid`);
+    assert.ok(sameColor(rootDiv().style.background, '#100d0a'), `${JSON.stringify(custom)}: not the stock paper`);
+  }
+});

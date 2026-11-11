@@ -323,12 +323,16 @@ test('the Summit sells every program the coach publishes, past the Studio\'s twe
   WIDE = true;
   const many = Array.from({ length: 15 }, (_, i) => ({ ...PLANS[0], id: `p${i + 1}`, name: `Block ${i + 1}` }));
   const calls = backend({ plans: () => ({ data: many, error: null }) });
-  const p = await mount(LIVE);
+  const p = await mount({ ...LIVE, row: { ...LIVE.row, custom: { ...(LIVE.row.custom || {}), heroStats: ['programs'] } } });
   const summit = document.querySelector('[data-camp="summit"]');
   const cards = [...summit.querySelectorAll('[data-summit-range] [data-program]')];
   assert.equal(cards.length, 15, 'all fifteen');
   assert.match(cards[14].textContent, /Block 15/, 'in their order');
   assert.match(summit.querySelector('[data-summit-head]').textContent, /15/, 'and counted');
+  // The head's milestone counts them all too, not the Studio's twelve.
+  assert.match(document.body.textContent, /15 programs/, 'the milestone');
+  assert.doesNotMatch(document.body.textContent, /12 programs/);
+  assert.ok([...document.querySelectorAll('[data-coach-stat]')].some((el) => el.textContent === '15Programs'), 'and the head\'s stat');
   await React.act(async () => cards[14].querySelector('[data-program-open]').click());
   assert.match(document.querySelector('[data-program-sheet]').textContent, /Block 15/);
   await React.act(async () => document.querySelector('[data-program-sheet] [data-program-buy]').click());
@@ -682,4 +686,45 @@ test('a time taken on the profile is selected on the booking page, matched on th
   const html = read('public/newdesign/consultation.html');
   assert.match(html, /let wantedAt = params\.get\('at'\);/);
   assert.match(html, /const hit = Number\.isFinite\(want\) \? built\.find\(\(sl\) => sl\.ms === want\) : null;\n\s+wantedAt = null;/, 'once, and only a time that is still open');
+});
+
+// The page read the coach's doc once, as it opened: the living profile reads its row again on a return to the tab
+// after 3 s away (livingProfilePage.jsx), but the page kept the doc it opened with, so a Bio, a look or an About
+// changed in the app showed only after a reload. It takes the doc of each row read again now.
+test('a row read again brings its doc onto the page: a Bio changed in the app shows without a reload', async () => {
+  WIDE = true; backend();
+  const row = (custom) => ({ ...LIVE.row, custom });
+  const p = await mount({ ...LIVE, row: row({ bio: 'Written on the website.', about: { story: 'Ten years on the floor.' } }) });
+  assert.match(document.body.textContent, /Written on the website\./);
+  await React.act(async () => p.root.render(React.createElement(WebCoachProfile, { chrome: false, follow: { followers: 3, following: 2, canFollow: true }, onFollow() {}, onMessage() {}, ...LIVE, row: row({ bio: 'Changed in the app.', about: { story: 'Ten years on the floor.' } }) })));
+  await settle();
+  assert.match(document.body.textContent, /Changed in the app\./, 'the page kept the doc it opened with');
+  assert.doesNotMatch(document.body.textContent, /Written on the website\./);
+  // The living profile keeps the row it has when a read fails, so the same row again changes nothing.
+  await React.act(async () => p.root.render(React.createElement(WebCoachProfile, { chrome: false, follow: { followers: 3, following: 2, canFollow: true }, onFollow() {}, onMessage() {}, ...LIVE, row: row({ bio: 'Changed in the app.', about: { story: 'Ten years on the floor.' } }) })));
+  await settle();
+  assert.match(document.body.textContent, /Changed in the app\./);
+  await p.unmount();
+});
+
+test('the page takes a doc read again only while Edit profile is shut, and a save marks the older read seen', () => {
+  const src = read('public/newdesign/coachProfileWeb.jsx');
+  assert.match(src, /if \(!live \|\| editing \|\| seenRowCustom\.current === rowCustomKey\) return;/, 'a read lands under the open editor');
+  assert.match(src, /onSave=\{\(doc\) => \{ seenRowCustom\.current = rowCustomKey; setCustom\(doc\); setEditing\(false\); \}\}/, 'an older read undoes the editor\'s save');
+  // The read again on a return to the tab after 3 s is the living profile's, which keeps the row on a failed read.
+  const page = read('public/newdesign/livingProfilePage.jsx');
+  assert.match(page, /if \(away >= 3000\) setSetupRev\(\(n\) => n \+ 1\);/);
+  assert.match(page, /if \(again && rowFailed\) return;/);
+});
+
+// Every coach is listed remote (owner, 2026-11-11): the page's how chip reads Remote for a coach who has not said
+// how they meet, as the Coaches page lists them, and In person + remote for one who meets in person (Codex on #2715).
+test('the how chip: Remote when the coach has not said, In person + remote when they meet in person', async () => {
+  WIDE = true; backend();
+  let p = await mount(LIVE);
+  assert.equal(document.querySelector('[data-chip="how"]')?.textContent, 'Remote', 'a coach who has not said is listed nowhere as remote');
+  await p.unmount();
+  p = await mount({ ...LIVE, row: { ...LIVE.row, custom: { about: { story: 'Ten years on the floor.', how: 'in_person' } } } });
+  assert.equal(document.querySelector('[data-chip="how"]')?.textContent, 'In person + remote');
+  await p.unmount();
 });
