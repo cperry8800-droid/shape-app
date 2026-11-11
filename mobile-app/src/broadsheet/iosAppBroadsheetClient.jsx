@@ -3332,15 +3332,18 @@ function bsHomeLiveWeek(plan, t, tr) {
   };
 }
 
-// Whether the engine's lead is a check-in move the member has opted out of. Named rather
+// Whether the engine's lead is the Weekly check-in, which Home never leads with. Named rather
 // than inlined so it is testable without mounting the whole Home screen: engineFlag
 // arrives from an async effect, so a render-level test cannot reach this branch.
-// ⚠ THE PREF GOVERNS EVERY CHECK-IN SURFACE (owner ruling 2026-08-21), and the LEAD was
-// the one it did not reach — while Home suppresses both bulletins whenever the lead IS
-// the check-in, so an opted-out member had the quiet surfaces hidden and the loudest one
-// left standing. A suppressed lead falls through to the next move; it never empties the rail.
-function bsCheckinLeadSuppressed(engineFlag, prefOn) {
-  return !!engineFlag && !prefOn && engineFlag.lever === 'checkin';
+// ⚠ ONE CHECK-IN ON HOME (owner, 2026-11-11: "why are there 2 checkins"): Home asks for the
+// Morning check-in, and the coach's Weekly check-in is a line on Team with the coach it is for.
+// The engine still picks the check-in lever on an overdue week (the coach's Today and the Shape
+// Daily read it); a lead saying "Send your weekly check-in" beside the Morning check-in was the
+// second check-in again (Codex P2 on #2709). It was suppressed only for a member opted out of
+// check-ins (owner ruling 2026-08-21); now it is for everyone, and the pref gates the Team line.
+// A suppressed lead falls through to the next move; it never empties the rail.
+function bsCheckinLeadSuppressed(engineFlag) {
+  return !!engineFlag && engineFlag.lever === 'checkin';
 }
 
 // ── Your first 30 days: the member's own board (client-onboarding review, fix 4, member mode) ──
@@ -3643,10 +3646,8 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
   }, [initialPage]); // eslint-disable-line react-hooks/exhaustive-deps
   const [checkinDue, setCheckinDue] = useStateBSC(false);
   // ⚠ THE PREF GOVERNS EVERY CHECK-IN SURFACE, NOT JUST THE DAILY PROMPT (owner ruling
-  // 2026-08-21). BSTodayNudge self-gates on this same hook, but the weekly bulletin and
-  // the LEAD did not consult it at all — and when the lead IS the check-in, the two
-  // bulletins below are deliberately suppressed to avoid duplication, so an opted-out
-  // member had the quiet surfaces hidden by their pref and the loudest one left standing.
+  // 2026-08-21). BSTodayNudge self-gates on this same hook, and Team's Weekly check-in line
+  // reads it here. (Home's lead never asks for the Weekly check-in: bsCheckinLeadSuppressed.)
   // A second instance of this hook is deliberate and safe: it seeds from the same per-uid
   // mirror and converges on the same value.
   const { on: checkinPrefOn, settled: checkinPrefSettled } = useBSDailyCheckinPrefState();
@@ -3959,11 +3960,11 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
     // A suppressed check-in lead leaves engineMove null exactly as a lever with no move
     // does (a coach's contact lever, or sleep without a real shortfall), so the workout / meal /
     // habit entries below take the lead.
-    const engineMove = engineFlag && !bsCheckinLeadSuppressed(engineFlag, checkinPrefOn) ? ({
+    const engineMove = engineFlag && !bsCheckinLeadSuppressed(engineFlag) ? ({
       // head defaultValues read the SHARED BS_LEVER_HEADS (dailyWire.mjs) so the
       // Shape Daily telegram and this Home lead can never say a different move;
       // i18n overrides still ride on top via the tr() key.
-      checkin:   { head: tr('home:lead.checkin.head', { defaultValue: BS_LEVER_HEADS.checkin }), cta: [tr('home:lead.checkin.cta', { defaultValue: "I'll check in →" }), () => setCheckinPage(true)], c: t.ACCENT, stakes: tr('home:lead.checkin.stakes', { defaultValue: 'keep your momentum + protect 15 pts' }) },
+      // No `checkin`: Home never leads with the Weekly check-in (bsCheckinLeadSuppressed).
       training:  { head: tr('home:lead.training.head', { defaultValue: BS_LEVER_HEADS.training }), cta: [tr('home:lead.training.cta', { defaultValue: "I'll keep my streak →" }), () => setHabitsPage(true)], c: t.GREEN, stakes: tr('home:lead.training.stakes', { defaultValue: 'hold your streak + momentum' }) },
       nutrition: { head: tr('home:lead.nutrition.head', { defaultValue: BS_LEVER_HEADS.nutrition }), cta: [tr('home:lead.nutrition.cta', { defaultValue: "I'll log a meal →" }), () => goEat()], c: _teal, stakes: tr('home:lead.nutrition.stakes', { defaultValue: 'keep your momentum going' }) },
       goal:      { head: tr('home:lead.goal.head', { defaultValue: BS_LEVER_HEADS.goal }), cta: [tr('home:lead.goal.cta', { defaultValue: "I'll weigh in →" }), () => setGoalsPage(true)], c: t.AMBER },
@@ -4191,8 +4192,8 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
             // Who wrote the meal plan (the plan read's nutritionist id): Team files the meals under them.
             mealCoachId={sample ? 'sample-nutritionist' : ((livePlan && livePlan.meals && livePlan.meals.coachId) ?? null)}
             showFindCoach={!teamCoaches.length && coachesKnown}
-            // Due when this week has no row, with Check-ins on, and not while Your move already asks for it.
-            weekly={!sample && checkinDue && checkinPrefOn && !(engineFlag && engineFlag.lever === 'checkin') ? { onOpen: () => setCheckinPage(true) } : null}
+            // Due when this week has no row, with Check-ins on (Home's lead never asks for it: bsCheckinLeadSuppressed).
+            weekly={!sample && checkinDue && checkinPrefOn ? { onOpen: () => setCheckinPage(true) } : null}
             onFindCoach={() => goMarket?.()} onCoaches={() => goChat()} onCalendar={goCalendar} />
         );
       })()}
@@ -14424,15 +14425,22 @@ function BSFacetAvatar({ size = 72, c = '#34d6c5', initial = 'S', name = '', pho
 // the square every avatar reads through the serialized writer (it keeps avatarMode and every other field),
 // then keeps the photo as picked, privately, for Reposition (user_goals 'client_photo_source', read by its
 // owner alone). The positioner says a failed save on screen, since toasts are a no-op.
+const BS_PHOTO_SOURCE_WAIT_MS = 15000;
 function bsSavePositionedPhoto({ photo, source, pos }) {
   const uid = window.ShapeAuth?.getCachedState?.()?.user?.id;
   return bsSaveIdentity({ photo }).then((res) => {
     if (!res || res.error) return res || { error: { message: 'Could not save your photo.' } };
-    // A failure here costs only the next Reposition its whole photo: it then starts from the square.
+    // Awaited, so a Reposition straight after reads the photo just kept and not the one before (Codex P2 on
+    // #2709), and capped at BS_PHOTO_SOURCE_WAIT_MS, so a stalled write cannot hold the sheet on Saving…
+    // A failure costs only the next Reposition its whole photo: it then starts from the square.
+    let kept = null;
     try {
-      Promise.resolve(window.shapeDb?.saveUserGoals?.('client_photo_source', { src: source, pos, made: bsAvMark(photo), at: new Date().toISOString() }, { expectedUserId: uid })).catch(() => {});
+      kept = window.shapeDb?.saveUserGoals?.('client_photo_source', { src: source, pos, made: bsAvMark(photo), at: new Date().toISOString() }, { expectedUserId: uid });
     } catch (e) {}
-    return res;
+    let timer = null;
+    const cap = new Promise((resolve) => { timer = setTimeout(resolve, BS_PHOTO_SOURCE_WAIT_MS); });
+    return Promise.race([Promise.resolve(kept).catch(() => null), cap])
+      .then(() => { clearTimeout(timer); return res; });
   });
 }
 // Change photo: the file picker, then the positioner. `cb` gets the saved square.

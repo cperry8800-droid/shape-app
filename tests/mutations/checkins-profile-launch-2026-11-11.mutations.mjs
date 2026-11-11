@@ -12,7 +12,7 @@ const MAIN = 'mobile-app/src/broadsheet/iosAppBroadsheetMain.jsx';
 const APPLY = 'mobile-app/src/broadsheet/iosAppBroadsheetProviderApply.jsx';
 
 export default {
-  test: 'node --test tests/avatar-positioner.test.mjs tests/home-deck-team.test.mjs tests/weekly-checkin-page.test.mjs tests/settings-passport-root.test.mjs tests/nora-forms-app.test.mjs tests/app-apply-steps.test.mjs tests/onboarding-board.test.mjs',
+  test: 'node --test tests/avatar-positioner.test.mjs tests/home-deck-team.test.mjs tests/weekly-checkin-page.test.mjs tests/settings-passport-root.test.mjs tests/nora-forms-app.test.mjs tests/app-apply-steps.test.mjs tests/onboarding-board.test.mjs tests/broadsheet-checkin-pref.test.mjs',
   timeoutMs: 300_000,
   mutations: [
     // ── the crop ──
@@ -31,6 +31,10 @@ export default {
     // ── the client: the photo's doors and Save ──
     { name: 'photo: saved before it is placed', file: CLIENT, find: '.then((src) => (src ? bsOpenPhotoPositioner({ src, onSave: bsSavePositionedPhoto }) : null))', replace: '.then((src) => (src ? bsSavePositionedPhoto({ photo: src, source: src, pos: null }).then(() => ({ photo: src })) : null))' },
     { name: 'photo: the kept photo not kept', file: CLIENT, find: "saveUserGoals?.('client_photo_source', { src: source, pos, made: bsAvMark(photo)", replace: "saveUserGoals?.('client_photo_source_off', { src: source, pos, made: bsAvMark(photo)" },
+    // Codex P2 on #2709: the sheet closed while the photo as picked was still being written.
+    { name: '(review) photo: the sheet closes before the kept photo is written', file: CLIENT, find: 'return Promise.race([Promise.resolve(kept).catch(() => null), cap])', replace: 'return Promise.race([Promise.resolve(null), cap])' },
+    { name: '(review) photo: a stalled write holds the sheet', file: CLIENT, find: 'return Promise.race([Promise.resolve(kept).catch(() => null), cap])', replace: 'return Promise.resolve(kept).catch(() => null)' },
+    { name: '(review) photo: a failed write fails the avatar', file: CLIENT, find: 'return Promise.race([Promise.resolve(kept).catch(() => null), cap])', replace: 'return Promise.race([Promise.resolve(kept), cap])' },
     { name: 'photo: Reposition ignores whether the kept photo still fits', file: CLIENT, find: 'const fits = bsAvSourceFits(doc, photo);', replace: 'const fits = !!doc;' },
     { name: 'photo: the profile pages save unplaced', file: CLIENT, find: '      .then((src) => bsOpenPhotoPositioner({ src, onSave: bsSavePositionedPhoto }))\n      .then((res) => { if (res) setPhoto(res.photo); })', replace: '      .then((src) => ({ photo: src }))\n      .then((res) => { if (res) setPhoto(res.photo); })' },
     { name: 'save: two saves at once', file: CLIENT, find: '    if (editBusyRef.current) return;\n    editBusyRef.current = true;', replace: '    editBusyRef.current = true;' },
@@ -39,7 +43,10 @@ export default {
     { name: 'save: the line is never drawn', file: CLIENT, find: '{editSave.err ? <div role="alert" data-edit-save-error=""', replace: '{false ? <div role="alert" data-edit-save-error=""' },
 
     // ── one check-in on Home ──
-    { name: 'home: the weekly line without the pref', file: CLIENT, find: "weekly={!sample && checkinDue && checkinPrefOn && !(engineFlag && engineFlag.lever === 'checkin')", replace: "weekly={!sample && checkinDue && !(engineFlag && engineFlag.lever === 'checkin')" },
+    { name: '(review) home: the weekly line without the pref', file: CLIENT, find: 'weekly={!sample && checkinDue && checkinPrefOn ? {', replace: 'weekly={!sample && checkinDue ? {' },
+    // Codex P2 on #2709: the engine's check-in week led Home with "Send your weekly check-in".
+    { name: '(review) home: the Weekly check-in leads Home again', file: CLIENT, find: "return !!engineFlag && engineFlag.lever === 'checkin';", replace: 'return false;' },
+    { name: '(review) home: the Team line hidden on the engine\'s check-in week', file: CLIENT, find: 'weekly={!sample && checkinDue && checkinPrefOn ? {', replace: "weekly={!sample && checkinDue && checkinPrefOn && !(engineFlag && engineFlag.lever === 'checkin') ? {" },
     { name: 'home: a Back clears the line', file: CLIENT, find: '<BSWeeklyCheckin onBack={() => setCheckinPage(false)} onSent=', replace: '<BSWeeklyCheckin onBack={() => { setCheckinDue(false); setCheckinPage(false); }} onSent=' },
     { name: 'team: the line with no coach', file: TEAM, find: '{weekly && count ? (() => {', replace: '{weekly ? (() => {' },
     { name: 'team: one coach named as many', file: TEAM, find: "const forWhom = count === 1 ? tr('home:team.weeklyFor'", replace: "const forWhom = count === 0 ? tr('home:team.weeklyFor'" },

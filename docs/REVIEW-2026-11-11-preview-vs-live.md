@@ -37,7 +37,7 @@ The page it opens is redrawn in Home's look (see the PR).
 | Shape Radio box | Sample | Plays for a member; free account sees the membership line | Right |
 | Climb to goal | Demo goal | Own goal, or "No goal yet · Set your goal" | Right |
 | This week bars | Demo week | Own week (empty for a new account) | Right |
-| Your move row | — | Only when the engine flags one | Right |
+| Your move row | — | Only when the engine flags one | Right, except the check-in week: **fixed**, see below |
 | Morning check-in | Sample week, saves nothing | Real | Right |
 | Water, Daily habits | Demo habits | Own habits, "—" until set | Right |
 | **Weekly check-in due** | **Never** | **Every account without a row this week** | **Fixed: on Team, coach only** |
@@ -58,3 +58,6 @@ read says there is no coach. No surface appears twice signed in.
 
 - Backing out of the Weekly check-in without sending hid the line until Home was opened again (Home's
   `onBack` cleared `checkinDue`). Only a sent check-in hides it now.
+- On a week the engine picks the check-in (overdue), Home's lead said "Send your weekly check-in"
+  beside the Morning check-in: a second check-in again (Codex, on the PR). Home never leads with it
+  now; the next move leads, and the Team line shows it.

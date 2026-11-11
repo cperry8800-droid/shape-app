@@ -64,6 +64,49 @@ test('the sheet and its doors: a picked photo is placed, then saved; Reposition 
   assert.match(client, /onClick=\{shownPhoto \? \(\) => bsRepositionProfilePhoto\(photoSaved\) : undefined\}/, 'the avatar itself opens it');
 });
 
+// Use photo closed the sheet while the photo as picked was still being written, so a Reposition straight after
+// could read the photo before it and start from the square (Codex P2 on #2709). The save now waits for that
+// write, at most BS_PHOTO_SOURCE_WAIT_MS, and a failed or stalled one still saves the avatar.
+test('Use photo waits for the kept photo before the sheet closes; a failed or stalled write still saves', async () => {
+  const client = read('mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx');
+  const start = client.indexOf('const BS_PHOTO_SOURCE_WAIT_MS = 15000;');
+  const end = client.indexOf('// Change photo: the file picker', start);
+  assert.ok(start > 0 && end > start, 'the save is in the client');
+  const body = client.slice(start, end);
+  const make = ({ save, identity = async () => ({ ok: true }), waitMs = 15000 }) => new Function('window', 'bsSaveIdentity', 'bsAvMark',
+    `${body.replace('= 15000;', `= ${waitMs};`)}\nreturn bsSavePositionedPhoto;`,
+  )({ ShapeAuth: { getCachedState: () => ({ user: { id: 'u1' } }) }, shapeDb: { saveUserGoals: save } }, identity, A.bsAvMark);
+  const args = { photo: 'data:image/jpeg;base64,SQUARE', source: 'data:image/jpeg;base64,WHOLE', pos: { x: 0.4, y: 0.5, zoom: 2 } };
+
+  // The write lands before the save resolves, with the photo, its place and the mark of the square it made.
+  let wrote = null;
+  const slow = (kind, doc, opts) => new Promise((r) => setTimeout(() => { wrote = { kind, doc, opts }; r({ ok: true }); }, 30));
+  const res = await make({ save: slow })(args);
+  assert.deepEqual(res, { ok: true });
+  assert.ok(wrote, 'the sheet closed before the photo as picked was kept');
+  assert.equal(wrote.kind, 'client_photo_source');
+  assert.deepEqual([wrote.doc.src, wrote.doc.pos, wrote.doc.made], [args.source, args.pos, A.bsAvMark(args.photo)]);
+  assert.deepEqual(wrote.opts, { expectedUserId: 'u1' });
+
+  // A failed write, a thrown one, or none at all: the avatar is saved all the same.
+  assert.deepEqual(await make({ save: () => Promise.reject(new Error('offline')) })(args), { ok: true });
+  assert.deepEqual(await make({ save: () => { throw new Error('boom'); } })(args), { ok: true });
+  assert.deepEqual(await make({ save: undefined })(args), { ok: true });
+
+  // A stalled write holds the sheet no longer than the cap.
+  let guardTimer = null;
+  const guard = new Promise((_, reject) => { guardTimer = setTimeout(() => reject(new Error('a stalled write held the sheet')), 2000); });
+  try {
+    assert.deepEqual(await Promise.race([make({ save: () => new Promise(() => {}), waitMs: 40 })(args), guard]), { ok: true });
+  } finally { clearTimeout(guardTimer); }
+
+  // A failed avatar save keeps nothing and says so.
+  let called = false;
+  const failed = await make({ save: () => { called = true; }, identity: async () => ({ error: { message: 'x' } }) })(args);
+  assert.ok(failed.error);
+  assert.equal(called, false, 'the photo was kept for a square that was never saved');
+});
+
 // Save said nothing: toasts are a no-op app-wide, so a taken handle or a failed write left the page as it
 // was, and a Save with nothing changed did nothing at all (owner, 2026-11-11: "save changes button not
 // working").

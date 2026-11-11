@@ -1133,6 +1133,9 @@ test('Team: the Weekly check-in is a line under the coaches it is for, and only 
   // Home: no second check-in row, the line rides Team signed in only, and only a sent check-in clears it.
   const client = readFileSync(join(ROOT, 'mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx'), 'utf8');
   assert.doesNotMatch(client, /BSHomeBulletin|home:bulletin\.weeklyCheckin/, 'no weekly row beside the morning panel');
-  assert.match(client, /weekly=\{!sample && checkinDue && checkinPrefOn && !\(engineFlag && engineFlag\.lever === 'checkin'\) \? \{ onOpen: \(\) => setCheckinPage\(true\) \} : null\}/);
+  // Whenever it is due, the engine's check-in week included: Home's lead never asks for it (Codex P2 on #2709).
+  assert.match(client, /weekly=\{!sample && checkinDue && checkinPrefOn \? \{ onOpen: \(\) => setCheckinPage\(true\) \} : null\}/);
+  assert.match(client, /function bsCheckinLeadSuppressed\(engineFlag\) \{\s*return !!engineFlag && engineFlag\.lever === 'checkin';\s*\}/, 'no weekly check-in in Home\'s lead');
+  assert.doesNotMatch(client, /home:lead\.checkin\./, 'the lead has no check-in move to draw');
   assert.match(client, /<BSWeeklyCheckin onBack=\{\(\) => setCheckinPage\(false\)\} onSent=\{\(\) => \{ setCheckinDue\(false\); setCheckinPage\(false\); \}\} \/>/, 'a Back without sending keeps the line');
 });

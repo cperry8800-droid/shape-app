@@ -521,24 +521,21 @@ test('the stored shapes map to the gate the way the settings row writes them', (
 });
 
 
-// ⚠ THE PREF GOVERNS EVERY CHECK-IN SURFACE (owner ruling 2026-08-21), AND THE LEAD WAS THE
-// ONE IT DID NOT REACH. BSTodayNudge self-gated, but Home's lead never consulted the pref —
-// and Home deliberately suppresses BOTH bulletins whenever the lead is the check-in, so an
-// opted-out member had the quiet surfaces hidden by their pref and "I'll check in →" left
-// standing. The rule is a named function because engineFlag arrives from an async effect:
-// a render-level test never reaches that branch, so an inlined predicate is untestable.
-test('the check-in LEAD is suppressed by the pref, and nothing else is', () => {
+// ⚠ THE PREF GOVERNS EVERY CHECK-IN SURFACE (owner ruling 2026-08-21), and the lead was the one it
+// did not reach, so the rule suppressed the check-in lead for an opted-out member. Since 2026-11-11
+// Home never leads with the Weekly check-in, opted in or out (owner: "why are there 2 checkins";
+// Codex P2 on #2709): the Morning check-in is Home's one check-in and the Weekly one is a line on
+// Team, which the pref gates. The rule is a named function because engineFlag arrives from an async
+// effect: a render-level test never reaches that branch, so an inlined predicate is untestable.
+test('the Weekly check-in never leads Home, and nothing else is suppressed', () => {
   const checkin = { lever: 'checkin', action: { label: 'Send your weekly check-in' } };
   const meal = { lever: 'nutrition', action: { label: 'Log a meal today' } };
-  assert.equal(MOD.bsCheckinLeadSuppressed(checkin, false), true,
-    'the check-in lead reached a member who opted out — the loudest surface of all');
-  assert.equal(MOD.bsCheckinLeadSuppressed(checkin, true), false, 'the opt-out leaked into the default path');
-  // ⚠ ONLY the check-in: they opted out of check-ins, not out of being told the one thing
-  // to do today.
-  assert.equal(MOD.bsCheckinLeadSuppressed(meal, false), false, 'the opt-out swallowed an unrelated move');
-  assert.equal(MOD.bsCheckinLeadSuppressed(meal, true), false);
+  assert.equal(MOD.bsCheckinLeadSuppressed(checkin), true,
+    'the Weekly check-in led Home beside the Morning check-in: two check-ins again');
+  // ⚠ ONLY the check-in: the member is still told the one thing to do today.
+  assert.equal(MOD.bsCheckinLeadSuppressed(meal), false, 'the rule swallowed an unrelated move');
   // No lead at all is not a suppressed lead.
-  assert.equal(MOD.bsCheckinLeadSuppressed(null, false), false);
+  assert.equal(MOD.bsCheckinLeadSuppressed(null), false);
 });
 
 // ⚠ A PREDICATE NOBODY CALLS IS NOT A GATE. Both surfaces are wired at a call site the
@@ -550,8 +547,8 @@ test('both Home surfaces consult the pref', () => {
   assert.match(src, /const \{ on: checkinPrefOn, settled: checkinPrefSettled \} = useBSDailyCheckinPrefState\(\);/,
     'Home must read the pref at all');
   assert.match(src, /function useBSDailyCheckinPref\(\) \{ return useBSDailyCheckinPrefState\(\)\.on; \}/);
-  assert.match(src, /engineFlag && !bsCheckinLeadSuppressed\(engineFlag, checkinPrefOn\)/,
-    'the LEAD must consult the rule, or the loudest check-in surface ignores the pref');
+  assert.match(src, /engineFlag && !bsCheckinLeadSuppressed\(engineFlag\)/,
+    'the LEAD must consult the rule, or Home leads with a second check-in');
   // The weekly line is on Team now, with the coaches it is for (owner, 2026-11-11): one check-in on Home.
   assert.match(src, /weekly=\{!sample && checkinDue && checkinPrefOn &&/,
     'the WEEKLY line derives from a missing row and must also consult the pref');
