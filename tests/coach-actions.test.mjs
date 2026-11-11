@@ -24,7 +24,7 @@ const trainer = (rec, t) => getTriageFeed('trainer', [rec], NOW, t)[0];
 const nutri = (rec, t) => getTriageFeed('nutritionist', [rec], NOW, t)[0];
 
 // ── the new signals ─────────────────────────────────────────────────────────
-test('missed sessions: the trainer\'s, at the threshold, over an evidence floor, tunable', () => {
+test('missed sessions: each coach\'s own, at the threshold, over an evidence floor, tunable', () => {
   const at = (done, planned) => trainer(base({ bookedSessions: { trainer: { done, planned }, nutritionist: null } }));
   assert.deepEqual(keys(at(7, 10)), ['missed_sessions']);
   assert.equal(at(7, 10).flags[0].reason, "3 of 10 booked sessions in the last 6 weeks weren't completed");
@@ -34,8 +34,9 @@ test('missed sessions: the trainer\'s, at the threshold, over an evidence floor,
   assert.deepEqual(keys(at(0, 4)), ['missed_sessions'], 'four booked, none kept');
   assert.deepEqual(keys(trainer(base({ bookedSessions: { trainer: { done: 7, planned: 10 } } }), E.resolveThresholds({ MISSED_SESSIONS: 4 }).thresholds)), []);
   assert.equal(at(7, 10).lead.action.kind, 'schedule');
-  // A nutritionist with a trainer on the client: not theirs. Alone on the client: theirs.
-  assert.deepEqual(keys(nutri(base({ bookedSessions: { nutritionist: { done: 7, planned: 10 } } }))), []);
+  // A nutritionist's own missed consults are theirs, with a trainer on the client or alone (owner,
+  // 2026-11-10, the coach-alerts research: it ran for a nutritionist only with no trainer on).
+  assert.deepEqual(keys(nutri(base({ bookedSessions: { nutritionist: { done: 7, planned: 10 } } }))), ['missed_sessions']);
   assert.deepEqual(keys(nutri(base({ bookedSessions: { nutritionist: { done: 7, planned: 10 } }, pros: { trainer: false, nutritionist: true } }))), ['missed_sessions']);
   // Only the caller's own sessions (Codex on #2621): the client's sessions with every coach
   // (get_client_stats' trainingAdherence) and another role's bookings never tell this coach to rebook.
@@ -260,7 +261,11 @@ test('every member draft is the member\'s: no coach reason, ever', () => {
         if (!d) continue;
         const low = d.toLowerCase();
         for (const reason of reasons) assert.ok(!low.includes(reason), k + ' draft quotes a coach reason: ' + reason);
-        for (const word of ['read it before programming', 'health flag', 'routed', '→', 'dietitian', 'flag']) assert.ok(!low.includes(word), k + ' draft says "' + word + '"');
+        // A trainer who is the client's only coach offers a dietitian on calories and protein (ACE's
+        // scope: general guidance or a referral), said to the member as an offer; no other draft names one.
+        const offersDietitian = role === 'trainer' && (k === 'ledger_blown' || k === 'protein_under');
+        if (offersDietitian) assert.match(d, /a registered dietitian can help — I'm happy to suggest one\.$/, k);
+        for (const word of ['read it before programming', 'health flag', 'routed', '→', 'flag'].concat(offersDietitian ? [] : ['dietitian'])) assert.ok(!low.includes(word), k + ' draft says "' + word + '"');
       }
     }
   }
@@ -279,9 +284,10 @@ test('a client nobody has written to gets a welcome, not "it has been a while"',
 });
 
 test("the lead is the coach's own: a routed flag never leads, however urgent", () => {
-  // A nutritionist with a trainer on the client: sleep (35) is the trainer's, the Score (30) is theirs.
+  // A nutritionist with a trainer on the client: sleep (35) is the trainer's, the Score (30) is theirs
+  // (a 29% drop: a coach's is relative, 2026-11-10).
   const rec = base({ pros: { trainer: true, nutritionist: true }, recovery: { sleepHours: { avg7: 5, lastNight: 5, target: 7.5, n: 6 } },
-    shapeScoreHistory: [{ weekOf: '2026-10-19', points: 70 }, { weekOf: '2026-10-26', points: 60 }] });
+    shapeScoreHistory: [{ weekOf: '2026-10-19', points: 70 }, { weekOf: '2026-10-26', points: 50 }] });
   const r = nutri(rec);
   assert.deepEqual(keys(r), ['score_drop', 'sleep_low']);
   assert.equal(r.lead.key, 'score_drop');
@@ -343,7 +349,7 @@ test('a dismissal holds while the reason is the same episode; a snooze until its
   assert.equal(trainer(late).severity, 'red');
   assert.notEqual(trainer(attachCoachContext([late], { dismissals: [{ client_id: 'c1', reason_key: 'checkin_overdue', reason_sig: lsig }] })[0]).severity, 'red');
   // A routed flag can be set aside too (it leaves the read-only context).
-  const routed = base({ nutrition: { avgProtein: 90, targetProtein: 150 } });
+  const routed = base({ nutrition: { avgProtein: 90, targetProtein: 150 }, foodLogs: { lastLoggedOn: ago(0), daysLogged7d: 5 } });
   const rsig = trainer(routed).readOnly[0].sig;
   assert.equal(trainer(attachCoachContext([routed], { dismissals: [{ client_id: 'c1', reason_key: 'protein_under', reason_sig: rsig }] })[0]).readOnly.length, 0);
   assert.equal(isDismissed(null, flag, NOW), false);
@@ -397,10 +403,11 @@ test('recordFromOverview: the care team decides who a flag routes to', () => {
   // A partial read names only what it saw: an unseen discipline stays unknown (routing as before).
   assert.deepEqual(recordFromOverview({ id: 'c1' }, { careTeam: [me], careTeamPartial: true }).pros, { trainer: true });
   assert.equal('pros' in recordFromOverview({ id: 'c1' }, {}), false, 'no care team read, no claim');
-  // A nutritionist-only client: their trainer flags are theirs.
-  const nOnly = recordFromOverview({ id: 'c1' }, { careTeam: [{ ...rae, isMe: true }], scoreHistory: { streak: { current: 0, best: 8 } } });
+  // A nutritionist-only client: their trainer flags are theirs (a wearable's low recovery here; a
+  // broken streak is no coach's flag since 2026-11-10).
+  const nOnly = recordFromOverview({ id: 'c1' }, { careTeam: [{ ...rae, isMe: true }], deviceRecovery: { avg7: 20, n: 5 } });
   const r = nutri(nOnly);
-  assert.equal(r.flags.find((f) => f.key === 'streak_broken').owned, true);
+  assert.equal(r.flags.find((f) => f.key === 'recovery_low').owned, true);
   assert.equal(r.severity === 'amber' || r.severity === 'red', true, 'and it counts');
   // Two trainers on one client are a care team, but not a joint-attention pair.
   assert.deepEqual(recordFromOverview({ id: 'c1' }, { careTeam: [me, kit] }).pros, { trainer: true, nutritionist: false });
@@ -446,7 +453,9 @@ test('the push snapshot keeps the engine\'s inputs and drops what only a page sh
 
 // ── joint attention ─────────────────────────────────────────────────────────
 test('joint attention: only with a co-coach on the other side, and it names them', () => {
-  const slip = { streaks: { current: 0, best: 10 }, foodLogs: { lastLoggedOn: ago(4), daysLogged7d: 2 } };
+  // Training: the trainer's own missed sessions (the broken streak was, until 2026-11-10). Nutrition: a
+  // food-log gap past a trainer's own 5 days.
+  const slip = { bookedSessions: { trainer: { done: 4, planned: 9 } }, foodLogs: { lastLoggedOn: ago(6), daysLogged7d: 1 } };
   const trainerOnly = base({ ...slip, pros: { trainer: true, nutritionist: false }, coCoaches: [] });
   const nutritionistOnly = base({ ...slip, pros: { trainer: false, nutritionist: true }, coCoaches: [] });
   const shared = base({ ...slip, pros: { trainer: true, nutritionist: true }, coCoaches: [{ role: 'nutritionist', userId: 'u-rae', name: 'Rae' }] });

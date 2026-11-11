@@ -38,9 +38,12 @@ function fixture(extra = {}) {
       // c2 kept 3 of 4 booked sessions: under the missed-sessions line (P2), so these tests read the food gap.
       get_client_stats: ({ p_user_id }) => ({ c1: { daysLogged7d: 6, sessionsCompleted: 4, sessionsPlanned: 4 }, c2: { daysLogged7d: 0, sessionsCompleted: 3, sessionsPlanned: 4 } }[p_user_id] || null),
       get_client_goals: () => null,
-      // Each client checked in this week, so these tests read the rules they were written for; the
-      // no-check-in cases are their own test below.
-      get_client_checkins: () => [{ week_of: '2026-10-05' }],
+      // Priya checked in this week; Sam last week, so on this Thursday (past the 3 days' grace) his
+      // check-in is due: the flag these tests read. (It was his empty food-log week until 2026-11-10:
+      // a food-log gap is the nutritionist's now, and this read, with no overview, does not know
+      // whether one is on the client, so a trainer sees it as routed context.) The no-check-in cases
+      // are their own test below.
+      get_client_checkins: ({ p_user_id }) => [{ week_of: p_user_id === 'c2' ? '2026-09-28' : '2026-10-05' }],
       ...extra.rpcs,
     },
     fail: extra.fail || [],
@@ -59,7 +62,7 @@ test('requests to confirm, today on the coach\'s own clock, and who the Today en
   assert.equal(t.needsYou.checked, 2);
   assert.equal(t.needsYou.of, 2);
   // …with the coach's own move for them (COACH_ACTIONS, P2).
-  assert.deepEqual(t.needsYou.items, [{ name: 'Sam Lee', severity: 'amber', why: 'Tighten nutrition: No food logs in the last week', move: 'Nudge to log' }]);
+  assert.deepEqual(t.needsYou.items, [{ name: 'Sam Lee', severity: 'amber', why: 'Check-in due: Check-in due — last was week of 2026-09-28', move: 'Ask for the check-in' }]);
   assert.ok(!JSON.stringify(t.needsYou).includes('log a meal today'), 'the client\'s own action line is not the coach\'s');
   const stats = sb._calls.filter((c) => c.rpc === 'get_client_stats').map((c) => c.args.p_user_id).sort();
   assert.deepEqual(stats, ['c1', 'c2'], 'only the active roster is read');
@@ -88,7 +91,7 @@ test('a failed bookings read says so; the triage still answers; not a coach says
 
 test('a large roster reads the first clients and says how many', async () => {
   const subs = Array.from({ length: TODAY_CAPS.clients + 5 }, (_, i) => ({ client_id: `x${i}`, status: 'active', provider_role: 'trainer', provider_id: 7 }));
-  const sb = fakeSupabase(fixture({ tables: { subscriptions: subs }, rpcs: { get_client_stats: () => ({ daysLogged7d: 0, sessionsCompleted: 0, sessionsPlanned: 3 }), get_display_names: ({ p_ids }) => p_ids.map((id) => ({ user_id: id, full_name: `Client ${id}` })) } }));
+  const sb = fakeSupabase(fixture({ tables: { subscriptions: subs }, rpcs: { get_client_stats: () => ({ daysLogged7d: 0, sessionsCompleted: 0, sessionsPlanned: 3 }), get_client_checkins: () => [{ week_of: '2026-09-28' }], get_display_names: ({ p_ids }) => p_ids.map((id) => ({ user_id: id, full_name: `Client ${id}` })) } }));
   const t = await readCoachToday(sb, 'coach-1', { now: NOW, zone: 'UTC' });
   assert.equal(t.needsYou.of, TODAY_CAPS.clients + 5);
   assert.equal(t.needsYou.onlyFirst, TODAY_CAPS.clients);
@@ -98,16 +101,16 @@ test('a large roster reads the first clients and says how many', async () => {
 });
 
 test('the coach\'s own signal tuning is applied, re-validated by the engine', async () => {
-  // A coach who set the food gap to 10 days is not shown a 7-day empty week (the engine's
-  // own rule for that knob); house policy flags it.
-  const tuned = fakeSupabase(fixture({ tables: { user_goals: [{ user_id: 'coach-1', kind: 'coach_settings', data: { thresholds: { FOOD_GAP_DAYS: 10 } } }] } }));
+  // A coach who gives check-ins six days' grace is not told on a Thursday that last week's is
+  // missing; house policy (3 days) flags it.
+  const tuned = fakeSupabase(fixture({ tables: { user_goals: [{ user_id: 'coach-1', kind: 'coach_settings', data: { thresholds: { CHECKIN_GRACE_DAYS: 6 } } }] } }));
   const t = await readCoachToday(tuned, 'coach-1', { now: NOW, zone: 'UTC' });
   assert.deepEqual(t.needsYou.items, [], 'their tuning, not the house default');
   // Out of range is refused by the engine, never clamped: house policy again.
-  const bad = fakeSupabase(fixture({ tables: { user_goals: [{ user_id: 'coach-1', kind: 'coach_settings', data: { thresholds: { FOOD_GAP_DAYS: 9999 } } }] } }));
+  const bad = fakeSupabase(fixture({ tables: { user_goals: [{ user_id: 'coach-1', kind: 'coach_settings', data: { thresholds: { CHECKIN_GRACE_DAYS: 9999 } } }] } }));
   assert.equal((await readCoachToday(bad, 'coach-1', { now: NOW, zone: 'UTC' })).needsYou.items.length, 1);
   // Another coach's tuning is never read.
-  const other = fakeSupabase(fixture({ tables: { user_goals: [{ user_id: 'coach-2', kind: 'coach_settings', data: { thresholds: { FOOD_GAP_DAYS: 10 } } }] } }));
+  const other = fakeSupabase(fixture({ tables: { user_goals: [{ user_id: 'coach-2', kind: 'coach_settings', data: { thresholds: { CHECKIN_GRACE_DAYS: 6 } } }] } }));
   assert.equal((await readCoachToday(other, 'coach-1', { now: NOW, zone: 'UTC' })).needsYou.items.length, 1);
 });
 

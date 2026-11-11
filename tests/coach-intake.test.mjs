@@ -76,9 +76,11 @@ test('Needs you: a flagged or missing screening flags a coach, never the member,
   }
   assert.deepEqual(flagsFor('missing', 'client'), [], 'the member\'s own view is not told to screen themselves');
   assert.equal(DS.flagDiscipline('screening_flagged'), 'general', 'both pros program around it');
-  // The directive leads with a health flag over a quiet week, and says to reach out.
+  // The directive leads with a health flag over a quiet week, and says to reach out. A yes on the
+  // screening is red on its own for a coach (SAFETY_FLAGS, 2026-11-10): read before programming.
   const feed = DS.getTriageFeed('trainer', [{ ...base, screening: 'flagged' }], new Date('2026-10-15T12:00:00Z'));
-  assert.equal(feed[0].severity, 'amber');
+  assert.equal(feed[0].severity, 'red');
+  assert.equal(DS.getTriageFeed('trainer', [{ ...base, screening: 'missing' }], new Date('2026-10-15T12:00:00Z'))[0].severity, 'amber', 'a missing one asks, it is not red');
   assert.equal(feed[0].directive.lever, 'contact');
   assert.match(feed[0].directive.reason, /health screening/);
 });

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 import { createRequire } from 'node:module';
+import { loadRealModule } from './helpers/load-real-module.mjs';
 
 const source = readFileSync(new URL('../mobile-app/src/services/shapeBackend.js', import.meta.url), 'utf8');
 const shipping = source.slice(source.indexOf('async function sendWorkoutCoachCue('), source.indexOf('// ─── Pro Console API'));
@@ -167,6 +168,14 @@ test('account switch clears the visible cue and invalidates pending reads and ol
   assert.equal(s.channels.length, 1);
 });
 
+// The panel is its own module (BSWorkoutCoachCue.jsx), with the app's English strings.
+async function cuePanel(React) {
+  const strings = JSON.parse(readFileSync(new URL('../mobile-app/src/i18n/catalogs/en/session.json', import.meta.url), 'utf8'));
+  window.useBS = () => ({ MONO: 'monospace' });
+  window.ShapeI18n = { t: key => strings[key.split(':')[1]] };
+  return loadRealModule(new URL('../mobile-app/src/broadsheet/BSWorkoutCoachCue.jsx', import.meta.url).pathname, { registry: new Map([['react', React]]) });
+}
+
 test('client banner announces the real cue, stays visible, dismisses and unsubscribes on unmount', async () => {
   const require = createRequire(import.meta.url);
   const React = require('react'); const { createRoot } = require('react-dom/client');
@@ -175,12 +184,7 @@ test('client banner announces the real cue, stays visible, dismisses and unsubsc
   globalThis.window = dom.window; globalThis.document = dom.window.document;
   Object.defineProperty(globalThis, 'navigator', { configurable: true, value: window.navigator });
   globalThis.IS_REACT_ACT_ENVIRONMENT = true;
-  const client = readFileSync(new URL('../mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx', import.meta.url), 'utf8');
-  const jsx = client.slice(client.indexOf('function BSWorkoutCoachCue('), client.indexOf('function BSSession('));
-  const babel = require('next/dist/compiled/babel/core');
-  const { code } = babel.transformSync(jsx, { presets: [require('next/dist/compiled/babel/preset-react')], babelrc: false, configFile: false });
-  const strings = JSON.parse(readFileSync(new URL('../mobile-app/src/i18n/catalogs/en/session.json', import.meta.url), 'utf8'));
-  const Banner = new Function('React', 'useStateBSC', 'useBS', 'useShapeTr', `${code}; return BSWorkoutCoachCue;`)(React, React.useState, () => ({ MONO: 'monospace' }), () => key => strings[key.split(':')[1]]);
+  const Banner = (await cuePanel(React)).BSWorkoutCoachCue;
   let callback, stopped = 0;
   window.ShapeCoachFeed = { subscribeWorkoutCues(args) { callback = args.onCue; assert.equal(args.userId, 'client-a'); return () => { stopped++; }; } };
   const root = createRoot(document.getElementById('root'));
@@ -197,5 +201,49 @@ test('client banner announces the real cue, stays visible, dismisses and unsubsc
   await React.act(async () => callback(null));
   assert.equal(document.querySelector('[role="status"]'), null);
   await React.act(async () => root.unmount()); assert.equal(stopped, 1);
+  dom.window.close();
+});
+
+// ⚠ A CUE IS A ROW OF ITS OWN NOW (Codex P2 on #2686): two sent within one read are two cues. The
+// service handed over only the newest and marked both seen, so the older one was lost for good.
+test('two cues landing in one read are both delivered, oldest first, and never again', async () => {
+  const s = service(), cues = [];
+  s.data = [dbRow('Slow down', 14), dbRow('Brace', 12)];
+  const stop = s.api.subscribeWorkoutCues({ userId: 'client-a', startedAt: start, onCue: cue => cues.push(cue) });
+  await flush();
+  assert.deepEqual(cues.map(cue => cue.text), ['Brace', 'Slow down']);
+  await s.poll(); assert.equal(cues.length, 2, 'a poll delivers nothing twice');
+  s.data = [dbRow('Breathe out', 30), dbRow('Slow down', 14), dbRow('Brace', 12), dbRow('Chest up', 20)];
+  await s.poll();
+  assert.deepEqual(cues.map(cue => cue.text), ['Brace', 'Slow down', 'Chest up', 'Breathe out']);
+  stop();
+});
+
+test('the panel shows each cue, newest on top, dismisses one at a time and keeps the newest three', async () => {
+  const require = createRequire(import.meta.url);
+  const React = require('react'); const { createRoot } = require('react-dom/client');
+  const { JSDOM } = require('jsdom');
+  const dom = new JSDOM('<div id="root"></div>', { url: 'https://shape.test' });
+  globalThis.window = dom.window; globalThis.document = dom.window.document;
+  Object.defineProperty(globalThis, 'navigator', { configurable: true, value: window.navigator });
+  globalThis.IS_REACT_ACT_ENVIRONMENT = true;
+  const M = await cuePanel(React);
+  let callback;
+  window.ShapeCoachFeed = { subscribeWorkoutCues(args) { callback = args.onCue; return () => {}; } };
+  const root = createRoot(document.getElementById('root'));
+  await React.act(async () => root.render(React.createElement(M.BSWorkoutCoachCue, { identity: { userId: 'client-a', sessionId: 'w', startedAt: start } })));
+  const shown = () => [...document.querySelectorAll('[data-coach-cue] [role="status"]')].map(el => el.textContent.replace('Coach cue', ''));
+  // As the service hands them over: oldest first, in one go.
+  await React.act(async () => { callback(row('Brace', 12, { id: 'c1' })); callback(row('Slow down', 14, { id: 'c2' })); });
+  assert.deepEqual(shown(), ['Slow down', 'Brace']);
+  await React.act(async () => callback(row('Slow down', 14, { id: 'c2' })));
+  assert.deepEqual(shown(), ['Slow down', 'Brace'], 'a cue is shown once');
+  await React.act(async () => document.querySelectorAll('button[aria-label="Dismiss coach cue"]')[0].click());
+  assert.deepEqual(shown(), ['Brace'], 'the × takes only its own cue');
+  for (const [id, text, at] of [['c3', 'Chest up', 20], ['c4', 'Breathe out', 30], ['c5', 'Last set', 40]]) await React.act(async () => callback(row(text, at, { id })));
+  assert.deepEqual(shown(), ['Last set', 'Breathe out', 'Chest up'], `the newest ${M.BS_COACH_CUES_SHOWN}`);
+  await React.act(async () => callback(null));
+  assert.ok(!document.querySelector('[data-coach-cues]'), 'another account: none left');
+  await React.act(async () => root.unmount());
   dom.window.close();
 });

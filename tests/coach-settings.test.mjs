@@ -31,11 +31,11 @@ const tuned = (o) => resolveThresholds(o).thresholds;
 
 // ── the knob moves the engine ────────────────────────────────────────────────
 test('a tuned threshold changes what the engine flags — the whole point', () => {
-  // Four days since the last food log. The house default (3) flags it; a coach who
-  // works in a practice where five days is normal should not be told anything.
-  const rec = { foodLogs: { lastLoggedOn: ago(4), daysLogged7d: 3 } };
+  // Six days since the last food log. A trainer's house default (5, ROLE_DEFAULTS) flags it; a
+  // coach who works in a practice where a week is normal should not be told anything.
+  const rec = { foodLogs: { lastLoggedOn: ago(6), daysLogged7d: 1 } };
   assert.ok(flagKeys(rec).includes('food_gap'), 'setup: the default does not flag this');
-  assert.ok(!flagKeys(rec, tuned({ FOOD_GAP_DAYS: 6 })).includes('food_gap'),
+  assert.ok(!flagKeys(rec, tuned({ FOOD_GAP_DAYS: 8 })).includes('food_gap'),
     'the tuning was resolved and then ignored by the rules');
   assert.ok(flagKeys(rec, tuned({ FOOD_GAP_DAYS: 2 })).includes('food_gap'),
     'a tighter threshold did not bring the flag back');
@@ -73,17 +73,20 @@ test('a bad value is REFUSED and named, never clamped — and Number() is not th
   // ⚠ `Number(null)` is 0, `Number(true)` is 1 and `Number("")` is 0 — all finite. A
   // coercion check would apply a document holding `CHECKIN_GRACE_DAYS: null` as 0,
   // nagging a whole roster from Monday morning. The type of the RAW value decides.
+  // SCORE_DROP_PTS is the member's own view's since 2026-11-10 (a coach's drop is SCORE_DROP_PCT), so
+  // a stored one is refused like any key no coach can tune.
   const r = resolveThresholds({
-    FOOD_GAP_DAYS: 999, CONTACT_GAP_DAYS: 'x', NOT_A_KEY: 1, SCORE_DROP_PTS: 7,
+    FOOD_GAP_DAYS: 999, CONTACT_GAP_DAYS: 'x', NOT_A_KEY: 1, SCORE_DROP_PCT: 30, SCORE_DROP_PTS: 7,
     CHECKIN_GRACE_DAYS: null, CHECKIN_RED_WEEKS: true, GOAL_SLIP_DAYS: '',
   });
-  assert.deepEqual(r.applied, { SCORE_DROP_PTS: 7 });
+  assert.deepEqual(r.applied, { SCORE_DROP_PCT: 30 });
   assert.equal(r.thresholds.FOOD_GAP_DAYS, DEFAULT_THRESHOLDS.FOOD_GAP_DAYS, 'out of range was clamped in');
   assert.equal(r.thresholds.CHECKIN_GRACE_DAYS, DEFAULT_THRESHOLDS.CHECKIN_GRACE_DAYS, 'null was applied as 0');
   assert.equal(r.thresholds.CHECKIN_RED_WEEKS, DEFAULT_THRESHOLDS.CHECKIN_RED_WEEKS, 'true was applied as 1');
-  assert.equal(r.thresholds.SCORE_DROP_PTS, 7);
+  assert.equal(r.thresholds.SCORE_DROP_PCT, 30);
+  assert.equal(r.thresholds.SCORE_DROP_PTS, DEFAULT_THRESHOLDS.SCORE_DROP_PTS);
   assert.deepEqual(r.refused.map((x) => x.key).sort(),
-    ['CHECKIN_GRACE_DAYS', 'CHECKIN_RED_WEEKS', 'CONTACT_GAP_DAYS', 'FOOD_GAP_DAYS', 'GOAL_SLIP_DAYS', 'NOT_A_KEY']);
+    ['CHECKIN_GRACE_DAYS', 'CHECKIN_RED_WEEKS', 'CONTACT_GAP_DAYS', 'FOOD_GAP_DAYS', 'GOAL_SLIP_DAYS', 'NOT_A_KEY', 'SCORE_DROP_PTS']);
   assert.deepEqual(new Set(r.refused.map((x) => x.why)), new Set(['not tunable', 'not a number', 'out of range']));
 });
 
@@ -95,7 +98,8 @@ test('the evidence floors are NOT tunable, and that is the principled line', () 
   // manufacturing flags out of no data, which is not a preference.
   const tunable = new Set(TUNABLES.map((t) => t.key));
   for (const k of ['ENERGY_MIN_DAYS', 'HUNGER_MIN_DAYS', 'HYDRATION_MIN_DAYS', 'SLEEP_MIN_NIGHTS',
-                   'GOAL_RECENT_DAYS', 'GOAL_MIN_SPAN_DAYS', 'GOAL_FAR_DAYS', 'STREAK_MIN_BEST']) {
+                   'GOAL_RECENT_DAYS', 'GOAL_MIN_SPAN_DAYS', 'GOAL_FAR_DAYS', 'STREAK_MIN_BEST',
+                   'NUTRITION_MIN_DAYS', 'SCORE_DROP_MIN_PREV']) {
     assert.ok(!tunable.has(k), k + ' became tunable — a coach can now fabricate evidence');
     assert.ok(k in DEFAULT_THRESHOLDS, k + ' left the engine; this guard is now vacuous');
   }
@@ -187,9 +191,9 @@ test('a row returned to the house default is REMOVED from the document', () => {
   assert.ok(!('FOOD_GAP_DAYS' in reset.thresholds));
 
   // …and the rest of the document survives the merge
-  setThreshold('SCORE_DROP_PTS', 8);
+  setThreshold('SCORE_DROP_PCT', 8);
   assert.deepEqual(merge({ landingTab: 'week', thresholds: {} }),
-    { landingTab: 'week', thresholds: { SCORE_DROP_PTS: 8 } });
+    { landingTab: 'week', thresholds: { SCORE_DROP_PCT: 8 } });
 });
 
 // ── the landing tab ──────────────────────────────────────────────────────────
@@ -332,10 +336,10 @@ test('candidatesFor runs the coach’s tuning and leaves no trace on the module'
   // The TS module may not be importable from node --test; the property that matters is
   // the engine's, and it is drivable directly.
   const clients = [{ profile: { id: 'c1', name: 'A' }, userId: 'c1',
-                     foodLogs: { lastLoggedOn: ago(4), daysLogged7d: 3 } }];
+                     foodLogs: { lastLoggedOn: ago(6), daysLogged7d: 1 } }];
   const before = { ...THRESHOLDS };
   const hot = DS.getTriageFeed('trainer', clients, NOW);
-  const cool = DS.getTriageFeed('trainer', clients, NOW, tuned({ FOOD_GAP_DAYS: 6 }));
+  const cool = DS.getTriageFeed('trainer', clients, NOW, tuned({ FOOD_GAP_DAYS: 8 }));
   assert.ok(hot[0].flags.some((f) => f.key === 'food_gap'), 'setup: the default does not flag');
   assert.ok(!cool[0].flags.some((f) => f.key === 'food_gap'), 'the feed ignored the per-call tuning');
   assert.deepEqual({ ...THRESHOLDS }, before, 'the feed leaked a tuning into the module');
@@ -931,7 +935,7 @@ test('an older threshold load cannot overwrite a newer one', () => {
   // the guard sits between the await and the setState, or it guards nothing
   const awaitAt = body.indexOf('await dashReadCoachSettings()');
   const guardAt = body.indexOf('if (gen !== genRef.current) return;');
-  const setAt = body.indexOf('setResolved(dashResolveCoachThresholds(doc))');
+  const setAt = body.indexOf('setResolved(dashResolveCoachThresholds(doc, role))');
   assert.ok(awaitAt < guardAt && guardAt < setAt, 'the generation check does not sit between the read and the write');
 });
 
@@ -949,10 +953,27 @@ test('every tunable is visible to every role whose evaluation it can move', () =
     // +25% over / 25% under: inside the 1–50 ranges, so the min trips the rule and the
     // max does not. A fixture at the boundary fires at both ends and proves nothing.
     nutrition: { avgCalories: 2500, targetCalories: 2000, avgProtein: 135, targetProtein: 180 },
+    // Enough logged days for the intake averages to speak (NUTRITION_MIN_DAYS, 2026-11-10).
+    foodLogs: { lastLoggedOn: ago(0), daysLogged7d: 5 },
     sleep: { avg7dHours: 5.5, targetHours: 8 },
   };
   assert.ok(TUNABLES.every((t) => !('role' in t)),
     'a tunable is role-scoped again — a hidden row still moves that role, see TUNABLES');
+  // ⚠ `roles` NAMES THE ONLY DISCIPLINES WHOSE EVALUATION READS A THRESHOLD (2026-11-10), and only
+  // where that is true: a role it leaves out must see nothing move while it does, on a fixture where
+  // it does move a role it names.
+  const scoped = TUNABLES.filter((t) => Array.isArray(t.roles));
+  assert.deepEqual(scoped.map((t) => t.key), ['FOOD_LOG_DAYS'], 'a new role-scoped row: prove it here');
+  const thin = { profile: { id: 'c2', name: 'B', joinedAt: ago(60) }, userId: 'c2', foodLogs: { lastLoggedOn: ago(1), daysLogged7d: 3 } };
+  const view = (r, t) => JSON.stringify(DS.getTriageFeed(r, [thin], NOW, t).map((row) => [row.severity, row.flags.map((f) => f.key), row.readOnly.map((f) => f.key)]));
+  for (const t of scoped) {
+    const lo = tuned({ [t.key]: t.min }), hi = tuned({ [t.key]: t.max });
+    const reads = (r) => DS.disciplineForRole ? t.roles.includes(DS.disciplineForRole(r)) : r !== 'trainer';
+    for (const r of ROLES) {
+      if (reads(r)) assert.notEqual(view(r, lo), view(r, hi), t.key + ' should move the ' + r + '\'s view on this fixture');
+      else assert.equal(view(r, lo), view(r, hi), t.key + ' moved the ' + r + '\'s view, which its panel does not show');
+    }
+  }
   // Everything a role can SEE: its own flags plus the routed read-only ones.
   const seen = (r, t) => {
     const row = DS.getTriageFeed(r, [{ profile: { id: 'c1', name: 'A' }, userId: 'c1', ...rec }], NOW, t)[0];

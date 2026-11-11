@@ -182,9 +182,11 @@ test('the paywall feature family is fully authored, not partially', () => {
 const CLIENT = 'mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx';
 // The live session's three views moved into their own module with every word they draw (the owner's B,
 // 2026-11-04), and the finish step into its pop-up (BSSessionFinish.jsx, the same day); BSSession keeps
-// the chooser. One player, three files: all are walked.
+// the chooser. The coach's live cues moved into theirs (BSWorkoutCoachCue.jsx, 2026-11-10). One player,
+// four files: all are walked.
 const SESSION_VIEW = 'mobile-app/src/broadsheet/BSWorkoutSession.jsx';
 const SESSION_FINISH = 'mobile-app/src/broadsheet/BSSessionFinish.jsx';
+const SESSION_CUE = 'mobile-app/src/broadsheet/BSWorkoutCoachCue.jsx';
 
 function bareKeys(node, out) {
   if (!node || typeof node !== 'object') return;
@@ -216,6 +218,7 @@ test('every no-defaultValue key in the client module resolves in en', () => {
   bareKeys(parse(CLIENT), out);
   bareKeys(parse(SESSION_VIEW), out);
   bareKeys(parse(SESSION_FINISH), out);
+  bareKeys(parse(SESSION_CUE), out);
 
   const missing = [];
   for (const key of [...out].sort()) {
@@ -240,7 +243,8 @@ test('the session player authors no key it does not read', () => {
   bareKeys(parse(CLIENT), out);
   bareKeys(parse(SESSION_VIEW), out);
   bareKeys(parse(SESSION_FINISH), out);
-  const src = fs.readFileSync(CLIENT, 'utf8') + fs.readFileSync(SESSION_VIEW, 'utf8') + fs.readFileSync(SESSION_FINISH, 'utf8');
+  bareKeys(parse(SESSION_CUE), out);
+  const src = fs.readFileSync(CLIENT, 'utf8') + fs.readFileSync(SESSION_VIEW, 'utf8') + fs.readFileSync(SESSION_FINISH, 'utf8') + fs.readFileSync(SESSION_CUE, 'utf8');
   const prefixes = [...src.matchAll(/tr\('session:(player\.[a-zA-Z.]*)' \+/g)].map((m) => m[1]);
   assert.ok(prefixes.length >= 1, 'the computed view family stopped being seen');
 

@@ -120,8 +120,11 @@ test('the exemptions are the eleven that were checked, and each is deliberate', 
   // same readAllById, as coach/score does. client/weekly-recap/route.ts joined on 2026-11-10: the
   // recap's streak reads every completed session back past its cap by the same readAllById walk,
   // where one read cut at 1,000 shortened a long streak (Codex on #2675). trainer/console/route.ts and
-  // nutritionist/console/route.ts joined on 2026-11-10: each walks the 90-day trajectory by the same
-  // readAllById, where one oldest-first read cut at 1,000 lost a busy roster's newest days (#2686).)
+  // nutritionist/console/route.ts joined on 2026-11-10: "Logged today" reads three dates of the
+  // roster's logs, and the trainer's session list two days of its added exercises, by the same
+  // readAllById walk, where one read cut at 1,000 said "Nothing logged yet today" (Codex on #2686), and each walks
+  // the 90-day trajectory the same way, where one oldest-first read cut at 1,000 lost a busy roster's
+  // newest days (left by #2686).)
   const marked = capped().filter((r) => r.exempt).map((r) => r.where.replace(/:\d+$/, ''));
   assert.deepEqual([...new Set(marked)].sort(), [
     'client/onboarding/route.ts',
@@ -145,9 +148,11 @@ test('the exemptions are the eleven that were checked, and each is deliberate', 
   ]);
   // The marker counts for every read up to 16 lines below it, so in a dashboard route it must sit
   // with the subscriptions walk alone: a session read it reached would be exempt unseen, ascending or not.
-  // The usage route's walk too: its plan and workout reads are not covered by it.
-  for (const f of ['trainer/dashboard/route.ts', 'nutritionist/dashboard/route.ts', 'coach/plans/usage/route.ts', 'trainer/console/route.ts', 'nutritionist/console/route.ts']) {
-    assert.deepEqual(capped().filter((r) => r.where.startsWith(f + ':') && r.exempt).map((r) => r.col), ['id'], f);
+  // The usage route's walk too: its plan and workout reads are not covered by it; and the consoles' walks
+  // (the trainer's three: the trajectory, today's logs and today's session; the nutritionist's two).
+  const walks = { 'trainer/dashboard/route.ts': 1, 'nutritionist/dashboard/route.ts': 1, 'coach/plans/usage/route.ts': 1, 'trainer/console/route.ts': 3, 'nutritionist/console/route.ts': 2 };
+  for (const [f, n] of Object.entries(walks)) {
+    assert.deepEqual(capped().filter((r) => r.where.startsWith(f + ':') && r.exempt).map((r) => r.col), Array(n).fill('id'), f);
   }
 });
 

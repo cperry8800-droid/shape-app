@@ -15,6 +15,7 @@ const APP = 'mobile-app/src/services/shapeBackend.js';
 const VIEW = 'mobile-app/src/broadsheet/BSCoachExercises.jsx';
 const DAY = 'mobile-app/src/broadsheet/BSTrainDay.jsx';
 const PANEL = 'public/newdesign/coachLiveWorkout.jsx';
+const CUES = 'mobile-app/src/broadsheet/BSWorkoutCoachCue.jsx';
 const TPAGE = 'public/newdesign/TrainerLiveConsole.html';
 const NPAGE = 'public/newdesign/NutritionistLiveConsole.html';
 const SQL = 'supabase-migrations/2026-11-10-coach-live-cues.sql';
@@ -50,6 +51,12 @@ const consoleRoute = (role, file) => [
   { name: `${role}: a failed zone read still fills "Logged today"`, file,
     find: '    for (const row of zonesUnread ? [] : todayRes.data ?? []) {',
     replace: '    for (const row of todayRes.data ?? []) {' },
+  { name: `${role}: "Logged today" reads the first page again and again`, file,
+    find: "        if (after) q = q.gt('id', after);",
+    replace: '' },
+  { name: `${role}: "Logged today" pages without the id it pages on`, file,
+    find: ".select('id, user_id, snapshot_date, calories:dietary_kcal, protein_g')",
+    replace: ".select('user_id, snapshot_date, calories:dietary_kcal, protein_g')" },
   { name: `${role}: an overlong cue is taken`, file,
     find: '    if (text.length > CUE_MAX) {',
     replace: '    if (false) {' },
@@ -63,8 +70,8 @@ export default {
     ...consoleRoute('trainer', TR),
     ...consoleRoute('nutritionist', NU),
     { name: 'trainer: today\'s session reads any kind', file: TR,
-      find: "    .eq('kind', KIND)\n    .is('removed_at', null)\n    .gte('sent_at', exerciseReadSince(now, 1))",
-      replace: "    .is('removed_at', null)\n    .gte('sent_at', exerciseReadSince(now, 1))" },
+      find: "      .eq('kind', KIND)\n      .is('removed_at', null)\n      .gte('sent_at', exerciseReadSince(now, 1))",
+      replace: "      .is('removed_at', null)\n      .gte('sent_at', exerciseReadSince(now, 1))" },
     { name: 'trainer: today\'s session lists every day\'s exercises', file: TR,
       find: '    if (!ex || ex.day !== memberDay(now, zone)) continue;',
       replace: '    if (!ex) continue;' },
@@ -86,9 +93,44 @@ export default {
     { name: 'trainer page: an unread session list reads "Nothing added today"', file: TPAGE,
       find: '            {session.length === 0 ? (itemsUnread ? null :',
       replace: '            {session.length === 0 ? (false ? null :' },
+    { name: 'trainer: today\'s session reads the first page again and again', file: TR,
+      find: "\n    if (after) q = q.gt('id', after);",
+      replace: '' },
+    { name: 'trainer: today\'s session lists in id order, not the order added', file: TR,
+      find: "  const itemRows = (itemPages ?? []).slice().sort((a, b) => (Date.parse(a.sent_at) || 0) - (Date.parse(b.sent_at) || 0));",
+      replace: '  const itemRows = itemPages ?? [];' },
     { name: 'nutritionist: the plan read takes the live cues too', file: NU,
       find: "    .in('kind', [KIND, 'grocery_note'])\n",
       replace: '' },
+
+    // ── The workout screen's cues ──
+    { name: 'app: only the newest of two cues in one read is delivered', file: APP,
+      find: '      fresh.forEach(row => onCue(row));',
+      replace: '      if (fresh.length) onCue(fresh[fresh.length - 1]);' },
+    { name: 'app: cues are delivered newest first', file: APP,
+      find: '      const fresh = eligible.filter(row => !seen.has(key(row))).reverse();',
+      replace: '      const fresh = eligible.filter(row => !seen.has(key(row)));' },
+    { name: 'app: a delivered cue is delivered again', file: APP,
+      find: '      fresh.forEach(row => seen.add(key(row)));\n',
+      replace: '' },
+    { name: 'panel: a new cue replaces the one on screen', file: CUES,
+      find: '  return [cue, ...kept].sort((a, b) => cueTime(b) - cueTime(a)).slice(0, BS_COACH_CUES_SHOWN);',
+      replace: '  return [cue];' },
+    { name: 'panel: a cue is shown twice', file: CUES,
+      find: '  const kept = (Array.isArray(list) ? list : []).filter((c) => cueKey(c) !== key);',
+      replace: '  const kept = Array.isArray(list) ? list : [];' },
+    { name: 'panel: cues pile up past three', file: CUES,
+      find: '.sort((a, b) => cueTime(b) - cueTime(a)).slice(0, BS_COACH_CUES_SHOWN);',
+      replace: '.sort((a, b) => cueTime(b) - cueTime(a));' },
+    { name: 'panel: the newest cue is not on top', file: CUES,
+      find: '.sort((a, b) => cueTime(b) - cueTime(a))',
+      replace: '.sort((a, b) => cueTime(a) - cueTime(b))' },
+    { name: 'panel: one × clears every cue', file: CUES,
+      find: '<button type="button" onClick={() => setCues((list) => list.filter((c) => cueKey(c) !== cueKey(cue)))}',
+      replace: '<button type="button" onClick={() => setCues([])}' },
+    { name: 'panel: another account\'s cues stay', file: CUES,
+      find: '  if (!cue) return [];',
+      replace: '  if (!cue) return list;' },
 
     // ── The member's read ──
     { name: 'member: a former trainer\'s exercises are shown', file: MEMBER,

@@ -9,9 +9,9 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { readJson, dbError } from '@/lib/request-utils';
 import { profileNames } from '@/lib/client-names';
+import { readAllById, ROW_PAGE } from '@/lib/read-all-by-id';
 import { normalizeZone } from '@/lib/time';
 import { memberDay, shiftDay } from '@/lib/workout-days';
-import { readAllById, ROW_PAGE } from '@/lib/read-all-by-id';
 import { OPEN_SUB_STATUSES } from '../../../../lib/coach-trajectory.mjs';
 
 export const dynamic = 'force-dynamic';
@@ -208,11 +208,19 @@ export async function GET(request: Request) {
         .from('client_profiles')
         .select('user_id, data, timezone')
         .in('user_id', clientIds),
-      supabase
-        .from('daily_health_snapshot')
-        .select('user_id, snapshot_date, calories:dietary_kcal, protein_g')
-        .in('user_id', clientIds)
-        .in('snapshot_date', nearDays),
+      // Today's rows on their own. ⚠ EVERY ROW, A PAGE AT A TIME (Codex P2 on #2686): one select stops
+      // at 1,000 rows without a word, three dates reach that at 334 clients, and a client past it read
+      // "Nothing logged yet today". readAllById walks them by id; a read past its ceiling is unread.
+      readAllById<{ id: string; user_id: string; snapshot_date: string; calories: number | null; protein_g: number | null }>((after) => {
+        let q = supabase
+          .from('daily_health_snapshot')
+          .select('id, user_id, snapshot_date, calories:dietary_kcal, protein_g')
+          .in('user_id', clientIds)
+          .in('snapshot_date', nearDays);
+        if (after) q = q.gt('id', after);
+        // capped-read-ok: one page of a cursor walk over every row (readAllById), not a cap.
+        return q.order('id', { ascending: true }).limit(ROW_PAGE);
+      }),
     ]);
 
     // daily_health_snapshot: walk ascending so the LAST row per client is

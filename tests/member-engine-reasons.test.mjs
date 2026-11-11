@@ -257,6 +257,15 @@ test("a coach's own reason, a key the app does not know, and a figure that is no
 test("a coach's directive, row and alert are unchanged: the figures stay on the member's side", () => {
   for (const c of CASES) {
     if (c.lever === 'hydration') continue; // never a coach flag (owner ruling)
+    // A broken streak is the member's own, and a coach's score drop is relative (2026-11-10): neither
+    // case is a coach flag. Their coach rows say nothing of it.
+    if (c.name === 'streak_broken' || c.name === 'score_drop') {
+      for (const role of ['trainer', 'nutritionist', 'dietitian']) {
+        const [row] = getTriageFeed(role, [{ userId: 'c1', ...c.rec, profile: { ...c.rec.profile, name: 'Ana' } }], NOW);
+        assert.deepEqual(row.flags.map((f) => f.key), [], `${role} ${c.name}`);
+      }
+      continue;
+    }
     for (const role of ['trainer', 'nutritionist', 'dietitian']) {
       const d = dirOf(c, role);
       assert.equal(d.reason, c.reason, `${role} ${c.name}`);

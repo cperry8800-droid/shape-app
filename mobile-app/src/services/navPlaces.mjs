@@ -60,3 +60,38 @@ export function bsGoalsView(sub) {
   const v = s.slice(6);
   return GOAL_VIEWS.includes(v) ? v : 'cover';
 }
+
+// ── Settings: a page open over one of its panes ──
+// Settings draws a page (Contact, the Score, Your notifications…) over the pane it was opened from (More,
+// Privacy, Your practice…), and a page's ← closes it onto that pane. Both are recorded, as '<page>@<pane>'
+// ('@<pane>' for a pane alone), since their names overlap ('health', 'privacy' and 'notifications' are
+// each a page and a pane). A bare name, as a notification or a jump asks for one, opens the page alone.
+// A page left open under the one in front is recorded ahead of it, as '<under>><page>@<pane>': Your public
+// profile stays open under the Score it opens (and the Store the Score opens), so the Score's ← returns to
+// it, and a Back replaying only the Score skipped it (Codex P2 on #2689).
+export function bsSettingsSub(page, pane, under = '') {
+  const p = (under && page ? under + '>' : '') + (page || '');
+  return pane ? p + '@' + pane : p;
+}
+export function bsSettingsStart(sub) {
+  const s = String(sub || '');
+  const at = s.indexOf('@');
+  const pages = at < 0 ? s : s.slice(0, at);
+  const pane = at < 0 ? '' : s.slice(at + 1);
+  const gt = pages.indexOf('>');
+  return gt < 0 ? { page: pages, pane, under: '' } : { page: pages.slice(gt + 1), pane, under: pages.slice(0, gt) };
+}
+
+// ── Eat's meal preview: the meal and the day it is on ──
+// The id keeps its type (a number or a string), so the replay finds the same meal in that day's list.
+export function bsEatSub(view, day, mealId) {
+  if (view !== 'eat' || mealId == null) return view;
+  return 'meal:' + (Number.isInteger(day) ? day : '') + ':' + JSON.stringify(mealId);
+}
+export function bsEatStart(sub) {
+  const m = /^meal:(\d*):(.+)$/.exec(String(sub || ''));
+  if (!m) return { view: sub || 'eat', day: null, mealId: null };
+  let id = null;
+  try { id = JSON.parse(m[2]); } catch (e) { id = null; }
+  return { view: 'eat', day: m[1] === '' ? null : Number(m[1]), mealId: id };
+}
