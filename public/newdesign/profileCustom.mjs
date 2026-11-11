@@ -815,6 +815,63 @@ export function bsNormalizeProfileCustom(doc, ownerUid, opts) {
   return base;
 }
 
+// ── Writing the doc: compare-and-set on its rev (owner, 2026-11-11, on #2707) ───────────────
+// Five writers save this one doc: the website's Edit profile (livingDesktop.jsx), the app's Make it
+// yours and Customize, settingsSync's links and Nora's account setup (src/lib/ai/accountSetup.mjs).
+// Each reads the stored doc and puts only its own change over it, so a save of a different field
+// that lands between one writer's read and its write would be lost to the later write. So every
+// writer stamps `rev` one past the rev it read and writes compare-and-set on that rev
+// (saveUserGoalsIfRev, as mealDays.mjs writes the day plan); a conflict reads the doc again and puts
+// the same change over the newer copy. Two saves of the SAME field: the later one wins (owner,
+// 2026-11-11). `rev` is no profile field: the normalizer passes it through and no reader draws it.
+export const BS_PROFILE_CUSTOM_KIND = 'profile_custom';
+export const BS_PROFILE_CAS_TRIES = 4;
+
+// The rev a doc carries (0 when it has none), and the raw value to compare on: data->>'rev' as
+// Postgres reads it, null when the key is absent.
+export function bsProfileRev(raw) {
+  const r = raw && typeof raw === 'object' ? raw.rev : null;
+  return typeof r === 'number' && Number.isFinite(r) && r >= 0 ? Math.floor(r) : 0;
+}
+export function bsProfileRevToken(raw) {
+  if (!raw || typeof raw !== 'object' || raw.rev == null) return null;
+  return String(raw.rev);
+}
+
+// Read, change and write the account's profile doc. `uid` is the account the save started on: every
+// read and write is bound to it. `change(stored)` returns the doc to save (its own change over
+// `stored`), or null to write nothing. `opts.stored` is a doc the caller has just read with the same
+// binding, used for the first try so a caller that checks the read before anything else is written
+// reads once. Resolves { ok: true, doc } with the doc saved, or { ok: false, reason, error? }:
+// 'signed-out', 'unreadable' (a read that failed writes nothing: the doc as this writer last saw it
+// would undo a change made since), 'unchanged' (change returned null), 'account-changed',
+// 'write-failed' or 'contended' (every try lost to another save; nothing was written).
+// A backend without saveUserGoalsIfRev falls back to the account-bound upsert.
+export async function bsProfileCustomWrite(db, uid, change, opts) {
+  try {
+    if (!uid) return { ok: false, reason: 'signed-out' };
+    if (!db || !db.getUserGoals || !(db.saveUserGoalsIfRev || db.saveUserGoals) || typeof change !== 'function') return { ok: false, reason: 'write-failed' };
+    let given = opts && opts.stored;
+    for (let i = 0; i < BS_PROFILE_CAS_TRIES; i += 1) {
+      const cur = given !== undefined ? given : await db.getUserGoals(BS_PROFILE_CUSTOM_KIND, { expectedUserId: uid });
+      given = undefined;
+      if (!cur || typeof cur !== 'object' || Array.isArray(cur)) return { ok: false, reason: 'unreadable' };
+      const made = change(cur);
+      if (made == null) return { ok: false, reason: 'unchanged' };
+      if (typeof made !== 'object' || Array.isArray(made)) return { ok: false, reason: 'write-failed' };
+      const next = { ...made, rev: bsProfileRev(cur) + 1 };
+      const res = db.saveUserGoalsIfRev
+        ? await db.saveUserGoalsIfRev(BS_PROFILE_CUSTOM_KIND, next, bsProfileRevToken(cur), uid)
+        : await db.saveUserGoals(BS_PROFILE_CUSTOM_KIND, next, { expectedUserId: uid });
+      if (res && res.conflict) continue;
+      if (res && res.accountChanged) return { ok: false, reason: 'account-changed', error: res.error };
+      if (!res || !res.ok) return { ok: false, reason: 'write-failed', error: res && res.error };
+      return { ok: true, doc: next };
+    }
+    return { ok: false, reason: 'contended' };
+  } catch (e) { return { ok: false, reason: 'write-failed', error: e }; }
+}
+
 // ── The pin kind + prompt question: a stored TOKEN, a rendered LABEL ─────────
 //
 // ⚠ WHY THIS SPLIT, AND WHY IT LIVES HERE. `pinned.kind` and each prompt's `q`

@@ -75,6 +75,8 @@ function account(identity, { failRead = false, profile = { bio: 'Strong is a ski
       return kind in docs ? (docs[kind] ? JSON.parse(JSON.stringify(docs[kind])) : {}) : {};
     },
     saveUserGoals: async (kind, next) => { writes.push([kind, next]); docs[kind] = { ...next }; return { ok: true }; },
+    // The profile doc is written compare-and-set on its rev (profileCustom.mjs bsProfileCustomWrite).
+    saveUserGoalsIfRev: async (kind, data) => { upserts.push({ user_id: 'u1', kind, data }); docs[kind] = data; return { ok: true }; },
     client: { auth: { getUser: async () => ({ data: { user: { id: 'u1' } } }) }, from: () => ({ upsert: async (row) => { upserts.push(row); docs[row.kind] = row.data; return {}; } }) },
   };
   return { docs, writes, upserts };
@@ -337,4 +339,39 @@ test('a website save whose read of the stored doc fails writes nothing, the iden
   assert.equal(acct.writes.length, 0, 'the identity was saved and the rest refused: half an edit');
   assert.equal(saved, false);
   assert.match(document.body.textContent, /Couldn't save — try again\./);
+});
+
+// Compare-and-set (owner, 2026-11-11, on #2707: "Merge now, CAS later"). An app save of another field that
+// lands between this editor's read of the stored doc and its write used to be lost to that write (Codex P2
+// on #2707). The write is compare-and-set on the doc's rev now: it conflicts, reads again and merges the
+// fields changed here over the newer doc.
+test('a website save keeps an app save of another field that lands between its read and its write', async () => {
+  const docs = { client_identity: { ...ME }, profile_custom: { bio: 'Strong is a skill.', look: { paper: 'dark', accent: 'teal' }, rev: 4 } };
+  const writes = [];
+  let landed = false, conflicts = 0;
+  window.shapeDb = {
+    getUser: async () => ({ id: 'u1' }),
+    getUserGoals: async (kind, opts) => (opts && opts.expectedUserId && opts.expectedUserId !== 'u1' ? null : JSON.parse(JSON.stringify(docs[kind] || {}))),
+    saveUserGoals: async (kind, next) => { docs[kind] = { ...next }; return { ok: true }; },
+    saveUserGoalsIfRev: async (kind, data, expectedRev, expectedUid) => {
+      assert.equal(expectedUid, 'u1');
+      // The app's Customize saves the look in the round trip, moving the rev on.
+      if (!landed) { landed = true; docs.profile_custom = { ...docs.profile_custom, look: { paper: 'bone', accent: 'rust' }, rev: 5 }; }
+      const now = docs[kind] && docs[kind].rev != null ? String(docs[kind].rev) : null;
+      if (now !== (expectedRev == null ? null : String(expectedRev))) { conflicts += 1; return { conflict: true }; }
+      docs[kind] = JSON.parse(JSON.stringify(data)); writes.push(data);
+      return { ok: true };
+    },
+    client: { auth: { getUser: async () => ({ data: { user: { id: 'u1' } } }) }, from: () => ({ upsert: async () => { throw new Error('the profile doc was upserted, not written compare-and-set'); } }) },
+  };
+  let saved = null;
+  await mount(editor({ initial: { bio: 'Strong is a skill.', look: { paper: 'dark', accent: 'teal' } }, onSave: (d) => { saved = d; } }));
+  await typeArea(document.querySelector('textarea[aria-label="Bio"]'), 'Written on the website.');
+  await click(button('Save profile'));
+  assert.equal(conflicts, 1, 'the write did not compare on the rev it read');
+  assert.equal(writes.length, 1);
+  assert.equal(docs.profile_custom.bio, 'Written on the website.');
+  assert.deepEqual(docs.profile_custom.look, { paper: 'bone', accent: 'rust' }, "the app's look, saved mid-write, was undone");
+  assert.equal(docs.profile_custom.rev, 6);
+  assert.deepEqual(saved, docs.profile_custom, 'the page was handed another doc than the one saved');
 });

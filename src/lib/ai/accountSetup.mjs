@@ -41,6 +41,7 @@ import { primaryGoalLabel, primaryGoalFromWords } from './goalLabels.mjs';
 import { BS_PREF_OPTIONS } from '../../../public/newdesign/prefOptions.mjs';
 import {
   bsProfileLine, bsProfileAbout, bsCleanText, bsCleanStory, BS_LINE_MAX, BS_ABOUT_STORY_MAX, BS_ABOUT_FACT_MAX, BS_ABOUT_YEARS_MAX,
+  BS_PROFILE_CUSTOM_KIND, bsProfileRev,
 } from '../../../public/newdesign/profileCustom.mjs';
 
 // ── The vocabulary each screen offers ─────────────────────────────────────────────────────────
@@ -462,7 +463,14 @@ async function writeGroup(sb, uid, cells, dir, tz) {
       const row = state.goals[c0.kind];
       const data = JSON.parse(JSON.stringify(row ? row.data : {}));
       for (const c of todo) setCell(data, c, dir === 'apply' ? true : c.had, dir === 'apply' ? c.after : c.before);
-      if (c0.kind === 'profile_custom') checkProfileCustom(data, todo);
+      if (c0.kind === BS_PROFILE_CUSTOM_KIND) {
+        checkProfileCustom(data, todo);
+        // The profile doc's other writers (the website's Edit profile, the app's Make it yours and
+        // Customize, settingsSync's links) write compare-and-set on its rev, so this write moves the
+        // rev on too: without it a save of theirs that read the doc before this one would still match
+        // and undo it (profileCustom.mjs bsProfileCustomWrite). Our own guard stays updated_at.
+        data.rev = bsProfileRev(row ? row.data : null) + 1;
+      }
       res = row
         ? await sb.from('user_goals').update({ data }).eq('user_id', uid).eq('kind', c0.kind).eq('updated_at', row.updatedAt).select('kind')
         : await sb.from('user_goals').insert({ user_id: uid, kind: c0.kind, data }).select('kind');

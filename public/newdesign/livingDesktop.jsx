@@ -1732,7 +1732,7 @@ function ProfileCustomizer({ initial, c, onClose, onSave, coach = false, ownerUi
     if (cl) { try { const { data: u } = await cl.auth.getUser(); uid = u && u.user && u.user.id; } catch (e) {} }
     if (!cl || !uid) { setBusy(false); setErr("Sign in to save your profile."); return; }
     if (ownerUid && uid !== ownerUid) { setBusy(false); setErr("Your account changed. Close the editor and reopen your profile."); return; }
-    if (!plib || !plib.bsNormalizeProfileCustom) { setBusy(false); setErr("Editor is still loading — try again in a moment."); return; }
+    if (!plib || !plib.bsNormalizeProfileCustom || !plib.bsProfileCustomWrite) { setBusy(false); setErr("Editor is still loading — try again in a moment."); return; }
     // The doc as stored now, bound to this account: a read that fails (or answers for another account)
     // stops the save before anything is written (the identity too), since the doc as it was when this opened would undo a change made since.
     let stored = null;
@@ -1755,21 +1755,30 @@ function ProfileCustomizer({ initial, c, onClose, onSave, coach = false, ownerUi
       } catch (e) {}
       try { window.dispatchEvent(new Event("shape:identity")); } catch (e) {}
     }
-    const doc = dkMergeProfileFields(stored, fields, openedFields.current);
-    // The look: the paper and accent only when picked here, the cover's spot only when dragged here,
-    // over the stored look; whatever else it holds stays. The nearest of the app's three stops rides
-    // with the spot (focus), so a build that reads only focus crops near it.
-    if (pickChanged || posChanged || coverFresh) {
-      const storedLook = (plib.bsProfileLook ? plib.bsProfileLook(stored.look) : null) || {};
-      const nextLook = dkNextLook(storedLook, pickChanged ? pick : null, posChanged, coverPos, plib, coverFresh);
-      if (nextLook) doc.look = nextLook; else delete doc.look;
-    }
-    const out = plib.bsNormalizeProfileCustom(doc, uid, { filmBucket: filmRoleBucket, filmKey });
-    let error = null;
-    try { const r = await cl.from("user_goals").upsert({ user_id: uid, kind: "profile_custom", data: out }, { onConflict: "user_id,kind" }); error = r && r.error; }
-    catch (e) { error = e; }
+    // The doc to save over `base` (the stored doc): only the keys changed here, the look the same way.
+    // The write is compare-and-set on the doc's rev (bsProfileCustomWrite), so an app save of another
+    // field that lands between the read above and this write makes it read again and merge over that
+    // (Codex P2 on #2707): this runs once per try.
+    const make = (base) => {
+      const doc = dkMergeProfileFields(base, fields, openedFields.current);
+      // The look: the paper and accent only when picked here, the cover's spot only when dragged here,
+      // over the stored look; whatever else it holds stays. The nearest of the app's three stops rides
+      // with the spot (focus), so a build that reads only focus crops near it.
+      if (pickChanged || posChanged || coverFresh) {
+        const storedLook = (plib.bsProfileLook ? plib.bsProfileLook(base.look) : null) || {};
+        const nextLook = dkNextLook(storedLook, pickChanged ? pick : null, posChanged, coverPos, plib, coverFresh);
+        if (nextLook) doc.look = nextLook; else delete doc.look;
+      }
+      return plib.bsNormalizeProfileCustom(doc, uid, { filmBucket: filmRoleBucket, filmKey });
+    };
+    const res = await plib.bsProfileCustomWrite(window.shapeDb, uid, make, { stored });
     setBusy(false);
-    if (error) { setErr((error && error.message) || "Couldn't save — try again."); return; }
+    if (!res || !res.ok) {
+      setErr(res && res.reason === "account-changed" ? "Your account changed. Close the editor and reopen your profile."
+        : (res && res.error && res.error.message) || "Couldn't save — try again.");
+      return;
+    }
+    const out = res.doc;
     onSave(out);
   };
   // The intro film section — shared by the coach (P1 → coach-media) and member
