@@ -690,6 +690,23 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
       ],
     },
     {
+      section: 'Profile parity, app and website: an edit made on one shows on the other, and a save on one never undoes the other\'s. No migration',
+      items: [
+        { label: 'Owner, 2026-11-11: "make sure the app parity works with edits to profile as well. Just make sure they are talking together with recent changes ... it will transfer to app regarding customizations to profiles"', status: 'done' },
+        { label: 'The website\'s Edit profile (livingDesktop.jsx ProfileCustomizer) wrote the whole profile_custom doc it opened with, so a Bio, look, About or any key changed in the app\'s Make it yours or Customize while the page was open was undone by the next website save. It now reads the doc as stored at save time (bound to the account; a failed read stops the save) and writes only the fields changed in it, the look over the stored look (dkMergeProfileFields), as the app\'s two editors already merge', status: 'done' },
+        { label: 'The app re-reads on a return after 3 s or more away (services/userGoalsRefresh.mjs bsOnReturnToApp, installed once in iosAppBroadsheetClient.jsx for every role): the identity cache (photo, name, handle, location, pronouns), the account\'s profile row (the name the app prints, bsMyName: Codex) and every mounted reader of client_identity and profile_custom, so a website edit shows without reopening the screen; a failed identity read now keeps the cache instead of blanking every avatar', status: 'done' },
+        { label: 'The coach\'s own page in the app reads its public card again on either kind (its place, pronouns and photo come from it); another coach\'s page takes the photo on their account (get_public_profile avatar) before the listing portrait it was opened with, as the website\'s coach page does; their own photo follows the identity cache when it is read again (Codex)', status: 'done' },
+        { label: 'The website\'s profile page reads again when its tab is shown after 3 s away (livingProfilePage.jsx; a read that cannot complete keeps the profile on screen: Codex), and the page takes the new doc (DesktopProfile), never while Edit profile is open over it nor over that editor\'s save', status: 'done' },
+        { label: 'Checked and already in step: identity both ways (the app\'s writer and the website\'s settingsSync merge onto the stored client_identity; the name trigger fires for either); every profile_custom key the website writes is read by the app\'s member or coach page, and both app editors read the stored doc before saving, keep unknown keys (bsNormalizeProfileCustom) and keep look.pos unless the stop is changed in the app', status: 'done' },
+        { label: '#2708: the app\'s coach page (BSCoachClimb, BSTrainerProfile) takes the coach\'s paper and climb background, and its coach cards take the look, through #2706\'s bsCoachPagePalette (the section above)', status: 'done' },
+        { label: 'A member\'s climb background (profile_custom.climbBg, picked in the website\'s Edit profile) is painted on no member page, the website\'s or the app\'s, and the app has no picker for it', status: 'pending' },
+        { label: 'The website\'s coach page (coachProfileWeb.jsx) reads the doc once, as it opens; a reload shows an edit made in the app', status: 'pending' },
+        { label: 'Two saves at the same moment, one on each surface, of the same field: the later one wins (no compare-and-set on profile_custom). Owner, 2026-11-11: "this makes sense"', status: 'done' },
+        { label: 'Compare-and-set across every profile_custom writer (the website\'s Edit profile, the app\'s Make it yours and Customize, settingsSync\'s links, Nora\'s account setup), each stamping and checking a rev as mealDays does: until then an app save of a different field that lands inside one website save\'s read-to-write round trip is lost (Codex on #2707). Owner, 2026-11-11: "Merge now, CAS later", its own PR', status: 'pending' },
+        { label: 'OWNER: change your Bio in the app, then, with the website\'s profile open from before, change only the song there and save: the app\'s Bio stays; back in the app, the song shows without reopening the page', status: 'manual' },
+      ],
+    },
+    {
       section: 'The coach\'s look in public: the paper, accent and climb background picked in Edit profile paint their page and their Coaches card (#2706). No migration',
       items: [
         { label: 'Owner, 2026-11-11: "coaches should be able to customize how their page appears publicly. So the edits need to work. This should also effect the marketplace card as well"', status: 'done' },

@@ -106,7 +106,7 @@ function reset(over = {}) {
 reset();
 window.ShapeAuth = { getCachedState: () => ({ user: { id: world.me } }) };
 // noCard: the read answers no row, as get_public_profile does a visitor with no account on a private profile.
-window.ShapeProfiles = { getPublicProfile: async () => (world.noCard ? null : { name: 'Maya Okafor', pronouns: world.pronouns, bio: 'I teach people to lift well.', points: 6200, custom: world.custom, can_view: world.canView }) };
+window.ShapeProfiles = { getPublicProfile: async () => (world.noCard ? null : { name: 'Maya Okafor', pronouns: world.pronouns, bio: 'I teach people to lift well.', points: 6200, custom: world.custom, can_view: world.canView, avatar: world.avatar || null }) };
 // byIdFails / availFails: the listing's or the hours' read fails ('null' answers null, as the
 // backend does on a non-2xx; anything else rejects, as a lost connection does).
 const failing = (how) => { if (how === 'null') return null; throw new Error('offline'); };
@@ -1783,4 +1783,30 @@ test('the composer asks for an account before it posts or uploads, and sends not
   assert.ok(submit.indexOf(gate) > 0 && submit.indexOf(gate) < submit.indexOf('createPost'), 'a post is sent before the account is asked for');
   const onFile = sheet.slice(sheet.indexOf('const onFile = async'));
   assert.ok(onFile.indexOf(gate) > 0 && onFile.indexOf(gate) < onFile.indexOf('ShapeCoachMedia?.upload') && onFile.indexOf(gate) < onFile.indexOf('uploadPhoto'), 'a file is uploaded before the account is asked for');
+});
+
+// Parity with the website (owner, 2026-11-11): the photo a coach sets on their account (client_identity.photo,
+// in the app or the website's Edit profile; get_public_profile's avatar) is the one their page shows, as the
+// website's coach page shows it (row.avatar, then the listing portrait). The app's page put the listing portrait
+// it was opened with first, so a new photo never showed on it while the listing kept an old one.
+test("another coach's page shows the photo on their account before the listing's portrait", async () => {
+  const had = { card: window.BSActivityCard, sheets: window.useBSCardSheets };
+  const seen = [];
+  window.BSActivityCard = (props) => { seen.push(props); return React.createElement('div', { 'data-probe-card': '' }, props.a.title); };
+  window.useBSCardSheets = () => ({ ctx: {}, renderSheets: () => null });
+  try {
+    const post = { key: 'n1', title: 'Note 1', typeLabel: 'Note', ago: '1d', body: 'Body', statsRow: [], breakdown: null };
+    reset({ posts: [post], avatar: 'data:image/jpeg;base64,TkVX' });
+    let m = await mount(page({ person: { ...maya, photo: 'https://cdn.test/listing.jpg' } }));
+    await tab('Activity');
+    assert.equal(seen[seen.length - 1].ctx.ownerPhoto, 'data:image/jpeg;base64,TkVX', "the listing's portrait over the account's photo");
+    await m.unmount();
+    // No photo on the account: the listing's portrait.
+    seen.length = 0;
+    reset({ posts: [post] });
+    m = await mount(page({ person: { ...maya, photo: 'https://cdn.test/listing.jpg' } }));
+    await tab('Activity');
+    assert.equal(seen[seen.length - 1].ctx.ownerPhoto, 'https://cdn.test/listing.jpg');
+    await m.unmount();
+  } finally { window.BSActivityCard = had.card; window.useBSCardSheets = had.sheets; }
 });
