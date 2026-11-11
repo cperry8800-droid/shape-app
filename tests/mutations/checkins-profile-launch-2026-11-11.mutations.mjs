@@ -29,14 +29,17 @@ export default {
     { name: 'sheet: a failed save closes as saved', file: SHEET, find: "if (res && res.error) { setBusy(false); setErr(tr('settings:edit.photoFailed'", replace: "if (false) { setBusy(false); setErr(tr('settings:edit.photoFailed'" },
 
     // ── the client: the photo's doors and Save ──
-    { name: 'photo: saved before it is placed', file: CLIENT, find: '.then((src) => (src ? bsOpenPhotoPositioner({ src, onSave: bsSavePositionedPhoto }) : null))', replace: '.then((src) => (src ? bsSavePositionedPhoto({ photo: src, source: src, pos: null }).then(() => ({ photo: src })) : null))' },
+    { name: '(review) photo: saved before it is placed', file: CLIENT, find: '.then((src) => (src ? bsOpenPhotoPositioner({ src, onSave }) : null))', replace: '.then((src) => (src ? onSave({ photo: src, source: src, pos: null }).then(() => ({ photo: src })) : null))' },
     { name: 'photo: the kept photo not kept', file: CLIENT, find: "saveUserGoals?.('client_photo_source', { src: source, pos, made: bsAvMark(photo)", replace: "saveUserGoals?.('client_photo_source_off', { src: source, pos, made: bsAvMark(photo)" },
     // Codex P2 on #2709: the sheet closed while the photo as picked was still being written.
     { name: '(review) photo: the sheet closes before the kept photo is written', file: CLIENT, find: 'return Promise.race([Promise.resolve(kept).catch(() => null), cap])', replace: 'return Promise.race([Promise.resolve(null), cap])' },
     { name: '(review) photo: a stalled write holds the sheet', file: CLIENT, find: 'return Promise.race([Promise.resolve(kept).catch(() => null), cap])', replace: 'return Promise.resolve(kept).catch(() => null)' },
     { name: '(review) photo: a failed write fails the avatar', file: CLIENT, find: 'return Promise.race([Promise.resolve(kept).catch(() => null), cap])', replace: 'return Promise.race([Promise.resolve(kept), cap])' },
+    // Codex P2 on #2709: a photo opened under one account was saved to whoever was signed in at Use photo.
+    { name: '(review) photo: saved to whoever is signed in at Use photo', file: CLIENT, find: '  if (now !== uid) return Promise.resolve({ error: { message: \'Account changed.\' } });', replace: '' },
+    { name: '(review) photo: the account read at Use photo, not at open', file: CLIENT, find: '  return (placed) => bsSavePositionedPhoto({ ...placed, uid });', replace: '  return (placed) => bsSavePositionedPhoto({ ...placed, uid: window.ShapeAuth?.getCachedState?.()?.user?.id || null });' },
     { name: 'photo: Reposition ignores whether the kept photo still fits', file: CLIENT, find: 'const fits = bsAvSourceFits(doc, photo);', replace: 'const fits = !!doc;' },
-    { name: 'photo: the profile pages save unplaced', file: CLIENT, find: '      .then((src) => bsOpenPhotoPositioner({ src, onSave: bsSavePositionedPhoto }))\n      .then((res) => { if (res) setPhoto(res.photo); })', replace: '      .then((src) => ({ photo: src }))\n      .then((res) => { if (res) setPhoto(res.photo); })' },
+    { name: '(review) photo: the profile pages save unplaced', file: CLIENT, find: '      .then((src) => bsOpenPhotoPositioner({ src, onSave }))\n      .then((res) => { if (res) setPhoto(res.photo); })', replace: '      .then((src) => ({ photo: src }))\n      .then((res) => { if (res) setPhoto(res.photo); })' },
     { name: 'save: two saves at once', file: CLIENT, find: '    if (editBusyRef.current) return;\n    editBusyRef.current = true;', replace: '    editBusyRef.current = true;' },
     { name: 'save: nothing changed does nothing', file: CLIENT, find: "if (!Object.keys(fields).length) { try { await _bsIdentitySaveChain; } catch (e) {} setEditing(false); return ''; }", replace: "if (!Object.keys(fields).length) return '';" },
     { name: 'save: a failed write says nothing', file: CLIENT, find: "if (!result || result.error) return tr('settings:edit.saveFailed'", replace: "if (!result || result.error) return ('' || tr)('settings:edit.saveFailed'" },

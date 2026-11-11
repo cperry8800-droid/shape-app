@@ -55,11 +55,14 @@ test('the sheet and its doors: a picked photo is placed, then saved; Reposition 
   assert.match(sheet, /if \(res && res\.error\) \{ setBusy\(false\); setErr\(tr\('settings:edit\.photoFailed'/, 'a failed save says so on the sheet');
   assert.match(sheet, /onPointerDown=\{onDown\} onPointerMove=\{onMove\} onPointerUp=\{onUp\} onPointerCancel=\{onUp\} onKeyDown=\{onKey\}/);
   const client = read('mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx');
-  assert.match(client, /function bsSavePositionedPhoto\(\{ photo, source, pos \}\) \{[\s\S]{0,200}return bsSaveIdentity\(\{ photo \}\)\.then/, 'the square every avatar reads');
+  assert.match(client, /function bsSavePositionedPhoto\(\{ photo, source, pos, uid = null \}\) \{[\s\S]{0,400}return bsSaveIdentity\(\{ photo \}\)\.then/, 'the square every avatar reads');
   assert.match(client, /saveUserGoals\?\.\('client_photo_source', \{ src: source, pos, made: bsAvMark\(photo\)/, 'the photo as picked, kept privately');
   assert.match(client, /const fits = bsAvSourceFits\(doc, photo\);\s*return bsOpenPhotoPositioner\(\{ src: fits \? doc\.src : photo, pos: fits \? doc\.pos : null/);
-  assert.match(client, /\.then\(\(src\) => \(src \? bsOpenPhotoPositioner\(\{ src, onSave: bsSavePositionedPhoto \}\) : null\)\)/, 'Change photo places it first');
-  assert.match(client, /bsAvReadFile\(f\)\s*\.then\(\(src\) => bsOpenPhotoPositioner\(\{ src, onSave: bsSavePositionedPhoto \}\)\)/, 'the profile pages too');
+  // Each door binds the save to the account signed in when it opened (Codex P2 on #2709).
+  assert.match(client, /const onSave = bsPhotoSaver\(\);\s*bsPickPhotoFile\(\)\s*\.then\(\(src\) => \(src \? bsOpenPhotoPositioner\(\{ src, onSave \}\) : null\)\)/, 'Change photo places it first');
+  assert.match(client, /const onSave = bsPhotoSaver\(\);\s*bsAvReadFile\(f\)\s*\.then\(\(src\) => bsOpenPhotoPositioner\(\{ src, onSave \}\)\)/, 'the profile pages too');
+  assert.match(client, /if \(!photo\) return Promise\.resolve\(null\);\s*const onSave = bsPhotoSaver\(\);[\s\S]{0,400}pos: fits \? doc\.pos : null, onSave \}\)/, 'Reposition binds before its read');
+  assert.doesNotMatch(client, /onSave: bsSavePositionedPhoto/, 'a door that saves to whoever is signed in at Use photo');
   assert.match(client, /data-edit-photo="reposition" onClick=\{\(\) => bsRepositionProfilePhoto\(photoSaved\)\}/);
   assert.match(client, /onClick=\{shownPhoto \? \(\) => bsRepositionProfilePhoto\(photoSaved\) : undefined\}/, 'the avatar itself opens it');
 });
@@ -73,10 +76,12 @@ test('Use photo waits for the kept photo before the sheet closes; a failed or st
   const end = client.indexOf('// Change photo: the file picker', start);
   assert.ok(start > 0 && end > start, 'the save is in the client');
   const body = client.slice(start, end);
-  const make = ({ save, identity = async () => ({ ok: true }), waitMs = 15000 }) => new Function('window', 'bsSaveIdentity', 'bsAvMark',
-    `${body.replace('= 15000;', `= ${waitMs};`)}\nreturn bsSavePositionedPhoto;`,
-  )({ ShapeAuth: { getCachedState: () => ({ user: { id: 'u1' } }) }, shapeDb: { saveUserGoals: save } }, identity, A.bsAvMark);
-  const args = { photo: 'data:image/jpeg;base64,SQUARE', source: 'data:image/jpeg;base64,WHOLE', pos: { x: 0.4, y: 0.5, zoom: 2 } };
+  const win = (save, user = 'u1') => ({ ShapeAuth: { getCachedState: () => ({ user: user ? { id: user } : null }) }, shapeDb: { saveUserGoals: save } });
+  const load = ({ window, identity = async () => ({ ok: true }), waitMs = 15000 }) => new Function('window', 'bsSaveIdentity', 'bsAvMark',
+    `${body.replace('= 15000;', `= ${waitMs};`)}\nreturn { bsSavePositionedPhoto, bsPhotoSaver };`,
+  )(window, identity, A.bsAvMark);
+  const make = ({ save, identity, waitMs }) => load({ window: win(save), identity, waitMs }).bsSavePositionedPhoto;
+  const args = { photo: 'data:image/jpeg;base64,SQUARE', source: 'data:image/jpeg;base64,WHOLE', pos: { x: 0.4, y: 0.5, zoom: 2 }, uid: 'u1' };
 
   // The write lands before the save resolves, with the photo, its place and the mark of the square it made.
   let wrote = null;
@@ -105,6 +110,24 @@ test('Use photo waits for the kept photo before the sheet closes; a failed or st
   const failed = await make({ save: () => { called = true; }, identity: async () => ({ error: { message: 'x' } }) })(args);
   assert.ok(failed.error);
   assert.equal(called, false, 'the photo was kept for a square that was never saved');
+
+  // Bound to the account the picker opened for (Codex P2 on #2709): another account signed in by Use photo (a
+  // sign-in on another tab) saves nothing to either account.
+  let user = 'u1';
+  const writes = [];
+  const shared = { ShapeAuth: { getCachedState: () => ({ user: user ? { id: user } : null }) }, shapeDb: { saveUserGoals: (...a) => { writes.push(a); return Promise.resolve({ ok: true }); } } };
+  const idWrites = [];
+  const mod = load({ window: shared, identity: async (patch) => { idWrites.push(patch); return { ok: true }; } });
+  const onSave = mod.bsPhotoSaver();                // opened as u1
+  user = 'u2';                                      // another tab signs in
+  const changed = await onSave({ photo: args.photo, source: args.source, pos: args.pos });
+  assert.ok(changed.error, 'Use photo saved to the account signed in later');
+  assert.deepEqual([idWrites.length, writes.length], [0, 0], 'a write reached the other account');
+  user = null;                                      // signed out meanwhile
+  assert.ok((await onSave({ photo: args.photo, source: args.source, pos: args.pos })).error);
+  user = 'u1';                                      // the same account: saved, both writes bound to it
+  assert.deepEqual(await onSave({ photo: args.photo, source: args.source, pos: args.pos }), { ok: true });
+  assert.deepEqual([idWrites.length, writes.length, writes[0][2]], [1, 1, { expectedUserId: 'u1' }]);
 });
 
 // Save said nothing: toasts are a no-op app-wide, so a taken handle or a failed write left the page as it

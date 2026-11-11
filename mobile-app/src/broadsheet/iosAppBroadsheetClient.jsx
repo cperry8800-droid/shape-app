@@ -14426,8 +14426,10 @@ function BSFacetAvatar({ size = 72, c = '#34d6c5', initial = 'S', name = '', pho
 // then keeps the photo as picked, privately, for Reposition (user_goals 'client_photo_source', read by its
 // owner alone). The positioner says a failed save on screen, since toasts are a no-op.
 const BS_PHOTO_SOURCE_WAIT_MS = 15000;
-function bsSavePositionedPhoto({ photo, source, pos }) {
-  const uid = window.ShapeAuth?.getCachedState?.()?.user?.id;
+function bsSavePositionedPhoto({ photo, source, pos, uid = null }) {
+  // Saved only to the account the picker opened for (bsPhotoSaver), and only while it is still signed in.
+  const now = window.ShapeAuth?.getCachedState?.()?.user?.id || null;
+  if (now !== uid) return Promise.resolve({ error: { message: 'Account changed.' } });
   return bsSaveIdentity({ photo }).then((res) => {
     if (!res || res.error) return res || { error: { message: 'Could not save your photo.' } };
     // Awaited, so a Reposition straight after reads the photo just kept and not the one before (Codex P2 on
@@ -14443,10 +14445,18 @@ function bsSavePositionedPhoto({ photo, source, pos }) {
       .then(() => { clearTimeout(timer); return res; });
   });
 }
+// The account a photo is for: the one signed in when its picker opened (Codex P2 on #2709). The positioner is a
+// React root of its own and outlives a sign-in on another tab, so Use photo saves only while that same account is
+// signed in, and both writes are bound to it.
+function bsPhotoSaver() {
+  const uid = window.ShapeAuth?.getCachedState?.()?.user?.id || null;
+  return (placed) => bsSavePositionedPhoto({ ...placed, uid });
+}
 // Change photo: the file picker, then the positioner. `cb` gets the saved square.
 function bsPickProfilePhoto(cb) {
+  const onSave = bsPhotoSaver();
   bsPickPhotoFile()
-    .then((src) => (src ? bsOpenPhotoPositioner({ src, onSave: bsSavePositionedPhoto }) : null))
+    .then((src) => (src ? bsOpenPhotoPositioner({ src, onSave }) : null))
     .then((res) => { if (res && cb) cb(res.photo); })
     .catch(() => {});
 }
@@ -14455,10 +14465,11 @@ function bsPickProfilePhoto(cb) {
 function bsRepositionProfilePhoto(cb) {
   const photo = bsValidPhoto(window.ShapeIdentity && window.ShapeIdentity.photo);
   if (!photo) return Promise.resolve(null);
+  const onSave = bsPhotoSaver();
   const read = window.shapeDb?.getUserGoals ? Promise.resolve(window.shapeDb.getUserGoals('client_photo_source')).catch(() => null) : Promise.resolve(null);
   return read.then((doc) => {
     const fits = bsAvSourceFits(doc, photo);
-    return bsOpenPhotoPositioner({ src: fits ? doc.src : photo, pos: fits ? doc.pos : null, onSave: bsSavePositionedPhoto });
+    return bsOpenPhotoPositioner({ src: fits ? doc.src : photo, pos: fits ? doc.pos : null, onSave });
   }).then((res) => { if (res && cb) cb(res.photo); return res; }).catch(() => null);
 }
 
@@ -14486,8 +14497,9 @@ function useBSProfilePhoto(person, isSelf) {
     const f = input.files && input.files[0];
     if (!f) return;
     // The photo is placed in the avatar before it is saved (bsSavePositionedPhoto), as on Edit profile.
+    const onSave = bsPhotoSaver();
     bsAvReadFile(f)
-      .then((src) => bsOpenPhotoPositioner({ src, onSave: bsSavePositionedPhoto }))
+      .then((src) => bsOpenPhotoPositioner({ src, onSave }))
       .then((res) => { if (res) setPhoto(res.photo); })
       .catch(() => {})
       .finally(() => { try { input.value = ''; } catch (e2) {} });
