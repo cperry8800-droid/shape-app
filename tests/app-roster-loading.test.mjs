@@ -62,3 +62,20 @@ test('the app\'s roster read keeps the route\'s flag, true only when the route s
   const list = await new Function('getJsonOrDefault', 'apiBaseUrl', 'providerDiscipline', `${src.slice(at, end)}\nreturn listAssignableClients;`)(async () => answer, '', () => 'trainer')('trainer');
   assert.deepEqual(list.map((c) => [c.userId, c.paymentRetrying]), [['u7', true], ['u1', false], ['u2', false]]);
 });
+// Codex on #2705: a client's break saved from their case file left Clients on its cached feed, still
+// "Needs you" after the break began. ShapeSignals.changed drops the feed and says so, as a dismissal does.
+test('a change saved elsewhere drops the cached feed, and Today and Clients are told to re-read', async () => {
+  uid = 'coach-d'; fail = false;
+  const before = calls;
+  await window.ShapeSignals.triageLive('trainer');
+  await window.ShapeSignals.triageLive('trainer');
+  assert.equal(calls, before + 1, 'read once, then cached');
+  const events = [];
+  window.dispatchEvent = (e) => { events.push(e.type); return true; };
+  try {
+    window.ShapeSignals.changed();
+    assert.deepEqual(events, ['shape:signalsChanged']);
+    await window.ShapeSignals.triageLive('trainer');
+    assert.equal(calls, before + 2, 'read again, not from the cache');
+  } finally { delete window.dispatchEvent; }
+});

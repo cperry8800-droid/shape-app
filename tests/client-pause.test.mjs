@@ -497,6 +497,9 @@ test('the screens: the member\'s Settings, the coach\'s case file and roster, th
   assert.match(pros, /label: away && sev === 'green' \? coachTr\('coach:roster\.labelAway'/);
   const mod = read('mobile-app/src/broadsheet/BSClientPause.jsx');
   assert.doesNotMatch(mod, /from '\.\/iosAppBroadsheet/, 'never an import back into a client module');
+  // A saved break re-reads the roster behind the case file (Codex on #2705: ShapeSignals.changed, tested
+  // in tests/app-roster-loading.test.mjs), read at call time.
+  assert.match(mod, /if \(r\.ok\) \{ setSave\(\{ kind: 'idle' \}\); setAttempt\(\(n\) => n \+ 1\); try \{ window\.ShapeSignals\?\.changed\?\.\(\); \} catch \(e\) \{\} \}/);
   const words = [...mod.matchAll(/defaultValue: (?:[^']*?)'([^']*)'(?: : '([^']*)')?/g)].flatMap((m) => [m[1], m[2]]).filter(Boolean);
   assert.ok(words.length > 15, 'its words found');
   assert.deepEqual(words.filter((w) => /\bpaus/i.test(w)), [], 'its words say away and break, never pause (the membership\'s)');

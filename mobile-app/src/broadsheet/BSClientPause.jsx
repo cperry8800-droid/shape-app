@@ -61,7 +61,8 @@ function usePause(clientId) {
     setSave({ kind: 'saving' });
     const r = await writeClientPause(dbClient(), clientId, until);
     if (currentUid() !== uid) return;
-    if (r.ok) { setSave({ kind: 'idle' }); setAttempt((n) => n + 1); }
+    // Saved: the roster behind this case file re-reads too, so Clients says Away (or not) on the way back.
+    if (r.ok) { setSave({ kind: 'idle' }); setAttempt((n) => n + 1); try { window.ShapeSignals?.changed?.(); } catch (e) {} }
     else setSave({ kind: 'failed', error: r.error });
   };
   return { read, save, write, retry: () => setAttempt((n) => n + 1) };

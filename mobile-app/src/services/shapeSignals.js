@@ -287,6 +287,12 @@ window.ShapeSignals = {
     if (ok) { for (const k of Object.keys(_triageCache)) delete _triageCache[k]; try { window.dispatchEvent(new CustomEvent('shape:signalsChanged')); } catch (e) {} }
     return ok;
   },
+  // Something the triage reads changed elsewhere (a client's break, saved from their case file: Codex on
+  // #2705): the cached feed is dropped and Today and Clients re-read at once, as after a dismissal.
+  changed() {
+    for (const k of Object.keys(_triageCache)) delete _triageCache[k];
+    try { window.dispatchEvent(new CustomEvent('shape:signalsChanged')); } catch (e) {}
+  },
   async restore(clientId, key, role) {
     const D = window.ShapeSignalDismissals;
     const ok = !!(role && D && D.clear && await D.clear(clientId, key, role).catch(() => false));

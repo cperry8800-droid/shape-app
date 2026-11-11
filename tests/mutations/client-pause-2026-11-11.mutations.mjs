@@ -19,8 +19,10 @@ const ROSTER = 'public/newdesign/dashRoster.jsx';
 const NOTES = 'src/lib/ai/notifications.mjs';
 const REM = 'src/app/api/cron/reminders/route.ts';
 const WEB = 'public/supabase.js';
+const PAUSE_UI = 'mobile-app/src/broadsheet/BSClientPause.jsx';
+const SIG = 'mobile-app/src/services/shapeSignals.js';
 export default {
-  test: 'node --test tests/client-pause.test.mjs tests/client-pause-sql.test.mjs tests/coach-alert-memory.test.mjs tests/member-engine-reasons.test.mjs tests/dash-signals.test.mjs',
+  test: 'node --test tests/client-pause.test.mjs tests/client-pause-sql.test.mjs tests/coach-alert-memory.test.mjs tests/member-engine-reasons.test.mjs tests/dash-signals.test.mjs tests/app-roster-loading.test.mjs',
   mutations: [
     // ── the migration ──────────────────────────────────────────────────────────
     { name: 'the table has no row level security', file: SQL,
@@ -105,6 +107,12 @@ export default {
       find: '        gap = resumeDays(c, now);\n        if (gap < THRESHOLDS.FOOD_GAP_DAYS) return null;', replace: '        gap = daysBetween(backDay, now);\n        if (gap < THRESHOLDS.FOOD_GAP_DAYS) return null;' },
     { name: 'the contact gap since a break counts the viewer\'s days, not the member\'s (Codex on #2705)', file: ENG,
       find: '      gap = resumeDays(c, now);\n      if (gap < THRESHOLDS.CONTACT_GAP_DAYS) return null;', replace: '      gap = daysBetween(backDay, now);\n      if (gap < THRESHOLDS.CONTACT_GAP_DAYS) return null;' },
+    { name: 'a break saved from the case file leaves the roster on its cached feed (Codex on #2705)', file: PAUSE_UI,
+      find: " try { window.ShapeSignals?.changed?.(); } catch (e) {} }", replace: " }" },
+    { name: 'the roster is told to re-read, but its cached feed is kept', file: SIG,
+      find: "  changed() {\n    for (const k of Object.keys(_triageCache)) delete _triageCache[k];\n", replace: "  changed() {\n" },
+    { name: 'the cached feed is dropped, but the roster is never told', file: SIG,
+      find: "    for (const k of Object.keys(_triageCache)) delete _triageCache[k];\n    try { window.dispatchEvent(new CustomEvent('shape:signalsChanged')); } catch (e) {}\n  },\n  async restore", replace: "    for (const k of Object.keys(_triageCache)) delete _triageCache[k];\n  },\n  async restore" },
     { name: 'the roster a coach posts drops the break (Codex on #2705)', file: ENG,
       find: '    "pause"];', replace: '    ];' },
     { name: 'the overview drops when the member is back', file: OV,
