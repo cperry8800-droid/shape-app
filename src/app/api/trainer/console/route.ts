@@ -24,6 +24,7 @@ import { profileNames } from '@/lib/client-names';
 import { normalizeZone } from '@/lib/time';
 import { memberDay, shiftDay } from '@/lib/workout-days';
 import { exerciseReadSince, pushedExerciseOf } from '@/lib/coach-exercises';
+import { readAllById, ROW_PAGE } from '@/lib/read-all-by-id';
 import { OPEN_SUB_STATUSES } from '../../../../lib/coach-trajectory.mjs';
 
 export const dynamic = 'force-dynamic';
@@ -204,12 +205,19 @@ export async function GET(request: Request) {
         .select('user_id, data, timezone')
         .in('user_id', clientIds),
       // Today's rows on their own: three dates a client at most, so a long trajectory read can't
-      // crowd them out.
-      supabase
-        .from('daily_health_snapshot')
-        .select('user_id, snapshot_date, calories:dietary_kcal, protein_g')
-        .in('user_id', clientIds)
-        .in('snapshot_date', nearDays),
+      // crowd them out. ⚠ EVERY ROW, A PAGE AT A TIME (Codex P2 on #2686): one select stops at 1,000
+      // rows without a word, three dates reach that at 334 clients, and a client past it read "Nothing
+      // logged yet today". readAllById walks them by id; a read past its ceiling is unread.
+      readAllById<{ id: string; user_id: string; snapshot_date: string; calories: number | null; protein_g: number | null }>((after) => {
+        let q = supabase
+          .from('daily_health_snapshot')
+          .select('id, user_id, snapshot_date, calories:dietary_kcal, protein_g')
+          .in('user_id', clientIds)
+          .in('snapshot_date', nearDays);
+        if (after) q = q.gt('id', after);
+        // capped-read-ok: one page of a cursor walk over every row (readAllById), not a cap.
+        return q.order('id', { ascending: true }).limit(ROW_PAGE);
+      }),
     ]);
 
     // daily_health_snapshot: walk ascending so the LAST row per client is
@@ -276,15 +284,23 @@ export async function GET(request: Request) {
   // cue (kind 'cue') and never an exercise from another day, which stays on that day in the member's
   // Train week. ⚠ A FAILED READ IS `itemsUnread`, NOT AN EMPTY SESSION (Codex P2 on #2686): the page
   // said "Nothing added today" and offered no Remove, so a coach could add the same exercise twice.
-  const { data: itemRows, error: itemsErr } = await supabase
-    .from('coach_pushed_items')
-    .select('id, client_id, kind, payload, sent_at')
-    .eq('provider_role', ROLE)
-    .eq('provider_id', providerId)
-    .eq('kind', KIND)
-    .is('removed_at', null)
-    .gte('sent_at', exerciseReadSince(now, 1))
-    .order('sent_at', { ascending: true });
+  // Read a page at a time, like today's logs above: two days of a roster's exercises pass 1,000 rows at
+  // 100 clients and five a day, and a cut read is a session list short without a word.
+  const { data: itemPages, error: itemsErr } = await readAllById<PushedItemRow>((after) => {
+    let q = supabase
+      .from('coach_pushed_items')
+      .select('id, client_id, kind, payload, sent_at')
+      .eq('provider_role', ROLE)
+      .eq('provider_id', providerId)
+      .eq('kind', KIND)
+      .is('removed_at', null)
+      .gte('sent_at', exerciseReadSince(now, 1));
+    if (after) q = q.gt('id', after);
+    // capped-read-ok: one page of a cursor walk over every row (readAllById), not a cap.
+    return q.order('id', { ascending: true }).limit(ROW_PAGE);
+  });
+  // Paged by id; the session lists in the order the coach added them.
+  const itemRows = (itemPages ?? []).slice().sort((a, b) => (Date.parse(a.sent_at) || 0) - (Date.parse(b.sent_at) || 0));
 
   const itemsUnread = !!itemsErr || zonesUnread;
   if (itemsErr) console.warn('[shape-app] trainer console: pushed exercises read failed — today\'s session renders as unread:', itemsErr.message);

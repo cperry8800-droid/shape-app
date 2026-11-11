@@ -92,7 +92,7 @@ test('unavailable, loading and insufficient overviews never become green; recent
   assert.equal(row(record()).progress.state, 'insufficient');
   assert.equal(row(record({ shapeScoreHistory: [{ weekOf: '2026-06-01', points: 80 }] })).severity, 'unknown');
   assert.equal(row(record({ shapeScoreHistory: [{ weekOf: '2026-09-14', points: 80 }] })).severity, 'green');
-  const attention = row(record({ streaks: { current: 0, best: 10 }, progressRead: { state: 'unavailable' } }));
+  const attention = row(record({ recovery: { recoveryScore: { avg7: 20, n: 5 } }, progressRead: { state: 'unavailable' } }));
   assert.equal(attention.severity, 'amber', 'availability must not erase known attention signals');
 });
 

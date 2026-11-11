@@ -13,17 +13,24 @@
 import React from 'react';
 import {
   bsNavPush, bsNavPop, bsNavCanPop, bsNavSize, bsNavClear, bsNavAnnounce,
-  bsNavCompose, bsGuardAfterPush, bsGuardAfterPop, bsGuardAfterInAppPop,
-  bsGuardAfterClear, bsGuardOnFirstUse, bsNavDropStack,
+  bsNavCompose, bsGuardWanted, bsGuardSync, bsPhoneBack, bsGuardPop, bsGuardOnFirstUse, bsNavDropStack,
 } from '../services/navHistory.mjs';
+
+// The Back of the page in front (the chrome's bsTopPageBack: what its ← and a swipe on it do), or null.
+const bsPageBackNow = () => {
+  try { return typeof window !== 'undefined' && typeof window.bsTopPageBack === 'function' ? window.bsTopPageBack() : null; }
+  catch (e) { return null; }
+};
 
 export function useBSNavHistory({ navLoc, navResolve }) {
   // Fresh closures every render; the stable callbacks below read through here.
   const fns = React.useRef({ navLoc, navResolve });
   fns.current = { navLoc, navResolve };
-  // Does a guard entry currently exist in browser history?
-  // Invariant: guard exists ⟺ armed ⟺ the stack is non-empty.
+  // Does a guard entry currently exist in browser history? It does while a Back has somewhere to go: the
+  // stack, or the page in front's own Back (services/navHistory.mjs, bsGuardWanted).
   const armed = React.useRef(false);
+  // Our own walk-off a stale guard is on its way (history.back() lands as a popstate later).
+  const consuming = React.useRef(false);
   // This shell's first touch of the history: a stack another shell left is dropped, and its guard entry
   // adopted (bsGuardOnFirstUse). Every entry point calls it first, so this shell's own pushes, which all
   // come after, are never the ones dropped. Only the stack: what this shell's pages announced before it
@@ -35,59 +42,96 @@ export function useBSNavHistory({ navLoc, navResolve }) {
     if (bsGuardOnFirstUse(bsNavSize()) === 'adopt') { bsNavDropStack(); armed.current = true; }
   }, []);
 
+  // Put the guard where it is wanted, once the page a push, a back, a clear or a tap opened has drawn.
+  // Pages open in place without a push (Home → Goals), so a tap is reason enough to look again.
+  const syncTimer = React.useRef(null);
+  const sync = React.useCallback(() => {
+    syncTimer.current = null;
+    own();
+    const act = bsGuardSync({ wanted: bsGuardWanted(bsNavSize(), !!bsPageBackNow()), armed: armed.current, consuming: consuming.current });
+    if (act === 'arm') {
+      try { window.history.pushState({ shapeNav: true }, ''); armed.current = true; } catch (e) {}
+    } else if (act === 'consume') {
+      armed.current = false;
+      consuming.current = true;
+      try { window.history.back(); } catch (e) { consuming.current = false; }
+    }
+  }, [own]);
+  const scheduleSync = React.useCallback((delay = 0) => {
+    if (syncTimer.current) clearTimeout(syncTimer.current);
+    syncTimer.current = setTimeout(() => {
+      try { window.requestAnimationFrame(sync); } catch (e) { sync(); }
+    }, delay);
+  }, [sync]);
+
   const navPush = React.useCallback(() => {
     own();
-    const prev = bsNavSize();
     const changed = bsNavPush(bsNavCompose(fns.current.navLoc()));
-    if (changed && bsGuardAfterPush(prev, bsNavSize()) === 'arm' && !armed.current) {
+    // Armed at once, not a frame later: a Back right after a jump must find it.
+    if (changed && !armed.current && !consuming.current) {
       try { window.history.pushState({ shapeNav: true }, ''); armed.current = true; } catch (e) {}
     }
+    scheduleSync();
     return changed;
-  }, []);
+  }, [own, scheduleSync]);
 
-  const navBack = React.useCallback((fromPopstate = false) => {
+  const navBack = React.useCallback(() => {
     own();
     if (!bsNavCanPop()) return false;
     // A Back: the page it reopens takes the scroll it left at (the chrome's scroll memory).
     try { if (typeof window !== 'undefined' && window.bsMarkBack) window.bsMarkBack(); } catch (e) {}
     const loc = bsNavPop();
-    if (fromPopstate) {
-      // the browser just consumed the guard entry
-      if (bsGuardAfterPop(bsNavSize()) === 'rearm') { try { window.history.pushState({ shapeNav: true }, ''); } catch (e) {} }
-      else armed.current = false;
-    } else if (bsGuardAfterInAppPop(bsNavSize(), armed.current) === 'consume') {
-      // An on-screen back emptied the stack, so our guard entry is stale. Left
-      // in place it eats the user's NEXT hardware Back. Disarm first (so the
-      // popstate this triggers is ignored below), then walk off the guard.
-      armed.current = false;
-      try { window.history.back(); } catch (e) {}
-    }
     fns.current.navResolve(loc);
+    // The page it reopened may have a Back of its own (the guard stays) or be a root with nothing left
+    // (the guard goes, or the reader's next phone back would spend itself on it).
+    scheduleSync();
     return true;
-  }, []);
+  }, [own, scheduleSync]);
 
   React.useEffect(() => {
-    const onPop = () => {
+    const onPop = (ev) => {
       own();
-      if (!armed.current) return;              // not our guard entry
-      if (!navBack(true)) armed.current = false; // raced empty — disarm
+      // Armed means the browser stands on our guard entry, so it is read from where the browser now stands.
+      const onGuard = !!(ev && ev.state && ev.state.shapeNav);
+      const kind = bsGuardPop({ onGuard, armed: armed.current, consuming: consuming.current });
+      armed.current = onGuard;
+      // Our own walk-off of a stale guard landing: nothing for the reader here.
+      if (kind === 'ours') { consuming.current = false; scheduleSync(); return; }
+      // The browser's Forward back onto a guard we walked off: ours again, kept or walked off by the sync.
+      if (kind === 'forward') { scheduleSync(); return; }
+      if (kind !== 'back') return;             // not our guard entry
+      // The reader's Back: the browser just spent the guard.
+      // The phone's back does what the page in front's ← does (a station closes onto its cover, Search's
+      // person view onto Search), and the stack is stepped only from a page with no Back of its own.
+      const pageBack = bsPageBackNow();
+      const step = bsPhoneBack({ pageHasBack: !!pageBack, stackSize: bsNavSize() });
+      if (step === 'page') {
+        try { if (window.bsMarkBack) window.bsMarkBack(); } catch (e) {}
+        try { pageBack(); } catch (e) {}
+      } else if (step === 'stack') navBack();
+      scheduleSync();
     };
+    // A tap may open a page in place (no push), which wants the guard; a swipe's Back runs once its slide
+    // has played, so a touch looks again a little later.
+    const onTap = () => scheduleSync();
+    const onTouchEnd = () => scheduleSync(260);
     window.addEventListener('popstate', onPop);
-    return () => window.removeEventListener('popstate', onPop);
-  }, [navBack]);
+    document.addEventListener('click', onTap, true);
+    document.addEventListener('touchend', onTouchEnd, true);
+    return () => {
+      window.removeEventListener('popstate', onPop);
+      document.removeEventListener('click', onTap, true);
+      document.removeEventListener('touchend', onTouchEnd, true);
+      if (syncTimer.current) { clearTimeout(syncTimer.current); syncTimer.current = null; }
+    };
+  }, [own, navBack, scheduleSync]);
 
-  // Clearing empties the stack, so the guard must go with it — same reasoning as
-  // the in-app-pop consume above. A bare bsNavClear() would leave `armed` true
-  // with an empty stack: the next push would skip arming (already "armed"), and
-  // the next hardware Back would spend itself on the orphaned entry.
+  // Clearing empties the stack; the sync then drops the guard unless the page in front still has a Back.
   const navClear = React.useCallback(() => {
     own();
     bsNavClear();
-    if (bsGuardAfterClear(armed.current) === 'consume') {
-      armed.current = false;
-      try { window.history.back(); } catch (e) {}
-    }
-  }, []);
+    scheduleSync();
+  }, [own, scheduleSync]);
 
   React.useEffect(() => {
     const canPop = () => { own(); return bsNavCanPop(); };

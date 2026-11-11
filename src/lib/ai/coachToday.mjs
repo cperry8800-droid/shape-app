@@ -49,13 +49,18 @@ async function pooled(items, size, fn) {
   return out;
 }
 
-// The coach's own tuning of the signals (Settings → signal thresholds), re-validated by the
-// engine; null when nothing is tuned or it cannot be read, so house policy applies.
+// The coach's own tuning of the signals (Settings → signal thresholds), as stored; null when nothing
+// is tuned or it cannot be read, so house policy applies. Resolved per role below (resolveFor): the
+// house values under it are each role's own.
 async function coachThresholds(sb, uid) {
   const r = await leg(sb.from('user_goals').select('data').eq('user_id', uid).eq('kind', 'coach_settings').maybeSingle());
   const t = r.ok && r.data && r.data.data && typeof r.data.data.thresholds === 'object' ? r.data.data.thresholds : null;
-  if (!t) return null;
-  try { return engine.resolveThresholds(t).thresholds; } catch { return null; }
+  return t || null;
+}
+// The stored tuning re-validated by the engine for one role; null runs that role's house policy.
+function resolveFor(raw, role) {
+  if (!raw) return null;
+  try { return engine.resolveThresholds(raw, role).thresholds; } catch { return null; }
 }
 
 /**
@@ -188,7 +193,7 @@ export async function readCoachToday(sb, uid, opts = {}) {
       if (!group.length) continue;
       let feed = [];
       // The coach's dismissals (this role's) and reviews ride on each record (attachCoachContext), as on Today.
-      try { feed = engine.getTriageFeed(role, engine.attachCoachContext(group.map((x) => recordFor(x, role)), ctx, role), now, thresholds || undefined) || []; } catch { feed = []; }
+      try { feed = engine.getTriageFeed(role, engine.attachCoachContext(group.map((x) => recordFor(x, role)), ctx, role), now, resolveFor(thresholds, role) || undefined) || []; } catch { feed = []; }
       for (const r of feed) {
         if (!r || !rank[r.severity]) continue;
         const id = r.client && r.client.profile && r.client.profile.id;

@@ -192,14 +192,16 @@ async function coachRecords(role, options) {
 // `coach_settings` doc the website's Settings writes), re-validated by the engine. ⚠ The app ran on
 // the house thresholds while the website and the push ran on the coach's, so a coach who raised the
 // food-log gap still saw those clients flagged on the phone. null = house policy.
-async function coachThresholds() {
+// Resolved for the role the roster is: the house values under the tuning are that role's (a trainer's
+// food-log gap is 5 days).
+async function coachThresholds(role) {
   try {
     const e = engine();
     const db = window.shapeDb;
     if (!e || typeof e.resolveThresholds !== 'function' || !db || !db.getUserGoals) return null;
     const doc = await db.getUserGoals('coach_settings');
     const t = doc && typeof doc === 'object' && doc.thresholds && typeof doc.thresholds === 'object' ? doc.thresholds : null;
-    return t ? e.resolveThresholds(t).thresholds : null;
+    return t ? e.resolveThresholds(t, role).thresholds : null;
   } catch (e) { return null; }
 }
 // The coach's dismissals (coach_signal_dismissals, via ShapeSignalDismissals) and check-in reviews
@@ -227,7 +229,7 @@ async function triageLive(role, { force = false } = {}) {
   if (!force && hit && now - hit.at < 30000) return hit.promise;
   const promise = (async () => {
     const e = engine(); if (!e) throw new Error('Client signals unavailable');
-    const [records, thresholds, ctx] = await Promise.all([coachRecords(role, { strict: true }), coachThresholds(), coachContext()]);
+    const [records, thresholds, ctx] = await Promise.all([coachRecords(role, { strict: true }), coachThresholds(role), coachContext()]);
     if (!records.length) return [];
     // This role's dismissals only (a coach with both listings sets a reason aside per role).
     const withCtx = typeof e.attachCoachContext === 'function' ? (call(e.attachCoachContext, records, ctx, role) || records) : records;
