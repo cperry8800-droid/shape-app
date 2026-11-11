@@ -630,6 +630,34 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
 
   return [
     {
+      section: 'Waiting on the owner: what only the owner can do or decide. A PR that leaves one adds it here, and the PR that settles it deletes its line',
+      items: [
+        { label: 'The Exchange mail flow rule for the logo under Nora\'s support replies (#2479\'s Owner steps).', status: 'manual' },
+        { label: 'Push keys (#2385): `APNS_KEY_ID`, `APNS_TEAM_ID`, `APNS_PRIVATE_KEY` in Vercel; Firebase `shape-84d22`\'s `google-services.json` as secret `GOOGLE_SERVICES_JSON` (DEPLOY.md §10); then a native device pass, MusicKit sign-in included.', status: 'manual' },
+        { label: 'Reconnect WHOOP on the account that connected it on 2 May (#2437: no refresh token).', status: 'manual' },
+        { label: 'Decide: a buyer paying an open checkout from another tab (closing it means refunds).', status: 'manual' },
+        { label: 'In-app purchase outside the US (Phase 2): on hold.', status: 'manual' },
+        { label: 'Decide how a suspended coach appeals.', status: 'manual' },
+        { label: 'Counsel reads the privacy policy (2026-10-13 text; §10\'s tap counts, 2026-10-29, and radio listening, 2026-10-30); the health-data page and the data export are incomplete (War Room).', status: 'manual' },
+        { label: 'The direct-charges test purchase on staging (#2403\'s Owner steps).', status: 'manual' },
+        { label: 'Decide how a seeded listing becomes its coach\'s (`listing_time_requests`, `/dashboard/claim`).', status: 'manual' },
+        { label: 'Decide the perks "What Master unlocks" and `leaderboards.jsx` promise: nothing grants them.', status: 'manual' },
+        { label: 'Decide whether coaches keep seeing each other\'s active clients and sessions-kept rate.', status: 'manual' },
+        { label: 'Check `NORA_TTS_VOICE` (coral, nova, shimmer or sage) and `NORA_TTS_INSTRUCTIONS` in Vercel.', status: 'manual' },
+        { label: 'Nora\'s speed (#2558): ask her a few things on the deployed app (one by voice) for the timings; `OPENAI_FAST_MODEL=off` and a redeploy put members back on Astra.', status: 'manual' },
+        { label: 'Decide the bring-your-clients rules (the 15% cases, private profiles, the app\'s checkout).', status: 'manual' },
+        { label: 'Decide whether a coach checkout refuses payment, instead of a destination charge on Shape\'s account, when a Connect variable is missing (`directChargesReady`, #2555).', status: 'manual' },
+        { label: 'Decide #2566\'s calls (its War Room section).', status: 'manual' },
+        { label: 'Decide night-before prep\'s open calls (#2563\'s War Room section).', status: 'manual' },
+        { label: 'A trademark search on "Club Shape", its domain and handles, before the rename ships (#2568\'s War Room).', status: 'manual' },
+        { label: 'Runway (#2682): drop the "runaway" connector; decide a paid plan and an admin page.', status: 'manual' },
+        { label: 'Set up the radio station (`services/station`).', status: 'manual' },
+        { label: 'Set `STRIPE_PLATFORM_ANNUAL_PRICE_ID` ($48/yr) in Vercel Production.', status: 'manual' },
+        { label: 'Add the `localhost` hostname to the Turnstile widget.', status: 'manual' },
+        { label: 'A native speaker reads the PAR-Q, Nora hint, sample coach and Friends translations (Hausa and Pidgin first).', status: 'manual' },
+      ],
+    },
+    {
       section: 'Joint attention reads each co-coach\'s own flag settings (#2691). One migration, run and checked live',
       items: [
         { label: 'Owner, 2026-11-10, on joint attention reading the co-coach\'s side at Shape\'s house line: "yes fix this please"', status: 'done' },

@@ -80,13 +80,13 @@ Read what the repository says before you draft. Don't guess at policy.
   coach's own clients), payouts and removal. `public/code-of-conduct.html` for conduct.
 - `public/privacy.html` and `public/privacy-request.html` (the privacy request form) for data
   rights.
-- Known gaps: the War Room's pending items in `src/lib/warroom.ts`, and "Waiting on the owner"
-  in `docs/WORKLOG.md`. The War Room is over a megabyte, so never Read it whole: Grep it,
-  case-insensitive, for the customer's problem followed by `'pending'` on the same line (for
-  example `suspended.*renew.*'pending'` or `another tab.*'pending'`). If a customer reports a
-  known gap (a subscription to a suspended coach that keeps renewing, or a checkout paid from
-  another tab), say so in the summary, quoting the line. Never tell the customer about
-  internal notes, code or tooling.
+- Known gaps: the War Room's pending items in `src/lib/warroom.ts`, and its first section,
+  Waiting on the owner (`'manual'` lines). The War Room is over a megabyte, so never Read it
+  whole: Grep it, case-insensitive, for the customer's problem followed by `'pending'` on the
+  same line (for example `suspended.*renew.*'pending'` or `another tab.*'pending'`). If a
+  customer reports a known gap (a subscription to a suspended coach that keeps renewing, or a
+  checkout paid from another tab), say so in the summary, quoting the line. Never tell the
+  customer about internal notes, code or tooling.
 - Refunds: members have no refund button yet. `requestRefund` exists
   (`src/app/refunds/actions.ts`), but nothing on the website or in the app calls it, so a
   refund request arrives by email and the owner decides it. Never send a customer to a refund
