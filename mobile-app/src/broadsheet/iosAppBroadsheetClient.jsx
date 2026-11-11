@@ -56,7 +56,7 @@ import { BS_MEAL_DAYS_KIND, BS_OWN_PER_DAY, BS_OWN_SLOT_TIME, bsMealDayOf, bsMea
 import { BSPlanMealSheet, BSMorningSwapCard } from './BSPlanDay.jsx';
 import { isShapeWelcome, shapeWelcomeShown } from '../services/shapeWelcome.mjs';
 import { bsRouteNotification, bsHandOver, bsRouteFor, bsAccountCoachRole, bsChatOwner, BS_COACH_PAGES, BS_NAV_EVENTS, bsClosesPerson } from './bsNotificationRoute.mjs';
-import { bsProfileWall, bsProfileShelf, bsProfileCover, bsProfileStartLine, bsStartLineState, bsValidStartDate, bsProfileFilm, bsProfileBizCard, bsProfilePinnedReviews, BS_WALL_MAX, bsPinKindLabel, bsPromptLabel, bsProfileLook } from '../services/profileCustom.mjs';
+import { bsProfileWall, bsProfileShelf, bsProfileCover, bsLookPosition, bsProfileStartLine, bsStartLineState, bsValidStartDate, bsProfileFilm, bsProfileBizCard, bsProfilePinnedReviews, BS_WALL_MAX, bsPinKindLabel, bsPromptLabel, bsProfileLook } from '../services/profileCustom.mjs';
 // The profile editor and the option tables the public profile shares with it (BSProfileCustomizer.jsx).
 import { BSProfileCustomizer, bsSpotifyEmbed, bsOptLabel, BS_PROFILE_LINKS } from './BSProfileCustomizer.jsx';
 import { bsOrchestrate, bsReplanCook, bsCookBlockingHold, BS_COOK_MODE, BS_ORCH, BS_SERIAL_REASON, BS_SERVE_ISSUE, bsProgressPct } from '../services/cookOrchestrator.mjs';
@@ -17009,7 +17009,7 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
           <div data-member-head="" data-tour={meMode ? 'hero-me' : undefined}>
             {/* The cover, with the masthead (and Back) over it in white */}
             <div data-member-cover="" style={{ position: 'relative', height: `calc(${BS_MAST_TOP_CSS} + 190px)`, overflow: 'hidden', background: heroCover ? '#111' : `linear-gradient(135deg, ${bsTHexA(c, 0.5)}, ${tTheme.PAPER2} 72%)` }}>
-              {heroCover ? <img src={heroCover} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', objectPosition: BS_MEMBER_FOCUS[look.focus] || BS_MEMBER_FOCUS.center }} /> : null}
+              {heroCover ? <img src={heroCover} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', objectPosition: bsLookPosition(look, BS_MEMBER_FOCUS) }} /> : null}
               <div aria-hidden style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, rgba(0,0,0,0.5) 0%, rgba(0,0,0,0) 38%, rgba(0,0,0,0) 72%, rgba(0,0,0,0.22) 100%)' }} />
               <div style={{ position: 'relative', padding: `${BS_MAST_TOP_CSS} ${Math.max(4, gutter - 10)}px 0`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', minHeight: 34 }}>
                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, paddingLeft: 10, color: WHITE }}>

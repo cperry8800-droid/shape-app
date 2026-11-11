@@ -474,7 +474,8 @@ export function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coac
     // `...stored` as the doc has them.
     if (key === 'colors' && pickChanged) doc.look = { ...(bsProfileLook(stored.look) || {}), paper: pick.paper, accent: pick.accent };
     // The crop, the same way: over the stored look, its paper and accent kept.
-    if (key === 'photos' && focusChanged) doc.look = { ...(bsProfileLook(stored.look) || {}), focus: focusPick };
+    // A position dragged on the website (pos) gives way to the stop picked here.
+    if (key === 'photos' && focusChanged) { const { pos: _dragged, ...kept } = bsProfileLook(stored.look) || {}; doc.look = { ...kept, focus: focusPick }; }
     // Normalize only THIS role's film key against its bucket; the other role's film key
     // isn't named here, so it passes through byte-identical.
     const clean = bsNormalizeProfileCustom(doc, uid, { filmBucket: filmRoleBucket, filmKey });
@@ -1133,7 +1134,7 @@ export function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coac
     const uid = ownerUid || W.ShapeAuth?.getCachedState?.()?.user?.id || null;
     let draft = { ...saved };
     for (const k of TILES) if (k !== 'signal' && k !== 'colors') Object.assign(draft, areaFields(k, form));
-    if (pickChanged || focusChanged) draft.look = { ...(bsProfileLook(saved.look) || {}), ...(pickChanged ? { paper: pick.paper, accent: pick.accent } : {}), ...(focusChanged ? { focus: focusPick } : {}) };
+    if (pickChanged || focusChanged) { const { pos: _dragged, ...kept } = bsProfileLook(saved.look) || {}; draft.look = { ...kept, ...(focusChanged ? {} : (_dragged ? { pos: _dragged } : {})), ...(pickChanged ? { paper: pick.paper, accent: pick.accent } : {}), ...(focusChanged ? { focus: focusPick } : {}) }; }
     // As a Save would store it (the wall, the cover and the film bound to the owner); a signed-out preview
     // has no owner, and the page drops what it can't bind as it renders.
     if (uid) draft = bsNormalizeProfileCustom(draft, uid, { filmBucket: filmRoleBucket, filmKey });

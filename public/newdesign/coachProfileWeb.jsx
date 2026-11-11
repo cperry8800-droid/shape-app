@@ -799,11 +799,12 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
   const tier = points != null && typeof lvTierFor === "function" ? lvTierFor(points, true).name : "";
   const [custom, setCustom] = React.useState(() => (live ? (row && row.custom) || null : (sample && sample.custom) || null));
   React.useEffect(() => { setCustom(live ? (row && row.custom) || null : (sample && sample.custom) || null); }, [live, uid, sample]);
-  // A sample's photo comes in on the link (marketplace `&avatar=`): only https or this site's own paths.
-  const avatar = live ? (row && row.avatar) || null : (/^(https:\/\/|\/[^/\\])/.test(String(avatarIn || "")) ? avatarIn : null);
-  const [brokenAvatar, setBrokenAvatar] = React.useState(null);
-  const avatarShown = avatar && avatar !== brokenAvatar ? avatar : null;
-  const bio = isPrivate ? "" : String((live ? (row && (row.goal || row.bio)) : (sample && sample.live && sample.live.goal)) || "").trim();
+  // Their line: the Bio written in Edit profile (profile_custom.bio, as the member app's profile reads it),
+  // else the line from their account (client_identity's goal or bio, get_public_profile). The Bio field
+  // wrote a doc this page never read, so the editor's change did not show (owner, 2026-11-11: "make sure
+  // these edits and changes actually work").
+  const customBio = custom && typeof custom.bio === "string" ? custom.bio.trim() : "";
+  const bio = isPrivate ? "" : String((live ? (customBio || (row && (row.goal || row.bio))) : (sample && sample.live && sample.live.goal)) || "").trim();
 
   // ── The Climb's colours: one dark page for every coach (it is one layout, not a picker), Shape's teal
   //    for a trainer and gold for a nutritionist, and the booking colour (trainer rust, nutritionist
@@ -823,6 +824,13 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
   const L = listed ? listing.row : (demo && sample ? sample.provider : null);
   const media = isPrivate ? { cover: null, gallery: [] } : (listed ? listing.row.listing_media : sample ? sample.provider.listing_media : { cover: null, gallery: [] }) || { cover: null, gallery: [] };
   const gallery = Array.isArray(media.gallery) ? media.gallery : [];
+  // Their face: the photo on their account (Edit profile → You, or the app), else their listing's portrait
+  // (the dashboard's "Portrait · you"), so a coach who set only the one is not a placeholder (owner,
+  // 2026-11-11: "where do i upload my profile image"). A sample's photo comes in on the link (marketplace
+  // `&avatar=`): only https or this site's own paths.
+  const avatar = live ? (row && row.avatar) || media.portrait || null : (/^(https:\/\/|\/[^/\\])/.test(String(avatarIn || "")) ? avatarIn : null);
+  const [brokenAvatar, setBrokenAvatar] = React.useState(null);
+  const avatarShown = avatar && avatar !== brokenAvatar ? avatar : null;
   const coverDoc = sample ? (custom && custom.cover && sample.photos.includes(custom.cover.image) ? { image: custom.cover.image } : null) : K.bsProfileCover(custom && custom.cover, uid);
   const wall = isPrivate ? null : ((coverDoc && coverDoc.image) || media.cover || null);
   const studio = nutri || isPrivate ? null : K.bsProfileStudio(custom && custom.studio);
@@ -1193,6 +1201,25 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
   const toDay = () => { setSheet(null); setTimeout(() => toCamp("day"), 40); };
   const message = () => { if (cm.provId) cm.openChat(); else onMessage(); };
   const canEdit = isSelf && typeof ProfileCustomizer !== "undefined";
+  // Settings' "Open Edit profile" lands here with ?edit=profile on the tab's hash (owner, 2026-11-11: the
+  // Settings card and this editor merged into this one): open it once, and drop the ask from the address.
+  React.useEffect(() => {
+    if (!canEdit) return undefined;
+    const take = () => {
+      const h = String(window.location.hash || "");
+      const q = h.indexOf("?");
+      if (q < 0) return;
+      const params = new URLSearchParams(h.slice(q + 1));
+      if (params.get("edit") !== "profile") return;
+      params.delete("edit");
+      const rest = params.toString();
+      try { window.history.replaceState(window.history.state, "", window.location.pathname + window.location.search + h.slice(0, q) + (rest ? "?" + rest : "")); } catch (e) {}
+      setEditing(true);
+    };
+    take();
+    window.addEventListener("hashchange", take);
+    return () => window.removeEventListener("hashchange", take);
+  }, [canEdit]);
   const hoursHref = nutri ? "/newdesign/NutritionistSchedule.html" : "/newdesign/TrainerSchedule.html";
   const scoreHref = nutri ? "/newdesign/NutritionistScore.html" : "/newdesign/TrainerScore.html";
   const followOn = !!(follow && (follow.isFollowing || follow.isPending));
@@ -1298,6 +1325,20 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
   };
   const campTitle = { base: "Start here", day: words.day, range: nutri ? "Meal plans" : "The range", kitchen: words.kitchen, plates: "Plate notes", replays: "Replays", proof: "Proof", words: "What clients say", about: `About ${first}`, find: "Find me", posts: "Posts", summit: words.work };
 
+  // Followers and following, on the stage under the name (owner, 2026-11-11: "the followers and following
+  // should be somewhere on main profile"). They were in the bar above the stage, and hidden on a phone.
+  // Public even on a private profile, as on a member's page; each opens its list.
+  const followRow = live && follow ? (
+    <div data-follow-counts="" className="cpw-follow">
+      {[["followers", follow.followers, "Followers"], ["following", follow.following, "Following"]].map(([k, n, label]) => (
+        <button key={k} type="button" data-follow-count={k} onClick={() => follow.openList && follow.openList(k)}>
+          <span className="cpw-fig cpw-follow-n">{(Number(n) || 0).toLocaleString()}</span>
+          <span className="cpw-dtl" style={{ color: ink(0.72) }}>{label}</span>
+        </button>
+      ))}
+      {isSelf && follow.requests > 0 ? <button type="button" data-follow-requests="" onClick={() => follow.openRequests && follow.openRequests()} className="cpw-dtl" style={{ padding: "0 12px", background: ACC, color: ON_ACC, borderRadius: 6 }}>{follow.requests} request{follow.requests === 1 ? "" : "s"}</button> : null}
+    </div>
+  ) : null;
   return (
     <div className="cpw" data-coach-profile="" data-climb="" data-in-dash={chrome ? undefined : ""} data-role={role} data-mode={live ? "live" : "sample"} data-accent={DRAW} style={{ position: "relative", minHeight: chrome ? "100vh" : "auto", background: pal.PAPER_BG, color: INK, fontFamily: CPW_BODY, WebkitFontSmoothing: "antialiased", paddingBottom: docked ? 96 : 0 }}>
       <style>{`
@@ -1340,6 +1381,11 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
     .cpw .cpw-h1{margin-top:12px !important;font-size:max(44px,min(clamp(58px,7.4vw,118px),calc((0.79 * (min(100vw,1440px) - 64px) - 520px) / (var(--cpw-l,8) * 0.76)))) !important;line-height:.86 !important;font-weight:850;font-stretch:125%;letter-spacing:-0.025em !important}
     .cpw-chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:24px}
     .cpw-chip{display:inline-flex;align-items:center;gap:7px;min-height:36px;padding:0 12px;border:1px solid rgba(238,243,240,.2);border-radius:8px;background:rgba(6,9,15,.86);font-size:14.5px;font-weight:600;color:#eef3f0}
+    .cpw-follow{display:flex;flex-wrap:wrap;align-items:center;gap:2px 22px;margin-top:12px}
+    .cpw-follow button{border:0;cursor:pointer}
+    .cpw-follow button[data-follow-count]{display:inline-flex;align-items:baseline;gap:8px;min-height:44px;padding:0;background:transparent;color:inherit;font:inherit}
+    .cpw-follow button[data-follow-requests]{min-height:32px}
+    .cpw-follow-n{font-family:${CPW_DISPLAY};font-size:24px;line-height:1;color:#fff}
     .cpw-quote{margin:20px 0 0;font-size:18.5px;line-height:1.5;color:#eef3f0;white-space:pre-line;overflow-wrap:anywhere;text-shadow:0 1px 2px rgba(6,9,15,.95),0 0 16px rgba(6,9,15,.9)}
     .cpw-sample-note{margin:14px 0 0;padding:9px 12px;border-left:2px solid;background:rgba(6,9,15,.78);font-size:13.5px;line-height:1.45;color:rgba(238,243,240,.85)}
     .cpw-stage-actions{display:flex;flex-wrap:wrap;align-items:center;gap:6px 16px;margin-top:10px}
@@ -1497,6 +1543,22 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
       .cpw:not([data-in-dash]) .cpw-stat-n{font-size:clamp(28px,4.4vh,40px)}
       .cpw.cpw:not([data-in-dash]) .cpw-camp-title{font-size:clamp(32px,min(4.2vw,6.4vh),58px) !important}
     }
+    /* ⚠ THE DASHBOARD'S PROFILE ON A SHORT WINDOW SCALES WITH ITS HEIGHT TOO (owner, 2026-11-11: "make sure
+       profile page on dashboard size and fitting is reviewed as well, looks big on page", a 1460x730
+       window at 125%: the stage ran 131-653px, the whole screen under the bars). The block above is the
+       public page's; this is the dashboard's own scale (data-in-dash) following 100vh to a floor. Each
+       size meets its value above at 899px, so a window 900px or taller is unchanged. */
+    @media (min-width:1000px) and (max-height:899px){
+      .cpw[data-in-dash] .cpw-bar{padding:10px 0 8px}
+      .cpw[data-in-dash] .cpw-stage-grid{grid-template-columns:clamp(200px,min(max(230px,19vw),33.4vh),300px) minmax(0,1fr);padding:clamp(18px,3.12vh,28px) 28px clamp(16px,2.9vh,26px);min-height:clamp(400px,57.9vh,520px)}
+      .cpw.cpw[data-in-dash] .cpw-h1{font-size:max(34px,min(8.7vh,78px,calc(min(620px,100cqi) / (var(--cpw-l,8) * 0.76)))) !important}
+      .cpw[data-in-dash] .cpw-chips{margin-top:clamp(10px,2.01vh,18px)}
+      .cpw[data-in-dash] .cpw-follow{margin-top:clamp(6px,1.34vh,12px)}
+      .cpw[data-in-dash] .cpw-follow-n{font-size:clamp(19px,2.67vh,24px)}
+      .cpw[data-in-dash] .cpw-quote{margin-top:clamp(10px,1.78vh,16px);font-size:clamp(14.5px,1.78vh,16px)}
+      .cpw[data-in-dash] .cpw-plates{padding-top:clamp(14px,2.9vh,26px)}
+      .cpw[data-in-dash] .cpw-stat-n{font-size:clamp(22px,3.12vh,28px)}
+    }
     @media (prefers-reduced-motion: reduce){
       .cpw-wire-run{animation:none}
       .cpw-wire-dup{display:none}
@@ -1543,7 +1605,7 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
     }
     @media (max-width:640px){
       .cpw-wrap{padding:0 16px}
-      .cpw-crumb-more,.cpw-counts{display:none !important}
+      .cpw-crumb-more{display:none !important}
       .cpw-stage{border-radius:18px}
       .cpw .cpw-h1{font-size:max(30px,min(clamp(44px,14vw,66px),calc((100vw - 72px) / (var(--cpw-l,8) * 0.7)))) !important;font-stretch:118%}
       .cpw-quote{font-size:16.5px}
@@ -1577,16 +1639,6 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
             {statusSaid ? <span data-status="" className="cpw-pill cpw-dtl" style={{ color: atCapacity ? pal.RUST : ACC, borderColor: cpwA(atCapacity ? pal.RUST : ACC, 0.45) }}>{statusSaid}</span> : null}
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            {live && follow ? (
-              <span data-follow-counts="" className="cpw-dtl cpw-counts" style={{ display: "inline-flex", alignItems: "center", color: ink(0.72) }}>
-                {[["followers", follow.followers, "followers"], ["following", follow.following, "following"]].map(([k, n, label]) => (
-                  <button key={k} type="button" onClick={() => follow.openList && follow.openList(k)} style={{ minHeight: 44, padding: "0 6px", border: 0, background: "transparent", color: "inherit", font: "inherit", letterSpacing: "inherit", textTransform: "inherit", cursor: "pointer" }}>
-                    <span style={{ color: INK }}>{Number(n) || 0}</span> {label}
-                  </button>
-                ))}
-                {isSelf && follow.requests > 0 ? <button type="button" onClick={() => follow.openRequests && follow.openRequests()} style={{ minHeight: 44, padding: "0 10px", border: 0, background: ACC, color: ON_ACC, font: "inherit", letterSpacing: "inherit", cursor: "pointer" }}>{follow.requests} request{follow.requests === 1 ? "" : "s"}</button> : null}
-              </span>
-            ) : null}
             {canFollow ? (
               <button type="button" data-follow="" onClick={onFollow} aria-pressed={followOn} className="cpw-pill" style={{ color: followOn ? ACC : INK, borderColor: followOn ? ACC : ink(0.2) }}>
                 <span aria-hidden="true">{follow.isFollowing ? "✓" : follow.isPending ? "…" : "♡"}</span>&nbsp;{follow.isFollowing ? "Following" : follow.isPending ? "Requested" : "Follow"}
@@ -1603,7 +1655,7 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
               top of it, where the portrait and the summit are (the name and plates run on below it). */}
           <div className="cpw-stage-art">
           <div aria-hidden="true" className="cpw-stage-photo">
-            {wall ? <img src={wall} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: CPW_FOCUS[look.focus] || CPW_FOCUS.center }} /> : null}
+            {wall ? <img src={wall} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: (K.bsLookPosition ? K.bsLookPosition(look, CPW_FOCUS) : (CPW_FOCUS[look.focus] || CPW_FOCUS.center)) || CPW_FOCUS.center }} /> : null}
           </div>
           <div aria-hidden="true" className="cpw-stage-shade" />
           <CpwTerrain ACC={DRAW} seed={seed} sx={wide ? 0.79 : 0.8} sy={wide ? 0.44 : 0.42} pins={wide && !isSelf ? milestones : []} />
@@ -1628,7 +1680,10 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
               <span className="cpw-dtl cpw-eyebrow" style={{ color: ACC }}>{[roleLine, where].filter(Boolean).join(" · ")}</span>
               <h1 className="cpw-h1" style={{ margin: 0, fontFamily: CPW_DISPLAY, color: "#fff", overflowWrap: "anywhere", "--cpw-l": cpwLongestWord(name) + 1 }}>{cpwNameHead(name)}<span style={{ whiteSpace: "nowrap" }}>{cpwNameTail(name)}<span data-name-stop="" style={{ color: DRAW }}>.</span></span></h1>
               {isPrivate ? (
-                <p style={{ margin: "16px 0 0", fontSize: 15, color: ink(0.8) }}>{row && row.visibility === "friends" ? `${first} shares their profile with friends. Connect to see more.` : `${first} keeps their profile private. Only their name and tier are shown.`}</p>
+                <React.Fragment>
+                  <p style={{ margin: "16px 0 0", fontSize: 15, color: ink(0.8) }}>{row && row.visibility === "friends" ? `${first} shares their profile with friends. Connect to see more.` : `${first} keeps their profile private. Only their name and tier are shown.`}</p>
+                  {followRow}
+                </React.Fragment>
               ) : (
                 <React.Fragment>
                   <div data-chips="" className="cpw-chips">
@@ -1637,8 +1692,9 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
                     {howSaid ? <span data-chip="how" className="cpw-chip">{howSaid}</span> : null}
                     {pronounsSaid ? <span data-chip="pronouns" className="cpw-chip">{pronounsSaid}</span> : null}
                   </div>
+                  {followRow}
                   {bio ? <p data-bio="" className="cpw-quote">“{bio}”</p>
-                    : isSelf ? <p style={{ margin: "16px 0 0", fontSize: 14, color: ink(0.7) }}>Add a line about how you coach in Settings → Edit profile.</p> : null}
+                    : isSelf ? <p style={{ margin: "16px 0 0", fontSize: 14, color: ink(0.7) }}>Add a line about how you coach: Edit profile, then Bio.</p> : null}
                   {headSocials.length ? (
                     <div data-head-socials="" role="group" aria-label={`Find ${first} online`} style={{ display: "flex", flexWrap: "wrap", margin: "6px 0 0 -12px" }}>
                       {headSocials.map(([k, href]) => (
@@ -1661,7 +1717,7 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
                       {points != null ? <a href={scoreHref} className="cpw-dtl" style={{ alignSelf: "center", color: ink(0.78), textDecoration: "none", minHeight: 44, display: "inline-flex", alignItems: "center" }}>Shape Score {points.toLocaleString()} ›</a> : null}
                     </div>
                   ) : null}
-                  {isSelf ? <p style={{ margin: "8px 0 0", fontSize: 13, lineHeight: 1.45, color: ink(0.7), maxWidth: 560 }}>Your wall photo, spotlight, studio or kitchen and About me are set in the Shape app, in Make it yours. Members see them here.</p> : null}
+                  {isSelf ? <p style={{ margin: "8px 0 0", fontSize: 13, lineHeight: 1.45, color: ink(0.7), maxWidth: 560 }}>Your photo, name, bio and cover are in Edit profile; your spotlight, {nutri ? "kitchen" : "studio"} and About me are set in the Shape app, in Make it yours. Members see them here.</p> : null}
                 </React.Fragment>
               )}
               {!isPrivate && (plateStats.length || openThisWeek != null) ? (

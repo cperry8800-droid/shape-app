@@ -129,12 +129,12 @@ test('live listings go through the same goals and filters as the samples', () =>
   assert.equal(mk.mkPass(cardio, f({ intro: true })), false, 'a listing with no account offers a free intro');
 });
 
-async function mountPage({ rows = [], me = null, availability = null } = {}) {
+async function mountPage({ rows = [], me = null, availability = null, profile = null } = {}) {
   const calls = { chat: 0 };
   window.__openChat = () => { calls.chat += 1; };
   const client = {
     from: (table) => ({ select: () => ({ eq: () => Promise.resolve({ data: rows.filter((r) => (table === 'nutritionists') === ('services' in r || 'meal_plan_price' in r)), error: null }) }) }),
-    rpc: () => Promise.resolve({ data: [] }),
+    rpc: (name) => Promise.resolve({ data: name === 'get_public_profile' && profile ? [profile] : [] }),
   };
   window.shapeEnsureDb = () => Promise.resolve({ client });
   globalThis.fetch = window.fetch = async (url) => {
@@ -348,6 +348,23 @@ test('the page: a full coach\'s intros rule reaches its card', async () => {
   card = document.querySelector('[data-kind="live"]');
   assert.ok(!card.querySelector('[data-book-intro]'), 'a full coach with intros off offers Book a free intro');
   assert.match(card.textContent, /Join waiting list/);
+  await m.unmount();
+});
+
+// Codex on #2704: the place a coach writes in Edit profile (get_public_profile.location) is their card's
+// city; a listing row has none.
+test('the page: an account\'s card shows the location written in Edit profile', async () => {
+  const settle = () => React.act(async () => { await new Promise((r) => setTimeout(r, 30)); });
+  let m = await mountPage({ rows: [OWNED], profile: { user_id: OWNED.owner_id, location: '  Brooklyn, NY ' } });
+  await settle();
+  let card = document.querySelector('[data-kind="live"]');
+  assert.ok(card, 'the account\'s card did not render');
+  assert.match(card.textContent, /Brooklyn, NY/, 'the account\'s location never reached its card');
+  await m.unmount();
+  m = await mountPage({ rows: [OWNED], profile: { user_id: OWNED.owner_id, location: null } });
+  await settle();
+  card = document.querySelector('[data-kind="live"]');
+  assert.doesNotMatch(card.textContent, /Brooklyn/, 'a card with no location made one up');
   await m.unmount();
 });
 

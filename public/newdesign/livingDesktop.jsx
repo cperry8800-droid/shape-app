@@ -336,11 +336,14 @@ function DesktopHero({ d, direction, owner, reduced, onMessage, onFollow, follow
   const coverLib = (typeof window !== "undefined" && window.ShapeProfileLib) || null;
   const coverOk = (coverLib && coverLib.bsProfileCover) ? coverLib.bsProfileCover(d.custom && d.custom.cover, d.uid) : null;
   const cover = coverOk ? coverOk.image : null;
+  // Where the cover sits: the spot dragged in Edit profile → Appearance (look.pos), else its stop.
+  const coverLook = coverLib && coverLib.bsProfileLook ? coverLib.bsProfileLook(d.custom && d.custom.look) : null;
+  const coverPos = coverLib && coverLib.bsLookPosition ? coverLib.bsLookPosition(coverLook, { top: "center 22%", center: "center 50%", bottom: "center 80%" }) : "center 50%";
   return (
     <div style={{ position: "relative" }}>
       {cover && (
         <div style={{ position: "absolute", inset: 0, zIndex: 0, overflow: "hidden", pointerEvents: "none" }}>
-          <img src={cover} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", opacity: 0.42 }} />
+          <img src={cover} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: coverPos, opacity: 0.42 }} />
           <div style={{ position: "absolute", inset: 0, background: `linear-gradient(180deg, ${dHexA(LV_BG, 0.45)}, ${dHexA(LV_BG, 0.72)} 62%, ${LV_BG})` }} />
         </div>
       )}
@@ -975,6 +978,69 @@ function dkLookCheck(kit, look) {
 }
 // `look` is { paper, accent } (both set: the editor seeds them); `setLook` takes the next { paper, accent }.
 // `kit` is the coach kit, or null while it loads.
+// The cover, dragged into place (owner, 2026-11-11: "create option to drag this image around for
+// background image so i can adjust positioning"). The frame is the page's own shape (the coach's stage
+// and the member's hero are ~2.4 to 1), so the crop here is the crop there. `pos` is { x, y }, the
+// photo's CSS object-position in whole percents; null is the photo's default stop. A drag moves the
+// photo with the pointer: a pixel of drag is a pixel of photo, over the part of it the frame hides.
+function DkCoverFrame({ src, pos, setPos, fallback, children }) {
+  const boxRef = React.useRef(null);
+  const imgRef = React.useRef(null);
+  const drag = React.useRef(null);
+  const [moving, setMoving] = React.useState(false);
+  const shown = pos || fallback || { x: 50, y: 50 };
+  const clamp = (v) => Math.max(0, Math.min(100, Math.round(v)));
+  // How far the photo overhangs the frame on each axis, in px (object-fit: cover).
+  const overhang = () => {
+    const b = boxRef.current, im = imgRef.current;
+    if (!b || !im || !im.naturalWidth || !im.naturalHeight) return { x: 0, y: 0 };
+    const bw = b.clientWidth, bh = b.clientHeight;
+    const k = Math.max(bw / im.naturalWidth, bh / im.naturalHeight);
+    return { x: Math.max(0, im.naturalWidth * k - bw), y: Math.max(0, im.naturalHeight * k - bh) };
+  };
+  const onDown = (e) => {
+    if (!src || e.button > 0) return;
+    if (e.target.closest && e.target.closest("button,input,label")) return;
+    const o = overhang();
+    drag.current = { id: e.pointerId, x0: e.clientX, y0: e.clientY, start: shown, o };
+    try { e.currentTarget.setPointerCapture(e.pointerId); } catch (_) {}
+    setMoving(true);
+    e.preventDefault();
+  };
+  const onMove = (e) => {
+    const d = drag.current;
+    if (!d || d.id !== e.pointerId) return;
+    const dx = e.clientX - d.x0, dy = e.clientY - d.y0;
+    // Dragging the photo right shows more of its left: the position falls.
+    const x = d.o.x > 0 ? clamp(d.start.x - (dx / d.o.x) * 100) : d.start.x;
+    const y = d.o.y > 0 ? clamp(d.start.y - (dy / d.o.y) * 100) : d.start.y;
+    if (x !== shown.x || y !== shown.y) setPos({ x, y });
+  };
+  const onUp = (e) => {
+    if (!drag.current || drag.current.id !== e.pointerId) return;
+    drag.current = null;
+    setMoving(false);
+  };
+  const onKey = (e) => {
+    if (!src) return;
+    const step = e.shiftKey ? 10 : 2;
+    const k = { ArrowLeft: [step, 0], ArrowRight: [-step, 0], ArrowUp: [0, step], ArrowDown: [0, -step] }[e.key];
+    if (!k) return;
+    e.preventDefault();
+    setPos({ x: clamp(shown.x + k[0]), y: clamp(shown.y + k[1]) });
+  };
+  return (
+    <div ref={boxRef} data-dk-cover-frame="" tabIndex={src ? 0 : -1} role={src ? "slider" : undefined}
+      aria-label={src ? "Cover position: drag the photo, or use the arrow keys" : undefined}
+      aria-valuetext={src ? `${shown.x}% across, ${shown.y}% down` : undefined}
+      onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp} onKeyDown={onKey}
+      style={{ position: "relative", aspectRatio: "12 / 5", borderRadius: 12, overflow: "hidden", border: `1px solid ${dHexA(LV_INK, 0.16)}`, background: "#000", cursor: src ? (moving ? "grabbing" : "grab") : "default", touchAction: src ? "none" : "auto", userSelect: "none", outlineOffset: 2 }}>
+      {src && <img ref={imgRef} src={src} alt="" draggable={false} style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: `${shown.x}% ${shown.y}%`, pointerEvents: "none", display: "block" }} />}
+      {children}
+    </div>
+  );
+}
+
 function DkLookPicker({ look, setLook, kit }) {
   // The lists are profileCustom.mjs's (window.ShapeProfileLib), the ones the save keeps; these copies only
   // while it loads.
@@ -1059,6 +1125,51 @@ function DkLookPicker({ look, setLook, kit }) {
 // The panel opens on the doc's look, else on what the page is in now: a member's page is the site's dark
 // stock with teal until they pick; a coach's the kit's default for their role, read off the accent the page
 // hands the editor (`c`: amber for a nutritionist, teal for a trainer).
+// The identity photo as the app stores it: a data URL of an image, nothing else (an outside URL would load
+// on everyone's device). Anything else reads as no photo.
+function dkIdentityPhoto(v) {
+  return typeof v === "string" && /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(v) && v.length <= 400000 ? v : null;
+}
+// A picked file as the app's avatar: centred, cropped square, 256px, JPEG at 0.82 (useBSProfilePhoto).
+function dkSquarePhoto(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error("read"));
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error("decode"));
+      img.onload = () => {
+        try {
+          const S = 256, cv = document.createElement("canvas");
+          cv.width = S; cv.height = S;
+          const ctx = cv.getContext("2d");
+          const k = Math.max(S / img.width, S / img.height), w = img.width * k, h = img.height * k;
+          ctx.drawImage(img, (S - w) / 2, (S - h) / 2, w, h);
+          const url = cv.toDataURL("image/jpeg", 0.82);
+          if (!dkIdentityPhoto(url)) throw new Error("encode");
+          resolve(url);
+        } catch (e) { reject(e); }
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+// The look a save writes: the doc's own, with the paper and accent picked (`pick`, or null) and the
+// cover's dragged spot (`pos`, null to clear it) when `posChanged`. A cover uploaded here (`fresh`)
+// with no spot dragged on it starts centred: the old photo's stop is not the new one's (Codex, #2704).
+// Empty is null.
+function dkNextLook(initLook, pick, posChanged, pos, plib, fresh) {
+  const out = { ...(initLook || {}) };
+  if (pick) { out.paper = pick.paper; out.accent = pick.accent; }
+  if (posChanged || fresh) {
+    if (pos) { out.pos = pos; out.focus = plib && plib.bsLookFocusOf ? plib.bsLookFocusOf(pos) : out.focus; }
+    else { delete out.pos; if (fresh) out.focus = "center"; }
+  }
+  return Object.keys(out).length ? out : null;
+}
+
 function dkLookSeed(initLook, coach, c, kit) {
   let accent = initLook.accent || null;
   if (!accent && coach && kit && kit.BS_COACH_ACCENTS) {
@@ -1362,6 +1473,14 @@ function ProfileCustomizer({ initial, c, onClose, onSave, coach = false, ownerUi
   const lookSeed = dkLookSeed(initLook, coach, c, lookKit);
   const shownLook = { paper: (pick && pick.paper) || lookSeed.paper, accent: (pick && pick.accent) || lookSeed.accent };
   const pickChanged = !!pick && (pick.paper !== initLook.paper || pick.accent !== initLook.accent);
+  // The cover's dragged spot (look.pos): null is the photo's default stop. A new photo starts centred.
+  const lookPos = (v) => (plib && plib.bsLookPos ? plib.bsLookPos(v) : null);
+  const initPos = lookPos(initLook.pos);
+  const [coverPos, setCoverPos] = React.useState(initPos);
+  // A cover uploaded in this editor: it starts centred, whatever stop the old photo had.
+  const [coverFresh, setCoverFresh] = React.useState(false);
+  const posChanged = JSON.stringify(coverPos) !== JSON.stringify(initPos);
+  const coverStop = (coverFresh ? null : { top: { x: 50, y: 22 }, center: { x: 50, y: 50 }, bottom: { x: 50, y: 80 } }[initLook.focus]) || { x: 50, y: 50 };
   // Normalise on the way IN: a doc stored before the split carries English, and a
   // picker comparing tokens would match no chip and silently reset the member's pin.
   const [pinKind, setPinKind] = React.useState(dkPinKindToken((init.pinned && init.pinned.kind) || "") || dkPinKinds()[0].id);
@@ -1492,6 +1611,43 @@ function ProfileCustomizer({ initial, c, onClose, onSave, coach = false, ownerUi
   const coverRef = React.useRef(null);
   const [busy, setBusy] = React.useState(false);
   const [err, setErr] = React.useState("");
+  // You: the account's name, handle, location, pronouns and photo (client_identity, the app's own identity
+  // document), edited here with the rest of the profile (owner, 2026-11-11, of Settings' "Profile details"
+  // beside this editor: "Can one be removed?", "Merge into Edit profile"; and "where do i upload my profile
+  // image"). Only what is touched is written, through settingsSync like Settings did; the photo is a 256px
+  // JPEG, as the app stores it. The section waits for its read and is skipped by the save until it lands.
+  const [idf, setIdf] = React.useState(null);
+  const [idState, setIdState] = React.useState("loading"); // loading | ready | error
+  const idTouched = React.useRef(new Set());
+  const [photo, setPhoto] = React.useState(null);
+  const [photoTouched, setPhotoTouched] = React.useState(false);
+  // A picked photo is read, decoded and drawn before it is held: Save waits for it (Codex, #2704).
+  const [photoBusy, setPhotoBusy] = React.useState(false);
+  const photoRef = React.useRef(null);
+  const loadIdentity = React.useCallback(async () => {
+    setIdState("loading");
+    try {
+      const db = window.shapeDb;
+      if (!db || typeof db.getUserGoals !== "function") throw new Error("unavailable");
+      const d = await db.getUserGoals("client_identity");
+      if (d == null || typeof d !== "object") throw new Error("unread");
+      setIdf({ displayName: d.name || ownerName || "", handle: d.handle || "", location: d.location || "", pronouns: d.pronouns || "" });
+      setPhoto(dkIdentityPhoto(d.photo));
+      setIdState("ready");
+    } catch (e) { setIdState("error"); }
+  }, []);
+  React.useEffect(() => { loadIdentity(); }, [loadIdentity]);
+  const setId = (k, v) => { idTouched.current.add(k); setIdf((prev) => ({ ...prev, [k]: v })); };
+  const onPhotoFile = (e) => {
+    const f = e.target.files && e.target.files[0];
+    try { e.target.value = ""; } catch (x) {}
+    if (!f) return;
+    if (!/^image\//.test(f.type || "")) { setErr("Choose an image for your photo."); return; }
+    setPhotoBusy(true);
+    dkSquarePhoto(f).then((url) => { setPhoto(url); setPhotoTouched(true); setErr(""); })
+      .catch(() => setErr("Couldn't read that photo — try another."))
+      .finally(() => setPhotoBusy(false));
+  };
   const onCoverFile = async (e) => {
     const file = e && e.target && e.target.files && e.target.files[0]; if (e && e.target) e.target.value = "";
     if (!file) return;
@@ -1507,6 +1663,8 @@ function ProfileCustomizer({ initial, c, onClose, onSave, coach = false, ownerUi
       if (up.error) throw up.error;
       const { data: pub } = cl.storage.from("community-photos").getPublicUrl(path);
       setCoverUrl(pub.publicUrl);
+      setCoverPos(null);
+      setCoverFresh(true);
     } catch (err) { alert((err && err.message) || "Could not upload cover."); }
     finally { setCoverBusy(false); }
   };
@@ -1517,7 +1675,7 @@ function ProfileCustomizer({ initial, c, onClose, onSave, coach = false, ownerUi
   const save = async () => {
     // A wall/cover upload still in flight would be omitted from the saved doc AND
     // left orphaned in storage (onSave closes the editor before it resolves) — wait.
-    if (wallBusy || coverBusy || filmBusy) { setErr("Hang on — an upload is still in progress."); return; }
+    if (wallBusy || coverBusy || filmBusy || photoBusy) { setErr("Hang on — an upload is still in progress."); return; }
     setBusy(true); setErr("");
     const doc = {
       ...init,
@@ -1526,8 +1684,10 @@ function ProfileCustomizer({ initial, c, onClose, onSave, coach = false, ownerUi
       links: Object.fromEntries(DK_LINKS.map((l) => [l.key, String(links[l.key] || "").trim()]).filter(([, v]) => v)),
       prompts: prompts.filter((p) => p && p.q && String(p.a).trim()).map((p) => ({ q: dkPromptToken(p.q), a: String(p.a).trim() })).slice(0, 4),
       cover: coverUrl.trim() ? { image: coverUrl.trim() } : null,
-      // The look: the paper and accent only when picked here; its crop (focus), set in the app, stays.
-      ...(pickChanged ? { look: { ...initLook, paper: pick.paper, accent: pick.accent } } : {}),
+      // The look: the paper and accent only when picked here, the cover's spot only when dragged here;
+      // whatever else the doc's look holds stays. The nearest of the app's three stops rides with the spot
+      // (focus), so a build that reads only focus crops near it.
+      ...((pickChanged || posChanged || coverFresh) ? { look: dkNextLook(initLook, pickChanged ? pick : null, posChanged, coverPos, plib, coverFresh) } : {}),
       climbBg: climbBg || null,
       pinned: pinTitle.trim() ? { kind: dkPinKindToken(pinKind), title: pinTitle.trim(), note: pinNote.trim(), metric: pinMetric.trim() } : null,
       heroStats: heroStats.slice(0, 3),
@@ -1560,6 +1720,23 @@ function ProfileCustomizer({ initial, c, onClose, onSave, coach = false, ownerUi
     if (!cl || !uid) { setBusy(false); setErr("Sign in to save your profile."); return; }
     if (ownerUid && uid !== ownerUid) { setBusy(false); setErr("Your account changed. Close the editor and reopen your profile."); return; }
     if (!plib || !plib.bsNormalizeProfileCustom) { setBusy(false); setErr("Editor is still loading — try again in a moment."); return; }
+    // You first: a name left empty stops the save before anything is written.
+    const idPatch = idState === "ready" && idf ? Object.fromEntries([...idTouched.current].map((k) => [k, idf[k]])) : {};
+    const idChanged = Object.keys(idPatch).length > 0 || (idState === "ready" && photoTouched);
+    if (idChanged) {
+      try {
+        const lib = await cmeSettingsSync();
+        if (Object.keys(idPatch).length) await lib.saveSettingsPatch(window.shapeDb, idPatch, uid);
+        if (photoTouched) await lib.saveAccountDocPatch(window.shapeDb, "client_identity", { photo: photo || null }, uid);
+      } catch (e) { setBusy(false); setErr((e && e.message) || "Couldn't save your details — try again."); return; }
+      idTouched.current = new Set(); setPhotoTouched(false);
+      // Every avatar and name on the page reads again (livingProfilePage, the app's own listeners).
+      try {
+        const fresh = window.shapeDb && window.shapeDb.getUserGoals ? await window.shapeDb.getUserGoals("client_identity") : null;
+        if (fresh && typeof fresh === "object") window.ShapeIdentity = fresh;
+      } catch (e) {}
+      try { window.dispatchEvent(new Event("shape:identity")); } catch (e) {}
+    }
     const out = plib.bsNormalizeProfileCustom(doc, uid, { filmBucket: filmRoleBucket, filmKey });
     let error = null;
     try { const r = await cl.from("user_goals").upsert({ user_id: uid, kind: "profile_custom", data: out }, { onConflict: "user_id,kind" }); error = r && r.error; }
@@ -1589,9 +1766,36 @@ function ProfileCustomizer({ initial, c, onClose, onSave, coach = false, ownerUi
     </div>
   );
   return (
-    <ProfileEditorDialog c={c} onClose={onClose} busy={busy || wallBusy || coverBusy || filmBusy}
+    <ProfileEditorDialog c={c} onClose={onClose} busy={busy || wallBusy || coverBusy || filmBusy || photoBusy}
       saving={busy} error={err} onSave={save}>
       <div key="about" data-editor-label="About">
+        <div data-dk-identity={idState} style={{ marginBottom: 22, paddingBottom: 18, borderBottom: `1px solid ${dHexA(LV_INK, 0.1)}` }}>
+          <span style={label}>You</span>
+          <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 14 }}>
+            <div aria-hidden="true" style={{ width: 76, height: 76, flex: "none", borderRadius: "50%", overflow: "hidden", background: dHexA(c, 0.22), border: `1px solid ${dHexA(c, 0.5)}`, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: dSerif, fontSize: 26, color: LV_INK }}>
+              {photo ? <img data-dk-photo="" src={photo} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : String((idf && idf.displayName) || ownerName || "·").trim().slice(0, 1).toUpperCase()}
+            </div>
+            <div style={{ minWidth: 0 }}>
+              <input ref={photoRef} type="file" accept="image/*" onChange={onPhotoFile} style={{ display: "none" }} />
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                <button type="button" data-dk-photo-pick="" disabled={idState !== "ready" || photoBusy} onClick={() => photoRef.current && photoRef.current.click()} style={{ padding: "8px 15px", borderRadius: 999, border: `1px solid ${dHexA(LV_INK, 0.5)}`, background: "transparent", color: LV_INK, cursor: idState === "ready" ? "pointer" : "default", opacity: idState === "ready" ? 1 : 0.5, fontFamily: dMono, fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase" }}>{photo ? "Replace photo" : "Upload photo"}</button>
+                {photo && idState === "ready" ? <button type="button" data-dk-photo-remove="" disabled={photoBusy} onClick={() => { setPhoto(null); setPhotoTouched(true); }} style={{ padding: "8px 13px", borderRadius: 999, border: `1px solid ${dHexA(LV_INK, 0.3)}`, background: "transparent", color: dHexA(LV_INK, 0.8), cursor: "pointer", fontFamily: dMono, fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" }}>Remove</button> : null}
+              </div>
+              <div style={{ marginTop: 7, fontFamily: dMono, fontSize: 9, letterSpacing: "0.06em", color: dHexA(LV_INK, 0.5), lineHeight: 1.5 }}>Your photo is your face on Shape: your profile, posts and chats, here and in the app.</div>
+            </div>
+          </div>
+          {idState === "error" ? (
+            <p role="status" style={{ margin: "0 0 4px", fontSize: 13, color: dHexA(LV_INK, 0.7) }}>Your name and photo didn't load. <button type="button" onClick={loadIdentity} style={{ background: "transparent", border: 0, padding: 0, color: c, textDecoration: "underline", cursor: "pointer", font: "inherit" }}>Try again</button></p>
+          ) : (
+            <div className="dk-editor-business">
+              {[["displayName", "Name", "Your name"], ["handle", "Handle", "@yourname"], ["location", "Location", "City, or online"], ["pronouns", "Pronouns", "e.g. she/her"]].map(([k, l, ph]) => (
+                <label key={k} className="dk-editor-business-field"><span>{l}</span>
+                  <input aria-label={l} data-dk-id={k} disabled={idState !== "ready"} value={(idf && idf[k]) || ""} onChange={(e) => setId(k, e.target.value)} maxLength={k === "pronouns" ? 24 : 60} placeholder={idState === "loading" ? "Loading…" : ph} style={field} />
+                </label>
+              ))}
+            </div>
+          )}
+        </div>
         <div style={{ marginBottom: 18 }}><span style={label}>Bio</span><textarea aria-label="Bio" value={bio} onChange={(e) => setBio(e.target.value)} rows={3} maxLength={280} placeholder="A line about you, your training, your why…" style={{ ...field, resize: "vertical" }} /><span className="dk-editor-hint">{bio.length}/280 characters</span></div>
         {coach && (<>
           {/* P2 · The Line (shared key) */}
@@ -1621,14 +1825,17 @@ function ProfileCustomizer({ initial, c, onClose, onSave, coach = false, ownerUi
       <div key="appearance" data-editor-label="Appearance">
         <div style={{ marginBottom: 18 }}>
           <span style={label}>Cover image</span>
-          <div style={{ position: "relative", height: 130, borderRadius: 12, overflow: "hidden", border: `1px solid ${dHexA(LV_INK, 0.16)}`, background: coverUrl ? "#000" : `linear-gradient(135deg, ${dHexA(c, 0.4)}, ${dHexA(c, 0.08)})` }}>
-            {coverUrl && <img src={coverUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />}
-            <input ref={coverRef} type="file" accept="image/*" onChange={onCoverFile} style={{ display: "none" }} />
-            <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+          <DkCoverFrame src={coverUrl} pos={coverPos} setPos={setCoverPos} fallback={coverStop}>
+            {!coverUrl && <div aria-hidden="true" style={{ position: "absolute", inset: 0, background: `linear-gradient(135deg, ${dHexA(c, 0.4)}, ${dHexA(c, 0.08)})` }} />}
+            <input ref={coverRef} data-dk-cover-file="" type="file" accept="image/*" onChange={onCoverFile} style={{ display: "none" }} />
+            {coverUrl && <span data-dk-cover-hint="" style={{ position: "absolute", left: 10, top: 10, padding: "5px 9px", borderRadius: 999, background: "rgba(0,0,0,0.55)", color: LV_INK, fontFamily: dMono, fontSize: 9, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", pointerEvents: "none" }}>✥ Drag to position</span>}
+            <div style={{ position: "absolute", ...(coverUrl ? { right: 10, bottom: 10 } : { inset: 0, justifyContent: "center", alignItems: "center" }), display: "flex", gap: 8 }}>
               <button onClick={() => !coverBusy && coverRef.current && coverRef.current.click()} disabled={coverBusy} style={{ padding: "8px 15px", borderRadius: 999, border: `1px solid ${dHexA(LV_INK, 0.6)}`, background: "rgba(0,0,0,0.5)", color: LV_INK, cursor: coverBusy ? "wait" : "pointer", fontFamily: dMono, fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase" }}>{coverBusy ? "Uploading…" : coverUrl ? "Replace" : "Upload cover"}</button>
-              {coverUrl && <button onClick={() => setCoverUrl("")} style={{ padding: "8px 13px", borderRadius: 999, border: `1px solid ${dHexA(LV_INK, 0.4)}`, background: "rgba(0,0,0,0.5)", color: dHexA(LV_INK, 0.8), cursor: "pointer", fontFamily: dMono, fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" }}>Remove</button>}
+              {coverUrl && coverPos && <button data-dk-cover-reset="" onClick={() => setCoverPos(null)} style={{ padding: "8px 13px", borderRadius: 999, border: `1px solid ${dHexA(LV_INK, 0.4)}`, background: "rgba(0,0,0,0.5)", color: dHexA(LV_INK, 0.8), cursor: "pointer", fontFamily: dMono, fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" }}>Reset</button>}
+              {coverUrl && <button onClick={() => { setCoverUrl(""); setCoverPos(null); }} style={{ padding: "8px 13px", borderRadius: 999, border: `1px solid ${dHexA(LV_INK, 0.4)}`, background: "rgba(0,0,0,0.5)", color: dHexA(LV_INK, 0.8), cursor: "pointer", fontFamily: dMono, fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" }}>Remove</button>}
             </div>
-          </div>
+          </DkCoverFrame>
+          {coverUrl && <div style={{ marginTop: 7, fontFamily: dMono, fontSize: 9, letterSpacing: "0.06em", color: dHexA(LV_INK, 0.5), lineHeight: 1.5 }}>Drag the photo, or focus it and use the arrow keys, to choose what shows behind your name.</div>}
         </div>
         <div data-dk-colors="" style={{ marginBottom: 18 }}>
           <span style={label}>Your colors</span>

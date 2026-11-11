@@ -96,7 +96,7 @@ function reset(over = {}) {
 }
 reset();
 window.ShapeAuth = { getCachedState: () => ({ user: world.me ? { id: world.me } : null }) };
-window.ShapeProfiles = { getPublicProfile: async () => ({ name: 'Maya Okafor', pronouns: world.pronouns, bio: 'Every session gets a note.', points: world.points, custom: world.custom, can_view: world.canView }) };
+window.ShapeProfiles = { getPublicProfile: async () => ({ name: 'Maya Okafor', pronouns: world.pronouns, bio: 'Every session gets a note.', points: world.points, custom: world.custom, can_view: world.canView, location: world.location || null }) };
 window.ShapeCoachListing = { publicByOwner: async () => world.provider, publicById: async () => world.byId || null };
 window.ShapeCoachAvailability = { get: async () => { if (world.availFails) throw new Error('offline'); return { slots: world.slots, booked: [], busy: [], rules: { consultMin: 20 }, timezone: ZONE, atCapacity: world.atCapacity }; } };
 window.ShapeCoachReviews = {
@@ -539,6 +539,26 @@ test('the accent keys draw the hexes bsCoachPalette paints on a dark stock; the 
   assert.ok(climbMod.bsClimbContrast('#000000', '#0a0e11') < 1.6, 'black on the dark would not show');
   assert.equal(bsClimbAccent('amber', 'trainer'), CLIMB_ACCENTS.amber, 'amber is a trainer\'s real pick');
   for (const bad of [null, undefined, '', 'chartreuse', '#123456', 'constructor', '__proto__']) assert.equal(bsClimbAccent(bad), null, String(bad));
+});
+
+// Codex on #2704: the place a coach writes in Edit profile (get_public_profile.location) is the page's
+// place, ahead of the directory row's city.
+test('the page names the location the coach wrote in Edit profile', async () => {
+  // The practice's own card names no place, so the account's is the page's.
+  fullCoach();
+  world.custom = { ...world.custom, bizCard: { name: 'Iron Path Strength' } };
+  world.location = 'Austin, TX';
+  let m = await mount(page());
+  assert.match($('[data-climb-eyebrow]').textContent, /Austin, TX/, 'the account\'s location never reached the page');
+  await m.unmount();
+  // A place on the practice's card is still the page's first.
+  fullCoach();
+  world.location = 'Austin, TX';
+  m = await mount(page());
+  assert.match($('[data-climb-eyebrow]').textContent, /Brooklyn/);
+  assert.doesNotMatch($('[data-climb-eyebrow]').textContent, /Austin/);
+  await m.unmount();
+  world.location = null;
 });
 
 test('the Climb itself draws only a #rrggbb accent; anything else is the role colour', async () => {
