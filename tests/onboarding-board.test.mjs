@@ -749,7 +749,7 @@ test("the plan read carries each paid coach's face: the listing portrait, else t
 });
 
 test('the member app and the website say the coach is preparing the plan, and ask adherence only of a plan', () => {
-  const client = read('mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx');
+  const client = (read('mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx') + '\n' + read('mobile-app/src/broadsheet/BSClientTrain.jsx'));
   // Train: a coached member with no plan gets the coach card, not "Find a trainer" and the build door.
   assert.match(client, /\{trainCoaching\s+\? <BSCoachPreparing role="trainer" coaching=\{trainCoaching\} onOpenSession=\{\(\) => \{ setOpenSession\(true\); setSession\(true\); \}\} \/>\s+: <>\s+\{\(!bsTrainSignedIn \|\| trainCoaching === null\) && <BSFindCoachBar role="trainer"/);
   assert.match(client, /setTrainCoaching\(p && p\.training && 'coaching' in p\.training \? \(p\.training\.coaching \|\| null\) : undefined\);/);
@@ -777,7 +777,7 @@ test('the member app and the website say the coach is preparing the plan, and as
 });
 
 test('the app names every coach of a role: the preparing card, the setup board, the weekly notes, each day (owner, 2026-10-16)', () => {
-  const client = read('mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx');
+  const client = (read('mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx') + '\n' + read('mobile-app/src/broadsheet/BSClientTrain.jsx'));
   // The preparing card: every coach, the plural title, and a message button per coach.
   assert.match(client, /const coaches = coaching && Array\.isArray\(coaching\.coaches\) && coaching\.coaches\.length\s+\? coaching\.coaches/);
   assert.match(client, /tr\('common:coachPrep\.titleMany', \{ defaultValue: '\{coach\} are preparing your plan', coach \}\)/);
@@ -1030,7 +1030,7 @@ test('a coached member with no plan yet sees their coach preparing it, never the
 
   // The app: no "find a coach" bar for a member who pays one, on Train or on Eat. Train hands its bar to
   // BSTrainDay (findCoach), under the same rule; its no-plan door keeps its own.
-  const client = read('mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx');
+  const client = (read('mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx') + '\n' + read('mobile-app/src/broadsheet/BSClientTrain.jsx'));
   const bars = [...client.matchAll(/<BSFindCoachBar role="(trainer|nutritionist)"/g)].map((m) => client.slice(Math.max(0, m.index - 60), m.index + 40));
   assert.equal(bars.length, 3);
   for (const b of bars) assert.match(b, /\(!bsTrainSignedIn \|\| trainCoaching === null\) (&&|\?) <BSFindCoachBar role="trainer"|\(!bsEatSignedIn \|\| eatCoaching === null\) && <BSFindCoachBar role="nutritionist"/, b);
@@ -1039,7 +1039,7 @@ test('a coached member with no plan yet sees their coach preparing it, never the
 
 test('a coach the plan read could not tell is unknown, not none: no marketplace prompt (Codex on #2378)', () => {
   // The app keeps the three states apart: the coach, null for none, undefined while unknown.
-  const client = read('mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx');
+  const client = (read('mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx') + '\n' + read('mobile-app/src/broadsheet/BSClientTrain.jsx'));
   const pick = (re) => { const m = re.exec(client); assert.ok(m, String(re)); return new Function('p', 'return ' + m[1] + ';'); };
   const trainOf = pick(/setTrainCoaching\((p && p\.training && 'coaching' in p\.training \? \(p\.training\.coaching \|\| null\) : undefined)\);/);
   const eatOf = pick(/setEatCoaching\((p && p\.meals && 'coaching' in p\.meals \? \(p\.meals\.coaching \|\| null\) : undefined)\);/);
@@ -1067,7 +1067,7 @@ test('a coach the plan read could not tell is unknown, not none: no marketplace 
 
 test('a check-in saves only the ratings it asked: no hidden adherence score is written back (Codex on #2378)', () => {
   const RATINGS = [['trainingAdherence'], ['nutritionAdherence'], ['sleep'], ['energy']];
-  const client = read('mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx');
+  const client = (read('mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx') + '\n' + read('mobile-app/src/broadsheet/BSClientTrain.jsx'));
   const progress = read('public/newdesign/dashProgress.jsx');
   const app = new Function('BS_CHECKIN_RATINGS', slice(client, 'function bsCheckinRatings(', 'const BS_MEASURE_SITES') + ';return bsCheckinRatingsToSave;')(RATINGS);
   const web = new Function('CK_RATINGS', slice(progress, 'function dprCheckinRatings(', 'function DprCheckinForm(') + ';return dprCheckinRatingsToSave;')(RATINGS);

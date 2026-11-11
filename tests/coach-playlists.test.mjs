@@ -25,7 +25,7 @@ import { loadBroadsheet, drive, SHIM, ROOT } from './helpers/broadsheet-mount.mj
 const read = (p) => readFileSync(join(ROOT, p), 'utf8');
 const SQL = read('supabase-migrations/2026-10-11-coach-playlists-for-clients.sql');
 const API = read('src/app/api/coach/soundtracks/route.ts');
-const CLIENT = read('mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx');
+const CLIENT = read('mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx') + '\n' + read('mobile-app/src/broadsheet/BSClientTrain.jsx');
 const PROS = read('mobile-app/src/broadsheet/iosAppBroadsheetPros.jsx');
 const BACKEND = read('mobile-app/src/services/shapeBackend.js');
 

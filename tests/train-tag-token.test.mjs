@@ -84,7 +84,9 @@ test('with no translator at all, token and label are both the shipped English', 
 // (which identifier the comparison and the render each name), not by spelling.
 
 const CLIENT = fs.readFileSync(
-  new URL('../mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx', import.meta.url), 'utf8');
+  new URL('../mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx', import.meta.url), 'utf8')
+  // Train's page moved to BSClientTrain.jsx (2026-11-11); the week it builds stays in the client.
+  + '\n' + fs.readFileSync(new URL('../mobile-app/src/broadsheet/BSClientTrain.jsx', import.meta.url), 'utf8');
 
 test('rest detection compares the TOKEN, never the label', () => {
   const rest = CLIENT.match(/const\s+isRestDay\s*=\s*([^;]+);/);

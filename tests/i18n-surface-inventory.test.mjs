@@ -396,7 +396,10 @@ const PARTIAL = new Set([
   // Catalogue's copy is still English and is the next cut on these two.
   'Calendar::BSEventConsultBody', 'Client::BSActivityCard', 'Client::BSClientEat',
   'Client::BSClientLibrary', 'Client::BSLibraryDetail',
-  'Client::BSClientFeed', 'Client::BSClientTrain',
+  'Client::BSClientFeed',
+  // Train MOVED FILES 2026-11-11 (iosAppBroadsheetClient.jsx → BSClientTrain.jsx) when the trainer's added
+  // exercises joined its session (Codex P1 on #2686); the key follows the file.
+  'BSClientTrain::BSClientTrain',
   'Client::BSLogActivitySheet',
   // The workout detail page moved files 2026-11-04 (iosAppBroadsheetClient.jsx → BSWorkoutDetail.jsx)
   // with its redesign; the key follows the file. Its two literals are the library's Save words.

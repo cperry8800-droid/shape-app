@@ -11,11 +11,11 @@ import { BSFocusTitle } from './BSFocus.jsx';
 // /api/client/coach-exercises (window.ShapeCoachFeed.exercises): the member's last seven days, each
 // exercise on the member's day it was sent, from trainers the member pays now.
 //
-// Today's list can be run: Start these hands them to Train's player as a session of their own, by the
-// app's shape:startWorkout (the calendar's and the workout page's Start use it too), so a rest day the
-// coach added work to has a Start, and nothing here reaches into the client module. ⚠ THEY ARE NOT
-// MERGED INTO THE DAY'S ASSIGNED SESSION: that player is BSClientTrain's, inside the client module
-// (Codex P1 on #2686; the War Room keeps it open).
+// ⚠ ON A DAY WITH A PLAN, TODAY'S ADDITIONS ARE PART OF THE DAY'S SESSION (Codex P1 on #2686). Train
+// (BSClientTrain.jsx) runs the program's moves and then these as one session (bsCoachExerciseRows), and
+// a rest day the coach added work to offers Start session; the list there says so and has no Start of
+// its own (`inSession`). With no plan, or a plan that did not load, the list stands alone: Start these
+// hands them to Train's player as a session of their own, by the app's shape:startWorkout.
 //
 // A failed read says so with a Retry, never as "nothing added"; loading and an empty day draw nothing.
 // An add or a removal in the console redraws it live (ShapeCoachFeed.subscribeExercises), and so does
@@ -98,6 +98,48 @@ export function bsCoachExerciseWorkout(items, title) {
   };
 }
 
+/**
+ * A day's added exercises as rows of Train's program ({ m, s, l }, as the deck's moves are), so the day's
+ * session runs them after the program's own moves (bsSessionMoves reads `sets` and `reps` first, then the
+ * scheme). Each keeps its tempo and cue for the player, and `coachAdded` and its id, so no swap or
+ * write-back takes one for a program move.
+ */
+export function bsCoachExerciseRows(items) {
+  const list = (Array.isArray(items) ? items : []).filter((e) => e && typeof e.name === 'string' && e.name.trim());
+  return bsCoachExerciseWorkout(list).exercises.map((e, i) => ({
+    m: e.name,
+    s: e.scheme || '',
+    l: '',
+    ...(e.sets ? { sets: e.sets } : {}),
+    reps: e.reps,
+    ...(e.tempo ? { tempo: e.tempo } : {}),
+    ...(e.cue ? { cue: e.cue } : {}),
+    coachAdded: true,
+    coachExerciseId: list[i].id != null ? String(list[i].id) : null,
+  }));
+}
+
+/** Every exercise added on `date`, whoever added it, in the order they were added. */
+export function bsCoachExercisesOn(read, date) {
+  return bsCoachExerciseGroups(read, date).flatMap((g) => g.items).sort((a, b) => String(a.sentAt || '').localeCompare(String(b.sentAt || '')));
+}
+
+/**
+ * The day's session with the trainer's additions in it (Codex P1 on #2686): what Train's Start runs.
+ *   moves     the day's program rows (the member's swaps on)
+ *   isRest    the day is a rest day in the plan
+ *   isToday   the day picked is today (another day's additions are read, not run)
+ *   read      the additions' read (useBSCoachExercises); date its day on the account's calendar
+ * → { rows: the program's moves then today's additions, added: the additions' rows, restWithWork: a rest
+ *   day the trainer added work to, which offers Start and runs the additions alone }. A read not in yet,
+ *   or failed, adds nothing: the day runs as planned, and the list says it didn't load.
+ */
+export function bsTrainSessionPlan({ moves = [], isRest = false, isToday = false, read = null, date = '' } = {}) {
+  const own = Array.isArray(moves) ? moves : [];
+  const added = isToday ? bsCoachExerciseRows(bsCoachExercisesOn(read, date)) : [];
+  return { rows: added.length ? [...own, ...added] : own, added, restWithWork: !!isRest && added.length > 0 };
+}
+
 /** The member's pushed exercises, read on mount, on a change in the console, on an account change and back in the app. */
 export function useBSCoachExercises() {
   const [read, setRead] = React.useState({ status: 'loading' });
@@ -136,7 +178,8 @@ export function useBSCoachExercises() {
 //   date      the day shown ('YYYY-MM-DD')
 //   today     whether that day is today
 //   dayLabel  its short weekday name, for another day ("Added · Tue")
-export function BSCoachExercisesView({ read, date, today = true, dayLabel = '', onRetry }) {
+//   inSession today's are part of the day's session (Train with a plan): no Start of their own
+export function BSCoachExercisesView({ read, date, today = true, dayLabel = '', onRetry, inSession = false }) {
   const t = window.useBS();
   const tr = useShapeTr();
   const RUST = t.RUST || '#c0533b';
@@ -184,7 +227,11 @@ export function BSCoachExercisesView({ read, date, today = true, dayLabel = '', 
                 </div>
               );
             })}
-            {today ? (
+            {today && inSession ? (
+              <div data-coach-exercises-in-session="" style={{ marginTop: 6, ...mono, fontSize: 9.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: RUST, fontWeight: 700 }}>
+                {tr('session:train.coachAdded.inSession', { defaultValue: 'In today’s session' })}
+              </div>
+            ) : today ? (
               <button type="button" data-coach-exercises-start="" onClick={start}
                 style={{ marginTop: 6, minHeight: 44, display: 'inline-flex', alignItems: 'center', background: 'transparent', border: 0, padding: '0 2px', color: RUST, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer' }}>
                 {tr('session:train.coachAdded.start', { defaultValue: 'Start these' })} →

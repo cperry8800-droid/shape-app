@@ -380,5 +380,6 @@
   "train.coachAdded.onDay": "Dem add am · {day}",
   "train.coachAdded.count": "{count, plural, one {# exercise} other {# exercises}}",
   "train.coachAdded.tempo": "Tempo {tempo}",
-  "train.coachAdded.start": "Start dem"
+  "train.coachAdded.start": "Start dem",
+  "train.coachAdded.inSession": "E dey inside today session"
 }

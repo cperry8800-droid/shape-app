@@ -17,7 +17,7 @@ import { bsThreadKey, bsThreadNavKey, bsThreadViaNav } from '../mobile-app/src/s
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const read = (rel) => readFileSync(join(ROOT, rel), 'utf8');
-const CLIENT = read('mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx');
+const CLIENT = (read('mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx') + '\n' + read('mobile-app/src/broadsheet/BSClientTrain.jsx'));
 const PROS = read('mobile-app/src/broadsheet/iosAppBroadsheetPros.jsx');
 const MARKET = read('mobile-app/src/broadsheet/iosAppBroadsheetMarketplace.jsx');
 const between = (src, a, b) => { const i = src.indexOf(a); assert.ok(i >= 0, `missing: ${a}`); return src.slice(i, src.indexOf(b, i)); };
