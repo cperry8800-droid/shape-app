@@ -572,10 +572,12 @@ function Console({ dock, ACC, nutri, tr }) {
   );
 }
 
-// ── The range: a program a card, its peaks over its photo ──────────────────────────────────────
-// programs [{ key, id, name, price, paid, weeks, perWeek, forSaid, poster, pr }]; onOpen(pr); onStart(pr)
-// (only where Start buys: a paid program on a visitor's page, never a sample's).
-export function BSClimbRange({ programs, nutri = false, onOpen, onStart = null, isSelf = false, openLabel = null }) {
+// ── The range: a program a card, its photo or a band in its colour ─────────────────────────────
+// programs [{ key, id, name, price, paid, weeks, perWeek, forSaid, poster, pr }]; onOpen(pr): the card's
+// preview (a program's sheet; a meal plan has none, so no Open); onStart(pr) (only where Start buys: a
+// paid program or meal plan on a visitor's page, never a sample's). The Summit draws them (owner,
+// 2026-11-11: "each program as its card with preview and Buy").
+export function BSClimbRange({ programs, nutri = false, onOpen = null, onStart = null, isSelf = false }) {
   const CLIMB = useClimb();
   const { numFace, mono, plateBox } = climbType(CLIMB);
   const tr = useShapeTr();
@@ -587,6 +589,7 @@ export function BSClimbRange({ programs, nutri = false, onOpen, onStart = null, 
           p.weeks ? tr('profile:trainer.programWeeks', { defaultValue: '{count, plural, one {# week} other {# weeks}}', count: p.weeks }) : null,
           p.perWeek ? tr('profile:trainer.programDays', { defaultValue: '{count, plural, one {# day a week} other {# days a week}}', count: p.perWeek }) : null,
         ].filter(Boolean).join(' · ');
+        const start = !isSelf && !!onStart && !!p.paid;
         return (
           <article key={p.key} data-program="" data-climb-program={p.id} style={{ position: 'relative', background: CLIMB.PANEL, borderLeft: `3px solid ${color}`, clipPath: cut(14), overflow: 'hidden' }}>
             {/* The program's own photo, or a band in its colour; no drawing over it (owner, 9 Nov: "remove the graph
@@ -605,10 +608,12 @@ export function BSClimbRange({ programs, nutri = false, onOpen, onStart = null, 
               {p.price ? <span data-climb-price="" style={{ padding: '6px 8px', background: CLIMB.picked ? CLIMB.BG : 'rgba(0,0,0,0.35)', ...numFace(17) }}>{p.price}</span> : <span />}
             </div>
             {/* The card opens the program; Start sits beside it, never inside the same button. */}
-            <div style={{ display: 'flex', gap: 8, padding: '0 14px 14px' }}>
-              <button type="button" data-program-open="" onClick={() => onOpen(p.pr)} style={{ flex: 1, minHeight: 44, borderRadius: 9, border: `1px solid ${CLIMB.LINE2}`, background: 'transparent', color: CLIMB.INK, fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>{openLabel || tr('profile:climb.seeClimb', { defaultValue: 'See the climb' })}</button>
-              {!isSelf && onStart && p.paid ? <button type="button" data-climb-start="" onClick={() => onStart(p.pr)} style={{ flex: 'none', minHeight: 44, padding: '0 16px', borderRadius: 9, border: 0, background: CLIMB.ctaFor(nutri), color: CLIMB.onCtaFor(nutri), fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>{tr('profile:climb.start', { defaultValue: 'Start' })}</button> : null}
-            </div>
+            {onOpen || start ? (
+              <div style={{ display: 'flex', gap: 8, padding: '0 14px 14px' }}>
+                {onOpen ? <button type="button" data-program-open="" onClick={() => onOpen(p.pr)} style={{ flex: 1, minHeight: 44, borderRadius: 9, border: `1px solid ${CLIMB.LINE2}`, background: 'transparent', color: CLIMB.INK, fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>{tr('profile:climb.seeClimb', { defaultValue: 'See the climb' })}</button> : null}
+                {start ? <button type="button" data-climb-start="" onClick={() => onStart(p.pr)} style={{ flex: onOpen ? 'none' : 1, minHeight: 44, padding: '0 16px', borderRadius: 9, border: 0, background: CLIMB.ctaFor(nutri), color: CLIMB.onCtaFor(nutri), fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>{tr('profile:climb.start', { defaultValue: 'Start' })}</button> : null}
+              </div>
+            ) : null}
           </article>
         );
       })}
@@ -619,7 +624,8 @@ export function BSClimbRange({ programs, nutri = false, onOpen, onStart = null, 
 // ── The program sheet: dark, its peaks, its plates, the climb by block, then Ask and Start ─────────
 // pr: the program (bsCoachPrograms); item: its studio row (the coach's line, who it is for); days: the
 // first week's days with their moves. onAsk: the profile's Message (or Work with when it has none);
-// onBuy: the profile's own checkout (ShapeCoachPlans.buy), only for a paid program; onWork: Work with.
+// onBuy: the profile's own checkout (ShapeCoachPlans.buy), only for a paid program; onWork: Work with,
+// which closes the sheet at the Summit.
 export function BSClimbProgramSheet({ pr, nutri = false, item = null, days = [], first, isSelf = false, color = null, onClose, onBuy, onWork, onAsk = null }) {
   const CLIMB = useClimb();
   const { numFace, mono, plateBox } = climbType(CLIMB);
@@ -908,11 +914,21 @@ export function BSClimbWords({ rating = null, list = [], spread = [], locked = f
   );
 }
 
-// The summit: the way to work together, at the top of the route.
+// The summit: the way to work together, at the top of the route, and the one place to buy (owner,
+// 2026-11-11): the monthly coaching, then each program (a nutritionist's meal plans) as its card, then the
+// workouts. The page hands it each part; a part after the first opens on its small head.
 export function BSClimbSummit({ children }) {
   const CLIMB = useClimb();
   const { numFace, mono, plateBox } = climbType(CLIMB);
   return <div data-climb-summit-camp="" style={{ padding: '14px 18px 0 14px' }}>{children}</div>;
+}
+export function BSClimbSummitHead({ title, nutri = false }) {
+  const CLIMB = useClimb();
+  const { mono } = climbType(CLIMB);
+  const ACC = CLIMB.accFor(nutri);
+  return (
+    <h3 data-climb-summit-head="" style={{ margin: '28px 18px 0 14px', paddingTop: 10, borderTop: `1px solid ${CLIMB.LINE}`, ...mono(9.5, ACC) }}>{title}</h3>
+  );
 }
 
 // A coach's empty camp on their own page: what to add, and the door to add it.

@@ -116,7 +116,7 @@ export const bsStudioForLabel = (tr, f) => (
     : f.id === 'lifting' ? tr('profile:work.for.lifting', { defaultValue: 'Lifting already' }) : (f.w || ''));
 
 export function BSStudioWorkTab({ t, tr, locale, ACC, ink, DISPLAY, MONO, gutter = 22, stickyTop = 0, model, first, isSelf, heat, hasMessage,
-  onProgram, onVideo, onWork, onMessage, onDescribe, onPostVideo, showPrograms = true }) {
+  onProgram, onVideo, onWork, onMessage, onDescribe, onPostVideo, showPrograms = true, showCoaching = true }) {
   const INK = t.INK;
   const ON_INK = t.isLight ? '#f6f0e3' : '#13110d';
   const glass = bsStudioGlass(t);
@@ -131,8 +131,10 @@ export function BSStudioWorkTab({ t, tr, locale, ACC, ink, DISPLAY, MONO, gutter
   const jump = (k) => { const el = refs[k].current; if (el && el.scrollIntoView) el.scrollIntoView({ block: 'start', behavior: 'smooth' }); };
   const kicker = { fontFamily: MONO, fontSize: 9.5, lineHeight: '12px', letterSpacing: '0.13em', textTransform: 'uppercase', color: ink(0.62), whiteSpace: 'nowrap' };
   const kickB = { fontWeight: 700, color: INK };
-  // The Climb draws the programs as its own range of peaks (BSCoachClimb.jsx) and hands this tab the rest.
-  const counts = [...(showPrograms ? [['programs', progs.length, tr('profile:work.programs', { defaultValue: 'Programs' })]] : []), ['workouts', works.length, tr('profile:work.workouts', { defaultValue: 'Workouts' })], ['coaching', coaching ? 1 : 0, tr('profile:work.coaching', { defaultValue: 'Coaching' })]];
+  // The coach page's Summit (BSTrainerProfile.jsx) draws the programs as cards and the monthly coaching as
+  // the storefront itself, and hands this tab the workouts alone (owner, 2026-11-11), with no jump line
+  // for one part.
+  const counts = [...(showPrograms ? [['programs', progs.length, tr('profile:work.programs', { defaultValue: 'Programs' })]] : []), ['workouts', works.length, tr('profile:work.workouts', { defaultValue: 'Workouts' })], ...(showCoaching ? [['coaching', coaching ? 1 : 0, tr('profile:work.coaching', { defaultValue: 'Coaching' })]] : [])];
   const tray = { ...glass, margin: `10px ${Math.max(8, gutter - 12)}px 0`, padding: '0 12px' };
   const linkStyle = { minHeight: 44, padding: 0, border: 0, background: 'transparent', color: ACC, fontFamily: DISPLAY, fontSize: 14.5, fontWeight: 600, cursor: 'pointer' };
   const hint = (text) => <p style={{ margin: '8px 0 0', fontSize: 13.5, lineHeight: 1.45, color: ink(0.7) }}>{text}</p>;
@@ -170,7 +172,7 @@ export function BSStudioWorkTab({ t, tr, locale, ACC, ink, DISPLAY, MONO, gutter
         ) : null}
 
         {/* The jump line: how many of each, and the way to each */}
-        <div data-studio-jump="" style={{ ...glass, margin: `${isSelf ? 4 : 14}px ${Math.max(8, gutter - 12)}px 0`, padding: '8px 11px' }}>
+        {counts.length > 1 ? <div data-studio-jump="" style={{ ...glass, margin: `${isSelf ? 4 : 14}px ${Math.max(8, gutter - 12)}px 0`, padding: '8px 11px' }}>
           <GlassEdge t={t} />
           <div style={{ display: 'grid', gridTemplateColumns: `repeat(${counts.length}, minmax(0, 1fr))` }}>
             {counts.map(([k, n, label], i) => (
@@ -182,7 +184,7 @@ export function BSStudioWorkTab({ t, tr, locale, ACC, ink, DISPLAY, MONO, gutter
               </button>
             ))}
           </div>
-        </div>
+        </div> : null}
 
         {/* Programs */}
         {showPrograms && (progs.length || isSelf) ? (
@@ -302,7 +304,7 @@ export function BSStudioWorkTab({ t, tr, locale, ACC, ink, DISPLAY, MONO, gutter
         ) : null}
 
         {/* Coaching */}
-        {coaching || isSelf ? (
+        {showCoaching && (coaching || isSelf) ? (
           <div data-studio-coaching="">
             <Head k="coaching" title={tr('profile:work.coaching', { defaultValue: 'Coaching' })} count={coaching ? 1 : 0} sub={tr('profile:work.coachingSub', { defaultValue: 'Written for you, changed as you go. Paid monthly.' })} />
             {coaching ? (

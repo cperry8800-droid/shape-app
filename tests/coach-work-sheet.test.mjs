@@ -78,6 +78,30 @@ test('noMonthly at capacity keeps the waiting list and the invite, without Subsc
   assert.ok(!labels.some((l) => /^Subscribe/.test(l)), 'no Subscribe /mo without a monthly price');
 });
 
+// Owner, 2026-11-11: the coach page's Summit is the one place to buy, its programs and meal plans cards
+// of their own (BSTrainerProfile.jsx), so it hands the block noPlans; the Signal profile keeps the list.
+test('noPlans: the storefront without its price list, keeping the monthly offer, the intro and the capacity states', () => {
+  const plans = [plan('a', 'program', 'Strong in 12', { providerId: 'prov-7', providerRole: 'trainer' })];
+  const none = block({ salePlans: plans, noPlans: true });
+  assert.deepEqual(rows(none), [], 'no plan rows');
+  assert.deepEqual(tabs(none), [], 'no tabs');
+  assert.equal(empty(none), null, 'no empty line');
+  const head = (d) => d.nodes().some((n) => typeof n.type === 'function' && n.type.name === 'BSTStationHead');
+  assert.ok(head(block({ salePlans: plans })) && !head(none), 'no catalogue head');
+  assert.ok(none.buttons().some((b) => b.label === 'Subscribe') && none.buttons().some((b) => /^Book intro/.test(b.label)), 'Subscribe and the free intro stay');
+  assert.doesNotMatch(block({ noPlans: true, isSelf: true }).text, /Publish your first plan/, 'nor the coach\'s empty line on their own page');
+  const full = block({ salePlans: plans, noPlans: true, noMonthly: true, cm: { ...cm, atCapacity: true, clientOf: false } });
+  assert.ok(full.buttons().some((b) => b.label === 'Join the waiting list'), 'the waiting list stays');
+  assert.deepEqual(rows(full), []);
+  // Without noPlans, the Signal profile's Coaching tab lists them as before.
+  assert.equal(rows(block({ salePlans: plans })).length, 1);
+  // desc: the coach's own line about their coaching, under the monthly offer, only when written.
+  const said = block({ noPlans: true, desc: 'I write your week around you.' });
+  const line = said.nodes().find((n) => n.props && n.props['data-coaching-desc'] != null);
+  assert.equal(line && textOf(line), 'I write your week around you.');
+  assert.ok(!block({ noPlans: true }).nodes().some((n) => n.props && n.props['data-coaching-desc'] != null), 'no line when none is written');
+});
+
 test('a nutritionist\'s kinds: Meals and Diets as they are listed', () => {
   const d = block({ isNutri: true, salePlans: [plan('m', 'meal', 'Single-week reset'), plan('d', 'diet', 'Cut protocol')] });
   assert.deepEqual(tabs(d), ['All', 'Meals', 'Diets']);

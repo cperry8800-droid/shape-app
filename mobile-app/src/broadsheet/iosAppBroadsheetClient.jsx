@@ -17812,11 +17812,14 @@ function useBSCoachCommerce({ person, isSelf, isNutri, name, first, city }) {
 
 // "Work with": the at-capacity states (invited, waiting, already a client, full), the monthly
 // offer with Subscribe and the free intro, and the coach's catalogue with Buy. The Signal
-// profile's Coaching tab and the trainer profile's Work-with sheet both render it.
+// profile's Coaching tab renders all of it; the coach page's Summit (BSTrainerProfile.jsx) renders it
+// with noPlans, since its programs and meal plans are cards of their own under it (owner, 2026-11-11).
 // noMonthly: a coach whose listing has no monthly price but who sells plans (Codex P2 on #2545). The
 // monthly offer and Subscribe go (they would print the demo package); the capacity states stay, since
 // at capacity a plan is only bought with an invite or as a client (Codex P2 on f49af70).
-function BSCoachCoachingBlock({ cm, isSelf, isNutri, first, ownZero, salePlans, c, noMonthly = false }) {
+// noPlans: no catalogue (its head, tabs, rows and empty line). desc: the coach's own line about their
+// coaching (Make it yours → descriptions), under the monthly offer.
+function BSCoachCoachingBlock({ cm, isSelf, isNutri, first, ownZero, salePlans, c, noMonthly = false, noPlans = false, desc = '' }) {
   const tTheme = useBS();
   const tr = useShapeTr();
   const INK = tTheme.INK;
@@ -17947,6 +17950,7 @@ function BSCoachCoachingBlock({ cm, isSelf, isNutri, first, ownZero, salePlans, 
               <Kick col={bsWsAccent(tTheme)}>{tr('profile:coach.workWith', { name: first, defaultValue: 'Work with {name}' })}</Kick>
               <div style={{ fontFamily: SERIF, fontSize: 21, fontWeight: 600, lineHeight: 1.2, marginTop: 8 }}>{monthlyPkg.name} · <span style={{ color: bsWsAccent(tTheme) }}>{monthlyPkg.price}{monthlyPkg.unit === '/ month' ? '/mo' : ''}</span></div>
               {Array.isArray(monthlyPkg.perks) && <div style={{ fontFamily: SANS, fontSize: 12.5, color: bsTHexA(INK, 0.6), marginTop: 5 }}>{monthlyPkg.perks.slice(0, 3).join(' · ')}</div>}
+              {desc ? <p data-coaching-desc="" style={{ margin: '8px 0 0', fontFamily: SANS, fontSize: 13.5, lineHeight: 1.45, color: INK }}>{desc}</p> : null}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 13 }}>
                 <button onClick={doSubscribe} style={ctaInk}>{tr('profile:coach.subscribe', { defaultValue: 'Subscribe' })}</button>
                 <button onClick={doBookIntro} style={ctaLine}>{tr('profile:coach.bookIntroFree', { defaultValue: 'Book intro · Free' })}</button>
@@ -17955,7 +17959,7 @@ function BSCoachCoachingBlock({ cm, isSelf, isNutri, first, ownZero, salePlans, 
           )}
           </>}
           {/* services & prices — sub-tabbed by type (like the website catalogue) */}
-          <div style={{ marginTop: 28 }}>
+          {noPlans ? null : <div style={{ marginTop: 28 }}>
             <BSTStationHead mag heat={c} INK={INK} label={isNutri ? tr('profile:coach.workWith', { name: first, defaultValue: 'Work with {name}' }) : tr('profile:coach.trainWith', { name: first, defaultValue: 'Train with {name}' })} />
             {/* category sub-tabs, as the Wall's own row under its masthead: mono words, the chosen one in ink over red */}
             {showCats ? <div style={{ display: 'flex', gap: 18, overflowX: 'auto' }} className="bs-hide-scroll">
@@ -17982,7 +17986,7 @@ function BSCoachCoachingBlock({ cm, isSelf, isNutri, first, ownZero, salePlans, 
                 <div data-offer-empty="" style={quiet}>{isSelf ? tr('profile:coach.publishFirst', { defaultValue: 'Publish your first plan to list it here' }) : tr('profile:coach.noPlansYet', { defaultValue: "{name} hasn't listed a plan yet", name: first })}</div>
               )}
             </div>
-          </div>
+          </div>}
 
   </>);
 }

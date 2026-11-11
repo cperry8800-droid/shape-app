@@ -19,7 +19,7 @@ import { BSCoachHoursPage } from './BSCoachHours.jsx';
 import { BSCoachBusinessPage, BSCoachBusinessCard } from './BSCoachBusiness.jsx';
 import { BSMakeItYours, BS_STAT_WORDS } from './BSMakeItYours.jsx';
 import { bsReceivedGroceryList } from '../services/groceryShare.mjs';
-import { BSCoachClimb, BSClimbProgramSheet, BSClimbRange, BSClimbStart, BSClimbProof, BSClimbWords, BSClimbSummit, BSClimbEmpty, BSClimbReadError, CLIMB_PEAK_COLORS, bsClimbAccent, bsClimbTheme, BSClimbThemeProvider } from './BSCoachClimb.jsx';
+import { BSCoachClimb, BSClimbProgramSheet, BSClimbRange, BSClimbStart, BSClimbProof, BSClimbWords, BSClimbSummit, BSClimbSummitHead, BSClimbEmpty, BSClimbReadError, CLIMB_PEAK_COLORS, bsClimbAccent, bsClimbTheme, BSClimbThemeProvider } from './BSCoachClimb.jsx';
 import { bsCoachPagePalette, bsClimbWash } from '../services/coachPagePalette.mjs';
 import { bsSaveReceivedGroceryList } from './BSGroceryShare.jsx';
 import { bsDialogRef } from '../services/dialogBack.mjs';
@@ -46,23 +46,26 @@ const BS_NO_KINDS = [];
 //     Base        Start here: the intro film and the highlight they pinned (owner, 2026-11-04: "Show them
 //                 on coach pages"), their workout videos and newest photo posts, and All N posts.
 //     Book (day)  their week of open times and the day as it really is, from the read the listing
-//                 books from: open times to take, busy time said only as busy. Always there.
-//     Programs    (range) their programs as a range of peaks, one a week, then the rest of the Studio
-//                 (every program's day and workout video, coaching by the month; BSCoachStudio.jsx).
-//                 A nutritionist's is Meal plans, then Kitchen and Plate notes.
+//                 books from: open times to take, busy time said only as busy. Always there, on its own.
+//                 A nutritionist's Kitchen and Plate notes come next.
 //     Replays     the sessions they logged, stepped set by set with their note.
 //     Proof       the reviews they pinned (their wins wall), only for a reader who may read reviews.
 //     Words       what clients say: the rating and its spread, the other reviews (members), or Join.
 //     About       their story, details, certificates, accolades, education, answers and song.
 //     Find me     (find) the practice's card, their socials and links, and a trainer's listing photos.
 //     Posts       what they posted that the camps above don't show, as the member profile's cards.
-//     Summit      the way in: Book, and the plans and prices (the Work-with sheet).
+//     Summit      the one place to buy (owner, 2026-11-11: "The Summit becomes the one place to buy:
+//                 monthly coaching first, then each program as its card with preview and Buy, then the
+//                 workouts, then Message"; the Programs camp and the Work-with sheet's price list went):
+//                 the monthly coaching (the shared storefront, BSCoachCoachingBlock with useBSCoachCommerce,
+//                 the client module's, without its plan list) and Message, then the programs as cards (a
+//                 nutritionist's meal plans), then the workouts (BSCoachStudio.jsx). Every "Work with"
+//                 on the page comes here. A program's Start is the same checkout its sheet's is; a meal
+//                 plan's is the storefront's.
 //   Console     docked above the tab capsule: the free intro and the next open time, and Book, which
 //               opens the same booking sheet a time in the day does (a sample's is asked for).
 // A visitor sees a camp only with something in it, or with a read that failed (it says so, with Try
-// again); the coach sees them all, with what to add. Prices live in one place, the Work-with sheet,
-// the shared storefront (BSCoachCoachingBlock with useBSCoachCommerce, the client module's); a
-// program's Start is the same checkout its sheet's is.
+// again); the coach sees them all, with what to add.
 // The accent a coach picked in Make it yours (profile_custom.look.accent) tints the Climb's drawing
 // (bsClimbAccent: the route, contours, summit ring, pins, spine, diamonds, the name's full stop);
 // every word and button keeps the role's teal, gold and rust.
@@ -71,7 +74,7 @@ const BS_NO_KINDS = [];
 //
 // A nutritionist (person.kind 'NUTRI') reads and books as a nutritionist (their listing, hours and
 // intro calls), is the Climb in Shape's nutritionist gold, and has two camps of their own (owner,
-// 2026-10-27: "lets do something different for nutritionists"), with Meal plans between them:
+// 2026-10-27: "lets do something different for nutritionists"); her meal plans are in the Summit:
 //   Her kitchen  three parts shown one at a time (its floor plan, added 2026-10-30, went the next
 //                day: owner, "i dont think this concept makes sense for nutritionist profiles"; a
 //                layout already saved stays in profile_custom.studio, unread): their own recipes (cooked in Shape's cook mode, or sent to the member's
@@ -446,7 +449,9 @@ function TrainerPage({ theme = null, person, role = 'trainer', onBack, onMessage
   }, [providerId, providerState, availEpoch, demo, role, zoneEpoch]);
 
   // ── The storefront: the client module's shared hook, fed this coach's real listing ──
-  // The camps are one page now: "go to the day" scrolls to Book (the open times).
+  // The camps are one page now: "go to the day" scrolls to Book (the open times), and every "Work with"
+  // (the hero's, the day's, a sheet's, the console's when the coach is full) closes any sheet and climbs
+  // to the Summit, the one place to buy (owner, 2026-11-11); there is no Work-with sheet any more.
   const toCamp = (key) => {
     const sc = scrollerOf();
     const el = pageRef.current && pageRef.current.querySelector ? pageRef.current.querySelector(`[data-climb-camp="${key}"]`) : null;
@@ -454,6 +459,7 @@ function TrainerPage({ theme = null, person, role = 'trainer', onBack, onMessage
     const y = sc.scrollTop + el.getBoundingClientRect().top - sc.getBoundingClientRect().top - (pinnedTop + 52);
     try { sc.scrollTo({ top: Math.max(0, y), behavior: 'smooth' }); } catch (e) { sc.scrollTop = Math.max(0, y); }
   };
+  const toSummit = () => { setSheet(null); toCamp('summit'); };
   // A directory row's "Book intro" (the member's Coaches tab, 2026-11-09) opens the page at Book, its
   // open times, once the week has been read: the page's own way to book an intro.
   const bookOnOpen = React.useRef(person.openAt === 'book');
@@ -476,11 +482,12 @@ function TrainerPage({ theme = null, person, role = 'trainer', onBack, onMessage
   });
   const cm = W.useBSCoachCommerce ? W.useBSCoachCommerce({ person: { ...person, commerce, providerId }, isSelf, isNutri: nutri, name, first, city: where }) : null;
   // The storefront shows only what this coach really sells: with no monthly price on their listing
-  // the shared block would print its demo package, so the sheet shows the intro and Message instead.
+  // the shared block would print its demo package, so the Summit shows the intro and Message instead.
   const sells = !!(commerce && Array.isArray(commerce.packages) && commerce.packages.some((p) => p && p.type === 'Subscription'));
   const introClosed = !!(cm && cm.atCapacity && !(avail.kind === 'ready' && avail.introsAtCap) && !(cm.wl && cm.wl.status === 'invited'));
   const [salePlans, setSalePlans] = React.useState(null);
-  // A read that failed is said in the programs' camp, with Try again; the rest of the page reads none.
+  // A read that failed is said where the programs are, in the Summit, with Try again; the rest of the
+  // page reads none.
   const [plansErr, setPlansErr] = React.useState(false);
   const [plansEpoch, setPlansEpoch] = React.useState(0);
   React.useEffect(() => {
@@ -579,8 +586,8 @@ function TrainerPage({ theme = null, person, role = 'trainer', onBack, onMessage
   // sheet never lists or checks out a nutrition plan (Codex P2 on b76e074).
   const roleOf = (pl) => pl.providerRole || (pl.kind === 'meal_plan' ? 'nutritionist' : 'trainer');
   const ownPlans = Array.isArray(salePlans) ? salePlans.filter((pl) => pl && roleOf(pl) === (nutri ? 'nutritionist' : 'trainer')) : salePlans;
-  // What the Work-with sheet lists: a coach's published plans, or the sample's own: a trainer's
-  // programs, which its page shows everywhere else, or a nutritionist's meal plans (the sheet said
+  // A coach's published plans, or the sample's own: a trainer's programs, which its page shows
+  // everywhere else, or a nutritionist's meal plans, her cards in the Summit (the Work-with sheet said
   // "Publish your first plan" under every tab).
   const weeksSaid = (n) => tr('profile:trainer.programWeeks', { defaultValue: '{count, plural, one {# week} other {# weeks}}', count: n });
   const sheetPlans = !demo ? ownPlans
@@ -588,7 +595,7 @@ function TrainerPage({ theme = null, person, role = 'trainer', onBack, onMessage
     : programs.filter((p) => p && p.plan).map((p) => ({ ...p.plan, category: 'program', meta: p.weeks ? weeksSaid(p.weeks) : (p.plan.meta || '') }));
   // A real coach's published plans, for a live listing with no monthly price, when one of them has a
   // price to pay (a workout or reusable program is saved with none, and alone it would hide "hasn't
-  // listed prices" behind rows with nothing to buy: Codex P2 on 2ecbc5b). An unfinished or suspended
+  // listed prices" behind cards with nothing to buy: Codex P2 on 2ecbc5b). An unfinished or suspended
   // listing sells nothing here, as the monthly offer already holds (Codex P1 on 196314b), and a sample
   // with no price shows none.
   const plansListed = listed && !demo && Array.isArray(ownPlans) && ownPlans.some((pl) => bsWorkPaid(pl.price));
@@ -598,9 +605,10 @@ function TrainerPage({ theme = null, person, role = 'trainer', onBack, onMessage
   // The Studio tab's model (owner, 2026-11-04: round 3 of the studio, "name it studio"): the programs,
   // every program's day and posted video as workouts, and the monthly coaching, with the coach's own
   // words from their doc (descriptions, who a program is for, their picks). A private profile shows none.
+  const descs = isPrivate ? null : bsProfileDescriptions(custom && custom.descriptions);
   const studioModel = nutri ? null : bsStudioModel({
     programs, videos: workouts, monthly, offer,
-    descriptions: isPrivate ? null : bsProfileDescriptions(custom && custom.descriptions),
+    descriptions: descs,
     programFor: isPrivate ? null : bsProfileProgramFor(custom && custom.programFor),
     picks: isPrivate ? [] : bsProfilePicks(custom && custom.picks),
   });
@@ -612,6 +620,15 @@ function TrainerPage({ theme = null, person, role = 'trainer', onBack, onMessage
       const url = await W.ShapeCoachPlans.buy({ plan: { id: pl.id, name: pl.name, price: pl.price }, providerRole: pl.providerRole || role, providerId: pl.providerId || providerId });
       if (url) (W.bsOpenCheckout || ((u) => { window.location.href = u; }))(url);
     } catch (e) { W.__bsToast?.(tr('profile:coach.checkoutError', { defaultValue: 'Could not start checkout.' }), 'err'); }
+  };
+  // A meal plan's Start, now that its card in the Summit is the only place it is sold: the storefront's
+  // own checkout (BSCoachCoachingBlock's buyPlan), by the plan's own listing and role.
+  const buyPlan = async (pl) => {
+    if (!pl || !pl.id || !pl.providerId || !W.ShapeCoachPlans?.buy) return;
+    try {
+      const url = await W.ShapeCoachPlans.buy({ plan: { id: pl.id, name: pl.name, price: pl.price }, providerRole: pl.providerRole, providerId: pl.providerId });
+      if (url) (W.bsOpenCheckout || ((u) => { window.location.href = u; }))(url);
+    } catch (e) { W.__bsToast?.((e && e.message) || tr('profile:coach.checkoutError', { defaultValue: 'Could not start checkout.' }), 'err'); }
   };
   // A nutritionist's shared meals (the cards that carry a plate), a day to a plate note.
   const plates = !nutri ? [] : demo ? demo.plates : posts.map((p) => (W.bsProfileCardFromPost ? W.bsProfileCardFromPost(p, 'Nutritionist') : null))
@@ -661,7 +678,7 @@ function TrainerPage({ theme = null, person, role = 'trainer', onBack, onMessage
   };
 
   // ── Overlays ──
-  const [sheet, setSheet] = React.useState(null); // { kind: 'work'|'book'|'station'|'replay'|'reviews', ... }
+  const [sheet, setSheet] = React.useState(null); // { kind: 'book'|'ask'|'program'|'replay'|'plateDay'|'reviews', ... }
   const [page, setPage] = React.useState(null);   // 'edit' | 'hours' | 'business' | 'person'
   const [recipe, setRecipe] = React.useState(null); // a Shape Kitchen recipe a plate note opened
   const [ownRecipe, setOwnRecipe] = React.useState(null); // one of a nutritionist's own recipes
@@ -743,8 +760,6 @@ function TrainerPage({ theme = null, person, role = 'trainer', onBack, onMessage
   const headSocials = custom && custom.headLinks === true && aboutLinks
     ? BS_PROFILE_LINK_KEYS.map((k) => [k, aboutLinks[k] ? bsProfileLinkHref(k, aboutLinks[k]) : null]).filter(([, href]) => href) : [];
   const gallery = media.gallery || [];
-  // The Studio's work: the coach's programs, workouts and coaching (BSCoachStudio.jsx).
-  const hasStudioWork = !!(studioModel && (studioModel.programs.length || studioModel.workouts.length || studioModel.coaching));
   const hasKitchen = !!(kitchen || gallery.length);
 
   if (page === 'edit' && editReady) {
@@ -824,7 +839,7 @@ function TrainerPage({ theme = null, person, role = 'trainer', onBack, onMessage
   ].filter(Boolean);
 
   // The console: Book takes the next open time through the same sheet a time in the day opens (a
-  // sample's is asked for, kept for its coach); full, it opens Work with and its waiting list.
+  // sample's is asked for, kept for its coach); full, it climbs to the Summit and its waiting list.
   const canBook = !isSelf && !isPrivate && (listed || !!sample);
   const dock = isSelf ? { kind: 'self', onMake: () => openEdit('colors'), onHours: () => setPage('hours'), makeReady: editReady }
     : !canBook ? null
@@ -833,7 +848,7 @@ function TrainerPage({ theme = null, person, role = 'trainer', onBack, onMessage
       nextOpen: nextSlot ? fmtNext(nextSlot.at) : null,
       note: introClosed ? tr('profile:climb.fullNote', { defaultValue: 'Full right now · waiting list open' }) : avail.kind === 'loading' ? tr('profile:trainer.dayLoading', { defaultValue: 'Reading the week…' }) : null,
       bookLabel: introClosed ? tr('profile:climb.joinList', { defaultValue: 'Join the list' }) : avail.sample ? tr('profile:climb.askIntro', { defaultValue: 'Ask for an intro' }) : tr('profile:climb.bookIntro', { defaultValue: 'Book a free intro' }),
-      onBook: introClosed ? () => setSheet({ kind: 'work' })
+      onBook: introClosed ? toSummit
         : avail.sample ? (providerId && nextSlot ? () => setSheet({ kind: 'ask', slot: nextSlot }) : (onListing || null))
         : nextSlot ? () => setSheet({ kind: 'book', slot: nextSlot }) : () => toCamp('day'),
     };
@@ -848,7 +863,11 @@ function TrainerPage({ theme = null, person, role = 'trainer', onBack, onMessage
   // Words leaves out what Proof shows; with no Proof (a sample), the pinned ones stay in Words.
   const quotesRest = winsShown.length ? quotes.filter((r) => !r.pinned) : quotes;
   const rangePrograms = !nutri && studioModel ? studioModel.programs.map((p) => ({ key: p.key, id: p.id, name: p.name, price: p.pr && p.pr.sample ? null : p.price, paid: p.paid && !(p.pr && p.pr.sample), weeks: p.weeks, perWeek: p.perWeek, desc: p.desc, forSaid: bsStudioForLabel(tr, p.forWho), poster: p.pr ? p.pr.poster : null, pr: p.pr })) : [];
-  const mealPlans = nutri && Array.isArray(sheetPlans) ? sheetPlans.filter((pl) => pl && pl.name).map((pl, i) => ({ key: `m:${pl.id || i}`, id: String(pl.id || i), name: pl.name, price: demo ? null : bsWorkPrice(pl.price), paid: false, weeks: Number.isInteger(pl.weeks) ? pl.weeks : null, perWeek: null, forSaid: '', poster: null, pr: pl })) : [];
+  // A meal plan's Start buys it: a real, paid plan with the listing that sells it, never a sample's, and
+  // only on a live listing, as the Work-with sheet sold them (an unfinished or suspended listing sells
+  // nothing here: Codex P1 on 196314b).
+  const mealPlans = nutri && Array.isArray(sheetPlans) ? sheetPlans.filter((pl) => pl && pl.name).map((pl, i) => ({ key: `m:${pl.id || i}`, id: String(pl.id || i), name: pl.name, price: demo ? null : bsWorkPrice(pl.price),
+    paid: listed && !demo && bsWorkPaid(pl.price) && pl.id != null && !!pl.providerId, weeks: Number.isInteger(pl.weeks) ? pl.weeks : null, perWeek: null, forSaid: '', poster: null, pr: pl })) : [];
   // Base's row after the workout videos: the newest posts with a photo, each opening the Posts camp.
   const photoPosts = activity.filter((a) => a && typeof a.photo === 'string' && /^(https:\/\/|\/[^/\\])/.test(a.photo)).slice(0, 6)
     .map((a) => ({ key: a.key || a.photo, photo: a.photo, title: a.title || '' }));
@@ -865,11 +884,77 @@ function TrainerPage({ theme = null, person, role = 'trainer', onBack, onMessage
   const postsFailed = !demo && postsErr;
   const postsError = postsFailed ? <BSClimbReadError nutri={nutri} text={tr('profile:climb.postsError', { defaultValue: "Couldn't read {name}'s posts just now.", name: first })} onRetry={() => setPostsNonce((n) => n + 1)} /> : null;
   const plansFailed = !demo && plansErr;
+  // Unread is not empty: the coach is told what to add only once their plans have been read.
+  const plansUnread = !demo && salePlans === null;
   const plansError = plansFailed ? <BSClimbReadError nutri={nutri} text={nutri ? tr('profile:climb.mealPlansError', { defaultValue: "Couldn't read {name}'s meal plans just now.", name: first }) : tr('profile:climb.programsError', { defaultValue: "Couldn't read {name}'s programs just now.", name: first })} onRetry={() => setPlansEpoch((n) => n + 1)} /> : null;
   const revFailed = !demo && revErr && !(reviews && reviews.count > 0);
   const revError = revFailed ? <BSClimbReadError nutri={nutri} text={tr('profile:climb.reviewsError', { defaultValue: "Couldn't read the reviews just now." })} onRetry={() => setRevEpoch((n) => n + 1)} /> : null;
-  // The camps, in the website's order (coachProfileWeb.jsx): Base, Book, the work, Proof, Words, About,
-  // Find me, Posts, Summit.
+  // ── The Summit, the one place to buy (owner, 2026-11-11), top to bottom ──
+  //   coaching  the storefront without its plan list (the capacity states and waiting list, the monthly
+  //             offer with Subscribe and the free intro, the coach's own line about their coaching), then
+  //             Message; with no monthly price, the no-prices line, an intro time and Message, as the
+  //             Work-with sheet had them. The full listing's link under it, where there is one.
+  //   programs  each program as its card (See the climb: its sheet and preview; Start: its checkout), or
+  //             a nutritionist's meal plans (Start: the storefront's checkout, for a real, paid plan).
+  //   workouts  a trainer's workouts, the studio's (BSCoachStudio.jsx) with no coaching card: the
+  //             coaching is the first part.
+  // On the coach's own page, the first part is the line for what members do here; the programs and the
+  // workouts say what to add.
+  const coachingDesc = (!nutri && descs && typeof descs.coaching === 'string' && descs.coaching) || '';
+  const summitBtn = (filled) => ({ width: '100%', minHeight: 50, borderRadius: 11, border: filled ? 0 : `1px solid ${CLIMB.LINE2}`, background: filled ? CLIMB.ctaFor(nutri) : 'transparent', color: filled ? CLIMB.onCtaFor(nutri) : CLIMB.INK, fontSize: 15, fontWeight: 700, cursor: 'pointer' });
+  const summitMessage = hasMessage ? <button type="button" data-summit-message="" onClick={() => onMessage(person)} style={{ ...summitBtn(false), marginTop: 8 }}>{tr('profile:trainer.message', { defaultValue: 'Message {name}', name: first })}</button> : null;
+  const summitCoaching = isSelf ? (
+    <>
+      <p style={{ margin: 0, fontSize: 14, lineHeight: 1.5, color: CLIMB.MUTED }}>{tr('profile:climb.summitSelf', { defaultValue: 'Members start working with you from here: the intro, your plans and your coaching.' })}</p>
+      {sells || plansListed ? null : <p data-summit-no-prices="" style={{ margin: '10px 0 0', fontSize: 14, lineHeight: 1.5, color: CLIMB.MUTED }}>{tr('profile:trainer.noPricesSelf', { defaultValue: 'Members see your prices here once your listing has a monthly price.' })}</p>}
+    </>
+  ) : (
+    <>
+      {cm && sells && W.BSCoachCoachingBlock ? (
+        <>
+          <W.BSCoachCoachingBlock cm={cm} isSelf={false} isNutri={nutri} first={first} ownZero c={ACC} noPlans desc={coachingDesc} />
+          {summitMessage}
+        </>
+      ) : (
+        <>
+          {plansListed ? null : <p data-summit-no-prices="" style={{ margin: 0, fontSize: 14, lineHeight: 1.5, color: CLIMB.MUTED }}>{tr('profile:trainer.noPrices', { defaultValue: '{name} hasn\'t listed prices on Shape yet. Book a free intro or send a message to ask.', name: first })}</p>}
+          {providerId && !avail.sample ? <button type="button" data-summit-intro="" onClick={() => toCamp('day')} style={{ ...summitBtn(true), marginTop: 12 }}>{tr('profile:trainer.pickIntro', { defaultValue: 'Pick an intro time' })}</button> : null}
+          {summitMessage}
+          {/* No monthly price, but plans to sell: the capacity states, without the monthly offer (Codex P2 on #2545); the plans are the cards below. */}
+          {plansListed && cm && W.BSCoachCoachingBlock ? <W.BSCoachCoachingBlock cm={cm} isSelf={false} isNutri={nutri} first={first} ownZero c={ACC} noMonthly noPlans /> : null}
+        </>
+      )}
+      {onListing ? <button type="button" data-full-listing="" onClick={onListing} style={{ ...linkBtn(ACC, DISPLAY), marginTop: 12 }}>{tr('profile:trainer.fullListing', { defaultValue: 'Plans, prices and codes on the full listing' })} →</button> : null}
+    </>
+  );
+  const summitPrograms = nutri
+    ? ((isSelf || mealPlans.length || plansFailed) ? (
+      <div data-summit-part="meal-plans">
+        <BSClimbSummitHead nutri title={tr('profile:climb.mealPlans', { defaultValue: 'Meal plans' })} />
+        {mealPlans.length ? <BSClimbRange programs={mealPlans} nutri isSelf={isSelf} onStart={(pl) => buyPlan(pl)} />
+          : plansError || (plansUnread ? null : <div style={{ padding: '14px 18px 0 14px' }}><BSClimbEmpty nutri text={tr('profile:climb.plansEmptySelf', { defaultValue: 'Publish a meal plan and it shows here, for members to buy.' })} /></div>)}
+      </div>
+    ) : null)
+    : ((isSelf || rangePrograms.length || plansFailed) ? (
+      <div data-summit-part="programs">
+        <BSClimbSummitHead title={tr('profile:climb.programs', { defaultValue: 'Programs' })} />
+        {rangePrograms.length ? <BSClimbRange programs={rangePrograms} isSelf={isSelf} onOpen={(pr) => { if (pr) setSheet({ kind: 'program', pr }); }} onStart={(pr) => buyProgram(pr)} />
+          : plansError || (plansUnread ? null : <div style={{ padding: '14px 18px 0 14px' }}><BSClimbEmpty text={tr('profile:trainer.programsEmptySelf', { defaultValue: 'Publish a program and it shows here with its preview video, for members to buy.' })} /></div>)}
+      </div>
+    ) : null);
+  const summitWorkouts = studioModel && (isSelf || studioModel.workouts.length) ? (
+    <div data-summit-part="workouts">
+      <BSStudioWorkTab t={t} tr={tr} locale={locale} ACC={ACC} ink={ink} DISPLAY={DISPLAY} MONO={MONO} gutter={14} stickyTop={pinnedTop + 47} showPrograms={false} showCoaching={false}
+        model={studioModel} first={first} isSelf={isSelf} heat={bsStudioHeat(t, 'teal', ACC)} hasMessage={hasMessage}
+        onProgram={(pr) => { if (pr) setSheet({ kind: 'program', pr }); }} onVideo={(v) => { if (v) setSheet({ kind: 'replay', r: v, i: 0 }); }}
+        onWork={toSummit} onMessage={() => onMessage && onMessage(person)}
+        onDescribe={isSelf && editReady ? () => openEdit('programs') : null}
+        onPostVideo={isSelf ? () => setShowLog('video') : null} />
+    </div>
+  ) : null;
+  // The camps, in the website's order (coachProfileWeb.jsx): Base, Book, a nutritionist's Kitchen and Plate
+  // notes or a trainer's Replays, Proof, Words, About, Find me, Posts, Summit. Book stays on its own; the
+  // programs (meal plans) are in the Summit (owner, 2026-11-11).
   const campList = isPrivate ? [] : [
     (highlight || film || videos.length || photoPosts.length || isSelf) ? ['base', tr('profile:climb.base', { defaultValue: 'Base' }), tr('profile:climb.startTitle', { defaultValue: 'Start here' }),
       tr('profile:climb.startSub', { defaultValue: 'The pinned highlight, the intro film, and how {name} works.', name: first }),
@@ -885,13 +970,9 @@ function TrainerPage({ theme = null, person, role = 'trainer', onBack, onMessage
         // A sample time is asked for, kept against the listing for its coach (the owner,
         // 2026-10-29: "Request, saved for her"); a listing with no id has nothing to keep it on.
         onTake={isSelf ? null : avail.sample ? (providerId ? (slot) => setSheet({ kind: 'ask', slot }) : null) : (slot) => setSheet({ kind: 'book', slot })}
-        asks={asks} asksLive={!!providerId} onWork={() => setSheet({ kind: 'work' })} onHours={() => setPage('hours')} /></div>],
+        asks={asks} asksLive={!!providerId} onWork={toSummit} onHours={() => setPage('hours')} /></div>],
     ...(nutri ? [
-      // A nutritionist's range is her meal plans, then her kitchen and her plate notes.
-      (isSelf || mealPlans.length || plansFailed) ? ['range', tr('profile:climb.mealPlans', { defaultValue: 'Meal plans' }), tr('profile:climb.mealPlans', { defaultValue: 'Meal plans' }),
-        mealPlans.length ? tr('profile:climb.plansSub', { defaultValue: 'Plans that run for weeks. Each peak is a week.' }) : null,
-        mealPlans.length ? <BSClimbRange programs={mealPlans} nutri isSelf={isSelf} onOpen={() => setSheet({ kind: 'work' })} openLabel={tr('profile:climb.plansPrices', { defaultValue: 'Plans and prices' })} />
-          : plansError || <div style={{ padding: '14px 18px 0 14px' }}><BSClimbEmpty nutri text={tr('profile:climb.plansEmptySelf', { defaultValue: 'Publish a meal plan and it shows here, for members to buy.' })} /></div>] : null,
+      // A nutritionist's kitchen and her plate notes.
       (isSelf || hasKitchen) ? ['kitchen', tr('profile:climb.kitchen', { defaultValue: 'Kitchen' }), words.kitchen, null,
         <div style={{ padding: '0 18px 0 14px' }}><KitchenTab t={t} tr={tr} ACC={ACC} ON_ACC={ON_ACC} ink={ink} DISPLAY={DISPLAY} MONO={MONO} kitchen={kitchen} gallery={gallery} isSelf={isSelf} first={first}
           ownerKey={person.userId || person.providerId || null} stapleKeys={(demo && demo.stapleKeys) || null} onRecipe={(r) => setOwnRecipe(r)} onFill={(section) => openEdit('kitchen', section)}
@@ -899,20 +980,6 @@ function TrainerPage({ theme = null, person, role = 'trainer', onBack, onMessage
       (isSelf || plateDays.length || postsFailed) ? ['plates', tr('profile:nutri.tabPlateNotes', { defaultValue: 'Plate notes' }), tr('profile:nutri.tabPlateNotes', { defaultValue: 'Plate notes' }), null,
         plateDays.length || !postsFailed ? <div style={{ padding: '0 18px 0 14px' }}><PlateNotesTab t={t} tr={tr} locale={locale} ACC={ACC} ink={ink} DISPLAY={DISPLAY} MONO={MONO} days={plateDays} isSelf={isSelf} first={first} onOpen={(day) => setSheet({ kind: 'plateDay', day, i: 0 })} /></div> : postsError] : null,
     ] : [
-      (isSelf || hasStudioWork || plansFailed) ? ['range', tr('profile:climb.programs', { defaultValue: 'Programs' }), tr('profile:climb.rangeTitle', { defaultValue: 'The range' }),
-        rangePrograms.length ? tr('profile:climb.rangeSub', { defaultValue: 'Each peak is a week, climbing to the top.' }) : null,
-        <>
-          {rangePrograms.length ? <BSClimbRange programs={rangePrograms} isSelf={isSelf} onOpen={(pr) => { if (pr) setSheet({ kind: 'program', pr }); }} onStart={(pr) => buyProgram(pr)} />
-            : plansError || (isSelf ? <div style={{ padding: '14px 18px 0 14px' }}><BSClimbEmpty text={tr('profile:trainer.programsEmptySelf', { defaultValue: 'Publish a program and it shows here with its preview video, for members to buy.' })} /></div> : null)}
-          {studioModel && (isSelf || studioModel.workouts.length || studioModel.coaching) ? (
-            <BSStudioWorkTab t={t} tr={tr} locale={locale} ACC={ACC} ink={ink} DISPLAY={DISPLAY} MONO={MONO} gutter={14} stickyTop={pinnedTop + 47} showPrograms={false}
-              model={studioModel} first={first} isSelf={isSelf} heat={bsStudioHeat(t, 'teal', ACC)} hasMessage={hasMessage}
-              onProgram={(pr) => { if (pr) setSheet({ kind: 'program', pr }); }} onVideo={(v) => { if (v) setSheet({ kind: 'replay', r: v, i: 0 }); }}
-              onWork={() => setSheet({ kind: 'work' })} onMessage={() => onMessage && onMessage(person)}
-              onDescribe={isSelf && editReady ? () => openEdit('programs') : null}
-              onPostVideo={isSelf ? () => setShowLog('video') : null} />
-          ) : null}
-        </>] : null,
       (isSelf || replays.length || postsFailed) ? ['replays', tr('profile:trainer.tabReplays', { defaultValue: 'Replays' }), tr('profile:trainer.tabReplays', { defaultValue: 'Replays' }), null,
         replays.length || !postsFailed ? <div style={{ padding: '0 18px 0 14px' }}><ReplaysTab t={t} tr={tr} ACC={ACC} ON_ACC={ON_ACC} ink={ink} DISPLAY={DISPLAY} MONO={MONO} replays={replays} isSelf={isSelf} first={first}
           onOpen={(r) => setSheet({ kind: 'replay', r, i: 0 })} onLog={(kind) => setShowLog(kind || true)} /></div> : postsError] : null,
@@ -945,14 +1012,11 @@ function TrainerPage({ theme = null, person, role = 'trainer', onBack, onMessage
         } : null} />] : null,
     ['summit', tr('profile:climb.summit', { defaultValue: 'Summit' }), words.work,
       (offer && offer.blurb) || tr('profile:trainer.workSub', { defaultValue: 'Start with a free intro call. Everything runs in the Shape app.' }),
-      <BSClimbSummit>
-        {isSelf ? <p style={{ margin: 0, fontSize: 14, lineHeight: 1.5, color: CLIMB.MUTED }}>{tr('profile:climb.summitSelf', { defaultValue: 'Members start working with you from here: the intro, your plans and your coaching.' })}</p> : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {dock && dock.onBook ? <button type="button" data-climb-summit-book="" onClick={dock.onBook} style={{ minHeight: 50, borderRadius: 11, border: 0, background: CLIMB.ctaFor(nutri), color: CLIMB.onCtaFor(nutri), fontSize: 15, fontWeight: 700, cursor: 'pointer' }}>{dock.bookLabel}</button> : null}
-            <button type="button" data-climb-plans="" onClick={() => setSheet({ kind: 'work' })} style={{ minHeight: 50, borderRadius: 11, border: `1px solid ${CLIMB.LINE2}`, background: 'transparent', color: CLIMB.INK, fontSize: 15, fontWeight: 700, cursor: 'pointer' }}>{tr('profile:climb.plansPrices', { defaultValue: 'Plans and prices' })}</button>
-          </div>
-        )}
-      </BSClimbSummit>],
+      <>
+        <BSClimbSummit><div data-summit-part="coaching">{summitCoaching}</div></BSClimbSummit>
+        {summitPrograms}
+        {summitWorkouts}
+      </>],
   ].filter(Boolean);
   const camps = campList.map(([key, label, title, sub, body], i) => {
     const stage = i === 0 ? tr('profile:climb.base', { defaultValue: 'Base' }) : key === 'summit' ? '' : tr('profile:climb.campN', { defaultValue: 'Camp {n}', n: i });
@@ -1056,12 +1120,12 @@ function TrainerPage({ theme = null, person, role = 'trainer', onBack, onMessage
       {meMode && isSelf ? <div style={{ marginTop: 16 }}><BSCoachBusinessCard role={role} accent={ACC} onOpen={() => setPage('business')} /></div> : null}
     </>
   );
-  // A visitor's doors: Message, Work with, Follow. The coach's own are in the console.
+  // A visitor's doors: Message, Work with (to the Summit), Follow. The coach's own are in the console.
   const followOn = !!(follow && (follow.isFollowing || follow.isPending));
   const actions = isSelf || isPrivate && !hasMessage ? null : (
     <div data-climb-actions="" style={{ marginTop: 16, display: 'flex', gap: 8 }}>
       {hasMessage ? <button type="button" onClick={() => onMessage(person)} style={{ flex: 1.2, minHeight: 46, borderRadius: 10, border: 0, background: ACC, color: ON_ACC, fontSize: 15, fontWeight: 700, cursor: 'pointer' }}>{tr('profile:trainer.message', { defaultValue: 'Message {name}', name: first })}</button> : null}
-      {!isPrivate ? <button type="button" onClick={() => setSheet({ kind: 'work' })} style={{ flex: 1, minHeight: 46, borderRadius: 10, border: `1px solid ${hasMessage ? CLIMB.LINE2 : ACC}`, background: hasMessage ? 'rgba(255,255,255,0.03)' : ACC, color: hasMessage ? CLIMB.INK : ON_ACC, fontSize: 15, fontWeight: 700, cursor: 'pointer' }}>{words.work}</button> : null}
+      {!isPrivate ? <button type="button" data-climb-work="" onClick={toSummit} style={{ flex: 1, minHeight: 46, borderRadius: 10, border: `1px solid ${hasMessage ? CLIMB.LINE2 : ACC}`, background: hasMessage ? 'rgba(255,255,255,0.03)' : ACC, color: hasMessage ? CLIMB.INK : ON_ACC, fontSize: 15, fontWeight: 700, cursor: 'pointer' }}>{words.work}</button> : null}
       {person.userId ? (
         <button type="button" onClick={toggleFollow} disabled={followBusy} aria-pressed={followOn}
           aria-label={follow && follow.isFollowing ? tr('profile:trainer.following', { defaultValue: 'Following' }) : follow && follow.isPending ? tr('profile:trainer.requested', { defaultValue: 'Requested' }) : tr('profile:trainer.follow', { defaultValue: 'Follow' })}
@@ -1091,27 +1155,6 @@ function TrainerPage({ theme = null, person, role = 'trainer', onBack, onMessage
           footer={[listed && provider.credential, verified ? tr('profile:trainer.checked', { defaultValue: 'Checked by Shape' }) : null].filter(Boolean).join(' · ')} />
       </div>
 
-      {sheet && sheet.kind === 'work' ? (
-        <Sheet t={t} label={words.work} onClose={() => setSheet(null)}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <h2 style={{ margin: 0, fontFamily: DISPLAY, fontWeight: 500, fontSize: 22 }}>{tr('profile:trainer.workTitle', { defaultValue: 'Work with {name}', name: first })}<span style={{ color: ACC }}>.</span></h2>
-            <CloseX onClose={() => setSheet(null)} color={INK} label={tr('profile:trainer.close', { defaultValue: 'Close' })} />
-          </div>
-          <p style={{ margin: '2px 0 0', fontSize: 13.5, color: ink(0.64) }}>{(offer && offer.blurb) || tr('profile:trainer.workSub', { defaultValue: 'Start with a free intro call. Everything runs in the Shape app.' })}</p>
-          {cm && sells && W.BSCoachCoachingBlock ? <W.BSCoachCoachingBlock cm={cm} isSelf={isSelf} isNutri={nutri} first={first} ownZero salePlans={sheetPlans} c={ACC} /> : (
-            <div style={{ marginTop: 14 }}>
-              {plansListed ? null : <p style={{ margin: 0, fontSize: 14, lineHeight: 1.5, color: ink(0.74) }}>{isSelf
-                ? tr('profile:trainer.noPricesSelf', { defaultValue: 'Members see your prices here once your listing has a monthly price.' })
-                : tr('profile:trainer.noPrices', { defaultValue: '{name} hasn\'t listed prices on Shape yet. Book a free intro or send a message to ask.', name: first })}</p>}
-              {!isSelf && providerId && !avail.sample ? <button type="button" onClick={() => { setSheet(null); toCamp('day'); }} style={{ marginTop: 12, width: '100%', minHeight: 50, border: 0, background: ACC, color: ON_ACC, fontFamily: DISPLAY, fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>{tr('profile:trainer.pickIntro', { defaultValue: 'Pick an intro time' })}</button> : null}
-              {!isSelf && hasMessage ? <button type="button" onClick={() => { setSheet(null); onMessage(person); }} style={{ marginTop: 8, width: '100%', minHeight: 50, border: `1px solid ${ink(0.22)}`, background: 'transparent', color: INK, fontFamily: DISPLAY, fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>{tr('profile:trainer.message', { defaultValue: 'Message {name}', name: first })}</button> : null}
-              {/* No monthly price, but plans to sell: the plans and the capacity states, without the monthly offer (Codex P2 on #2545). */}
-              {plansListed && cm && W.BSCoachCoachingBlock ? <W.BSCoachCoachingBlock cm={cm} isSelf={isSelf} isNutri={nutri} first={first} ownZero salePlans={ownPlans} c={ACC} noMonthly /> : null}
-            </div>
-          )}
-          {onListing ? <button type="button" data-full-listing="" onClick={() => { setSheet(null); onListing(); }} style={{ ...linkBtn(ACC, DISPLAY), marginTop: 12 }}>{tr('profile:trainer.fullListing', { defaultValue: 'Plans, prices and codes on the full listing' })} →</button> : null}
-        </Sheet>
-      ) : null}
       {sheet && sheet.kind === 'book' ? (
         <BookSheet t={t} tr={tr} locale={locale} ACC={ACC} ON_ACC={ON_ACC} ink={ink} DISPLAY={DISPLAY} slot={sheet.slot} introMin={avail.introMin || 15} first={first} name={name} role={role}
           coach={cm && cm.commerceCoach} onClose={() => setSheet(null)} onRefresh={() => setAvailEpoch((n) => n + 1)} />
@@ -1127,17 +1170,17 @@ function TrainerPage({ theme = null, person, role = 'trainer', onBack, onMessage
           <BSClimbProgramSheet pr={sheet.pr} nutri={nutri} first={first} isSelf={isSelf} color={at >= 0 ? CLIMB_PEAK_COLORS[at % CLIMB_PEAK_COLORS.length] : null}
             item={item ? { desc: item.desc, forSaid: bsStudioForLabel(tr, item.forWho) } : null}
             days={studioModel ? studioModel.workouts.filter((w) => w.kind === 'day' && w.program && w.program.id === String(sheet.pr.id)).sort((a, b) => a.key.localeCompare(b.key, 'en', { numeric: true })) : []}
-            onClose={() => setSheet(null)} onBuy={() => buyProgram(sheet.pr)} onWork={() => setSheet({ kind: 'work' })}
+            onClose={() => setSheet(null)} onBuy={() => buyProgram(sheet.pr)} onWork={toSummit}
             onAsk={hasMessage ? () => { setSheet(null); onMessage(person); } : null} />
         );
       })() : null}
       {sheet && sheet.kind === 'replay' ? (
         <ReplaySheet tr={tr} r={sheet.r} i={sheet.i} setI={(i) => setSheet({ ...sheet, i })} ACC={ACC} DISPLAY={DISPLAY} MONO={MONO} first={first} avatar={avatarShown} isSelf={isSelf}
-          onClose={() => setSheet(null)} onWork={() => setSheet({ kind: 'work' })} t={t} />
+          onClose={() => setSheet(null)} onWork={toSummit} t={t} />
       ) : null}
       {sheet && sheet.kind === 'plateDay' ? (
         <PlateNotesSheet t={t} tr={tr} locale={locale} day={sheet.day} i={sheet.i} setI={(i) => setSheet({ ...sheet, i })} ACC={ACC} DISPLAY={DISPLAY} MONO={MONO} first={first} avatar={avatarShown} isSelf={isSelf}
-          onClose={() => setSheet(null)} onWork={() => setSheet({ kind: 'work' })} onRecipe={(r) => { setSheet(null); setRecipe(r); }} />
+          onClose={() => setSheet(null)} onWork={toSummit} onRecipe={(r) => { setSheet(null); setRecipe(r); }} />
       ) : null}
       {sheet && sheet.kind === 'reviews' ? (
         <Sheet t={t} label={tr('profile:trainer.reviews', { defaultValue: 'Reviews' })} onClose={() => setSheet(null)}>
