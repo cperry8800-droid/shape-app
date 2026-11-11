@@ -675,6 +675,10 @@ export function decideNotifications({ candidates = [], last = {}, prefs = {}, no
       for (const id of clear) { delete state.types[`client_red:${id}`]; delete state.types[`client_amber:${id}`]; }
       state.pendingDigest = state.pendingDigest.filter((i) => !(i && (i.type === 'client_red' || i.type === 'client_amber') && clear.has(i.key)));
     }
+    // ⚠ ONLY ABOUT A CLIENT THIS RUN EVALUATED (CodeRabbit's security check on #2705). The run sees every
+    // client on the roster (coachSeen has each), so an alert still held for one off it, a client the coach
+    // no longer has, is dropped rather than sent. What the memory holds for them is kept (settleCoachMemory).
+    state.pendingDigest = state.pendingDigest.filter((i) => !(i && (i.type === 'client_red' || i.type === 'client_amber') && !Object.prototype.hasOwnProperty.call(seen, i.key)));
     // One that eased from red to amber may go red again: that red is news, so its old stamp goes.
     const prev = last.coachClients && typeof last.coachClients === 'object' ? last.coachClients : {};
     for (const id of Object.keys(seen)) if (seen[id] === 'amber' && prev[id] === 'red') delete state.types[`client_red:${id}`];

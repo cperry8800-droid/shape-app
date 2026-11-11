@@ -327,6 +327,32 @@ test('the hourly run alerts only about the clients the coach still has, and send
   }
 });
 
+test('an alert held for a client off the roster altogether is dropped, live and hourly, and what the memory holds stays (CodeRabbit on #2705)', async () => {
+  // left1 is on neither roster: their coach's app stopped posting them when they left.
+  const held = { type: 'client_red', key: 'left1', sig: 'red:No contact', title: 'Client left1', body: 'No contact in 12 days', route: 'client', data: { providerRole: 'trainer', clientId: 'left1' }, priority: 'high', channels: { push: true }, at: Date.now() - 3600e3 };
+  const state0 = { coachClients: { left1: 'red' }, pendingDigest: [held] };
+  const check = (tables, how) => {
+    assert.deepEqual(sentAs(), ['trainer:t1'], `${how}: only the client on the roster`);
+    const state = docOf(tables, 'notify_state:trainer');
+    assert.ok(!(state.pendingDigest || []).some((i) => i.key === 'left1'), `${how}: the held alert is not kept for later`);
+    assert.equal(state.coachClients.left1, 'red', `${how}: the memory keeps what it had (settleCoachMemory)`);
+  };
+  const live = { user_goals: [{ user_id: 'coach-1', kind: 'notify_state:trainer', data: state0 }] };
+  db = notifyDb(live);
+  actor = { user: { id: 'coach-1' }, role: 'trainer', roles: ['trainer'], supabase: db };
+  delivered.length = 0;
+  assert.equal((await postRoster({ role: 'trainer', clients: [rosterClient('t1', { trainer: daysAgo(8) })] })).status, 200);
+  check(live, 'live');
+  const hourly = { user_goals: [
+    { user_id: 'coach-1', kind: 'notify_snapshot:trainer', data: { role: 'trainer', at: Date.now(), clients: [rosterClient('t1', { trainer: daysAgo(8) })] } },
+    { user_id: 'coach-1', kind: 'notify_state:trainer', data: state0 },
+  ], ...coaching('coach-1', { trainer: ['t1'] }) };
+  db = notifyDb(hourly);
+  delivered.length = 0;
+  await runCron();
+  check(hourly, 'hourly');
+});
+
 // ── The engine audit of 2026-11-11 ─────────────────────────────────────────
 // F1: a roster is posted only when the coach opens the website or the app, and the run read it against
 // the hour it ran, for up to 14 days. Its dates never moved, so a client who logged every day read "No

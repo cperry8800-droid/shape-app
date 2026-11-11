@@ -178,6 +178,8 @@ export default {
       find: "    const own = (i) => !(i && i.data && typeof i.data === 'object' && i.data.providerRole !== undefined);", replace: '    const own = () => true;' },
     { name: 'a purged notice keeps its stamp, and is never sent after the break', file: NOTES,
       find: "    for (const i of purged) if (i && typeof i === 'object') releaseDedup(state.types, i, kept);\n", replace: '' },
+    { name: 'an alert held for a client off the roster altogether is sent (CodeRabbit\'s security check)', file: NOTES,
+      find: "    state.pendingDigest = state.pendingDigest.filter((i) => !(i && (i.type === 'client_red' || i.type === 'client_amber') && !Object.prototype.hasOwnProperty.call(seen, i.key)));\n", replace: '' },
     { name: 'the hourly run does not tell the decision about the break', file: CRON,
       find: 'checkinOptedOut, pushedToday, memberPaused, tr: copy?.tr, coachSeen }', replace: 'checkinOptedOut, pushedToday, tr: copy?.tr, coachSeen }' },
     { name: 'the live route does not tell the decision about the break', file: LIVE,
