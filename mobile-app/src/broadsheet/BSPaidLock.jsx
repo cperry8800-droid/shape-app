@@ -1,6 +1,7 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
 import { bsPaidLockNow, bsNoraLockNow, bsNoraLockOf, bsPastDueNoticeShown, bsPastDueStamp } from '../services/memberGate.mjs';
+import { bsDialogRef } from '../services/dialogBack.mjs';
 // ─── A LOCKED PAID FEATURE (owner, 2026-11-10) ─────────────────────────────────
 // An account is all the app needs; the $5 membership adds assistant Nora (her action cards and
 // her voice), Shape Radio, the AI helpers, Cook Mode's voice and the points Store. Every one of
@@ -368,7 +369,7 @@ export function BSPaidLockSheet({ lock, feature, onClose }) {
   const tr = useShapeTr();
   if (!lock || !t) return null;
   const sheet = (
-    <div role="dialog" aria-modal="true" aria-label={bsPaidFeatureLine(tr, feature)} onClick={onClose}
+    <div ref={bsDialogRef(onClose)} role="dialog" aria-modal="true" aria-label={bsPaidFeatureLine(tr, feature)} onClick={onClose}
       style={{ position: 'absolute', inset: 0, zIndex: 400, display: 'flex', alignItems: 'flex-end', background: 'rgba(3,5,11,0.5)' }}>
       <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', boxSizing: 'border-box', padding: `18px ${t.padX}px max(18px, calc(12px + env(safe-area-inset-bottom, 0px)))`, background: t.PAPER, borderTop: `1px solid ${t.RULE}`, borderRadius: '14px 14px 0 0' }}>
         <BSPaidLock lock={lock} feature={feature} />
@@ -462,7 +463,7 @@ export function BSPlanPickerHost() {
     </button>
   );
   const sheet = (
-    <div role="dialog" aria-modal="true" aria-label={tr('common:paid.plans.title', { defaultValue: 'Pick your plan' })} onClick={() => answer(null)}
+    <div ref={bsDialogRef(() => answer(null))} role="dialog" aria-modal="true" aria-label={tr('common:paid.plans.title', { defaultValue: 'Pick your plan' })} onClick={() => answer(null)}
       style={{ position: 'absolute', inset: 0, zIndex: 420, display: 'flex', alignItems: 'flex-end', background: 'rgba(3,5,11,0.5)' }}>
       <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', boxSizing: 'border-box', padding: `18px ${t.padX}px max(18px, calc(12px + env(safe-area-inset-bottom, 0px)))`, background: t.PAPER, borderTop: `1px solid ${t.RULE}`, borderRadius: '14px 14px 0 0' }}>
         <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: teal }}>{tr('common:paid.plans.eyebrow', { defaultValue: 'Shape membership' })}</div>

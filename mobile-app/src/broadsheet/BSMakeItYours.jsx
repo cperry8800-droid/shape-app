@@ -22,6 +22,7 @@ import { BSLookPicker, BSLookBezel, bsLookPreviewTag, paletteOf, onColor, hexA }
 import { bsLivePreviewLayer } from './BSProfileCustomizer.jsx';
 import { BS_CLEAN_HEAD, BS_CLEAN_SANS } from './bsCleanType.jsx';
 import { bsWsLed } from './bsMagazine.mjs';
+import { bsDialogRef } from '../services/dialogBack.mjs';
 
 // ─── MAKE IT YOURS: the coach's profile editor ────────────────────────────────────────────────
 // Owner, 2026-10-27 (the R7 canvas), then 2026-11-04 (the Studio tab as the coach's work, then
@@ -468,7 +469,7 @@ function RecipeForm({ tr, draft, setDraft, owner, uploadPhoto, onDone, onCancel,
       </div>
       {/* Remove, a recipe already on the page only: quiet, and asked once before it goes. */}
       {onRemove ? (sure ? (
-        <div role="alertdialog" data-remove-ask="" style={{ marginTop: 12, padding: 12, borderRadius: 12, background: E.BG3 }}>
+        <div ref={bsDialogRef(() => setSure(false))} role="alertdialog" data-remove-ask="" style={{ marginTop: 12, padding: 12, borderRadius: 12, background: E.BG3 }}>
           <p style={{ margin: 0, fontSize: 14, lineHeight: 1.45 }}>{tr('profile:mine.removeRecipeAsk', { defaultValue: 'Remove this recipe from your page?' })}</p>
           <div style={{ marginTop: 10, display: 'flex', gap: 8 }}>
             <button type="button" data-remove-recipe="" onClick={onRemove} style={{ ...smallBtn, flex: 1, minHeight: 44, background: E.ERR, color: '#ffffff', border: 0 }}>{tr('profile:mine.remove', { defaultValue: 'Remove' })}</button>

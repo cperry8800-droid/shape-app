@@ -15,8 +15,10 @@ import {
   bsNavPush, bsNavPop, bsNavCanPop, bsNavSize, bsNavClear, bsNavAnnounce,
   bsNavCompose, bsGuardWanted, bsGuardSync, bsPhoneBack, bsGuardPop, bsGuardOnFirstUse, bsNavDropStack,
 } from '../services/navHistory.mjs';
+import { BS_DIALOG_EVENT } from '../services/dialogBack.mjs';
 
-// The Back of the page in front (the chrome's bsTopPageBack: what its ← and a swipe on it do), or null.
+// The Back of the page in front (the chrome's bsTopPageBack: what its ← and a swipe on it do; an open dialog's
+// close first, services/dialogBack.mjs), or null.
 const bsPageBackNow = () => {
   try { return typeof window !== 'undefined' && typeof window.bsTopPageBack === 'function' ? window.bsTopPageBack() : null; }
   catch (e) { return null; }
@@ -115,11 +117,16 @@ export function useBSNavHistory({ navLoc, navResolve }) {
     // has played, so a touch looks again a little later.
     const onTap = () => scheduleSync();
     const onTouchEnd = () => scheduleSync(260);
+    // A dialog that opens or goes without a tap (a timer, a reminder, Escape) is somewhere a Back goes, or
+    // no longer is (services/dialogBack.mjs).
+    const onDialog = () => scheduleSync();
     window.addEventListener('popstate', onPop);
+    window.addEventListener(BS_DIALOG_EVENT, onDialog);
     document.addEventListener('click', onTap, true);
     document.addEventListener('touchend', onTouchEnd, true);
     return () => {
       window.removeEventListener('popstate', onPop);
+      window.removeEventListener(BS_DIALOG_EVENT, onDialog);
       document.removeEventListener('click', onTap, true);
       document.removeEventListener('touchend', onTouchEnd, true);
       if (syncTimer.current) { clearTimeout(syncTimer.current); syncTimer.current = null; }

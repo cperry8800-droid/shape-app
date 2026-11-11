@@ -243,5 +243,9 @@
   "morningSwap.swap": "Canja",
   "morningSwap.keep": "Bar shi",
   "morningSwap.done": "An canja don yau: {recipe}.",
-  "morningSwap.failed": "Ba a adana canjin ba. Sake gwadawa."
+  "morningSwap.failed": "Ba a adana canjin ba. Sake gwadawa.",
+  "prep.goneEyebrow": "Shirin daren yau",
+  "prep.goneTitle": "Wannan girkin ba ya cikin kicin kuma",
+  "prep.goneMessage": "Tunatarwar ta ambaci girkin da kicin ɗin Shape ba shi da shi yanzu, don haka babu abin da za a dafa daga gare ta. Abincin daren yau suna nan a Ci.",
+  "prep.goneOk": "Na gane"
 }

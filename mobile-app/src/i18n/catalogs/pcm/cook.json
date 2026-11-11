@@ -243,5 +243,9 @@
   "morningSwap.swap": "Change am",
   "morningSwap.keep": "Leave am",
   "morningSwap.done": "You don change am for today: {recipe}.",
-  "morningSwap.failed": "The change no save. Try again."
+  "morningSwap.failed": "The change no save. Try again.",
+  "prep.goneEyebrow": "Tonight prep",
+  "prep.goneTitle": "Dis recipe no dey for kitchen again",
+  "prep.goneMessage": "The reminder talk about one recipe wey Shape kitchen no get again, so nothing dey to cook from am. Tonight food dey here for Chop.",
+  "prep.goneOk": "I don hear"
 }

@@ -4,6 +4,7 @@ import { bsValidLivePayload } from '../services/liveProgress.mjs';
 import { useBSLiveRow, useBSLiveMinutes } from './BSWallLive.jsx';
 import { BSMpIcon } from './BSMemberBento.jsx';
 import { BS_CLEAN_HEAD, BS_CLEAN_SANS, BSCleanType } from './bsCleanType.jsx';
+import { bsDialogRef } from '../services/dialogBack.mjs';
 // ─── THE LIVE BOOST SHEET: cheer someone on WHILE they're mid-workout or mid-cook ────────────────
 // Opened from the Wall's online rail and its Training now story (iosAppBroadsheetClient.jsx), and from a
 // coach's Home bulletin (iosAppBroadsheetPros.jsx, through window.BSLiveBoostSheet). It sends a real 1:1
@@ -209,7 +210,7 @@ export function BSLiveBoostSheet({ person, onClose, onOpenProfile }) {
     <BSCleanType t={t}>
     <div className="bs-boost" onClick={onClose} onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); onClose && onClose(); } }}
       style={{ position: 'absolute', inset: 0, zIndex: 240, background: light ? 'rgba(15,14,12,0.42)' : 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', ...anim('bsBoostFade 220ms ease both') }}>
-      <div ref={panelRef} tabIndex={-1} role="dialog" aria-modal="true" data-boost-sheet=""
+      <div ref={bsDialogRef(onClose, panelRef)} tabIndex={-1} role="dialog" aria-modal="true" data-boost-sheet=""
         aria-label={tr('feed:boost.dialogAria', { defaultValue: 'Send {name} a live boost', name: first })}
         onClick={(e) => e.stopPropagation()}
         style={{

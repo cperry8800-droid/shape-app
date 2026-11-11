@@ -243,5 +243,9 @@
   "morningSwap.swap": "Cambiar",
   "morningSwap.keep": "Mantener",
   "morningSwap.done": "Cambiado por hoy: {recipe}.",
-  "morningSwap.failed": "No se guardó el cambio. Inténtalo de nuevo."
+  "morningSwap.failed": "No se guardó el cambio. Inténtalo de nuevo.",
+  "prep.goneEyebrow": "Preparación de esta noche",
+  "prep.goneTitle": "Esta receta ya no está en la cocina",
+  "prep.goneMessage": "El recordatorio nombraba una receta que la cocina de Shape ya no tiene, así que no hay nada que cocinar con él. Las comidas de esta noche están aquí, en Comer.",
+  "prep.goneOk": "Entendido"
 }

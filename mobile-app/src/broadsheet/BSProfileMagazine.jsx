@@ -1,6 +1,7 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
 import { bsWsAccent } from './bsMagazine.mjs';
+import { bsDialogRef } from '../services/dialogBack.mjs';
 
 // The profiles' pieces in the Wall's magazine look (owner, 2026-10-24: the Me page "needs to get cleaned
 // up", then "Design" for the coach profile to match), carved out of the client module as BSIntegrationsPage
@@ -128,7 +129,7 @@ export function BSPhotoViewer({ shots, at, onClose, onStep, labels = {} }) {
   const CREAM = '#f4ede0';
   const key = { flex: 'none', width: 44, height: 44, minHeight: 44, padding: 0, border: 0, borderRadius: 0, background: 'transparent', color: CREAM, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontFamily: MONO, fontSize: 18 };
   const view = (
-    <div role="dialog" aria-modal="true" aria-label={shot.caption || labels.title || ''} data-bs-layer="photo-viewer" data-bs-photo-viewer=""
+    <div ref={bsDialogRef(onClose)} role="dialog" aria-modal="true" aria-label={shot.caption || labels.title || ''} data-bs-layer="photo-viewer" data-bs-photo-viewer=""
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
       style={{ position: 'absolute', inset: 0, zIndex: 300, background: '#0a0a09', color: CREAM, display: 'flex', flexDirection: 'column', padding: 'calc(env(safe-area-inset-top, 0px) + 12px) 12px calc(env(safe-area-inset-bottom, 0px) + 16px)', boxSizing: 'border-box' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, minHeight: 44, padding: '0 4px', borderBottom: `1px solid ${inkA(CREAM, 0.22)}` }}>

@@ -243,5 +243,9 @@
   "morningSwap.swap": "Tauschen",
   "morningSwap.keep": "Behalten",
   "morningSwap.done": "Für heute getauscht: {recipe}.",
-  "morningSwap.failed": "Der Tausch wurde nicht gespeichert. Versuch es noch einmal."
+  "morningSwap.failed": "Der Tausch wurde nicht gespeichert. Versuch es noch einmal.",
+  "prep.goneEyebrow": "Vorbereitung heute Abend",
+  "prep.goneTitle": "Dieses Rezept ist nicht mehr in der Küche",
+  "prep.goneMessage": "Die Erinnerung nannte ein Rezept, das Shapes Küche nicht mehr hat, also gibt es daraus nichts zu kochen. Die Mahlzeiten für heute Abend findest du hier unter Essen.",
+  "prep.goneOk": "Verstanden"
 }

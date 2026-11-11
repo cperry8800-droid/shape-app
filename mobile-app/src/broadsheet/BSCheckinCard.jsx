@@ -4,6 +4,7 @@ import { bsCleanSheet } from './bsCleanType.jsx';
 import { morningReadiness, mrWatchForDay } from '../services/morningReadiness.mjs';
 import { bsCiWordIndex, bsCiIso, bsCiHM, bsCiWords, bsCiLowerIn, bsLeadReason } from '../services/leadReason.mjs';
 import { bsRaised } from './BSProInstrument.jsx';
+import { bsDialogRef } from '../services/dialogBack.mjs';
 
 // The check-in's words and helpers live in the shared module the server reads too; the card, Your
 // mornings and the client module keep importing them from here.
@@ -943,7 +944,7 @@ function BSCheckinDay({ dayIso, openRequest = null, onOpenRequestConsumed = null
     // `bsck-scroll` and `data-bs-layer`: in the native app a drag is routed by getTargetScroller
     // (iosAppBroadsheet.jsx), which scrolled Home behind the sheet, and Finish sat below the fold
     // of a small phone (review on #2398). The class has no style of its own.
-    <div ref={sheetRef} className="bsck-scroll" data-bs-layer="checkin" role="dialog" aria-modal="true" aria-label={tr('home:checkin.title', { defaultValue: 'Morning check-in' })} data-bs-checkin-walk={walk}
+    <div ref={bsDialogRef(close, sheetRef)} className="bsck-scroll" data-bs-layer="checkin" role="dialog" aria-modal="true" aria-label={tr('home:checkin.title', { defaultValue: 'Morning check-in' })} data-bs-checkin-walk={walk}
       onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); close(); } }} style={{ position: 'absolute', inset: 0, zIndex: 250, background: t.PAPER, color: t.INK, display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
       {/* The masthead row (× where a page keeps its corner) and the back row under it: ← Back where
           every page keeps it (owner, 2026-10-31), on every morning screen after the first, the summary

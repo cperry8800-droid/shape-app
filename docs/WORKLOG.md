@@ -94,9 +94,9 @@ The rules and the code map. Every session loads it: when a rule changes, replace
   (account-bound, compare-and-set), `BSPlanDay.jsx`.
 - ⚠ **Window globals** (`Object.assign(window, …)`): read one before its module defines it
   and React throws #130. `iosAppBroadsheetMain.jsx` loads feature modules before role
-  modules, and `loadProsBundle` the whole client bundle first.
-- **Sheets** portal into `#bs-phone-surface`. No visible scrollbars (`index.html`).
-- **Pages** render in `BSPage`: a condensed masthead pins once the page's own scrolls away,
+  modules, `loadProsBundle` the client bundle first.
+- **Sheets** portal into `#bs-phone-surface`, a dialog with `bsDialogRef`. No visible scrollbars.
+- **Pages** render in `BSPage`: a condensed masthead pins once its own scrolls away,
   reading ← and the title past a `BSDetailHeader`'s. A sticky row takes `top: useBSPinnedMastTop()`.
   ⚠ **One place for Back:** a ← ahead of the logo, in the row's `BSMastBackSlot`, which `BSBackRow`
   fills (`BSDetailHeader`, `BSMasthead`/`BSPageHeader` `onBack`); never hand-drawn

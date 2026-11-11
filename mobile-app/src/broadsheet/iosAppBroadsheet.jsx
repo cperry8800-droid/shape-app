@@ -1,5 +1,6 @@
 import React from 'react';
 import { bsSwipeIntent, bsSwipeBackRoute, bsSwipeFollow, bsSwipeBackCommits, BS_SWIPE } from '../services/swipeIntent.mjs';
+import { bsDialogRef, bsIsDialog, bsDialogStays, bsDialogCloseOf, bsPickTopDialog } from '../services/dialogBack.mjs';
 import { bsScrollMemory } from '../services/scrollMemory.mjs';
 import { bsSdUnitizeText, bsSdUnitizeStat, bsSdUnitizeLabel, bsSdMeasure } from '../services/sessionLedger.mjs';
 import { bsWsAccent } from './bsMagazine.mjs';
@@ -707,9 +708,23 @@ function bsMarkedBackIn(el) {
   }
   return null;
 }
+// The newest dialog inside el that is on screen (a sheet's panel under the scrim a touch landed on), or null.
+function bsDialogIn(el) {
+  const list = el.querySelectorAll ? el.querySelectorAll('[role="dialog"], [role="alertdialog"]') : [];
+  for (let i = list.length - 1; i >= 0; i--) if (list[i].getClientRects().length) return list[i];
+  return null;
+}
+// What a Back does to a dialog (services/dialogBack.mjs): a Back marked inside it first (a step of its own,
+// "Back to editing"), else its close; nothing at all on one that must be answered.
+function bsDialogBack(d) {
+  if (bsDialogStays(d)) return bsDialogCloseOf(d);
+  const b = bsMarkedBackIn(d);
+  return b ? () => b.click() : bsDialogCloseOf(d);
+}
 // The Back nearest a touch and what to slide with the finger: walking out from the touch, a page's
-// registered Back or a marked Back, whichever comes first. The walk ends at the page or layer the
-// touch is in, so nothing behind it answers. { page, back }: back is a function or null.
+// registered Back, a dialog's close or a marked Back, whichever comes first. The walk ends at the page,
+// dialog or layer the touch is in, so nothing behind it answers. { page, back, dialog }: back is a
+// function or null; dialog is true when the touch is in a dialog or its scrim, whose swipe is only Back.
 function bsPageBackFor(target, surf) {
   const stop = surf || document.getElementById('bs-phone-surface');
   const surfH = (stop && stop.clientHeight) || (typeof window !== 'undefined' ? window.innerHeight : 0);
@@ -721,8 +736,15 @@ function bsPageBackFor(target, surf) {
       const back = get ? get() : null;
       if (back) return { page: layer || bsPageOuter(el), back };
     }
+    // A dialog closes before anything behind it answers.
+    if (bsIsDialog(el)) return { page: layer || el, back: bsDialogBack(el), dialog: true };
     const isLayer = !layer && bsIsLayer(el, getComputedStyle(el), surfH);
-    if (isLayer) layer = el;
+    if (isLayer) {
+      layer = el;
+      // A touch on a sheet's scrim: the sheet in it is the one in front.
+      const d = bsDialogIn(el);
+      if (d) return { page: el, back: bsDialogBack(d), dialog: true };
+    }
     const b = bsMarkedBackIn(el);
     if (b) return { page: layer || bsPageOuter(el.closest('[data-bs-page]')), back: () => b.click() };
     if (isLayer || (isPage && bsPageOuter(el) === el)) break;
@@ -736,12 +758,37 @@ function bsPageBackFor(target, surf) {
 // phone's back closes Search's person view onto Search, a Goals station onto its cover, a meal's preview
 // onto its page, as the ← in front of the reader does. null on a page with no Back of its own (a root
 // tab), where the shell's history decides. Read at the moment of the back, never cached.
+// ⚠ A DIALOG IN FRONT CLOSES FIRST (services/dialogBack.mjs): an open sheet is in front of its page, so
+// the phone's back closes it before the page's ← and the shell's history, and does nothing at all on one
+// that must be answered (it never leaves the app under it). A bottom sheet need not cover the middle of
+// the phone, so each dialog is looked at on its own: it is in front when what is drawn at its centre is
+// its own.
+function bsTopDialog(surf) {
+  const r = surf.getBoundingClientRect();
+  const clamp = (v, lo, hi) => Math.min(Math.max(v, lo), hi);
+  const list = [];
+  for (const el of document.querySelectorAll('[role="dialog"], [role="alertdialog"]')) {
+    if (!surf.contains(el)) continue;
+    const b = el.getBoundingClientRect();
+    if (!b.width || !b.height) { list.push({ el, onTop: false }); continue; }
+    const x = clamp(b.left + b.width / 2, Math.max(r.left, b.left), Math.min(r.right, b.right) - 1);
+    const y = clamp(b.top + b.height / 2, Math.max(r.top, b.top), Math.min(r.bottom, b.bottom) - 1);
+    const hit = document.elementFromPoint(x, y);
+    list.push({ el, onTop: !!hit && el.contains(hit), hit });
+  }
+  const top = bsPickTopDialog(list);
+  return top ? list.find((d) => d.el === top) : null;
+}
 function bsTopPageBack() {
   if (typeof document === 'undefined' || typeof document.elementFromPoint !== 'function') return null;
   const surf = document.getElementById('bs-phone-surface');
   if (!surf) return null;
   const r = surf.getBoundingClientRect();
   if (!r.width || !r.height) return null;
+  const top = bsTopDialog(surf);
+  // Walked from inside it, so a page inside the dialog (an area of Make it yours) answers with its own ←;
+  // a walk that stops short of it (a layer drawn inside it) leaves its close.
+  if (top) return bsPageBackFor(top.hit, surf).back || bsDialogBack(top.el);
   const el = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
   if (!el || !surf.contains(el)) return null;
   return bsPageBackFor(el, surf).back;
@@ -2081,7 +2128,7 @@ function BSConfirmSheet({ opts, onCancel, onConfirm }) {
   const eyebrow = o.eyebrow || (notice ? 'Notice' : danger ? "Confirm · this can't be undone" : 'Confirm');
   return (
     <div onClick={onCancel} style={{ position: 'absolute', inset: 0, zIndex: 4200, background: 'rgba(8,7,6,0.6)', display: 'flex', alignItems: 'flex-end' }}>
-      <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', background: t.PAPER, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderTop: `1px solid ${t.RULE}`, borderLeft: `3px solid ${accent}`, padding: `20px ${t.padX || 18}px calc(20px + env(safe-area-inset-bottom, 0px))` }}>
+      <div ref={bsDialogRef(onCancel)} role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()} style={{ width: '100%', background: t.PAPER, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderTop: `1px solid ${t.RULE}`, borderLeft: `3px solid ${accent}`, padding: `20px ${t.padX || 18}px calc(20px + env(safe-area-inset-bottom, 0px))` }}>
         <div style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: accent }}>{eyebrow}</div>
         <div style={{ fontFamily: t.DISPLAY, fontSize: 21, fontWeight: 700, letterSpacing: '-0.02em', color: t.INK, margin: '5px 0 0' }}>{o.title || 'Are you sure?'}</div>
         {o.name && <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, color: accent, margin: '3px 0 0' }}>{o.name}</div>}
@@ -2621,7 +2668,13 @@ function bsSwipeBlocked(target, surf) {
     // mast / tab bar / composer slot, all short strips).
     // ⚠ A layer with its own Back (a full-screen view drawn over the page: Make it yours, the
     // calendar) is a page: the swipe is its, and goes back the way its Back does.
-    if (bsIsLayer(el, s, surfH)) return !bsMarkedBackIn(el);
+    // ⚠ A dialog's swipe is its Back (services/dialogBack.mjs), and is blocked only on one that must be
+    // answered; a touch on a sheet's scrim is the sheet's.
+    if (bsIsDialog(el)) return bsDialogStays(el);
+    if (bsIsLayer(el, s, surfH)) {
+      const d = bsDialogIn(el);
+      return d ? bsDialogStays(d) : !bsMarkedBackIn(el);
+    }
     el = el.parentElement;
   }
   return false;
@@ -2774,13 +2827,15 @@ function BSNavGestures() {
       // bsSwipeBlocked reads in both directions, had cost the thread its right-swipe Back).
       if (intent === 'next-tab' && st.target && st.target.closest && st.target.closest('[data-bs-noswipe-left]')) return;
       // A page with its own Back goes back the way that Back does (bsSwipeBackRoute).
-      const { back } = bsPageBackFor(st.target, surf);
+      const { back, dialog } = bsPageBackFor(st.target, surf);
       if (bsSwipeBackRoute({ intent, hasPageBack: !!back }) === 'page') {
         bsMarkBack();
         back();
         settleIn(st.cx + 60, st.y0);
         return;
       }
+      // On a dialog a swipe is only its Back: never the next tab under it.
+      if (dialog) return;
       dispatch(intent);
     };
     const onCancel = () => { if (drag) { springBack(drag); drag = null; } start = null; };

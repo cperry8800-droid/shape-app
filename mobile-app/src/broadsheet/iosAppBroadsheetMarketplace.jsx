@@ -27,6 +27,7 @@ import { bsPlanPreview } from '../services/planPreview.mjs';
 import { bsNormalizeListingMedia } from '../services/listingMedia.mjs';
 // The directory ("Find your coach.") draws in its own module; this one keeps every rule it reads.
 import { BSMarketDirectory } from './BSMarketDirectory.jsx';
+import { bsDialogRef } from '../services/dialogBack.mjs';
 
 // The i18n translator for this module. Mirrors client.jsx's useShapeTr —
 // self-contained on the window globals (ShapeI18n/ShapeLocale), so this module
@@ -1800,6 +1801,7 @@ function BSPlanPreviewSheet({ plan, isNutri, roleColor, teal, onBuy, onClose }) 
   const sheet = (
     <div onClick={onClose} style={{ position: 'absolute', inset: 0, zIndex: 210, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end' }}>
       <div
+        ref={bsDialogRef(onClose)}
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
@@ -2956,7 +2958,7 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
         const rows = includes.length ? includes : (Array.isArray(monthlyPkg.perks) ? monthlyPkg.perks : []);
         return (
           <div onClick={() => setOfferSheet(false)} style={{ position: 'absolute', inset: 0, zIndex: 70, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end' }}>
-            <div onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={tr('marketplace:offer.aria', { defaultValue: "What {name}'s monthly coaching includes", name: firstName })} style={{ width: '100%', boxSizing: 'border-box', maxHeight: '78%', overflowY: 'auto', background: t.PAPER, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderTop: `1px solid ${t.RULE}`, padding: `18px ${t.padX}px calc(18px + env(safe-area-inset-bottom, 0px))`, boxShadow: '0 -20px 50px rgba(0,0,0,0.4)' }} className="bs-hide-scroll">
+            <div ref={bsDialogRef(() => setOfferSheet(false))} onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={tr('marketplace:offer.aria', { defaultValue: "What {name}'s monthly coaching includes", name: firstName })} style={{ width: '100%', boxSizing: 'border-box', maxHeight: '78%', overflowY: 'auto', background: t.PAPER, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderTop: `1px solid ${t.RULE}`, padding: `18px ${t.padX}px calc(18px + env(safe-area-inset-bottom, 0px))`, boxShadow: '0 -20px 50px rgba(0,0,0,0.4)' }} className="bs-hide-scroll">
               <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.22em', textTransform: 'uppercase', color: roleColor }}>{tr('marketplace:offer.eyebrow', { defaultValue: 'Monthly coaching' })}{blurb ? '' : ` · ${tr('marketplace:offer.standard', { defaultValue: 'Standard' })}`}</div>
               <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 22, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK, lineHeight: 1.1 }}>{tr('marketplace:listing.coachedMonthly', { defaultValue: 'Coached by {name}, monthly', name: firstName })}<span style={{ color: roleColor }}>.</span></div>
               <div aria-hidden style={{ margin: '12px 0 2px', height: 2, background: `linear-gradient(90deg, ${t.INK}, ${teal} 72%, transparent)` }} />

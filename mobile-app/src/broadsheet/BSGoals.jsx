@@ -4,6 +4,7 @@ import { bsGoalVerdict, bsGoalPct, bsGoalRemaining } from '../services/goalContr
 import { bsCiIso, bsCiShift } from './BSCheckinCard.jsx';
 import { bsDash, bsDashA, BSDashCard, BSDashRing } from './BSDash.jsx';
 import { bsUserGoalsRevHook } from '../services/userGoalsRefresh.mjs';
+import { bsDialogRef } from '../services/dialogBack.mjs';
 const useBSUserGoalsRev = bsUserGoalsRevHook(React);
 const BS_GOALS_PAGE_KINDS = ['client_goals', 'client_identity'];
 // ─── GOALS: THE PAGE, ITS CONTRACT AND ITS SHEETS ─────────────────────────────────────────────────
@@ -989,7 +990,7 @@ function BSHeadlineEditSheet({ meta, accent, onClose, onSave }) {
   const field = { width: '100%', boxSizing: 'border-box', padding: '6px 0 10px', fontFamily: t.DISPLAY, fontSize: 16.5, fontWeight: 600, color: t.INK, outline: 'none', '--bs-uline-ink': bsTHexA(t.INK, 0.25) };
   const sheet = (
     <div onClick={onClose} style={{ position: 'absolute', inset: 0, zIndex: 60, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end' }}>
-      <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', boxSizing: 'border-box', background: t.PAPER, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderTop: `1px solid ${t.RULE}`, padding: `18px ${t.padX}px calc(18px + env(safe-area-inset-bottom, 0px))`, boxShadow: '0 -20px 50px rgba(0,0,0,0.4)', '--bs-accent': accent }}>
+      <div ref={bsDialogRef(onClose)} role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()} style={{ width: '100%', boxSizing: 'border-box', background: t.PAPER, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderTop: `1px solid ${t.RULE}`, padding: `18px ${t.padX}px calc(18px + env(safe-area-inset-bottom, 0px))`, boxShadow: '0 -20px 50px rgba(0,0,0,0.4)', '--bs-accent': accent }}>
         <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.22em', textTransform: 'uppercase', color: accent }}>{tr('goal:headline.eyebrow', { defaultValue: 'Edit · Headline' })}</div>
         <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 28, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK, lineHeight: 1 }}>{tr('goal:headline.titlePre', { defaultValue: 'Your' })} <span style={{ fontStyle: 'italic', color: accent }}>{tr('goal:headline.titleAccent', { defaultValue: 'headline.' })}</span></div>
         <div aria-hidden style={{ marginTop: 11, height: 2, borderRadius: 2, background: `linear-gradient(90deg, ${t.INK}, ${accent} 72%, transparent)` }} />
@@ -1034,7 +1035,7 @@ function BSWeighInSheet({ overall, onClose, onSave }) {
   const ok = Number.isFinite(val) && val > 0;
   const sheet = (
     <div onClick={onClose} style={{ position: 'absolute', inset: 0, zIndex: 60, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end' }}>
-      <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', boxSizing: 'border-box', background: t.PAPER, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderTop: `1px solid ${t.RULE}`, padding: `18px ${t.padX}px 18px`, boxShadow: '0 -20px 50px rgba(0,0,0,0.4)', '--bs-accent': teal }}>
+      <div ref={bsDialogRef(onClose)} role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()} style={{ width: '100%', boxSizing: 'border-box', background: t.PAPER, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderTop: `1px solid ${t.RULE}`, padding: `18px ${t.padX}px 18px`, boxShadow: '0 -20px 50px rgba(0,0,0,0.4)', '--bs-accent': teal }}>
         <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.22em', textTransform: 'uppercase', color: teal }}>{tr('goal:weighIn.eyebrow', { defaultValue: 'Log · Weigh-in' })}</div>
         <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 28, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK, lineHeight: 1 }}>{tr('goal:weighIn.titlePre', { defaultValue: "Today's" })} <span style={{ fontStyle: 'italic', color: teal }}>{tr('goal:weighIn.titleAccent', { defaultValue: 'weight.' })}</span></div>
         <div aria-hidden style={{ marginTop: 11, height: 2, borderRadius: 2, background: `linear-gradient(90deg, ${t.INK}, ${teal} 72%, transparent)` }} />

@@ -19,6 +19,7 @@ import {
 import {
   createTempoDetector, tempoEnergyFromBins, tempoBarStep, tempoBeatsBetween,
 } from '../../../public/newdesign/radioTempo.mjs';
+import { bsDialogRef } from '../services/dialogBack.mjs';
 // iosAppBroadsheetRadio.jsx — Shape Radio in the Broadsheet visual language.
 // Provides:
 //   • BSRadioPrompt    — full-screen overlay asking "Listen to Shape Radio while in the app?"
@@ -1405,7 +1406,7 @@ function BSSongCommentsSheet({ t, tr, title, artist, social, onComment, onClose 
   const surface = (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || null;
   const sheet = (
     <div onClick={onClose} style={{ position: 'absolute', inset: 0, zIndex: 200, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'flex-end' }}>
-      <div onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={tr('radio:social.commentsOn', { title, defaultValue: 'Comments on {title}' })}
+      <div ref={bsDialogRef(onClose)} onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={tr('radio:social.commentsOn', { title, defaultValue: 'Comments on {title}' })}
         style={{ width: '100%', maxHeight: '80%', display: 'flex', flexDirection: 'column',
           background: '#0b0f0f', borderTop: `2px solid ${TEAL}`, borderTopLeftRadius: 16, borderTopRightRadius: 16, color: CREAM }}>
         {/* Header */}

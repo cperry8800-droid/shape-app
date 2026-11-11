@@ -2,6 +2,7 @@ import React from 'react';
 import { createPortal } from 'react-dom';
 import { BS_CLEAN_HEAD, BS_CLEAN_SANS, BSCleanType } from './bsCleanType.jsx';
 import { bsRaised } from './BSProInstrument.jsx';
+import { bsDialogRef } from '../services/dialogBack.mjs';
 // ─── THE FINISH POP-UP: how hard it was, how much they enjoyed it, then Save ────────────────────
 // The owner's ask (2026-11-04): "at the end of each workout, have a pop up appear where the client
 // ranks workout from level of difficulty to enjoyment/satisfication". When a workout ends (Finish
@@ -185,7 +186,7 @@ export function BSSessionFinish({ finish: F }) {
   const sheet = (
     <div ref={dimRef} data-finish-dim="" style={{ position: 'absolute', inset: 0, zIndex: 200, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', background: light ? 'rgba(20,18,15,0.42)' : 'rgba(0,0,0,0.58)', animation: still ? 'none' : 'bsFinishDim 180ms ease-out' }}>
       {still ? null : <style>{BS_FINISH_MOTION}</style>}
-      <div role="dialog" aria-modal="true" aria-labelledby="bs-finish-title" data-finish-sheet="" className="bs-scroll"
+      <div ref={bsDialogRef(F.saveState === 'saving' || F.pending ? null : F.onEdit)} role="dialog" aria-modal="true" aria-labelledby="bs-finish-title" data-finish-sheet="" className="bs-scroll"
         style={{ ...plate, borderRadius: 0, borderTopLeftRadius: 24, borderTopRightRadius: 24, borderBottom: 0, width: '100%', boxSizing: 'border-box', maxHeight: '92%', overflowX: 'hidden', overflowY: 'auto', overscrollBehavior: 'contain', padding: `8px ${px}px calc(18px + env(safe-area-inset-bottom, 0px))`, color: INK, animation: still ? 'none' : 'bsFinishUp 260ms cubic-bezier(0.2, 0.8, 0.2, 1)' }}>
         <div aria-hidden style={{ width: 38, height: 4, borderRadius: 999, background: hexA(INK, 0.2), margin: '0 auto 2px' }} />
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>

@@ -39,7 +39,7 @@ const client = stripComments(fs.readFileSync(CLIENT, 'utf8'));
 
 test('the module exports the sheet, imports no host module, and carries its own translator', () => {
   assert.deepEqual([...finishSrc.matchAll(/^export (?:function|const) (\w+)/gm)].map((m) => m[1]), ['BSSessionFinish']);
-  assert.deepEqual([...finishSrc.matchAll(/^import .* from '([^']+)';/gm)].map((m) => m[1]), ['react', 'react-dom', './bsCleanType.jsx', './BSProInstrument.jsx']);
+  assert.deepEqual([...finishSrc.matchAll(/^import .* from '([^']+)';/gm)].map((m) => m[1]), ['react', 'react-dom', './bsCleanType.jsx', './BSProInstrument.jsx', '../services/dialogBack.mjs']);
   assert.match(finishSrc, /^function useShapeTr\(\) \{/m);
   assert.equal((finishSrc.match(/window\.ShapeI18n/g) || []).length, 1, 'window.ShapeI18n is read only inside useShapeTr()');
   assert.match(finishSrc, /^export function BSSessionFinish\(\{ finish: F \}\) \{\n  const \{ useBS, bsSdReduced \} = window;/m);

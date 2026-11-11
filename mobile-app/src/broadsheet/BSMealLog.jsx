@@ -7,6 +7,7 @@ import { bsMealSharePayload } from '../../../public/newdesign/mealShare.mjs';
 import { BS_CLEAN_HEAD, BS_CLEAN_SANS, BSCleanType } from './bsCleanType.jsx';
 import { bsMpGlass, bsMpGradText } from './BSMemberBento.jsx';
 import { bsRaised } from './BSProInstrument.jsx';
+import { bsDialogRef } from '../services/dialogBack.mjs';
 // ─── LOG A MEAL · THE SHEET AND ITS FILED STAMP (owner, 2026-11-04) ─────────────────────────────────
 // The Log meal sheet (BSLogMealFlow: Home's "Log Lunch →", the Up next card, a planned meal's Log Now)
 // and the filed stamp after it, which the one-tap from a meal's own page shows too (BSMealLogged: Eat →
@@ -1063,7 +1064,7 @@ export function BSLogMealFlow({ onClose, onLogged = () => {}, meal = null, daySo
           : (foodRecents === null || liveRows.length ? tr('nutrition:log.recents', { defaultValue: 'Recents' }) : tr('nutrition:log.noRecents', { defaultValue: 'No recents yet — search or enter manually' }));
         return createPortal((
           <div onClick={() => setShowAddFood(false)} style={{ position: 'absolute', inset: 0, zIndex: 6000, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'flex-end' }}>
-            <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', background: t.PAPER, borderTopLeftRadius: 20, borderTopRightRadius: 20, borderTop: `1px solid ${t.RULE}`, padding: `18px ${t.padX}px calc(20px + env(safe-area-inset-bottom, 0px))`, boxShadow: '0 -16px 40px rgba(0,0,0,0.35)', maxHeight: '80%', overflowY: 'auto' }}>
+            <div ref={bsDialogRef(() => setShowAddFood(false))} role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()} style={{ width: '100%', background: t.PAPER, borderTopLeftRadius: 20, borderTopRightRadius: 20, borderTop: `1px solid ${t.RULE}`, padding: `18px ${t.padX}px calc(20px + env(safe-area-inset-bottom, 0px))`, boxShadow: '0 -16px 40px rgba(0,0,0,0.35)', maxHeight: '80%', overflowY: 'auto' }}>
               <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50, marginBottom: 12 }}>{tr('nutrition:log.addFood', { defaultValue: 'Add food' })}</div>
               {signedIn ? (
                 <>
@@ -1136,7 +1137,7 @@ export function BSLogMealFlow({ onClose, onLogged = () => {}, meal = null, daySo
         const inputStyle = { width: '100%', boxSizing: 'border-box', padding: '12px 13px', borderRadius: t.RADIUS_SM, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 500, outline: 'none' };
         return createPortal((
           <div onClick={() => setEditIng(null)} style={{ position: 'absolute', inset: 0, zIndex: 6000, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'flex-end' }}>
-            <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', background: t.PAPER, borderTopLeftRadius: 20, borderTopRightRadius: 20, borderTop: `1px solid ${t.RULE}`, padding: `18px ${t.padX}px calc(20px + env(safe-area-inset-bottom, 0px))`, boxShadow: '0 -16px 40px rgba(0,0,0,0.35)' }}>
+            <div ref={bsDialogRef(() => setEditIng(null))} role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()} style={{ width: '100%', background: t.PAPER, borderTopLeftRadius: 20, borderTopRightRadius: 20, borderTop: `1px solid ${t.RULE}`, padding: `18px ${t.padX}px calc(20px + env(safe-area-inset-bottom, 0px))`, boxShadow: '0 -16px 40px rgba(0,0,0,0.35)' }}>
               <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50, marginBottom: 12 }}>{editIng.index == null ? tr('nutrition:log.addIngredient', { defaultValue: 'Add ingredient' }) : tr('nutrition:log.editIngredient', { defaultValue: 'Edit ingredient' })}</div>
               <input autoFocus value={editIng.name} placeholder={tr('nutrition:log.ingredientPlaceholder', { defaultValue: 'Ingredient' })} onChange={(e) => setEditIngField('name', e.target.value)} style={inputStyle} />
               <input value={editIng.qty} placeholder={tr('nutrition:log.portionPlaceholder', { defaultValue: 'Portion · e.g. 1 cup' })} onChange={(e) => setEditIngField('qty', e.target.value)} style={{ ...inputStyle, marginTop: 8 }} />

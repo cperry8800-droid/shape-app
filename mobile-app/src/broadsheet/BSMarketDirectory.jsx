@@ -2,6 +2,7 @@ import React from 'react';
 import { createPortal } from 'react-dom';
 import { bsDash, bsDashA } from './BSDash.jsx';
 import { useBSClean, BSCleanType, bsCleanSheet } from './bsCleanType.jsx';
+import { bsDialogRef } from '../services/dialogBack.mjs';
 // ─── THE COACHES TAB ("Coaches.") ────────────────────────────────────────────────────────────────
 // Owner, 2026-11-09, of three placements and three looks: "place-1" (a sixth tab in the member's nav,
 // Coaches, between Eat and Chat) in "look-B" (the Browse list), then option 1 of three filter
@@ -296,7 +297,7 @@ function MktDirFilterSheet({ f }) {
   return (
     <div data-mkt-sheet="" onClick={f.onClose} style={{ position: 'absolute', inset: 0, zIndex: 200, background: 'rgba(6,5,4,0.48)', display: 'flex', alignItems: 'flex-end' }}>
       <style>{MKT_DIR_CSS(teal, t.INK50)}</style>
-      <div role="dialog" aria-modal="true" aria-label={tr('marketplace:filters.title', { defaultValue: 'Filters' })} onClick={(e) => e.stopPropagation()}
+      <div ref={bsDialogRef(f.onClose)} role="dialog" aria-modal="true" aria-label={tr('marketplace:filters.title', { defaultValue: 'Filters' })} onClick={(e) => e.stopPropagation()}
         style={{ width: '100%', maxHeight: '88%', display: 'flex', flexDirection: 'column', boxSizing: 'border-box', background: t.PAPER, color: t.INK, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderTop: `1px solid ${bsDashA(t.INK, 0.12)}`, boxShadow: '0 -18px 40px rgba(0,0,0,0.35)' }}>
         <div aria-hidden="true" style={{ width: 36, height: 4, borderRadius: 9, background: bsDashA(t.INK, 0.22), margin: '8px auto 0' }} />
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: `2px ${t.padX - 6}px 0 ${t.padX}px` }}>

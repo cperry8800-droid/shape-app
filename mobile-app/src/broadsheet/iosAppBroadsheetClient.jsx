@@ -131,6 +131,7 @@ import { bsVoiceBody, bsVoiceFromMetadata, bsVoicePreview } from '../services/vo
 import { BSSearchKitchenRecipe } from './BSSearchKitchenRecipe.jsx';
 import { BSFocusTitle, BSFocusLead, BSFocusCountdown, BSFocusActions, BSFocusLink, BSFocusMealShop } from './BSFocus.jsx';
 import { bsFocusMin, bsFocusArrival, bsFocusUntil, bsFocusPrevStop, bsFocusSlot, bsSaveShopBy, bsReadSkippedMeals, bsSaveSkippedMeals, bsGroceryItemKey, bsMealShopItems, bsGroceryIsGot, bsReadGotItems, bsSaveGotItems, bsToggleGot } from '../services/focusLayout.mjs';
+import { bsDialogRef } from '../services/dialogBack.mjs';
 
 // Every call to Shape's server goes through the backend's ShapeApi.fetch: the API base in
 // front and the live sign-in token. A root-relative '/api/…' fetch reaches nothing in the
@@ -1819,7 +1820,7 @@ function BSHomeCards({ t, todayLabel, ctx, openers = {} }) {
           {menuOpen && menuPos && createPortal(
             <>
               <div onClick={() => setMenuOpen(false)} style={{ position: 'absolute', inset: 0, zIndex: 9998 }} />
-              <div ref={cardsMenuRef} className="bs-scroll" style={{
+              <div ref={bsDialogRef(() => setMenuOpen(false), cardsMenuRef)} role="dialog" className="bs-scroll" style={{
                 position: 'absolute', top: menuPos.top, right: menuPos.right, zIndex: 9999, width: 210,
                 maxHeight: menuPos.maxH, overflowY: 'auto',
                 background: t.PAPER, border: `1px solid ${t.INK}`, borderRadius: 12,
@@ -2545,7 +2546,7 @@ function BSMyRecipeSheet({ onClose, onSaved }) {
   // what every sibling sheet in this file already does.
   const sheet = (
     <div onClick={() => !busy && onClose()} style={{ position: 'absolute', inset: 0, zIndex: 80, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end' }}>
-      <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxHeight: '92%', overflowY: 'auto', boxSizing: 'border-box', background: t.PAPER, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderTop: `1px solid ${t.RULE}`, padding: `18px ${t.padX}px calc(18px + env(safe-area-inset-bottom, 0px))`, boxShadow: '0 -20px 50px rgba(0,0,0,0.4)' }}>
+      <div ref={bsDialogRef(busy ? null : onClose)} role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxHeight: '92%', overflowY: 'auto', boxSizing: 'border-box', background: t.PAPER, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderTop: `1px solid ${t.RULE}`, padding: `18px ${t.padX}px calc(18px + env(safe-area-inset-bottom, 0px))`, boxShadow: '0 -20px 50px rgba(0,0,0,0.4)' }}>
         <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.22em', textTransform: 'uppercase', color: teal }}>
           {tr('nutrition:myRecipe.eyebrow', { defaultValue: 'Your recipe' })}
         </div>
@@ -3015,7 +3016,7 @@ function BSLibraryDetail({ item, onBack, myDoc = null }) {
       <BSFooter right="Library" />
       {startSheet && (
         <div onClick={() => !starting && setStartSheet(false)} style={{ position: 'absolute', inset: 0, zIndex: 70, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end' }}>
-          <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', boxSizing: 'border-box', background: t.PAPER, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderTop: `1px solid ${t.RULE}`, padding: `18px ${t.padX}px calc(18px + env(safe-area-inset-bottom, 0px))`, boxShadow: '0 -20px 50px rgba(0,0,0,0.4)', '--bs-accent': teal }}>
+          <div ref={bsDialogRef(starting ? null : () => setStartSheet(false))} role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()} style={{ width: '100%', boxSizing: 'border-box', background: t.PAPER, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderTop: `1px solid ${t.RULE}`, padding: `18px ${t.padX}px calc(18px + env(safe-area-inset-bottom, 0px))`, boxShadow: '0 -20px 50px rgba(0,0,0,0.4)', '--bs-accent': teal }}>
             <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.22em', textTransform: 'uppercase', color: teal }}>Start plan</div>
             <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 24, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK, lineHeight: 1 }}>{item.title}</div>
             <div aria-hidden style={{ margin: '12px 0 14px', height: 2, borderRadius: 2, background: `linear-gradient(90deg, ${t.INK}, ${teal} 72%, transparent)` }} />
@@ -3547,7 +3548,6 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
   // unconditionally at the top level, never inside JSX below the early-return
   // overlays. Step 3's shelf JSX reads this const directly.
   const stepsToday = useBSStepsToday();
-  const [previewMeal, setPreviewMeal] = useStateBSC(null);
   // Today's session (`true`), or the one Team opened ({ workout, day }); a Back to it opens it again
   // (initialPage 'today', its preview the shell's homeStartPreview).
   const [showWorkoutPreview, setShowWorkoutPreview] = useStateBSC(initialPage === 'today' ? (initialPreview || true) : false);
@@ -3640,7 +3640,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
   const [checkinOpenReq, setCheckinOpenReq] = useStateBSC(null);
   React.useEffect(() => {
     if (!checkinOpen || !checkinOpen.nonce) return;
-    setPreviewMeal(null); setShowWorkoutPreview(false); setShowLogMeal(false); setHabitsPage(false);
+    setShowWorkoutPreview(false); setShowLogMeal(false); setHabitsPage(false);
     setCheckinPage(false); setHomeProgressPage(false); setGoalsPage(false); setStepsHistory(false);
     setMorningsPage(false); setCheckinOpenReq(checkinOpen.nonce);
     onCheckinOpenConsumed();
@@ -3872,11 +3872,6 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
     ? 'Log a meal to see where today lands against your goal.'
     : (hasLiveBalance ? energy.tail : `${macros.note} ${energy.tail}`);
 
-  if (previewMeal) {
-    return <BSMealPreview meal={previewMeal} onBack={() => setPreviewMeal(null)} onLog={() => { setMealToLog(previewMeal); setLoggingMealId(previewMeal.id); setShowLogMeal(true); setPreviewMeal(null); }}
-      onFiled={() => { const id = previewMeal && previewMeal.id; if (id != null) setMealLogged((prev) => ({ ...prev, [id]: true })); }}
-      onUnfiled={() => { const id = previewMeal && previewMeal.id; if (id != null) setMealLogged((prev) => { const n = { ...prev }; delete n[id]; return n; }); }} />;
-  }
   if (showWorkoutPreview) {
     // `true` is today's session (Your move); { workout, day } is the one Team opened, the picked day's, with
     // its date (Codex P1 on #2599).
@@ -4677,7 +4672,7 @@ function BSPlaylistCard({ kicker, title, meta, color, spotifyUrl, url, provider,
   // it carries the clean area's mark for its weights (Codex on #2488). Elsewhere it is as it was.
   const sheet = open ? createPortal(bsCleanSheet(t,
     <div onClick={() => setOpen(false)} style={{ position: 'absolute', inset: 0, zIndex: 200, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
-      <div onClick={e => e.stopPropagation()} className="bs-scroll" style={{ width: '100%', background: t.PAPER, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: `18px ${t.padX}px calc(20px + env(safe-area-inset-bottom, 0px))`, maxHeight: '82%', overflowY: 'auto', borderTop: `1px solid ${t.RULE}` }}>
+      <div ref={bsDialogRef(() => setOpen(false))} role="dialog" aria-modal="true" onClick={e => e.stopPropagation()} className="bs-scroll" style={{ width: '100%', background: t.PAPER, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: `18px ${t.padX}px calc(20px + env(safe-area-inset-bottom, 0px))`, maxHeight: '82%', overflowY: 'auto', borderTop: `1px solid ${t.RULE}` }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
           <div style={{ width: 42, height: 42, flexShrink: 0, borderRadius: 11, background: color, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{glyph(24, '#fff')}</div>
           <div style={{ flex: 1, minWidth: 0 }}>
@@ -4804,7 +4799,7 @@ function BSSwapSheet({ title, subtitle, options, onPick, onClose }) {
   const t = useBS();
   return createPortal(
     <div onClick={onClose} style={{ position: 'absolute', inset: 0, zIndex: 200, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
-      <div onClick={e => e.stopPropagation()} className="bs-scroll" style={{ width: '100%', background: t.PAPER, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: `18px ${t.padX}px calc(20px + env(safe-area-inset-bottom, 0px))`, maxHeight: '78%', overflowY: 'auto', borderTop: `1px solid ${t.RULE}` }}>
+      <div ref={bsDialogRef(onClose)} role="dialog" aria-modal="true" onClick={e => e.stopPropagation()} className="bs-scroll" style={{ width: '100%', background: t.PAPER, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: `18px ${t.padX}px calc(20px + env(safe-area-inset-bottom, 0px))`, maxHeight: '78%', overflowY: 'auto', borderTop: `1px solid ${t.RULE}` }}>
         <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.ACCENT, fontWeight: 700 }}>{title}</div>
         {subtitle && <div style={{ fontFamily: t.DISPLAY, fontSize: 19, fontWeight: 700, color: t.INK, marginTop: 4, letterSpacing: '-0.02em' }}>{subtitle}</div>}
         <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -5141,7 +5136,7 @@ function BSWorkoutBuilder({ seed, onClose, onSaved }) {
           Nothing is saved here; the draft just fills the week-by-week list. */}
       {draft && (
         <div onClick={() => !drafting && setDraft(null)} style={{ position: 'absolute', inset: 0, zIndex: 70, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end' }}>
-          <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', boxSizing: 'border-box', background: t.PAPER, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderTop: `1px solid ${t.RULE}`, padding: `18px ${t.padX}px calc(18px + env(safe-area-inset-bottom, 0px))`, boxShadow: '0 -20px 50px rgba(0,0,0,0.4)', '--bs-accent': teal }}>
+          <div ref={bsDialogRef(drafting ? null : () => setDraft(null))} role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()} style={{ width: '100%', boxSizing: 'border-box', background: t.PAPER, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderTop: `1px solid ${t.RULE}`, padding: `18px ${t.padX}px calc(18px + env(safe-area-inset-bottom, 0px))`, boxShadow: '0 -20px 50px rgba(0,0,0,0.4)', '--bs-accent': teal }}>
             <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.22em', textTransform: 'uppercase', color: teal }}>{tr('session:train.door.draft', { defaultValue: '✦ Draft it for me' })}</div>
             <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 24, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK, lineHeight: 1 }}>{tr('session:build.goalPre', { defaultValue: 'Your' })} <span style={{ fontStyle: 'italic', color: teal }}>{tr('session:build.goalAccent', { defaultValue: 'goal.' })}</span></div>
             <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 13, color: t.INK70, lineHeight: 1.5 }}>{tr('session:build.draftBody', { defaultValue: 'Shape drafts a {weeks}-week plan you can edit before saving.', weeks })}</div>
@@ -7241,8 +7236,15 @@ const bsCkFit = (text) => { const n = String(text || '').length; return n > 150 
 // be checked against the approved design.
 function bsCkShell({ t, rootRef, layout, label, children }) {
   const native = typeof document !== 'undefined' && !!document.documentElement?.classList?.contains('is-native-app');
+  // A Back (the phone's) does what the top bar's left key does: Back a stage, Close, or Leave cooking (which
+  // asks first while a recipe is under way).
+  const leftKey = () => {
+    const root = rootRef && rootRef.current;
+    const key = root && root.querySelector ? root.querySelector('.top [data-bsck-left]') : null;
+    if (key) key.click();
+  };
   const node = (
-    <div ref={rootRef} className={`bsck ${layout.cls}`} data-bs-noswipe="" data-bs-layer="cook" role="dialog" aria-modal="true" aria-label={label} tabIndex={-1}
+    <div ref={bsDialogRef(leftKey, rootRef)} className={`bsck ${layout.cls}`} data-bs-noswipe="" data-bs-layer="cook" role="dialog" aria-modal="true" aria-label={label} tabIndex={-1}
       style={{ position: 'absolute', inset: 0, zIndex: 99990, ...bsCkVars(t), ...(native ? { '--bsck-top-floor': '32px' } : null) }}>
       <div className="app cC cD">{children}</div>
     </div>
@@ -7256,7 +7258,7 @@ function bsCkShell({ t, rootRef, layout, label, children }) {
 // Nora reading aloud. A screen that cannot know its ready time shows no time, never a guess.
 function bsCkTop({ tr, c = false, left, title = null, finish = null, tracks = null, reads = null }) {
   const leftBtn = left
-    ? <button type="button" className="ibtn" onClick={left.onClick} aria-label={left.label}>{bsCkIco(left.kind === 'back' ? 'back' : 'close')}</button>
+    ? <button type="button" className="ibtn" data-bsck-left="" onClick={left.onClick} aria-label={left.label}>{bsCkIco(left.kind === 'back' ? 'back' : 'close')}</button>
     : <span />;
   const mid = title != null
     ? <div className="fin"><span className="dtitle">{title}</span></div>
@@ -7637,7 +7639,7 @@ function bsCkLater({ tr, dishes, named = false }) {
 function bsCkSheet({ tr, title, headRight = null, onClose, children }) {
   return (<>
     <div className="sheet-scrim" data-bsck-scrim="" onClick={onClose} aria-hidden="true" />
-    <div className="sheet" data-bsck-sheet="" role="dialog" aria-modal="true" aria-label={title} tabIndex={-1} onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); onClose(); } }}>
+    <div ref={bsDialogRef(onClose)} className="sheet" data-bsck-sheet="" role="dialog" aria-modal="true" aria-label={title} tabIndex={-1} onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); onClose(); } }}>
       <div className="grab" aria-hidden="true" />
       <div className="sh-h"><h3>{title}</h3>
         <div className="sh-r">{headRight}
@@ -10975,13 +10977,14 @@ function BSPrepTonightCard({ group, onStart, onDone }) {
 // The cook screen opened for tonight's prep: from the Eat card, the in-app list or a tapped push.
 // `group` is what is owed tonight for this recipe when the caller already knows it; otherwise it
 // is read here, so finishing tonight's part records the prep for the right days.
-function BSPrepTonightCook({ slug, group = null, onClose }) {
+function BSPrepTonightCook({ slug, group = null, onClose, onGone = null }) {
   const recipe = React.useMemo(() => SHAPE_KITCHEN_RECIPES.find((r) => bsCookSlug(r.title) === slug) || null, [slug]);
   const cookable = React.useMemo(() => (recipe ? bsCookableFromRecipe(recipe) : null), [recipe]);
   const [owed, setOwed] = useStateBSC(group);
   React.useEffect(() => {
-    // A route naming a recipe the catalog no longer has opens nothing.
-    if (!cookable) { onClose(); return undefined; }
+    // A route naming a recipe the catalog no longer has opens nothing, and says so (onGone): a reminder for a
+    // recipe taken out of the kitchen opened Eat and stepped straight back with no word (War Room, left by #2689).
+    if (!cookable) { (onGone || onClose)(); return undefined; }
     if (group) return undefined;
     let on = true;
     bsLoadPrepTonight().then((gs) => { if (on && Array.isArray(gs)) setOwed(gs.find((g) => g.slug === slug) || null); });
@@ -11046,6 +11049,30 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
   // prep reminder is tapped ({ slug, nonce }, keyed on the nonce like cookWith). `group` is what
   // the card already knows is owed; a reminder's is read when the cook screen opens.
   const [prepCook, setPrepCook] = useStateBSC(null); // { slug, group } | null
+  // A reminder for a recipe no longer in the kitchen: the member stays on tonight's Eat, told why there is
+  // nothing to cook, where before Eat opened and stepped straight back with no word. The page the reminder
+  // came from stays one Back away (the shell pushed it). The notice is the confirm sheet's one-button mode:
+  // toasts are off app-wide (BSConfirmSheet).
+  const prepGone = () => {
+    setPrepCook(null);
+    setCookViaNav(false);
+    setPreviewMealId(null);
+    setView('eat');
+    setDay(bsWeekdayIdx());
+    try {
+      const ask = window.bsAskConfirm;
+      if (typeof ask === 'function') {
+        Promise.resolve(ask({
+          notice: true,
+          danger: false,
+          eyebrow: tr('cook:prep.goneEyebrow', { defaultValue: "Tonight's prep" }),
+          title: tr('cook:prep.goneTitle', { defaultValue: 'This recipe is no longer in the kitchen' }),
+          message: tr('cook:prep.goneMessage', { defaultValue: "The reminder named a recipe Shape's kitchen no longer has, so there is nothing to cook from it. Tonight's meals are here on Eat." }),
+          confirmLabel: tr('cook:prep.goneOk', { defaultValue: 'Got it' }),
+        })).catch(() => {});
+      }
+    } catch (e) { /* the member is on Eat all the same */ }
+  };
   React.useEffect(() => {
     if (!prepTonight || !prepTonight.slug) return;
     setPrepCook({ slug: prepTonight.slug, group: null });
@@ -12534,7 +12561,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
   // library full-screen views from which it's triggered.
   const newListSheet = newListName !== null ? createPortal((
     <div onClick={() => setNewListName(null)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(3px)', WebkitBackdropFilter: 'blur(3px)', zIndex: 100000, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
-      <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxWidth: 430, background: t.PAPER, color: t.INK, borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: '10px 18px calc(20px + env(safe-area-inset-bottom, 0px))', boxShadow: '0 -24px 70px rgba(0,0,0,0.55)' }}>
+      <div ref={bsDialogRef(() => setNewListName(null))} role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxWidth: 430, background: t.PAPER, color: t.INK, borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: '10px 18px calc(20px + env(safe-area-inset-bottom, 0px))', boxShadow: '0 -24px 70px rgba(0,0,0,0.55)' }}>
         <div style={{ display: 'flex', justifyContent: 'center', padding: '4px 0 12px' }}>
           <div style={{ width: 38, height: 4, borderRadius: 99, background: t.RULE }} />
         </div>
@@ -12555,7 +12582,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
   // "Save to library" naming sheet (with quick-name chips).
   const saveSheet = saveTarget !== null ? createPortal((
     <div onClick={() => setSaveTarget(null)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(3px)', WebkitBackdropFilter: 'blur(3px)', zIndex: 100000, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
-      <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxWidth: 430, background: t.PAPER, color: t.INK, borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: '10px 18px calc(20px + env(safe-area-inset-bottom, 0px))', boxShadow: '0 -24px 70px rgba(0,0,0,0.55)' }}>
+      <div ref={bsDialogRef(() => setSaveTarget(null))} role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxWidth: 430, background: t.PAPER, color: t.INK, borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: '10px 18px calc(20px + env(safe-area-inset-bottom, 0px))', boxShadow: '0 -24px 70px rgba(0,0,0,0.55)' }}>
         <div style={{ display: 'flex', justifyContent: 'center', padding: '4px 0 14px' }}><div style={{ width: 38, height: 4, borderRadius: 99, background: t.RULE }} /></div>
         <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', color: t.RUST }}>{tr('nutrition:eat.saveLibraryEyebrow', { defaultValue: 'SAVE TO LIBRARY' })}</div>
         <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 26, fontWeight: 700, letterSpacing: '-0.02em' }}>{tr('nutrition:eat.saveTitlePre', { defaultValue: 'Name this' })} <span style={{ fontStyle: 'italic', color: t.RUST }}>{tr('nutrition:eat.saveTitleAccent', { defaultValue: 'list.' })}</span></div>
@@ -12581,7 +12608,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
 
   // The Prep Session overlays EVERY eat view (its door lives on the menu AND
   // the grocery page) — entirely optional, a door never a gate.
-  if (prepCook) return <BSPrepTonightCook slug={prepCook.slug} group={prepCook.group} onClose={() => { const v = cookViaNav; setPrepCook(null); setCookViaNav(false); leaveViaNav(v); }} />;
+  if (prepCook) return <BSPrepTonightCook slug={prepCook.slug} group={prepCook.group} onClose={() => { const v = cookViaNav; setPrepCook(null); setCookViaNav(false); leaveViaNav(v); }} onGone={prepGone} />;
   if (prepOpen) return <BSPrepSession program={PROGRAM} seed={prepSeed} onClose={() => { const v = prepViaNav; setPrepOpen(false); setPrepSeed(null); setPrepViaNav(false); leaveViaNav(v); }} />;
   if (view === 'grocery') return <>{newListSheet}{saveSheet}<BSGrocery list={activeGroceryList} planList={planGrocery} mealWhen={groceryMealWhen} onBack={() => setView('eat')} onLibrary={() => setView('library')} recipeLists={recipeLists} onChangeView={setView} editable={!!activeGroceryList.editable} onUpdate={persistGroceryList} onCreate={createGroceryList} onSaveToLibrary={openSaveToLibrary} onPickList={(l) => { if (!l) setSelectedGroceryList(null); else loadGroceryList(l); }} onProfile={onProfile} onPrep={() => openPrep()} /></>;
   if (view === 'library') return <>{newListSheet}<BSGroceryLibrary onLoad={loadGroceryList} recipeLists={recipeLists} onCreate={createGroceryList} onEdit={editGroceryList} onDuplicate={duplicateGroceryList} onDelete={deleteGroceryList} deletedIds={deletedGroceryIds} onChangeView={setView} onProfile={onProfile} /></>;
@@ -13687,7 +13714,7 @@ function BSFollowListSheet({ kind, uid, name = '', c = '#34d6c5', INK = '#f2ede4
           diverge by the difference between 46 and 12 (an inset of 59px lands the
           row at 105px instead of 71px), so the one masthead that visibly broke
           the uniform inset was the one that computed it itself. */}
-      <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxWidth: 430, height: '100%', boxSizing: 'border-box', background: BG, color: INK, padding: `${BS_MAST_TOP_CSS} 0 0`, display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 0 70px rgba(0,0,0,0.6)' }}>
+      <div ref={bsDialogRef(onClose)} role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxWidth: 430, height: '100%', boxSizing: 'border-box', background: BG, color: INK, padding: `${BS_MAST_TOP_CSS} 0 0`, display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 0 70px rgba(0,0,0,0.6)' }}>
         {/* Fixed header layer — the list scrolls in its OWN pane below, so rows
             can never ride up through the masthead/tabs/search (sticky inside the
             padded scroller let them bleed through on device). */}
@@ -14747,7 +14774,7 @@ function BSPostSheetShell({ title, onClose, INK, BG, z, children }) {
   const host = (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || (typeof document !== 'undefined' ? document.body : null);
   const sheet = (
     <div onClick={(e) => { if (e.target === e.currentTarget) onClose(); }} style={{ position: 'absolute', inset: 0, zIndex: z || 245, background: 'rgba(0,0,0,0.55)', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
-      <div style={{ background: bg, borderRadius: '18px 18px 0 0', border: `1px solid ${bsTHexA(ink, 0.14)}`, borderBottom: 0, padding: '15px 16px calc(18px + env(safe-area-inset-bottom, 0px))', maxHeight: '72%', display: 'flex', flexDirection: 'column' }}>
+      <div ref={bsDialogRef(onClose)} role="dialog" aria-modal="true" style={{ background: bg, borderRadius: '18px 18px 0 0', border: `1px solid ${bsTHexA(ink, 0.14)}`, borderBottom: 0, padding: '15px 16px calc(18px + env(safe-area-inset-bottom, 0px))', maxHeight: '72%', display: 'flex', flexDirection: 'column' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
           <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: bsTHexA(ink, 0.6) }}>{title}</span>
           <button onClick={onClose} aria-label={tr('feed:sheet.close', { defaultValue: 'Close' })} style={{ background: 'transparent', border: 0, color: bsTHexA(ink, 0.5), cursor: 'pointer', fontFamily: t.MONO, fontSize: 14, fontWeight: 800, padding: 2, lineHeight: 1 }}>✕</button>
@@ -15689,7 +15716,7 @@ function BSLogActivitySheet({ c, INK, BG, onClose, onPosted, editPost = null, st
 
   return createPortal(
     <div onClick={onClose} style={{ position: 'absolute', inset: 0, zIndex: 230, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
-      <div onClick={(e) => e.stopPropagation()} className="bs-scroll" style={{ width: '100%', background: BG, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: '18px 18px calc(16px + env(safe-area-inset-bottom, 0px))', maxHeight: '92%', overflowY: 'auto', borderTop: `1px solid ${bsTHexA(INK, 0.12)}` }}>
+      <div ref={bsDialogRef(onClose)} role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()} className="bs-scroll" style={{ width: '100%', background: BG, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: '18px 18px calc(16px + env(safe-area-inset-bottom, 0px))', maxHeight: '92%', overflowY: 'auto', borderTop: `1px solid ${bsTHexA(INK, 0.12)}` }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
           <div>
             <div style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5), fontWeight: 700 }}>{ed ? tr('profile:log.eyebrowEdit', { defaultValue: 'Edit' }) : tr('profile:log.eyebrowPublish', { defaultValue: 'Publish' })}</div>
@@ -20558,7 +20585,7 @@ function BSCardSheetHost({ activityDetail, setActivityDetail, sendPostFor, setSe
       })()}
       {likerSheetFor && createPortal(
         <div onClick={() => setLikerSheetFor(null)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(3px)', WebkitBackdropFilter: 'blur(3px)', zIndex: 100000, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
-          <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxWidth: 430, background: t.PAPER, color: t.INK, borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: '14px 18px calc(20px + env(safe-area-inset-bottom, 0px))', maxHeight: '72%', overflowY: 'auto', boxShadow: '0 -24px 70px rgba(0,0,0,0.55)' }}>
+          <div ref={bsDialogRef(() => setLikerSheetFor(null))} role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxWidth: 430, background: t.PAPER, color: t.INK, borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: '14px 18px calc(20px + env(safe-area-inset-bottom, 0px))', maxHeight: '72%', overflowY: 'auto', boxShadow: '0 -24px 70px rgba(0,0,0,0.55)' }}>
             <div style={{ display: 'flex', justifyContent: 'center', padding: '2px 0 12px' }}><div style={{ width: 38, height: 4, borderRadius: 99, background: t.RULE }} /></div>
             <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, marginBottom: 4 }}>Reactions</div>
             <div style={{ fontFamily: t.DISPLAY, fontSize: 20, fontWeight: 800, letterSpacing: '-0.02em', marginBottom: 12 }}>Who reacted</div>
@@ -22087,7 +22114,7 @@ function BSWallPostSheet({ onClose, onPosted, seed = null }) {
   const lab = { display: 'block', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, marginBottom: 5 };
   return createPortal(
     <div onClick={onClose} style={{ position: 'absolute', inset: 0, zIndex: 240, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
-      <div onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={tr('feed:wall.postPRTitle', { defaultValue: 'Post a record' })}
+      <div ref={bsDialogRef(onClose)} onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={tr('feed:wall.postPRTitle', { defaultValue: 'Post a record' })}
         style={{ width: '100%', maxWidth: 430, background: t.PAPER, color: t.INK, borderTopLeftRadius: 20, borderTopRightRadius: 20, borderTop: `1px solid ${t.RULE}`, padding: `16px ${t.padX}px calc(20px + env(safe-area-inset-bottom, 0px))`, boxShadow: '0 -20px 50px rgba(0,0,0,0.45)' }}>
         <div style={{ display: 'flex', justifyContent: 'center', padding: '2px 0 12px' }}><div style={{ width: 38, height: 4, borderRadius: 99, background: t.RULE }} /></div>
         <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: teal }}>{tr('feed:wall.newBest', { defaultValue: 'New best' })}</div>
@@ -23694,7 +23721,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
       {editingPost && <BSLogActivitySheet c={TEALB} INK={t.INK} BG={t.PAPER} editPost={editingPost} onClose={() => setEditingPost(null)} onPosted={() => { setEditingPost(null); setFeedNonce(n => n + 1); }} />}
       {tagOpen && createPortal(
         <div onClick={() => setTagOpen(false)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(3px)', WebkitBackdropFilter: 'blur(3px)', zIndex: 100000, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
-          <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxWidth: 430, background: t.PAPER, color: t.INK, borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: '14px 18px calc(20px + env(safe-area-inset-bottom, 0px))', maxHeight: '72%', overflowY: 'auto', boxShadow: '0 -24px 70px rgba(0,0,0,0.55)' }}>
+          <div ref={bsDialogRef(() => setTagOpen(false))} role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxWidth: 430, background: t.PAPER, color: t.INK, borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: '14px 18px calc(20px + env(safe-area-inset-bottom, 0px))', maxHeight: '72%', overflowY: 'auto', boxShadow: '0 -24px 70px rgba(0,0,0,0.55)' }}>
             <div style={{ display: 'flex', justifyContent: 'center', padding: '2px 0 12px' }}><div style={{ width: 38, height: 4, borderRadius: 99, background: t.RULE }} /></div>
             <div style={{ fontFamily: t.DISPLAY, fontSize: 20, fontWeight: 700, letterSpacing: '-0.02em' }}>{tr('feed:tag.title', { defaultValue: 'Tag people' })}</div>
             <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, margin: '4px 0 12px' }}>{tagged.length ? tr('feed:tag.taggedCount', { defaultValue: '{count} tagged', count: tagged.length }) : tr('feed:tag.searchMembers', { defaultValue: 'Search Shape members' })}</div>
@@ -23737,7 +23764,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
       })()}
       {likerSheetFor && createPortal(
         <div onClick={() => setLikerSheetFor(null)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(3px)', WebkitBackdropFilter: 'blur(3px)', zIndex: 100000, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
-          <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxWidth: 430, background: t.PAPER, color: t.INK, borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: '14px 18px calc(20px + env(safe-area-inset-bottom, 0px))', maxHeight: '72%', overflowY: 'auto', boxShadow: '0 -24px 70px rgba(0,0,0,0.55)' }}>
+          <div ref={bsDialogRef(() => setLikerSheetFor(null))} role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxWidth: 430, background: t.PAPER, color: t.INK, borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: '14px 18px calc(20px + env(safe-area-inset-bottom, 0px))', maxHeight: '72%', overflowY: 'auto', boxShadow: '0 -24px 70px rgba(0,0,0,0.55)' }}>
             <div style={{ display: 'flex', justifyContent: 'center', padding: '2px 0 12px' }}><div style={{ width: 38, height: 4, borderRadius: 99, background: t.RULE }} /></div>
             <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, marginBottom: 4 }}>{tr('feed:likers.reactions', { defaultValue: 'Reactions' })}</div>
             <div style={{ fontFamily: t.DISPLAY, fontSize: 20, fontWeight: 800, letterSpacing: '-0.02em', marginBottom: 12 }}>{tr('feed:likers.whoReacted', { defaultValue: 'Who reacted' })}</div>
@@ -23758,7 +23785,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
       )}
       {newDmOpen && createPortal(
         <div onClick={() => setNewDmOpen(false)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(3px)', WebkitBackdropFilter: 'blur(3px)', zIndex: 100000, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
-          <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxWidth: 430, background: t.PAPER, color: t.INK, borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: '14px 18px calc(20px + env(safe-area-inset-bottom, 0px))', maxHeight: '72%', overflowY: 'auto', boxShadow: '0 -24px 70px rgba(0,0,0,0.55)' }}>
+          <div ref={bsDialogRef(() => setNewDmOpen(false))} role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxWidth: 430, background: t.PAPER, color: t.INK, borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: '14px 18px calc(20px + env(safe-area-inset-bottom, 0px))', maxHeight: '72%', overflowY: 'auto', boxShadow: '0 -24px 70px rgba(0,0,0,0.55)' }}>
             <div style={{ display: 'flex', justifyContent: 'center', padding: '2px 0 12px' }}><div style={{ width: 38, height: 4, borderRadius: 99, background: t.RULE }} /></div>
             <div style={{ fontFamily: t.DISPLAY, fontSize: 20, fontWeight: 700, letterSpacing: '-0.02em' }}>{tr('feed:newDm.title', { defaultValue: 'New message' })}</div>
             <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, margin: '4px 0 14px' }}>{tr('feed:team.startConversation', { defaultValue: 'Start a conversation' })}</div>
@@ -23782,7 +23809,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
       )}
       {addMemberFor && createPortal(
         <div onClick={() => setAddMemberFor(null)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(3px)', WebkitBackdropFilter: 'blur(3px)', zIndex: 100000, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
-          <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxWidth: 430, background: t.PAPER, color: t.INK, borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: '14px 18px calc(20px + env(safe-area-inset-bottom, 0px))', maxHeight: '72%', overflowY: 'auto', boxShadow: '0 -24px 70px rgba(0,0,0,0.55)' }}>
+          <div ref={bsDialogRef(() => setAddMemberFor(null))} role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxWidth: 430, background: t.PAPER, color: t.INK, borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: '14px 18px calc(20px + env(safe-area-inset-bottom, 0px))', maxHeight: '72%', overflowY: 'auto', boxShadow: '0 -24px 70px rgba(0,0,0,0.55)' }}>
             <div style={{ display: 'flex', justifyContent: 'center', padding: '2px 0 12px' }}><div style={{ width: 38, height: 4, borderRadius: 99, background: t.RULE }} /></div>
             <div style={{ fontFamily: t.DISPLAY, fontSize: 20, fontWeight: 700, letterSpacing: '-0.02em' }}>{tr('feed:addMember.title', { defaultValue: 'Add to # {name}', name: addMemberFor.name })}</div>
             <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, margin: '4px 0 14px' }}>{tr('feed:addMember.sub', { defaultValue: 'Add Shape members' })}</div>
@@ -24356,7 +24383,7 @@ function BSNoraSheet({ onClose }) {
     <div data-nora-sheet style={{ position: 'absolute', inset: 0, zIndex: 240 }}>
       <style>{'@keyframes bsNoraDot { 0%, 60%, 100% { transform: translateY(0); opacity: .4 } 30% { transform: translateY(-3px); opacity: 1 } } @keyframes bsNoraCaret { 50% { opacity: 0 } } @media (prefers-reduced-motion: reduce) { .bs-nora-anim { animation: none !important; } }'}</style>
       <div onClick={onClose} aria-hidden style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.46)' }} />
-      <div role="dialog" aria-label="Nora" style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: '88%', background: t.PAPER, borderRadius: '22px 22px 0 0', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 -18px 48px rgba(0,0,0,0.3)' }}>
+      <div ref={bsDialogRef(onClose)} role="dialog" aria-label="Nora" style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: '88%', background: t.PAPER, borderRadius: '22px 22px 0 0', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 -18px 48px rgba(0,0,0,0.3)' }}>
         {/* Her desk. */}
         <div data-nora-desk style={{ flex: 'none', background: t.PAPER, color: t.INK, padding: `8px ${t.padX}px 16px`, borderBottom: `1px solid ${bsTHexA(t.INK, 0.1)}` }}>
           <div aria-hidden style={{ width: 36, height: 4, borderRadius: 2, background: bsTHexA(t.INK, 0.26), margin: '0 auto 10px' }} />
@@ -26611,8 +26638,9 @@ function _bsFormatSessionWhen(iso, zone) {
 // mic permissions, so the call happens inside Shape.
 function BSVideoCall({ url, onClose, title = 'Live call' }) {
   const t = useBS();
+  // A call is ended with its own button, never by a stray Back: the phone's back stays on it (services/dialogBack.mjs).
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 9999, background: '#000', display: 'flex', flexDirection: 'column' }}>
+    <div ref={bsDialogRef(null)} role="dialog" aria-modal="true" aria-label={title} data-bs-dialog="stay" style={{ position: 'fixed', inset: 0, zIndex: 9999, background: '#000', display: 'flex', flexDirection: 'column' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: 'calc(env(safe-area-inset-top, 0px) + 10px) 14px 10px', background: '#000', borderBottom: '1px solid rgba(255,255,255,0.12)' }}>
         <span style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.2em', textTransform: 'uppercase', color: '#fff', fontWeight: 700 }}>Shape · {title}</span>
         <button onClick={onClose} style={{ padding: '8px 14px', borderRadius: 999, border: 0, background: t.RUST, color: '#fff', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer' }}>Leave</button>
@@ -26788,7 +26816,7 @@ function BSMoodSheet({ onClose, onSaved }) {
   };
   return createPortal((
     <div onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(3px)', WebkitBackdropFilter: 'blur(3px)', zIndex: 100000, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
-      <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxWidth: 430, maxHeight: '92vh', overflowY: 'auto', background: t.PAPER, color: t.INK, borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: '10px 18px calc(20px + env(safe-area-inset-bottom, 0px))', boxShadow: '0 -24px 70px rgba(0,0,0,0.55)' }}>
+      <div ref={bsDialogRef(onClose)} role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxWidth: 430, maxHeight: '92vh', overflowY: 'auto', background: t.PAPER, color: t.INK, borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: '10px 18px calc(20px + env(safe-area-inset-bottom, 0px))', boxShadow: '0 -24px 70px rgba(0,0,0,0.55)' }}>
         {/* Grab handle */}
         <div style={{ display: 'flex', justifyContent: 'center', padding: '4px 0 12px' }}>
           <div style={{ width: 38, height: 4, borderRadius: 99, background: t.RULE }} />
@@ -26924,7 +26952,7 @@ function BSLogActivity({ onClose, onSaved }) {
 
   return createPortal((
     <div onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(3px)', WebkitBackdropFilter: 'blur(3px)', zIndex: 100000, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
-      <div onClick={(e) => e.stopPropagation()} className="bs-scroll" style={{ width: '100%', maxWidth: 430, maxHeight: '94vh', overflowY: 'auto', background: t.PAPER, color: t.INK, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: '8px 18px calc(20px + env(safe-area-inset-bottom, 0px))', boxShadow: '0 -24px 70px rgba(0,0,0,0.55)' }}>
+      <div ref={bsDialogRef(onClose)} role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()} className="bs-scroll" style={{ width: '100%', maxWidth: 430, maxHeight: '94vh', overflowY: 'auto', background: t.PAPER, color: t.INK, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: '8px 18px calc(20px + env(safe-area-inset-bottom, 0px))', boxShadow: '0 -24px 70px rgba(0,0,0,0.55)' }}>
         <div style={{ display: 'flex', justifyContent: 'center', padding: '4px 0 14px' }}>
           <div style={{ width: 38, height: 4, borderRadius: 99, background: t.RULE }} />
         </div>
@@ -27566,7 +27594,7 @@ function BSStepGoalSheet({ value, accent, onClose, onSave }) {
   const rust = t.RUST || '#c0533b';
   const sheet = (
     <div onClick={onClose} style={{ position: 'absolute', inset: 0, zIndex: 80, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end' }}>
-      <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', boxSizing: 'border-box', background: t.PAPER, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderTop: `1px solid ${t.RULE}`, padding: `18px ${t.padX}px 18px`, boxShadow: '0 -20px 50px rgba(0,0,0,0.4)' }}>
+      <div ref={bsDialogRef(onClose)} role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()} style={{ width: '100%', boxSizing: 'border-box', background: t.PAPER, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderTop: `1px solid ${t.RULE}`, padding: `18px ${t.padX}px 18px`, boxShadow: '0 -20px 50px rgba(0,0,0,0.4)' }}>
         <div style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: accent }}>Daily step goal</div>
         <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 28, fontWeight: t.W.display, letterSpacing: '-0.03em', color: t.INK }}>Set your <span style={{ fontStyle: 'italic', color: accent }}>goal.</span></div>
         <div aria-hidden style={{ marginTop: 11, height: 2, borderRadius: 2, background: `linear-gradient(90deg, ${t.INK}, ${accent} 72%, transparent)` }} />
@@ -29726,7 +29754,7 @@ function BSCommitmentCard() {
       )}
       {sheet && signedIn && createPortal(
         <div onClick={() => setSheet(false)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 90, display: 'flex', alignItems: 'flex-end' }}>
-          <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', background: t.PAPER, borderTopLeftRadius: 18, borderTopRightRadius: 18, padding: `16px ${t.padX}px 22px`, maxHeight: '82%', overflowY: 'auto' }}>
+          <div ref={bsDialogRef(() => setSheet(false))} role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()} style={{ width: '100%', background: t.PAPER, borderTopLeftRadius: 18, borderTopRightRadius: 18, padding: `16px ${t.padX}px 22px`, maxHeight: '82%', overflowY: 'auto' }}>
             <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: teal, fontWeight: 700 }}>{tr('score:commit.sheetEyebrow', { defaultValue: 'Set this week’s commitment' })}</div>
             {/* ⚠ A pre/accent/post TRIPLE, not the house pre+accent pair: the accent word
                 lands mid-sentence in English ("What will you *hit*?"), so the tail has to
@@ -31036,7 +31064,7 @@ function BSRedeemConfirmSheet({ t, item, balance, busy, onCancel, onConfirm }) {
   );
   const sheet = (
     <div onClick={onCancel} style={{ position: 'absolute', inset: 0, zIndex: 60, background: 'rgba(8,7,6,0.55)', display: 'flex', alignItems: 'flex-end' }}>
-      <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', background: t.PAPER, borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: `20px ${t.padX}px calc(20px + env(safe-area-inset-bottom, 0px))`, borderTop: `1px solid ${t.RULE}` }}>
+      <div ref={bsDialogRef(busy ? null : onCancel)} role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()} style={{ width: '100%', background: t.PAPER, borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: `20px ${t.padX}px calc(20px + env(safe-area-inset-bottom, 0px))`, borderTop: `1px solid ${t.RULE}` }}>
         <div style={{ fontFamily: t.BODY, fontSize: 12.5, fontWeight: 600, color: t.INK50 }}>{tr('store:redeem.confirm', { defaultValue: 'Confirm redemption' })}</div>
         <div style={{ fontFamily: t.DISPLAY, fontSize: 22, fontWeight: 700, letterSpacing: '-0.02em', color: t.INK, margin: '4px 0 14px' }}>{item.name}</div>
         <div style={{ borderRadius: 14, border: `1px solid ${t.HAIR}`, background: `${t.INK}07`, padding: '6px 14px' }}>
@@ -32196,7 +32224,7 @@ function BSSession({ moves: movesProp, onBack, title: requestedTitle = '', clien
   // it; renders only when the plan move actually carries a coach clip).
   const clipSheet = clipOpen && clip ? (() => {
     const sheet = (
-      <div onClick={() => setClipOpen(false)} role="dialog" aria-modal="true" aria-label={tr('session:player.clipAria', { move: move.m })} style={{ position: 'absolute', inset: 0, zIndex: 90, background: 'rgba(4,6,6,0.88)', display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: 18 }}>
+      <div ref={bsDialogRef(() => setClipOpen(false))} onClick={() => setClipOpen(false)} role="dialog" aria-modal="true" aria-label={tr('session:player.clipAria', { move: move.m })} style={{ position: 'absolute', inset: 0, zIndex: 90, background: 'rgba(4,6,6,0.88)', display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: 18 }}>
         <div onClick={(e) => e.stopPropagation()} style={{ background: '#0b0f0f', color:'#f4ede0', border: '1px solid rgba(56,224,204,0.25)', borderRadius: 12, padding: 14 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 10 }}>
             <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: '#38e0cc', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>▶ {tr('session:player.formClipHead', { move: move.m })}</span>
@@ -35189,7 +35217,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       {/* Shape-styled dropdown menu (replaces the native select picker) */}
       {dropdown && (
         <div onClick={() => setDropdown(null)} style={{ position: 'fixed', inset: 0, zIndex: 6000 }}>
-          <div onClick={(e) => e.stopPropagation()} className="bs-hide-scroll" style={{ position: 'fixed', top: dropdown.top, right: dropdown.right, zIndex: 6001, width: 220, maxHeight: '56vh', overflowY: 'auto', overflowX: 'hidden', scrollbarWidth: 'none', msOverflowStyle: 'none', background: t.PAPER, border: `1px solid ${bsTHexA(t.INK, 0.14)}`, borderRadius: 14, boxShadow: t.isLight ? '0 16px 40px rgba(15,14,12,0.22)' : '0 18px 44px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.06)' }}>
+          <div ref={bsDialogRef(() => setDropdown(null))} role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()} className="bs-hide-scroll" style={{ position: 'fixed', top: dropdown.top, right: dropdown.right, zIndex: 6001, width: 220, maxHeight: '56vh', overflowY: 'auto', overflowX: 'hidden', scrollbarWidth: 'none', msOverflowStyle: 'none', background: t.PAPER, border: `1px solid ${bsTHexA(t.INK, 0.14)}`, borderRadius: 14, boxShadow: t.isLight ? '0 16px 40px rgba(15,14,12,0.22)' : '0 18px 44px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.06)' }}>
             <div style={{ padding: '11px 12px 9px' }}><BSSetLabel t={t}>{dropdown.label}</BSSetLabel></div>
             {dropdown.options.map((opt) => {
               const on = prefs[dropdown.key] === opt;
@@ -35210,7 +35238,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       {/* Account field editor — in-app sheet */}
       {editField && createPortal((
         <div onClick={() => setEditField(null)} style={{ position: 'absolute', inset: 0, zIndex: 6000, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'flex-end' }}>
-          <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', boxSizing: 'border-box', background: t.PAPER, borderTopLeftRadius: 20, borderTopRightRadius: 20, borderTop: `1px solid ${bsTHexA(t.INK, 0.14)}`, padding: `20px ${t.padX}px calc(22px + env(safe-area-inset-bottom, 0px))`, boxShadow: '0 -16px 40px rgba(0,0,0,0.35)' }}>
+          <div ref={bsDialogRef(() => setEditField(null))} role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()} style={{ width: '100%', boxSizing: 'border-box', background: t.PAPER, borderTopLeftRadius: 20, borderTopRightRadius: 20, borderTop: `1px solid ${bsTHexA(t.INK, 0.14)}`, padding: `20px ${t.padX}px calc(22px + env(safe-area-inset-bottom, 0px))`, boxShadow: '0 -16px 40px rgba(0,0,0,0.35)' }}>
             <BSSetLabel t={t}>{tr('settings:editField.editLabel', { label: editField.label, defaultValue: 'Edit {label}' })}</BSSetLabel>
             {editField.options && editField.options.length > 0 && (
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>

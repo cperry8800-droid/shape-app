@@ -684,7 +684,7 @@ test("Home's doors open Your mornings, the water lead brings Home's water line, 
   assert.match(src, /^import \{ BSWaterLine, bsWaterLineFocus \} from '\.\/BSWaterLine\.jsx';$/m);
   // The page's state is declared with the other pages', above the early returns (Rules of Hooks).
   const state = home.indexOf("const [morningsPage, setMorningsPage] = useStateBSC(initialPage === 'mornings');");
-  assert.ok(state > 0 && state < home.indexOf('  if (previewMeal) {'), 'the page state is not above the early returns');
+  assert.ok(state > 0 && state < home.indexOf('  if (showWorkoutPreview) {'), 'the page state is not above the early returns');
   // Its Back closes it, or (opened by a reminder) steps back where the member was (2026-11-10).
   assert.match(home, /  if \(morningsPage\) \{\n    return <BSYourMornings onBack=\{\(\) => \{ const v = morningsViaNav; setMorningsPage\(false\); setMorningsViaNav\(false\); if \(v && window\.ShapeNav\?\.canPop\?\.\(\)\) window\.ShapeNav\.back\(\); \}\} cycleChip=\{<BSCycleTodayChip \/>\} checkinsOn=\{checkinPrefOn\} \/>;\n  \}/,
     'Your mornings is not one of Home\'s pages, or it lost the cycle chip or the Check-ins setting');

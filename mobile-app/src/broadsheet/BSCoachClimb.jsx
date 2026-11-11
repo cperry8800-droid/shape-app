@@ -1,6 +1,7 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
 import { createMobileVideoComponents } from '../services/videoComponents.mjs';
+import { bsDialogRef } from '../services/dialogBack.mjs';
 
 const { ShapeVideoPlayer } = createMobileVideoComponents(React);
 
@@ -577,7 +578,7 @@ export function BSClimbProgramSheet({ pr, nutri = false, item = null, days = [],
   ].filter(Boolean);
   const host = sheetHost();
   const el = (
-    <div role="dialog" aria-label={pr.name} data-program-sheet="" data-climb-sheet="" style={{ position: 'absolute', inset: 0, zIndex: 230, background: CLIMB.BG, color: CLIMB.INK, overflowY: 'auto', overflowX: 'hidden', fontFamily: CLIMB.BODY, WebkitFontSmoothing: 'antialiased' }}>
+    <div ref={bsDialogRef(onClose)} role="dialog" aria-label={pr.name} data-program-sheet="" data-climb-sheet="" style={{ position: 'absolute', inset: 0, zIndex: 230, background: CLIMB.BG, color: CLIMB.INK, overflowY: 'auto', overflowX: 'hidden', fontFamily: CLIMB.BODY, WebkitFontSmoothing: 'antialiased' }}>
       <div style={{ position: 'relative', height: pr.poster ? 'calc(210px + env(safe-area-inset-top))' : 'calc(96px + env(safe-area-inset-top))', background: pr.poster ? '#000' : `linear-gradient(120deg, ${hexA(tint, 0.34)}, rgba(10,14,17,0) 72%), ${CLIMB.BG}`, overflow: 'hidden' }}>
         {pr.poster ? <img src={pr.poster} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', filter: 'brightness(0.6) saturate(0.85)' }} /> : null}
         <div style={{ position: 'absolute', left: 0, right: 0, top: 0, padding: 'calc(10px + env(safe-area-inset-top)) 8px 0 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>

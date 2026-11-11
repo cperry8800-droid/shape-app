@@ -37,6 +37,7 @@ import { BSProCatalog } from './BSProCatalog.jsx';
 import { BSProDraftComposer } from './BSProDraftComposer.jsx';
 import { BSProDeck, BSProDeckWeek, BSProDeckSegments, bsProDeckTheme, bsDeckEyebrow, bsDeckTeal, bsRaised, BS_DECK_MONO, BS_GAUGE_FACE } from './BSProInstrument.jsx';
 import { BSProClients } from './BSProClients.jsx';
+import { bsDialogRef } from '../services/dialogBack.mjs';
 
 // Every call to Shape's server goes through the backend's ShapeApi.fetch: the API base in
 // front and the live sign-in token. A root-relative '/api/…' fetch reaches nothing in the
@@ -2479,7 +2480,7 @@ function BSProAddClientSheet({ role, onClose }) {
   const sheet = (
     <div data-add-client="" onClick={() => !busyId && onClose()} style={{ position: 'absolute', inset: 0, zIndex: 80, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end', animation: 'bsadd-fade 220ms ease-out both' }}>
       <style>{sheetCss}</style>
-      <div onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={tr('coach:addClient.aria', { defaultValue: 'Add a client' })} data-bs-clean="" className="bs-hide-scroll"
+      <div ref={bsDialogRef(busyId ? null : onClose)} onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={tr('coach:addClient.aria', { defaultValue: 'Add a client' })} data-bs-clean="" className="bs-hide-scroll"
         style={{ position: 'relative', width: '100%', boxSizing: 'border-box', maxHeight: '88%', overflowY: 'auto', background: L ? `linear-gradient(180deg, rgba(255,255,255,0.7), rgba(255,255,255,0) 160px), ${t.PAPER}` : `linear-gradient(180deg, ${inkA(0.07)}, ${inkA(0)} 160px), ${t.PAPER}`, borderTopLeftRadius: 28, borderTopRightRadius: 28, boxShadow: L ? '0 -18px 40px -20px rgba(20,18,15,0.45), inset 0 1px 0 rgba(255,255,255,1)' : '0 -20px 44px -18px rgba(0,0,0,0.95), inset 0 1px 0 rgba(255,255,255,0.1)', padding: `10px ${t.padX}px calc(20px + env(safe-area-inset-bottom, 0px))`, animation: 'bsadd-up 300ms cubic-bezier(.2,.8,.2,1) both' }}>
         <span aria-hidden="true" style={{ display: 'block', width: 40, height: 5, margin: '0 auto 12px', borderRadius: 99, background: inkA(0.18) }} />
         {/* The head: its icon, who this is for, the title, and ✕. */}
@@ -3704,7 +3705,7 @@ function BSProCheckinDraft({ clientUid, clientName, role, stats, accent, onClose
 
   const sheet = (
     <div onClick={onClose} style={{ position: 'absolute', inset: 0, zIndex: 60, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end' }}>
-      <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', boxSizing: 'border-box', background: t.PAPER, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderTop: `1px solid ${t.RULE}`, padding: `12px ${t.padX}px 18px`, boxShadow: '0 -20px 50px rgba(0,0,0,0.4)' }}>
+      <div ref={bsDialogRef(onClose)} role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()} style={{ width: '100%', boxSizing: 'border-box', background: t.PAPER, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderTop: `1px solid ${t.RULE}`, padding: `12px ${t.padX}px 18px`, boxShadow: '0 -20px 50px rgba(0,0,0,0.4)' }}>
         <div style={{ width: 40, height: 4, borderRadius: 999, background: t.RULE, margin: '0 auto 14px' }} />
         <div style={{ fontFamily: BS_PRO_SANS, fontSize: 12, fontWeight: 650, letterSpacing: 0, color: accent }}>{tr('coach:draft.eyebrow', { defaultValue: '✦ AI draft · check-in' })}</div>
         <div style={{ marginTop: 6, fontFamily: BS_PRO_HEAD, fontSize: 22, fontWeight: 600, letterSpacing: '-0.03em', color: t.INK }}>{tr('coach:draft.aNoteTo', { defaultValue: 'A note to' })} {first}</div>
@@ -6220,7 +6221,7 @@ function BSTrainerPrograms({ initialTab = '', openPlanRequest = null, onOpenCons
         <input ref={clipVideoRef} type="file" accept="video/*" onChange={uploadClipToPlan} style={{ display: 'none' }} />
         {clipSheet && createPortal(
           <div onClick={closeClipSheet} style={{ position: 'absolute', inset: 0, zIndex: 60, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end' }}>
-            <div onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={tr('coach:plans.clipSheetAria', { defaultValue: 'Add a clip to a workout' })} style={{ width: '100%', boxSizing: 'border-box', background: t.PAPER, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderTop: `1px solid ${t.RULE}`, padding: `12px ${t.padX}px 18px`, boxShadow: '0 -20px 50px rgba(0,0,0,0.4)', maxHeight: '70vh', overflowY: 'auto' }}>
+            <div ref={bsDialogRef(clipUploading ? null : closeClipSheet)} onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={tr('coach:plans.clipSheetAria', { defaultValue: 'Add a clip to a workout' })} style={{ width: '100%', boxSizing: 'border-box', background: t.PAPER, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderTop: `1px solid ${t.RULE}`, padding: `12px ${t.padX}px 18px`, boxShadow: '0 -20px 50px rgba(0,0,0,0.4)', maxHeight: '70vh', overflowY: 'auto' }}>
               <div style={{ width: 40, height: 4, borderRadius: 999, background: t.RULE, margin: '0 auto 14px' }} />
               <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
                 <div style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: heat }}>{tr('coach:plans.addClipEyebrow', { defaultValue: '＋ Add a clip' })}</div>
@@ -7974,7 +7975,7 @@ function BSProMonthlyOfferSheet({ role, accent, onClose }) {
   };
   return (
     <div onClick={() => !busy && onClose()} style={{ position: 'absolute', inset: 0, zIndex: 80, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end' }}>
-      <div onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="Edit your monthly offer" style={{ width: '100%', boxSizing: 'border-box', maxHeight: '82%', overflowY: 'auto', background: t.PAPER, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderTop: `1px solid ${t.RULE}`, padding: `18px ${t.padX}px calc(18px + env(safe-area-inset-bottom, 0px))` }} className="bs-hide-scroll">
+      <div ref={bsDialogRef(busy ? null : onClose)} onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="Edit your monthly offer" style={{ width: '100%', boxSizing: 'border-box', maxHeight: '82%', overflowY: 'auto', background: t.PAPER, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderTop: `1px solid ${t.RULE}`, padding: `18px ${t.padX}px calc(18px + env(safe-area-inset-bottom, 0px))` }} className="bs-hide-scroll">
       <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.22em', textTransform: 'uppercase', color: accent }}>Monthly offer · what's included</div>
       <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 22, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK, lineHeight: 1.15 }}>Tell members what monthly coaching gets them.</div>
       <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.06em', color: t.INK50 }}>Shown on your marketplace listing's coupon · plain text</div>
@@ -8132,7 +8133,7 @@ function BSProListingMediaSheet({ role, accent, onClose }) {
   );
   const sheet = (
     <div onClick={() => !busy && !uploading && onClose()} style={{ position: 'absolute', inset: 0, zIndex: 80, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end' }}>
-      <div onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={tr('coach:listing.editAria', { defaultValue: 'Edit your listing photos' })} style={{ width: '100%', boxSizing: 'border-box', maxHeight: '86%', overflowY: 'auto', background: t.PAPER, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderTop: `1px solid ${t.RULE}`, padding: `18px ${t.padX}px calc(18px + env(safe-area-inset-bottom, 0px))` }} className="bs-hide-scroll">
+      <div ref={bsDialogRef(busy || uploading ? null : onClose)} onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={tr('coach:listing.editAria', { defaultValue: 'Edit your listing photos' })} style={{ width: '100%', boxSizing: 'border-box', maxHeight: '86%', overflowY: 'auto', background: t.PAPER, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderTop: `1px solid ${t.RULE}`, padding: `18px ${t.padX}px calc(18px + env(safe-area-inset-bottom, 0px))` }} className="bs-hide-scroll">
         <input ref={portraitRef} type="file" accept="image/*" onChange={pickSlot(setPortrait)} style={{ display: 'none' }} />
         <input ref={coverRef} type="file" accept="image/*" onChange={pickSlot(setCover)} style={{ display: 'none' }} />
         <input ref={galleryRef} type="file" accept="image/*" onChange={pickGallery} style={{ display: 'none' }} />

@@ -380,7 +380,7 @@ test('no button inside a button, every camp tab a 44px target, and the wire stil
 test('the module stands alone: its own useShapeTr, globals read at call time, sheets on the phone surface, no import back', () => {
   const src = readFileSync(join(ROOT, 'mobile-app/src/broadsheet/BSCoachClimb.jsx'), 'utf8');
   const imports = [...src.matchAll(/^import[^'"]*['"]([^'"]+)['"]/gm)].map((x) => x[1]);
-  assert.deepEqual(imports, ['react', 'react-dom', '../services/videoComponents.mjs'], 'nothing from the client module or the profile');
+  assert.deepEqual(imports, ['react', 'react-dom', '../services/videoComponents.mjs', '../services/dialogBack.mjs'], 'nothing from the client module or the profile');
   assert.match(src, /^function useShapeTr\(\) \{/m);
   assert.match(src, /document\.getElementById\('bs-phone-surface'\)/);
   assert.match(src, /W\.useBSPinnedMastTop \? W\.useBSPinnedMastTop\(\) : 0/, 'the camps stick under the pinned masthead');

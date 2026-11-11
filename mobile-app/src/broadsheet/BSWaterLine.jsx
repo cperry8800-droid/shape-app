@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { bsCleanSheet } from './bsCleanType.jsx';
 import { saveAccountDocPatch } from '../../../public/newdesign/settingsSync.mjs';
 import { bsCiEnqueue, bsCiSettled, bsCiIso, BS_CI_HYDRATION_SYNCED } from './BSCheckinCard.jsx';
+import { bsDialogRef } from '../services/dialogBack.mjs';
 // ─── WATER ON HOME: ONE LINE, ALL DAY ────────────────────────────────────────────────────────────
 // Owner, 2026-10-19 (docs/REVIEW-2026-10-19-morning-checkin.md §3.7): water left the morning check-in,
 // because it is drunk all day. It is its own Home line, shown whatever the Check-ins setting: the
@@ -232,7 +233,7 @@ function BSWaterDay({ dayIso }) {
   const share = known && water.deviceL && water.l > 0 ? Math.min(water.deviceL, water.l) : null;
 
   const sheet = pick == null ? null : (
-    <div ref={sheetRef} role="dialog" aria-modal="true" aria-label={tr('home:water.targetTitle', { defaultValue: 'Your daily water target' })} data-bs-layer="water-target"
+    <div ref={bsDialogRef(saving ? null : closePick, sheetRef)} role="dialog" aria-modal="true" aria-label={tr('home:water.targetTitle', { defaultValue: 'Your daily water target' })} data-bs-layer="water-target"
       onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); closePick(); } }}
       onClick={(e) => { if (e.target === e.currentTarget) closePick(); }}
       style={{ position: 'absolute', inset: 0, zIndex: 250, background: 'rgba(0,0,0,0.45)', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>

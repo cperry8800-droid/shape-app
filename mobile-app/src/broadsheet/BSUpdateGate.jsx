@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { Capacitor } from '@capacitor/core';
 import { useTr } from '../i18n/index.js';
 import { bsAppVersionPath, bsAppUpdateFrom, bsStoreUrl, BS_UPDATE_RECHECK_MS, BS_UPDATE_DISMISSED_KEY } from '../services/appUpdate.mjs';
+import { bsDialogRef } from '../services/dialogBack.mjs';
 
 // Every call to Shape's server goes through the backend's ShapeApi.fetch: the API base in
 // front and the live sign-in token. A root-relative '/api/…' fetch reaches nothing in the
@@ -120,7 +121,7 @@ export default function BSUpdateGate() {
 
   if (required) {
     return createPortal(
-      <div ref={gateRef} role="alertdialog" aria-modal="true" aria-labelledby="bs-update-title" data-bs-update="required" style={{ position: 'absolute', inset: 0, zIndex: 200000, background: 'radial-gradient(135% 90% at 50% -8%, rgba(52,214,197,0.13), transparent 52%), linear-gradient(176deg, #0b161c 0%, #070b11 48%, #03050b 100%)', color: INKF, display: 'flex', flexDirection: 'column', padding: '52px 20px 24px' }}>
+      <div ref={bsDialogRef(null, gateRef)} role="alertdialog" aria-modal="true" aria-labelledby="bs-update-title" data-bs-update="required" data-bs-dialog="stay" style={{ position: 'absolute', inset: 0, zIndex: 200000, background: 'radial-gradient(135% 90% at 50% -8%, rgba(52,214,197,0.13), transparent 52%), linear-gradient(176deg, #0b161c 0%, #070b11 48%, #03050b 100%)', color: INKF, display: 'flex', flexDirection: 'column', padding: '52px 20px 24px' }}>
         <div style={{ fontFamily: mono, fontSize: 9, fontWeight: 700, letterSpacing: '0.24em', textTransform: 'uppercase', color: INKF70, display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: `2px solid ${INKF}`, paddingBottom: 8 }}>
           <span>Shape Wire</span>
           <span style={{ color: INKF }}>{tr('update.eyebrow', { defaultValue: 'Update' })}</span>

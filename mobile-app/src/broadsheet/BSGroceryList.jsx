@@ -4,6 +4,7 @@ import { useBSClean, BSCleanType } from './bsCleanType.jsx';
 import { bsTrainT } from './bsClientWeekDemo.js';
 import { BSCoachGroceryNotes } from './BSCoachMeals.jsx';
 import { bsGrocerySkipped, bsGroceryByMeal, bsGroceryAisleStops, bsReadShopBy, bsSaveShopBy, bsReadSkippedMeals, bsSaveSkippedMeals, bsReadGotItems, bsSaveGotItems, bsToggleGot, bsGroceryCheckedKeys } from '../services/focusLayout.mjs';
+import { bsDialogRef } from '../services/dialogBack.mjs';
 // ─── GROCERY (Eat → Grocery: the shop list) ─────────────────────────────────────────────────────────
 // The owner: "redesign this, its confusing, a little overwhelming", and of the three designs offered, C,
 // the lit instrument (owner, 2026-11-04: "actually C for grocery list"), in the Library's grammar of LED
@@ -632,7 +633,7 @@ export function BSGrocery({ list: activeList, planList = null, onBack, onLibrary
       {/* List picker — coach plan + everything in the library, switch in place */}
       {pickerOpen && createPortal(
         <div onClick={() => setPickerOpen(false)} style={{ position: 'absolute', inset: 0, zIndex: 200, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'flex-end' }}>
-          <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', boxSizing: 'border-box', maxHeight: '74%', overflowY: 'auto', background: t.PAPER, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderTop: `1px solid ${t.RULE}`, padding: `14px ${t.padX}px calc(18px + env(safe-area-inset-bottom, 0px))` }}>
+          <div ref={bsDialogRef(() => setPickerOpen(false))} role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()} style={{ width: '100%', boxSizing: 'border-box', maxHeight: '74%', overflowY: 'auto', background: t.PAPER, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderTop: `1px solid ${t.RULE}`, padding: `14px ${t.padX}px calc(18px + env(safe-area-inset-bottom, 0px))` }}>
             <div style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: accent }}>{TG('nutrition:grocery.shop.pickerEyebrow', 'Grocery · Switch list')}</div>
             <div style={{ marginTop: 5, marginBottom: 12, fontFamily: t.DISPLAY, fontSize: 24, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK }}>{TG('nutrition:grocery.shop.pickerTitleA', 'Choose a')} <span style={{ fontStyle: 'italic', color: accent }}>{TG('nutrition:grocery.shop.pickerTitleB', 'list.')}</span></div>
             {(() => {

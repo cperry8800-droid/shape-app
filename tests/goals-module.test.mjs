@@ -71,7 +71,7 @@ test('the module carries its own translator, and imports only React, the pure go
   assert.equal((page.match(/window\.ShapeI18n/g) || []).length, 1, 'window.ShapeI18n must be read only inside useShapeTr()');
   const imports = [...page.matchAll(/^import .* from '([^']+)';/gm)].map((m) => m[1]);
   // userGoalsRefresh.mjs (#2566): the page reads its goal again when Nora's account setup changes it.
-  assert.deepEqual(imports, ['react', 'react-dom', '../services/goalContract.mjs', './BSCheckinCard.jsx', './BSDash.jsx', '../services/userGoalsRefresh.mjs']);
+  assert.deepEqual(imports, ['react', 'react-dom', '../services/goalContract.mjs', './BSCheckinCard.jsx', './BSDash.jsx', '../services/userGoalsRefresh.mjs', '../services/dialogBack.mjs']);
   assert.ok(!imports.some((s) => /iosAppBroadsheet/.test(s)), 'the module imports the client module back');
 });
 
