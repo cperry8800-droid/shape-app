@@ -596,7 +596,7 @@ function cfWallModel(p) {
   // thing this surface is for. There is deliberately NO per-kind branch here
   // either (a `tier` post falls to "New tier · Tempo"), because the app has
   // none: one rule, every card.
-  // ⚠ `lift` IS DEMO-ONLY BY CONSTRUCTION — `mapPost` never sets it, which is
+  // ⚠ `lift` IS DEMO-ONLY BY CONSTRUCTION — `cfMapPost` never sets it, which is
   // the same blanking the app writes out as `(a.real ? '' : a.lift)`.
   const measure = heroStat ? String(heroStat[0] || "").trim() : "";
   const lift = (p.lift || "").trim();
@@ -675,7 +675,10 @@ function CfWallEvidence({ model, onOpen }) {
   return (
     <>
       {detail.length > 0 && (
-        <div style={{ marginTop: 12, paddingTop: 11, borderTop: `1px solid ${cfHexA(INK, 0.1)}`, display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: "11px 10px" }}>
+        // ⚠ THREE COLUMNS WRITTEN OUT, NOT repeat(3, …). pageShell.jsx's phone stylesheet collapses every
+        // inline grid whose style holds "repeat(3" to one column, so on a phone the grid stood one stat to
+        // a row, in the bubble and on a coach's Posts, where the app keeps three.
+        <div data-cf-evidence-grid="" style={{ marginTop: 12, paddingTop: 11, borderTop: `1px solid ${cfHexA(INK, 0.1)}`, display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr)", gap: "11px 10px" }}>
           {detail.map(([k, v], i) => (
             <div key={`${k}-${i}`} style={{ minWidth: 0 }}>
               <div style={{ fontFamily: mono, fontSize: 7, fontWeight: 800, letterSpacing: "0.16em", textTransform: "uppercase", color: cfHexA(INK, 0.45), whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{k}</div>
@@ -1027,6 +1030,377 @@ function cfUnitizePost(p, U, prefs) {
   };
 }
 
+// ── The two blocks the wall plate does NOT absorb ─────────────────────
+// At file scope, with the card's byline and body below, so the coach page draws a
+// post with the same blocks.
+// THE PLATE (spec 2026-07-12) — a REAL shared meal's signature block: kcal
+// headline, dot-leader macro lines, the AS PLANNED/ADJUSTED stamp + honest
+// attribution. Renders only when cfMapPost stamps p.meal (metrics.kind==='meal').
+// Never day totals, never targets. ⚠ It is a MEAL DOCUMENT, not a reading, so
+// the wall plate does not replace it the way it replaced the six per-kind
+// stat blocks — it sits under the plate, as the app's own meal block does.
+// THE APPOINTMENTS (spec 2026-07-13) — the work-milestone block: stamp chip
+// (always present — the six canonical tokens, unknown normalizes to
+// MILESTONE) + the detail line only when stored. Slate accent (#7aa7dc),
+// the site's work-domain color.
+function CfMilestoneStamp({ m }) {
+  const label = String(DC_MILESTONE_STAMPS.includes(m.stamp) ? m.stamp : "milestone").replace("_", " ").toUpperCase();
+  return (
+    <div style={{ margin: "10px 0 12px", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.1)", borderRadius: 12, padding: "11px 14px" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }} aria-hidden="true">
+        <span style={{ flex: 1, borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.14)" }} />
+        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8.5, fontWeight: 700, letterSpacing: "0.2em", textTransform: "uppercase", color: "var(--sh-ink2, #a09b94)" }}>The appointments</span>
+        <span style={{ flex: 1, borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.14)" }} />
+      </div>
+      <div style={{ marginTop: 9, display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+        <span style={{ flexShrink: 0, fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase", color: "#7aa7dc", border: "1px solid rgba(122,167,220,0.45)", borderRadius: 3, padding: "3px 8px" }}>{label}</span>
+        {m.detail && <span style={{ fontFamily: serif, fontStyle: "italic", fontSize: 13.5, lineHeight: 1.45, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.85)", minWidth: 0 }}>{m.detail}</span>}
+      </div>
+    </div>
+  );
+}
+
+function CfMealPlate({ meal }) {
+  // Honest-absent (CodeRabbit): cfMapPost delivers nullable macros + a
+  // tri-state planned. Absent rows drop, the kcal headline renders only
+  // when real, the stamp only when the planning state is KNOWN, and the
+  // footer only when it has something true to say.
+  const rows = [["Protein", meal.p], ["Carbs", meal.c], ["Fat", meal.f]]
+    .filter((r) => r[1] != null).map(([l, v]) => [l, `${v} g`]);
+  const stamp = meal.planned === true ? "As planned" : meal.planned === false ? "Adjusted" : null;
+  const stampLine = [stamp, meal.portion ? `${meal.portion}×` : null].filter(Boolean).join(" · ");
+  const attribution = meal.coach ? `From ${meal.coach}'s plan` : meal.recipeId ? "Kitchen Card recipe" : null;
+  return (
+    <div style={{ marginBottom: 12, padding: "13px 16px 9px", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.14)", borderRadius: 10 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10 }} aria-hidden="true">
+        <span style={{ flex: 1, borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.16)" }} />
+        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.2em", color: "var(--sh-ink2, #a09b94)", fontWeight: 600 }}>THE PLATE</span>
+        <span style={{ flex: 1, borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.16)" }} />
+      </div>
+      {meal.kcal != null && (
+        <div style={{ marginTop: 10, display: "flex", alignItems: "baseline", gap: 10 }}>
+          <span style={{ fontFamily: serif, fontSize: 30, letterSpacing: "-0.02em", color: INK, lineHeight: 1 }}>{meal.kcal}</span>
+          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.14em", color: "var(--sh-ink2, #a09b94)" }}>KCAL</span>
+        </div>
+      )}
+      {rows.length > 0 && (
+        <div style={{ marginTop: 6 }}>
+          {rows.map(([l, v]) => (
+            <div key={l} style={{ display: "flex", alignItems: "baseline", gap: 10, padding: "4px 0" }}>
+              <span style={{ fontSize: 13.5, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.85)" }}>{l}</span>
+              <span aria-hidden="true" style={{ flex: 1, borderBottom: "1px dotted rgba(var(--sh-ink-rgb, 242,237,228),0.3)", transform: "translateY(-3px)" }} />
+              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11.5, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.85)", letterSpacing: "0.04em" }}>{v}</span>
+            </div>
+          ))}
+        </div>
+      )}
+      {(stampLine || attribution) && (
+        <div style={{ marginTop: 7, paddingTop: 7, borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.14)", display: "flex", justifyContent: "space-between", gap: 10, fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.14em", color: "var(--sh-ink2, #a09b94)", textTransform: "uppercase" }}>
+        <span style={{ flexShrink: 0 }}>{stampLine}</span>
+          {attribution && <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{attribution}</span>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── The card's byline and body, as the feed draws a post ──────────────────
+// At file scope so the feed's card (FeedItem) and any other page that draws a post
+// as the feed does (the coach page's Posts camp, coachProfileWeb.jsx, through
+// CfPostCard below) are one drawing. `p` is the post as cfMapPost maps it, in the
+// reader's units; `wall` its cfWallModel; `talk` a conversation post drawn as words.
+
+// The headline the plate prints.
+function cfPostTitle(p) {
+  // ⚠ A DEMO RUN KEEPS ITS NAME IN `session.title` AND NOWHERE ELSE, so
+  // without this fallback the richest card on the board lost its headline —
+  // the retired session button was what used to print it. It is taken for
+  // DEMO posts only: `cfMapPost` sets a live post's `session.title` to
+  // `p.title || 'Activity'`, i.e. the same field plus a generic, so for a live
+  // post this could only ever contribute the word "Activity" as a headline.
+  return String(
+    p.title
+    // ⚠ A DEMO PR'S HEADLINE IS COMPOSED, NOT THE BARE LIFT. The app builds
+    // `${lift} — new PR` (iosAppBroadsheetClient.jsx:18957) because its demo
+    // PRs carry no `title` of their own either; a bare "Bench Press" is a
+    // divergence, not a simplification. Live posts never reach this branch —
+    // `cfMapPost` sets no `lift` at all.
+    || (p.lift && p.kind === "pr" ? `${p.lift} — new PR` : "")
+    || p.lift
+    || (p.isLive ? "" : (p.session && p.session.title) || "")
+  ).trim();
+}
+
+// Who posted it, when, and what kind of record it is.
+function CfPostHead({ p, wall, talk }) {
+  return (
+    <div style={{ display: "flex", gap: 12, marginBottom: talk ? 10 : 14, alignItems: "center" }}>
+      <CfAvatar p={p} size={talk ? 38 : 40} />
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          <div style={{ fontSize: 14, fontWeight: 600, letterSpacing: "-0.005em" }}>{p.who}</div>
+          <div style={{ fontSize: 11, color: wall.heat, fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.04em" }}>{p.role}</div>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 3 }}>
+          <span style={{ fontFamily: mono, fontSize: 10, color: cfHexA(INK, 0.45), letterSpacing: "0.04em" }}>{p.pending ? "Posting…" : p.time}</span>
+        </div>
+      </div>
+      {/* The activity type as the app sets it — a heat-underlined caption
+          rather than a bordered chip. The 999px pill was the last piece of
+          pill chrome on the app's card and it went for the same reason. */}
+      {p.tag && <span style={{ flexShrink: 0, fontFamily: mono, fontSize: 8.5, fontWeight: 800, letterSpacing: "0.14em", textTransform: "uppercase", color: cfHexA(INK, 0.7), borderBottom: `1px solid ${wall.heat}`, paddingBottom: 2, lineHeight: 1 }}>{p.tag}</span>}
+    </div>
+  );
+}
+
+// The plate (or the words), the meal and milestone blocks, the media, who is
+// tagged, and the evidence. `onSession` opens Session details, or null.
+function CfPostBody({ p, wall, wallTitle, talk, onSession }) {
+  return (
+    <React.Fragment>
+      {/* ⚠ THE PLATE REPLACES THE PER-KIND BLOCKS, NOT JUST THE WALL CHIP'S.
+          The app applies `variant="wall"` to every card in the Feed segment
+          (iosAppBroadsheetClient.jsx:21907) rather than to one chip, so the
+          six blocks this retired (PRStat/WorkoutStat/RunStat/TierStat/
+          MealStat/StreakStat) had no chip left to render on. */}
+      {talk
+        ? <div style={{ fontFamily: sans, fontSize: 14.5, lineHeight: 1.55, color: cfHexA(INK, 0.92), whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{p.body}</div>
+        : <CfWallPlate p={p} model={wall} title={wallTitle} />}
+      {p.meal && <CfMealPlate meal={p.meal} />}
+      {p.milestone && <CfMilestoneStamp m={p.milestone} />}
+      {!talk && p.body && p.body !== wallTitle && <div style={{ fontFamily: sans, fontSize: 13, lineHeight: 1.45, color: cfHexA(INK, 0.75), marginTop: 7 }}>{p.body}</div>}
+      {p.photo && <img src={p.photo} alt={p.title || p.body || `Photo shared by ${p.who || "a member"}`} loading="lazy" style={{ display: "block", width: "100%", aspectRatio: "4 / 3", objectFit: "cover", borderRadius: 12, marginTop: p.body ? 12 : 2, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)", background: "rgba(var(--sh-ink-rgb, 242,237,228),0.05)" }} />}
+      {p.video && <video src={p.video} controls playsInline preload="metadata" style={{ display: "block", width: "100%", aspectRatio: "4 / 3", objectFit: "cover", borderRadius: 12, marginTop: p.body ? 12 : 2, background: "#000", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)" }} />}
+      {p.link && p.link.url && (
+        <a data-cf-link="" href={p.link.url} target="_blank" rel="noopener noreferrer"
+           style={{ display: "inline-block", marginTop: 10, fontFamily: mono, fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: wall.heat, borderBottom: `1px solid ${cfHexA(wall.heat, 0.5)}`, paddingBottom: 2, textDecoration: "none", overflowWrap: "anywhere" }}>
+          ↗ {p.link.title || "Open link"}
+        </a>
+      )}
+      {Array.isArray(p.mentions) && p.mentions.length > 0 && (
+        <div style={{ marginTop: 8, fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "var(--sh-ink2, #a09b94)" }}>
+          with {p.mentions.map((mn, mi) => (
+            <React.Fragment key={mi}>
+              {mn.userId ? <a href={`MemberProfile.html?u=${mn.userId}`} style={{ color: TEAL_BRIGHT, textDecoration: "none", fontWeight: 600 }}>@{mn.name}</a> : <span style={{ color: TEAL_BRIGHT, fontWeight: 600 }}>@{mn.name}</span>}
+              {mi < p.mentions.length - 1 ? ", " : ""}
+            </React.Fragment>
+          ))}
+        </div>
+      )}
+      <CfWallEvidence model={wall} onOpen={onSession} />
+      {p.note && !p.photo && <div style={{ fontSize: 12.5, lineHeight: 1.5, color: "var(--sh-ink2, #a09b94)", fontStyle: "italic", marginTop: 6 }}>"{p.note}"</div>}
+    </React.Fragment>
+  );
+}
+
+// A post drawn as the feed draws it, for a page that is not the feed: the coach
+// page's Posts camp (owner, 2026-11-11: "Posts - need to match current activity
+// feed"). The feed's card, byline, plate and evidence, and Session details on a
+// tap; no likes, replies or sharing here, which are the feed's. `row` is a
+// community_posts row, read by cfMapPost as the feed reads one; `units` the
+// reader's (cfLoadUnits), else the figures as stored.
+function CfPostCard({ row, units = null, place = "wall" }) {
+  const p = React.useMemo(() => {
+    const mapped = cfMapPost(row, null);
+    return units ? cfUnitizePost(mapped, units.U, units.prefs) : mapped;
+  }, [row, units]);
+  React.useEffect(() => { cfEnsureWallFonts(); }, []);
+  const [sessionOpen, setSessionOpen] = React.useState(false);
+  const wall = cfWallModel(p);
+  const talk = place !== "wall" && !wall.heroStat && !p.meal && !p.milestone;
+  const wallTitle = cfPostTitle(p);
+  return (
+    <CfCard style={{ padding: talk ? "18px 20px 14px" : 22 }}>
+      <CfPostHead p={p} wall={wall} talk={talk} />
+      <CfPostBody p={p} wall={wall} wallTitle={wallTitle} talk={talk} onSession={p.session ? () => setSessionOpen(true) : null} />
+      {sessionOpen && <SessionDetailsModal p={p} onClose={() => setSessionOpen(false)} onShareImage={null} />}
+    </CfCard>
+  );
+}
+
+// ── A feed row, as a card reads it ─────────────────────────────────────────
+// A community_posts row (the feed API's, or any read of the table) mapped to the
+// card's post. At file scope, not in the feed's load, so another page that draws a
+// post as the feed does (the coach page's Posts, coachProfileWeb.jsx) maps it with
+// this same function: one reading of a row on the website. `uid` is the reader's
+// account, for the hearts and replies that are theirs.
+function cfTagFor(a) {
+  const t = String(a || '').toLowerCase();
+  if (t === 'pr' || t === 'strength' || t === 'workout') return 'STRENGTH';
+  if (t === 'run' || t === 'race' || t === 'racing') return 'RACING';
+  if (t === 'meal' || t === 'nutrition') return 'NUTRITION';
+  return 'GENERAL';
+}
+function cfActivityAt(row) {
+  const r = row && typeof row === "object" ? row : {};
+  const m = r.metrics && typeof r.metrics === "object" ? r.metrics : {};
+  const st = typeof m.startedAt === "string" ? m.startedAt.trim() : "";
+  if (st && Number.isFinite(Date.parse(st))) return st;
+  const c = typeof r.created_at === "string" ? r.created_at.trim() : "";
+  return c && Number.isFinite(Date.parse(c)) ? c : null;
+}
+function cfSince(iso) {
+  const ms = Date.now() - new Date(iso).getTime();
+  if (ms < 60_000) return 'now';
+  if (ms < 3_600_000) return `${Math.floor(ms / 60_000)}m`;
+  if (ms < 86_400_000) return `${Math.floor(ms / 3_600_000)}h`;
+  return `${Math.floor(ms / 86_400_000)}d`;
+}
+// Filter buckets for a REAL post — `kind` stays 'post' (the renderer
+// contract: the pr/run/workout demo renderers need fields the API omits);
+// ⚠ THE BUCKETS OUTLIVED THE FILTER TABS THEY WERE WRITTEN FOR. They fed
+// the web-only activity-kind row, which is gone; what reads them now is
+// `cfWallModel`, whose `isRun` decides whether the plate's hero figure is
+// the DISTANCE or the load — so a real logged run still has to bucket as a
+// run or its plate leads with the wrong number. Mirrors the app's bsActivityFromPost
+// cut: only posts with real activity evidence type as activities — the
+// API defaults activity_type to 'workout' even on plain notes, so the
+// type string alone can't be trusted. Non-exclusive like the mobile
+// chips (CodeRabbit): a PR'd run files under BOTH RUNS and PRs.
+function cfBucketsFor(p, m) {
+  // Shared meals (spec 2026-07-12) file under NUTRITION only — a meal is
+  // not a workout, and it never cross-files.
+  if (m.kind === 'meal') return ['meal'];
+  // Work milestones (spec 2026-07-13) file under MILESTONES only — a
+  // career milestone is not a workout or a training PR.
+  if (m.kind === 'milestone') return ['milestone'];
+  // Evidence gate = everything hasSession trusts below (trace/zone
+  // metrics) + composer/provider markers + a stamped PR delta, so a
+  // delta-only PR or a trace-bearing session never files as plain 'post'
+  // (CodeRabbit, #1684 follow-up).
+  const isActivity = m.kind === 'workout'
+    || (Array.isArray(m.workoutStats) && m.workoutStats.length > 0)
+    || !!p.source_provider
+    || !!(p.route && typeof p.route === 'object' && Array.isArray(p.route.points) && p.route.points.length)
+    || !!(m.hrTrace || m.paceTrace || m.powerTrace || m.cadenceTrace || m.elevTrace || m.zoneDurations || m.zone_durations)
+    || !!String(m.delta || '').trim();
+  if (!isActivity) return ['post'];
+  const t = String(p.activity_type || '').toLowerCase();
+  const buckets = [/run|jog|ride|bike|cycl|cardio|walk|hike|row|swim/.test(t) ? 'run' : 'workout'];
+  if (String(m.delta || '').trim()) buckets.push('pr');
+  return buckets;
+}
+function cfMapPost(p, uid) {
+  // Always render the body with the text-only 'post' renderer (the
+  // pr/run/workout/meal demo renderers need fields the feed API omits).
+  // BUT carry the real device metrics so activity posts get a Session
+  // details view (charts), mirroring the mobile app.
+  const m = (p.metrics && typeof p.metrics === 'object') ? p.metrics : {};
+  // ⚠ THE APP WRITES workoutStats IN TWO SHAPES AND THIS READ ONLY ONE.
+  // `shapeBackend.js:3141` publishes a live session's rows as
+  // `{ label, value }`, but the app's own Log-activity composer
+  // (`iosAppBroadsheetClient.jsx:14060`) and the Post-a-PR sheet (`:20166`)
+  // both write `{ l, v }`. Accepting only the first dropped EVERY row from a
+  // post made in the app by hand: `wstats` came back empty, `hasSession` was
+  // false, and the card lost its hero, its facts and its stat grid with
+  // nothing failing anywhere. The app reads them through `bsActivityFromPost`
+  // (`:13660`), which never assumed either spelling.
+  const wstats = Array.isArray(m.workoutStats) ? m.workoutStats.map((st) => {
+    if (!st || typeof st !== 'object') return null;
+    const label = st.label != null ? st.label : st.l;
+    const value = st.value != null ? st.value : st.v;
+    // An empty value is not a reading — the composer already drops those at
+    // the write (`.filter((s) => s.v)`), so a blank cell here would only
+    // ever come from a legacy or hand-written row.
+    return (label && value != null && String(value).trim()) ? [String(label), String(value)] : null;
+  }).filter(Boolean) : [];
+  const hasSession = !!(m.hrTrace || m.paceTrace || m.powerTrace || m.cadenceTrace || m.elevTrace || m.zoneDurations || m.zone_durations || wstats.length);
+  return {
+    kind: 'post',
+    buckets: cfBucketsFor(p, m),
+    // ⚠ THE FEED CHANNEL IS NOT A COLUMN — it is stashed in the metrics
+    // jsonb (shapeBackend.js:3689), so reading `p.channel` here returns
+    // undefined for every row and the Wall renders empty. The app's own
+    // row mapper lifts it from the same place.
+    channel: (typeof m.channel === 'string' ? m.channel : '').trim().toUpperCase(),
+    // THE PLATE data for real shared meals (spec 2026-07-12) — meal macros
+    // only, honest-absent END TO END (CodeRabbit): a missing/malformed
+    // value is null (the plate drops the row — never a fabricated "0 g"),
+    // planned is tri-state (unknown → no stamp, never "Adjusted" by
+    // default), and a meal post with no numbers at all renders as a
+    // plain post.
+    meal: (() => {
+      if (m.kind !== 'meal') return null;
+      const num = (v) => { if (v === undefined || v === null || v === '') return null; const n = Number(v); return Number.isFinite(n) ? Math.round(n) : null; };
+      const meal = {
+        kcal: num(m.kcal), p: num(m.p), c: num(m.c), f: num(m.f),
+        planned: typeof m.planned === 'boolean' ? m.planned : null,
+        portion: (Number(m.portion) > 0 && Number(m.portion) !== 1) ? Number(m.portion) : null,
+        recipeId: (typeof m.recipeId === 'string' && m.recipeId.trim()) ? m.recipeId.trim() : '',
+        coach: (typeof m.coach === 'string' && m.coach.trim()) ? m.coach.trim() : '',
+      };
+      return (meal.kcal != null || meal.p != null || meal.c != null || meal.f != null) ? meal : null;
+    })(),
+    // THE APPOINTMENTS block (spec 2026-07-13): stamp ALWAYS present
+    // (unknown normalizes to 'milestone' — the one-behavior contract),
+    // detail only when stored.
+    milestone: m.kind === 'milestone' ? {
+      stamp: DC_MILESTONE_STAMPS.includes(m.stamp) ? m.stamp : 'milestone',
+      detail: (typeof m.detail === 'string' && m.detail.trim()) ? m.detail.trim() : '',
+    } : null,
+    id: p.id || null,
+    who: p.author_name || 'Shape member',
+    role: p.author_role ? p.author_role[0].toUpperCase() + p.author_role.slice(1) : 'Member',
+    // ⚠ DATED BY THE WORKOUT, NOT BY THE SYNC THAT POSTED IT. Auto-posters
+    // stamp the activity's own start into metrics.startedAt; created_at is
+    // when the post was made. A backfilled run would otherwise read "2h
+    // ago" about a workout from March. Falls back to created_at, which is
+    // right for a manual post (no startedAt) AND for a legacy auto post
+    // (where created_at IS the activity start). Mirrors bsPostActivityStart
+    // in mobile-app/src/services/workoutShare.mjs — these pages are classic
+    // scripts and cannot import it; tests/workout-share.test.mjs pins the
+    // two together.
+    time: cfSince(cfActivityAt(p)),
+    title: p.title,
+    body: p.photo_url ? (p.note || (p.title && p.title !== 'Photo' ? p.title : '')) : (p.note || p.title),
+    photo: p.photo_url || null,
+    mentions: (p.metrics && Array.isArray(p.metrics.mentions)) ? p.metrics.mentions : [],
+    likes: Array.isArray(p.likes) ? p.likes.length : 0,
+    // ⚠ WHETHER YOU LIKED IT IS READ, NOT ASSUMED. The heart started empty on every
+    // card, so tapping one you had liked in the app counted +1 here while the write
+    // REMOVED your like: the two surfaces then disagreed by two.
+    likedByMe: !!(uid && Array.isArray(p.likes) && p.likes.some((l) => l && l.user_id === uid)),
+    comments: Array.isArray(p.comments) ? p.comments.length : 0,
+    // The replies themselves, oldest first, as the app shows them: the card showed a
+    // count and only the replies typed on this page since it opened.
+    commentList: Array.isArray(p.comments) ? p.comments.slice()
+      .sort((a, b) => String((a && a.created_at) || "").localeCompare(String((b && b.created_at) || "")))
+      .map((c) => ({ id: c.id || null, who: (uid && c.user_id === uid) ? "You" : (c.author_name || "Member"), t: String(c.body || ""), time: c.created_at ? cfSince(c.created_at) : "", mine: !!(uid && c.user_id === uid) })) : [],
+    authorId: p.author_id || null,
+    // A repost is never a Wall card (`bsWallMediaCard` refuses one), whatever it quotes.
+    repost: !!(m && m.repostOf),
+    // Meal posts pin the NUTRITION tag from metrics.kind — activity_type
+    // defaults to 'workout' on this API, so it can't be trusted alone
+    // (CodeRabbit: the visible pill must match the Nutrition bucket).
+    tag: m.kind === 'meal' ? 'NUTRITION' : m.kind === 'milestone' ? 'MILESTONE' : cfTagFor(p.activity_type),
+    isMe: !!(uid && p.author_id === uid),
+    video: (m && m.video_url) || null,
+    // A link post's destination is its content (the member profile's FeedBlock and the coach page's old
+    // rows both drew it). https only, as the coach kit's safeMedia: the url is the author's.
+    link: (m && m.link && typeof m.link === 'object' && typeof m.link.url === 'string' && m.link.url.length <= 2048 && /^https:\/\/[^\s]+$/i.test(m.link.url.trim()))
+      ? { url: m.link.url.trim(), title: typeof m.link.title === 'string' ? m.link.title.trim().slice(0, 80) : '' } : null,
+    isLive: true,
+    session: hasSession ? { metrics: m, stats: wstats, sport: p.activity_type || '', title: p.title || 'Activity' } : null,
+    // The sport is the post's, not only its session's: a swim posted with a
+    // title and no stats still quotes pool metres, and the converter reads
+    // them as metres only inside a swim (the app reads `activity_type` too).
+    sport: p.activity_type || '',
+    // Share-card pass-throughs (web-parity spec 2026-07-13): the raw
+    // values the card model needs, all honest-absent — a post without
+    // them shares a minimal card, never a fabricated one.
+    createdAt: p.created_at || null,
+    route: (p.route && typeof p.route === 'object' && Array.isArray(p.route.points) && p.route.points.length >= 2) ? p.route.points : null,
+    delta: (typeof m.delta === 'string' && m.delta.trim()) ? m.delta.trim() : '',
+    // ⚠ A FIRST RECORD HAS A MARKER AND NO DELTA. `delta` exists only against
+    // a PRIOR best, so `BSWallPostSheet` stamps `metrics.pr: true` for a
+    // member's first accepted best (`iosAppBroadsheetClient.jsx:20223`) — and
+    // the app's own card reads exactly that (`a.pr === true`). Without
+    // lifting it, a genuine first record is drawn as an ordinary load with no
+    // "New PR" pill, which is the defect the app fixed for itself.
+    pr: m.pr === true,
+  };
+}
+
 function CommunityFeed({ place = "wall" } = {}) {
   // The member posting: their own name, read with their account below (`meName`). It
   // was a sample person's ("Priya M."), so the composer and a new post's optimistic row
@@ -1256,178 +1630,6 @@ function CommunityFeed({ place = "wall" } = {}) {
   // to the local feed shape and prepend so a real post lands above the demos.
   React.useEffect(() => {
     let alive = true;
-    const tagFor = (a) => {
-      const t = String(a || '').toLowerCase();
-      if (t === 'pr' || t === 'strength' || t === 'workout') return 'STRENGTH';
-      if (t === 'run' || t === 'race' || t === 'racing') return 'RACING';
-      if (t === 'meal' || t === 'nutrition') return 'NUTRITION';
-      return 'GENERAL';
-    };
-    const cfActivityAt = (row) => {
-      const r = row && typeof row === "object" ? row : {};
-      const m = r.metrics && typeof r.metrics === "object" ? r.metrics : {};
-      const st = typeof m.startedAt === "string" ? m.startedAt.trim() : "";
-      if (st && Number.isFinite(Date.parse(st))) return st;
-      const c = typeof r.created_at === "string" ? r.created_at.trim() : "";
-      return c && Number.isFinite(Date.parse(c)) ? c : null;
-    };
-    const since = (iso) => {
-      const ms = Date.now() - new Date(iso).getTime();
-      if (ms < 60_000) return 'now';
-      if (ms < 3_600_000) return `${Math.floor(ms / 60_000)}m`;
-      if (ms < 86_400_000) return `${Math.floor(ms / 3_600_000)}h`;
-      return `${Math.floor(ms / 86_400_000)}d`;
-    };
-    // Filter buckets for a REAL post — `kind` stays 'post' (the renderer
-    // contract: the pr/run/workout demo renderers need fields the API omits);
-    // ⚠ THE BUCKETS OUTLIVED THE FILTER TABS THEY WERE WRITTEN FOR. They fed
-    // the web-only activity-kind row, which is gone; what reads them now is
-    // `cfWallModel`, whose `isRun` decides whether the plate's hero figure is
-    // the DISTANCE or the load — so a real logged run still has to bucket as a
-    // run or its plate leads with the wrong number. Mirrors the app's bsActivityFromPost
-    // cut: only posts with real activity evidence type as activities — the
-    // API defaults activity_type to 'workout' even on plain notes, so the
-    // type string alone can't be trusted. Non-exclusive like the mobile
-    // chips (CodeRabbit): a PR'd run files under BOTH RUNS and PRs.
-    const bucketsFor = (p, m) => {
-      // Shared meals (spec 2026-07-12) file under NUTRITION only — a meal is
-      // not a workout, and it never cross-files.
-      if (m.kind === 'meal') return ['meal'];
-      // Work milestones (spec 2026-07-13) file under MILESTONES only — a
-      // career milestone is not a workout or a training PR.
-      if (m.kind === 'milestone') return ['milestone'];
-      // Evidence gate = everything hasSession trusts below (trace/zone
-      // metrics) + composer/provider markers + a stamped PR delta, so a
-      // delta-only PR or a trace-bearing session never files as plain 'post'
-      // (CodeRabbit, #1684 follow-up).
-      const isActivity = m.kind === 'workout'
-        || (Array.isArray(m.workoutStats) && m.workoutStats.length > 0)
-        || !!p.source_provider
-        || !!(p.route && typeof p.route === 'object' && Array.isArray(p.route.points) && p.route.points.length)
-        || !!(m.hrTrace || m.paceTrace || m.powerTrace || m.cadenceTrace || m.elevTrace || m.zoneDurations || m.zone_durations)
-        || !!String(m.delta || '').trim();
-      if (!isActivity) return ['post'];
-      const t = String(p.activity_type || '').toLowerCase();
-      const buckets = [/run|jog|ride|bike|cycl|cardio|walk|hike|row|swim/.test(t) ? 'run' : 'workout'];
-      if (String(m.delta || '').trim()) buckets.push('pr');
-      return buckets;
-    };
-    const mapPost = (p, uid) => {
-      // Always render the body with the text-only 'post' renderer (the
-      // pr/run/workout/meal demo renderers need fields the feed API omits).
-      // BUT carry the real device metrics so activity posts get a Session
-      // details view (charts), mirroring the mobile app.
-      const m = (p.metrics && typeof p.metrics === 'object') ? p.metrics : {};
-      // ⚠ THE APP WRITES workoutStats IN TWO SHAPES AND THIS READ ONLY ONE.
-      // `shapeBackend.js:3141` publishes a live session's rows as
-      // `{ label, value }`, but the app's own Log-activity composer
-      // (`iosAppBroadsheetClient.jsx:14060`) and the Post-a-PR sheet (`:20166`)
-      // both write `{ l, v }`. Accepting only the first dropped EVERY row from a
-      // post made in the app by hand: `wstats` came back empty, `hasSession` was
-      // false, and the card lost its hero, its facts and its stat grid with
-      // nothing failing anywhere. The app reads them through `bsActivityFromPost`
-      // (`:13660`), which never assumed either spelling.
-      const wstats = Array.isArray(m.workoutStats) ? m.workoutStats.map((st) => {
-        if (!st || typeof st !== 'object') return null;
-        const label = st.label != null ? st.label : st.l;
-        const value = st.value != null ? st.value : st.v;
-        // An empty value is not a reading — the composer already drops those at
-        // the write (`.filter((s) => s.v)`), so a blank cell here would only
-        // ever come from a legacy or hand-written row.
-        return (label && value != null && String(value).trim()) ? [String(label), String(value)] : null;
-      }).filter(Boolean) : [];
-      const hasSession = !!(m.hrTrace || m.paceTrace || m.powerTrace || m.cadenceTrace || m.elevTrace || m.zoneDurations || m.zone_durations || wstats.length);
-      return {
-        kind: 'post',
-        buckets: bucketsFor(p, m),
-        // ⚠ THE FEED CHANNEL IS NOT A COLUMN — it is stashed in the metrics
-        // jsonb (shapeBackend.js:3689), so reading `p.channel` here returns
-        // undefined for every row and the Wall renders empty. The app's own
-        // row mapper lifts it from the same place.
-        channel: (typeof m.channel === 'string' ? m.channel : '').trim().toUpperCase(),
-        // THE PLATE data for real shared meals (spec 2026-07-12) — meal macros
-        // only, honest-absent END TO END (CodeRabbit): a missing/malformed
-        // value is null (the plate drops the row — never a fabricated "0 g"),
-        // planned is tri-state (unknown → no stamp, never "Adjusted" by
-        // default), and a meal post with no numbers at all renders as a
-        // plain post.
-        meal: (() => {
-          if (m.kind !== 'meal') return null;
-          const num = (v) => { if (v === undefined || v === null || v === '') return null; const n = Number(v); return Number.isFinite(n) ? Math.round(n) : null; };
-          const meal = {
-            kcal: num(m.kcal), p: num(m.p), c: num(m.c), f: num(m.f),
-            planned: typeof m.planned === 'boolean' ? m.planned : null,
-            portion: (Number(m.portion) > 0 && Number(m.portion) !== 1) ? Number(m.portion) : null,
-            recipeId: (typeof m.recipeId === 'string' && m.recipeId.trim()) ? m.recipeId.trim() : '',
-            coach: (typeof m.coach === 'string' && m.coach.trim()) ? m.coach.trim() : '',
-          };
-          return (meal.kcal != null || meal.p != null || meal.c != null || meal.f != null) ? meal : null;
-        })(),
-        // THE APPOINTMENTS block (spec 2026-07-13): stamp ALWAYS present
-        // (unknown normalizes to 'milestone' — the one-behavior contract),
-        // detail only when stored.
-        milestone: m.kind === 'milestone' ? {
-          stamp: DC_MILESTONE_STAMPS.includes(m.stamp) ? m.stamp : 'milestone',
-          detail: (typeof m.detail === 'string' && m.detail.trim()) ? m.detail.trim() : '',
-        } : null,
-        id: p.id || null,
-        who: p.author_name || 'Shape member',
-        role: p.author_role ? p.author_role[0].toUpperCase() + p.author_role.slice(1) : 'Member',
-        // ⚠ DATED BY THE WORKOUT, NOT BY THE SYNC THAT POSTED IT. Auto-posters
-        // stamp the activity's own start into metrics.startedAt; created_at is
-        // when the post was made. A backfilled run would otherwise read "2h
-        // ago" about a workout from March. Falls back to created_at, which is
-        // right for a manual post (no startedAt) AND for a legacy auto post
-        // (where created_at IS the activity start). Mirrors bsPostActivityStart
-        // in mobile-app/src/services/workoutShare.mjs — these pages are classic
-        // scripts and cannot import it; tests/workout-share.test.mjs pins the
-        // two together.
-        time: since(cfActivityAt(p)),
-        title: p.title,
-        body: p.photo_url ? (p.note || (p.title && p.title !== 'Photo' ? p.title : '')) : (p.note || p.title),
-        photo: p.photo_url || null,
-        mentions: (p.metrics && Array.isArray(p.metrics.mentions)) ? p.metrics.mentions : [],
-        likes: Array.isArray(p.likes) ? p.likes.length : 0,
-        // ⚠ WHETHER YOU LIKED IT IS READ, NOT ASSUMED. The heart started empty on every
-        // card, so tapping one you had liked in the app counted +1 here while the write
-        // REMOVED your like: the two surfaces then disagreed by two.
-        likedByMe: !!(uid && Array.isArray(p.likes) && p.likes.some((l) => l && l.user_id === uid)),
-        comments: Array.isArray(p.comments) ? p.comments.length : 0,
-        // The replies themselves, oldest first, as the app shows them: the card showed a
-        // count and only the replies typed on this page since it opened.
-        commentList: Array.isArray(p.comments) ? p.comments.slice()
-          .sort((a, b) => String((a && a.created_at) || "").localeCompare(String((b && b.created_at) || "")))
-          .map((c) => ({ id: c.id || null, who: (uid && c.user_id === uid) ? "You" : (c.author_name || "Member"), t: String(c.body || ""), time: c.created_at ? since(c.created_at) : "", mine: !!(uid && c.user_id === uid) })) : [],
-        authorId: p.author_id || null,
-        // A repost is never a Wall card (`bsWallMediaCard` refuses one), whatever it quotes.
-        repost: !!(m && m.repostOf),
-        // Meal posts pin the NUTRITION tag from metrics.kind — activity_type
-        // defaults to 'workout' on this API, so it can't be trusted alone
-        // (CodeRabbit: the visible pill must match the Nutrition bucket).
-        tag: m.kind === 'meal' ? 'NUTRITION' : m.kind === 'milestone' ? 'MILESTONE' : tagFor(p.activity_type),
-        isMe: !!(uid && p.author_id === uid),
-        video: (m && m.video_url) || null,
-        isLive: true,
-        session: hasSession ? { metrics: m, stats: wstats, sport: p.activity_type || '', title: p.title || 'Activity' } : null,
-        // The sport is the post's, not only its session's: a swim posted with a
-        // title and no stats still quotes pool metres, and the converter reads
-        // them as metres only inside a swim (the app reads `activity_type` too).
-        sport: p.activity_type || '',
-        // Share-card pass-throughs (web-parity spec 2026-07-13): the raw
-        // values the card model needs, all honest-absent — a post without
-        // them shares a minimal card, never a fabricated one.
-        createdAt: p.created_at || null,
-        route: (p.route && typeof p.route === 'object' && Array.isArray(p.route.points) && p.route.points.length >= 2) ? p.route.points : null,
-        delta: (typeof m.delta === 'string' && m.delta.trim()) ? m.delta.trim() : '',
-        // ⚠ A FIRST RECORD HAS A MARKER AND NO DELTA. `delta` exists only against
-        // a PRIOR best, so `BSWallPostSheet` stamps `metrics.pr: true` for a
-        // member's first accepted best (`iosAppBroadsheetClient.jsx:20223`) — and
-        // the app's own card reads exactly that (`a.pr === true`). Without
-        // lifting it, a genuine first record is drawn as an ordinary load with no
-        // "New PR" pill, which is the defect the app fixed for itself.
-        pr: m.pr === true,
-      };
-    };
     (async () => {
       // Signed-in users see only the REAL community feed (a clean empty state when
       // there's nothing yet); the demo sample posts are for signed-out preview only.
@@ -1480,7 +1682,7 @@ function CommunityFeed({ place = "wall" } = {}) {
       let live = [];
       let ok = false;
       const d = await feedReq;
-      if (d && Array.isArray(d.posts)) { live = d.posts.map(p => mapPost(p, uid)); ok = true; }
+      if (d && Array.isArray(d.posts)) { live = d.posts.map(p => cfMapPost(p, uid)); ok = true; }
       if (!alive) return;
       lastLoadRef.current = Date.now();
       // ⚠ A FAILED RE-READ KEEPS WHAT IS ON SCREEN. Only a first read that failed says so.
@@ -1501,78 +1703,6 @@ function CommunityFeed({ place = "wall" } = {}) {
     })();
     return () => { alive = false; };
   }, [feedMode, refreshNonce]);
-
-  // ── The two blocks the wall plate does NOT absorb ─────────────────────
-  // THE PLATE (spec 2026-07-12) — a REAL shared meal's signature block: kcal
-  // headline, dot-leader macro lines, the AS PLANNED/ADJUSTED stamp + honest
-  // attribution. Renders only when mapPost stamps p.meal (metrics.kind==='meal').
-  // Never day totals, never targets. ⚠ It is a MEAL DOCUMENT, not a reading, so
-  // the wall plate does not replace it the way it replaced the six per-kind
-  // stat blocks — it sits under the plate, as the app's own meal block does.
-  // THE APPOINTMENTS (spec 2026-07-13) — the work-milestone block: stamp chip
-  // (always present — the six canonical tokens, unknown normalizes to
-  // MILESTONE) + the detail line only when stored. Slate accent (#7aa7dc),
-  // the site's work-domain color.
-  function MilestoneStamp({ m }) {
-    const label = String(DC_MILESTONE_STAMPS.includes(m.stamp) ? m.stamp : "milestone").replace("_", " ").toUpperCase();
-    return (
-      <div style={{ margin: "10px 0 12px", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.1)", borderRadius: 12, padding: "11px 14px" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }} aria-hidden="true">
-          <span style={{ flex: 1, borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.14)" }} />
-          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8.5, fontWeight: 700, letterSpacing: "0.2em", textTransform: "uppercase", color: "var(--sh-ink2, #a09b94)" }}>The appointments</span>
-          <span style={{ flex: 1, borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.14)" }} />
-        </div>
-        <div style={{ marginTop: 9, display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
-          <span style={{ flexShrink: 0, fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase", color: "#7aa7dc", border: "1px solid rgba(122,167,220,0.45)", borderRadius: 3, padding: "3px 8px" }}>{label}</span>
-          {m.detail && <span style={{ fontFamily: serif, fontStyle: "italic", fontSize: 13.5, lineHeight: 1.45, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.85)", minWidth: 0 }}>{m.detail}</span>}
-        </div>
-      </div>
-    );
-  }
-
-  function MealPlate({ meal }) {
-    // Honest-absent (CodeRabbit): mapPost delivers nullable macros + a
-    // tri-state planned. Absent rows drop, the kcal headline renders only
-    // when real, the stamp only when the planning state is KNOWN, and the
-    // footer only when it has something true to say.
-    const rows = [["Protein", meal.p], ["Carbs", meal.c], ["Fat", meal.f]]
-      .filter((r) => r[1] != null).map(([l, v]) => [l, `${v} g`]);
-    const stamp = meal.planned === true ? "As planned" : meal.planned === false ? "Adjusted" : null;
-    const stampLine = [stamp, meal.portion ? `${meal.portion}×` : null].filter(Boolean).join(" · ");
-    const attribution = meal.coach ? `From ${meal.coach}'s plan` : meal.recipeId ? "Kitchen Card recipe" : null;
-    return (
-      <div style={{ marginBottom: 12, padding: "13px 16px 9px", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.14)", borderRadius: 10 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }} aria-hidden="true">
-          <span style={{ flex: 1, borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.16)" }} />
-          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.2em", color: "var(--sh-ink2, #a09b94)", fontWeight: 600 }}>THE PLATE</span>
-          <span style={{ flex: 1, borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.16)" }} />
-        </div>
-        {meal.kcal != null && (
-          <div style={{ marginTop: 10, display: "flex", alignItems: "baseline", gap: 10 }}>
-            <span style={{ fontFamily: serif, fontSize: 30, letterSpacing: "-0.02em", color: INK, lineHeight: 1 }}>{meal.kcal}</span>
-            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.14em", color: "var(--sh-ink2, #a09b94)" }}>KCAL</span>
-          </div>
-        )}
-        {rows.length > 0 && (
-          <div style={{ marginTop: 6 }}>
-            {rows.map(([l, v]) => (
-              <div key={l} style={{ display: "flex", alignItems: "baseline", gap: 10, padding: "4px 0" }}>
-                <span style={{ fontSize: 13.5, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.85)" }}>{l}</span>
-                <span aria-hidden="true" style={{ flex: 1, borderBottom: "1px dotted rgba(var(--sh-ink-rgb, 242,237,228),0.3)", transform: "translateY(-3px)" }} />
-                <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11.5, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.85)", letterSpacing: "0.04em" }}>{v}</span>
-              </div>
-            ))}
-          </div>
-        )}
-        {(stampLine || attribution) && (
-          <div style={{ marginTop: 7, paddingTop: 7, borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.14)", display: "flex", justifyContent: "space-between", gap: 10, fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.14em", color: "var(--sh-ink2, #a09b94)", textTransform: "uppercase" }}>
-          <span style={{ flexShrink: 0 }}>{stampLine}</span>
-            {attribution && <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{attribution}</span>}
-          </div>
-        )}
-      </div>
-    );
-  }
 
   // ── Share as image (web-parity spec 2026-07-13) ─────────────────────────
   // My own tier, resolved lazily for the card's tier line (the share is
@@ -1760,23 +1890,7 @@ function CommunityFeed({ place = "wall" } = {}) {
     // posts as words under a name; set as a plate, a question became a 19px headline
     // with a full stop added. A post there that carries a record keeps its plate.
     const talk = env.place !== "wall" && !wall.heroStat && !p.meal && !p.milestone;
-    // ⚠ A DEMO RUN KEEPS ITS NAME IN `session.title` AND NOWHERE ELSE, so
-    // without this fallback the richest card on the board lost its headline —
-    // the retired session button was what used to print it. It is taken for
-    // DEMO posts only: `mapPost` sets a live post's `session.title` to
-    // `p.title || 'Activity'`, i.e. the same field plus a generic, so for a live
-    // post this could only ever contribute the word "Activity" as a headline.
-    const wallTitle = String(
-      p.title
-      // ⚠ A DEMO PR'S HEADLINE IS COMPOSED, NOT THE BARE LIFT. The app builds
-      // `${lift} — new PR` (iosAppBroadsheetClient.jsx:18957) because its demo
-      // PRs carry no `title` of their own either; a bare "Bench Press" is a
-      // divergence, not a simplification. Live posts never reach this branch —
-      // `mapPost` sets no `lift` at all.
-      || (p.lift && p.kind === "pr" ? `${p.lift} — new PR` : "")
-      || p.lift
-      || (p.isLive ? "" : (p.session && p.session.title) || "")
-    ).trim();
+    const wallTitle = cfPostTitle(p);
     const [liked, setLiked] = React.useState(!!p.likedByMe);
     const [likeCount, setLikeCount] = React.useState(p.likes);
     // A re-read carries the post's own count and whether you liked it (from the app, too).
@@ -1858,47 +1972,8 @@ function CommunityFeed({ place = "wall" } = {}) {
 
     return (
       <CfCard style={{ padding: talk ? "18px 20px 14px" : 22, opacity: p.pending ? 0.72 : 1 }}>
-        <div style={{ display: "flex", gap: 12, marginBottom: talk ? 10 : 14, alignItems: "center" }}>
-          <CfAvatar p={p} size={talk ? 38 : 40} />
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-              <div style={{ fontSize: 14, fontWeight: 600, letterSpacing: "-0.005em" }}>{p.who}</div>
-              <div style={{ fontSize: 11, color: wall.heat, fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.04em" }}>{p.role}</div>
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 3 }}>
-              <span style={{ fontFamily: mono, fontSize: 10, color: cfHexA(INK, 0.45), letterSpacing: "0.04em" }}>{p.pending ? "Posting…" : p.time}</span>
-            </div>
-          </div>
-          {/* The activity type as the app sets it — a heat-underlined caption
-              rather than a bordered chip. The 999px pill was the last piece of
-              pill chrome on the app's card and it went for the same reason. */}
-          {p.tag && <span style={{ flexShrink: 0, fontFamily: mono, fontSize: 8.5, fontWeight: 800, letterSpacing: "0.14em", textTransform: "uppercase", color: cfHexA(INK, 0.7), borderBottom: `1px solid ${wall.heat}`, paddingBottom: 2, lineHeight: 1 }}>{p.tag}</span>}
-        </div>
-        {/* ⚠ THE PLATE REPLACES THE PER-KIND BLOCKS, NOT JUST THE WALL CHIP'S.
-            The app applies `variant="wall"` to every card in the Feed segment
-            (iosAppBroadsheetClient.jsx:21907) rather than to one chip, so the
-            six blocks this retired (PRStat/WorkoutStat/RunStat/TierStat/
-            MealStat/StreakStat) had no chip left to render on. */}
-        {talk
-          ? <div style={{ fontFamily: sans, fontSize: 14.5, lineHeight: 1.55, color: cfHexA(INK, 0.92), whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{p.body}</div>
-          : <CfWallPlate p={p} model={wall} title={wallTitle} />}
-        {p.meal && <MealPlate meal={p.meal} />}
-        {p.milestone && <MilestoneStamp m={p.milestone} />}
-        {!talk && p.body && p.body !== wallTitle && <div style={{ fontFamily: sans, fontSize: 13, lineHeight: 1.45, color: cfHexA(INK, 0.75), marginTop: 7 }}>{p.body}</div>}
-        {p.photo && <img src={p.photo} alt={p.title || p.body || `Photo shared by ${p.who || "a member"}`} loading="lazy" style={{ display: "block", width: "100%", aspectRatio: "4 / 3", objectFit: "cover", borderRadius: 12, marginTop: p.body ? 12 : 2, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)", background: "rgba(var(--sh-ink-rgb, 242,237,228),0.05)" }} />}
-        {p.video && <video src={p.video} controls playsInline preload="metadata" style={{ display: "block", width: "100%", aspectRatio: "4 / 3", objectFit: "cover", borderRadius: 12, marginTop: p.body ? 12 : 2, background: "#000", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)" }} />}
-        {Array.isArray(p.mentions) && p.mentions.length > 0 && (
-          <div style={{ marginTop: 8, fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "var(--sh-ink2, #a09b94)" }}>
-            with {p.mentions.map((mn, mi) => (
-              <React.Fragment key={mi}>
-                {mn.userId ? <a href={`MemberProfile.html?u=${mn.userId}`} style={{ color: TEAL_BRIGHT, textDecoration: "none", fontWeight: 600 }}>@{mn.name}</a> : <span style={{ color: TEAL_BRIGHT, fontWeight: 600 }}>@{mn.name}</span>}
-                {mi < p.mentions.length - 1 ? ", " : ""}
-              </React.Fragment>
-            ))}
-          </div>
-        )}
-        <CfWallEvidence model={wall} onOpen={p.session ? () => setSessionOpen(true) : null} />
-        {p.note && !p.photo && <div style={{ fontSize: 12.5, lineHeight: 1.5, color: "var(--sh-ink2, #a09b94)", fontStyle: "italic", marginTop: 6 }}>"{p.note}"</div>}
+        <CfPostHead p={p} wall={wall} talk={talk} />
+        <CfPostBody p={p} wall={wall} wallTitle={wallTitle} talk={talk} onSession={p.session ? () => setSessionOpen(true) : null} />
         <div style={{ marginTop: 12, paddingTop: 8, borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.06)", display: "flex", gap: 6, rowGap: 2, flexWrap: "wrap", alignItems: "center", fontSize: 11.5, color: "var(--sh-ink2, #a09b94)", fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.04em" }}>
           <button type="button" className="cf-act" onClick={toggleLike} aria-pressed={liked} aria-label={liked ? "Unlike" : "Like"}
             style={{ color: liked ? TEAL_BRIGHT : "var(--sh-ink2, #a09b94)", fontFamily: "inherit", fontSize: "inherit", letterSpacing: "inherit", transition: "color 0.15s, transform 0.15s", transform: liked ? "scale(1.05)" : "scale(1)" }}>
@@ -2527,8 +2602,12 @@ function PostComposer({ me, onCancel, onSubmit, editing, where }) {
 }
 
 if (typeof window !== "undefined") {
-  // Only CommunityFeed is published. `PostComposer` was exported beside it and
+  // CommunityFeed, and the feed's card for a page that draws a post as the feed
+  // does (CfPostCard, with the reader's units from cfLoadUnits): the coach page's
+  // Posts camp, coachProfileWeb.jsx. `PostComposer` was exported beside them and
   // had ZERO consumers anywhere in the repo — it is used by this file alone, so
   // the export was a global nobody read.
   window.CommunityFeed = CommunityFeed;
+  window.CfPostCard = CfPostCard;
+  window.cfLoadUnits = cfLoadUnits;
 }
