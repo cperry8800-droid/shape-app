@@ -32,7 +32,7 @@ const PGlite = loadPglite();
 const NO_DB = PGlite ? false : 'PGlite is not installed (set SHAPE_PGLITE to a folder that has @electric-sql/pglite)';
 
 const U = (n) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
-const M = U(1), COACH = U(2), STRANGER = U(3), K = U(4), OLD = U(5);
+const M = U(1), COACH = U(2), STRANGER = U(3), K = U(4), OLD = U(5), OLD_EAST = U(6), OLD_ODD = U(7);
 
 const SCHEMA = `
 create role anon nologin; create role authenticated nologin; create role service_role nologin;
@@ -51,8 +51,8 @@ create function public.is_coach_on_client(p uuid) returns boolean language sql s
     where s.client_id = p and s.provider_role = 'trainer' and s.status in ('active', 'trialing', 'past_due') and t.owner_id = auth.uid())
 $$;
 grant execute on function public.is_coach_on_client(uuid) to authenticated;
-insert into auth.users values ('${M}'), ('${COACH}'), ('${STRANGER}'), ('${K}'), ('${OLD}');
-insert into public.profiles values ('${K}', 'Pacific/Kiritimati'), ('${M}', 'Not/AZone');
+insert into auth.users values ('${M}'), ('${COACH}'), ('${STRANGER}'), ('${K}'), ('${OLD}'), ('${OLD_EAST}'), ('${OLD_ODD}');
+insert into public.profiles values ('${K}', 'Pacific/Kiritimati'), ('${M}', 'Not/AZone'), ('${OLD_EAST}', 'Pacific/Kiritimati'), ('${OLD_ODD}', 'Not/AZone');
 insert into public.trainers values (1, '${COACH}');
 insert into public.subscriptions values ('${M}', 1, 'trainer', 'active');
 `;
@@ -66,6 +66,9 @@ create table public.client_pauses (
   set_at      timestamptz not null default now()
 );
 insert into public.client_pauses values ('${OLD}', current_date + 4, '${OLD}', 'member', now() - interval '2 days');
+-- Set at noon UTC two days ago: the next day already for a member 14 hours ahead.
+insert into public.client_pauses values ('${OLD_EAST}', current_date + 4, '${OLD_EAST}', 'member', ((now() at time zone 'UTC')::date - 2 + time '12:00') at time zone 'UTC');
+insert into public.client_pauses values ('${OLD_ODD}', current_date + 4, '${OLD_ODD}', 'member', ((now() at time zone 'UTC')::date - 2 + time '12:00') at time zone 'UTC');
 `;
 
 let db = null;
@@ -99,6 +102,10 @@ test('on PostgreSQL: the migration turns the first run\'s table into one row a b
   assert.ok(cols.every((c) => c.column_name === 'set_by' || c.is_nullable === 'NO'), 'every column but the setter is required');
   // The first run's row is kept, from the day it was set.
   assert.deepEqual(await rows(OLD), [{ from: await day(-2), until: await day(4), by: 'member' }]);
+  // That day is the member's (Codex on #2705): a day on for one 14 hours ahead of UTC, and UTC's for a
+  // zone Postgres does not know.
+  assert.deepEqual(await rows(OLD_EAST), [{ from: await day(-1), until: await day(4), by: 'member' }]);
+  assert.deepEqual(await rows(OLD_ODD), [{ from: await day(-2), until: await day(4), by: 'member' }]);
   const fns = (await db.query(`select proname, prosecdef, proconfig from pg_proc where proname in ('set_client_pause', 'get_client_pause') order by proname`)).rows;
   assert.deepEqual(fns.map((f) => [f.proname, f.prosecdef, f.proconfig]), [
     ['get_client_pause', true, ['search_path=public, pg_temp']], ['set_client_pause', true, ['search_path=public, pg_temp']]]);

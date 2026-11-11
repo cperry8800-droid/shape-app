@@ -51,11 +51,24 @@ create table if not exists public.client_pauses (
 
 -- The first run of this file (2026-11-11) made one row a client, keyed on it, with no first day.
 do $shape$
+declare
+  r     record;
+  v_day date;
 begin
   if not exists (select 1 from information_schema.columns
                  where table_schema = 'public' and table_name = 'client_pauses' and column_name = 'from_on') then
     alter table public.client_pauses add column from_on date;
-    update public.client_pauses set from_on = least(set_at::date, until_on) where from_on is null;
+    -- Its first day is the day it was set in the member's calendar, as the functions below count their
+    -- days (Codex on #2705), not the database's: UTC's when their zone is empty or one Postgres does not know.
+    for r in select c.client_id, c.set_at, c.until_on, pr.timezone
+             from public.client_pauses c left join public.profiles pr on pr.id = c.client_id loop
+      begin
+        v_day := (r.set_at at time zone coalesce(nullif(r.timezone, ''), 'UTC'))::date;
+      exception when others then
+        v_day := (r.set_at at time zone 'UTC')::date;
+      end;
+      update public.client_pauses set from_on = least(v_day, r.until_on) where client_id = r.client_id;
+    end loop;
     alter table public.client_pauses alter column from_on set not null, alter column from_on set default current_date;
   end if;
   if not exists (select 1 from information_schema.columns

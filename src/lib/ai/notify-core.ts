@@ -15,6 +15,7 @@ import { createNotification } from '@/lib/notify';
 import { sendEmail } from '@/lib/email';
 import { instantInZone, normalizeZone, personZone } from '@/lib/time';
 import { claimPushSlots, type PushClaim } from '@/lib/push-cap';
+import { OPEN_SUB_STATUSES } from '../coach-trajectory.mjs';
 import type { SupabaseClient } from '@supabase/supabase-js';
 // The pure UMD engine (module.exports = api); imported directly (no window in Node).
 import DashSignals from '../../../public/newdesign/dashSignals.js';
@@ -280,7 +281,7 @@ export async function loadClientBreaks(admin: SupabaseClient, coachId: string, c
     const [trainers, nutritionists, subs, pauses, zones] = await Promise.all([
       admin.from('trainers').select('id').eq('owner_id', coachId),
       admin.from('nutritionists').select('id').eq('owner_id', coachId),
-      admin.from('subscriptions').select('client_id, provider_id, provider_role').in('client_id', asked).in('status', ['active', 'trialing', 'past_due']),
+      admin.from('subscriptions').select('client_id, provider_id, provider_role').in('client_id', asked).in('status', OPEN_SUB_STATUSES),
       admin.from('client_pauses').select('id, client_id, from_on, until_on, set_by_role').in('client_id', asked).gte('until_on', floor),
       admin.from('profiles').select('id, timezone').in('id', asked),
     ]);
