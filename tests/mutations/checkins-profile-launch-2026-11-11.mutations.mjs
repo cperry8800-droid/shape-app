@@ -30,11 +30,12 @@ export default {
 
     // ── the client: the photo's doors and Save ──
     { name: '(review) photo: saved before it is placed', file: CLIENT, find: '.then((src) => (src ? bsOpenPhotoPositioner({ src, onSave }) : null))', replace: '.then((src) => (src ? onSave({ photo: src, source: src, pos: null }).then(() => ({ photo: src })) : null))' },
-    { name: 'photo: the kept photo not kept', file: CLIENT, find: "saveUserGoals?.('client_photo_source', { src: source, pos, made: bsAvMark(photo)", replace: "saveUserGoals?.('client_photo_source_off', { src: source, pos, made: bsAvMark(photo)" },
+    { name: '(review) photo: the kept photo not kept', file: CLIENT, find: "saveUserGoals?.('client_photo_source', job.doc,", replace: "saveUserGoals?.('client_photo_source_off', job.doc," },
     // Codex P2 on #2709: the sheet closed while the photo as picked was still being written.
     { name: '(review) photo: the sheet closes before the kept photo is written', file: CLIENT, find: 'return Promise.race([Promise.resolve(kept).catch(() => null), cap])', replace: 'return Promise.race([Promise.resolve(null), cap])' },
     { name: '(review) photo: a stalled write holds the sheet', file: CLIENT, find: 'return Promise.race([Promise.resolve(kept).catch(() => null), cap])', replace: 'return Promise.resolve(kept).catch(() => null)' },
-    { name: '(review) photo: an older write lands over a newer one', file: CLIENT, find: 'const kept = _bsPhotoSourceChain = _bsPhotoSourceChain.catch(() => null)', replace: 'const kept = Promise.resolve()' },
+    { name: '(review) photo: an older write stays over a newer one', file: CLIENT, find: 'bsSendPhotoSource(st.newest).catch(() => {});', replace: '{}' },
+    { name: '(review) photo: a write waits on one that never settles', file: CLIENT, find: '  return bsSendPhotoSource(job);\n}', replace: '  const prev = _bsPhotoSource.chain || Promise.resolve();\n  return (_bsPhotoSource.chain = prev.then(() => bsSendPhotoSource(job)));\n}' },
     { name: '(review) photo: a failed write fails the avatar', file: CLIENT, find: 'return Promise.race([Promise.resolve(kept).catch(() => null), cap])', replace: 'return Promise.race([Promise.resolve(kept), cap])' },
     // Codex P2 on #2709: a photo opened under one account was saved to whoever was signed in at Use photo.
     { name: '(review) photo: saved to whoever is signed in at Use photo', file: CLIENT, find: '  if (now !== uid) return Promise.resolve({ error: { message: \'Account changed.\' } });', replace: '' },

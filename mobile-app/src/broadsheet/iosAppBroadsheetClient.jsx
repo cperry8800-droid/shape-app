@@ -14426,9 +14426,27 @@ function BSFacetAvatar({ size = 72, c = '#34d6c5', initial = 'S', name = '', pho
 // then keeps the photo as picked, privately, for Reposition (user_goals 'client_photo_source', read by its
 // owner alone). The positioner says a failed save on screen, since toasts are a no-op.
 const BS_PHOTO_SOURCE_WAIT_MS = 15000;
-// One write of the kept photo at a time, in the order the photos were saved (Codex P2 on #2709): a write the cap
-// stopped waiting for still lands before the next photo's, so an older photo never replaces a newer one.
-let _bsPhotoSourceChain = Promise.resolve();
+// The photo as picked, kept for Reposition: the newest save wins (Codex P2s on #2709). Each write goes out at once,
+// so a request that never settles holds no later one back; and a write that lands after a newer one already landed
+// is followed by the newer one again, so an older photo never stays over a newer one.
+const _bsPhotoSource = { seq: 0, landed: 0, newest: null };
+function bsKeepPhotoSource(doc, uid) {
+  const job = { seq: ++_bsPhotoSource.seq, doc, uid };
+  _bsPhotoSource.newest = job;
+  return bsSendPhotoSource(job);
+}
+function bsSendPhotoSource(job) {
+  return Promise.resolve()
+    .then(() => window.shapeDb?.saveUserGoals?.('client_photo_source', job.doc, { expectedUserId: job.uid }))
+    .then((res) => {
+      const st = _bsPhotoSource;
+      if (res && res.ok) {
+        if (job.seq > st.landed) st.landed = job.seq;
+        else if (job.seq < st.landed && st.newest && st.newest.seq === st.landed) bsSendPhotoSource(st.newest).catch(() => {});
+      }
+      return res;
+    });
+}
 function bsSavePositionedPhoto({ photo, source, pos, uid = null }) {
   // Saved only to the account the picker opened for (bsPhotoSaver), and only while it is still signed in.
   const now = window.ShapeAuth?.getCachedState?.()?.user?.id || null;
@@ -14438,8 +14456,7 @@ function bsSavePositionedPhoto({ photo, source, pos, uid = null }) {
     // Awaited, so a Reposition straight after reads the photo just kept and not the one before (Codex P2 on
     // #2709), and capped at BS_PHOTO_SOURCE_WAIT_MS, so a stalled write cannot hold the sheet on Saving…
     // A failure costs only the next Reposition its whole photo: it then starts from the square.
-    const kept = _bsPhotoSourceChain = _bsPhotoSourceChain.catch(() => null)
-      .then(() => window.shapeDb?.saveUserGoals?.('client_photo_source', { src: source, pos, made: bsAvMark(photo), at: new Date().toISOString() }, { expectedUserId: uid }));
+    const kept = bsKeepPhotoSource({ src: source, pos, made: bsAvMark(photo), at: new Date().toISOString() }, uid);
     let timer = null;
     const cap = new Promise((resolve) => { timer = setTimeout(resolve, BS_PHOTO_SOURCE_WAIT_MS); });
     return Promise.race([Promise.resolve(kept).catch(() => null), cap])

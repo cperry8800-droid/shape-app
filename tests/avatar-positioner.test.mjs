@@ -56,7 +56,8 @@ test('the sheet and its doors: a picked photo is placed, then saved; Reposition 
   assert.match(sheet, /onPointerDown=\{onDown\} onPointerMove=\{onMove\} onPointerUp=\{onUp\} onPointerCancel=\{onUp\} onKeyDown=\{onKey\}/);
   const client = read('mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx');
   assert.match(client, /function bsSavePositionedPhoto\(\{ photo, source, pos, uid = null \}\) \{[\s\S]{0,400}return bsSaveIdentity\(\{ photo \}\)\.then/, 'the square every avatar reads');
-  assert.match(client, /saveUserGoals\?\.\('client_photo_source', \{ src: source, pos, made: bsAvMark\(photo\)/, 'the photo as picked, kept privately');
+  assert.match(client, /bsKeepPhotoSource\(\{ src: source, pos, made: bsAvMark\(photo\)/, 'the photo as picked, kept privately');
+  assert.match(client, /saveUserGoals\?\.\('client_photo_source', job\.doc, \{ expectedUserId: job\.uid \}\)/);
   assert.match(client, /const fits = bsAvSourceFits\(doc, photo\);\s*return bsOpenPhotoPositioner\(\{ src: fits \? doc\.src : photo, pos: fits \? doc\.pos : null/);
   // Each door binds the save to the account signed in when it opened (Codex P2 on #2709).
   assert.match(client, /const onSave = bsPhotoSaver\(\);\s*bsPickPhotoFile\(\)\s*\.then\(\(src\) => \(src \? bsOpenPhotoPositioner\(\{ src, onSave \}\) : null\)\)/, 'Change photo places it first');
@@ -129,23 +130,34 @@ test('Use photo waits for the kept photo before the sheet closes; a failed or st
   assert.deepEqual(await onSave({ photo: args.photo, source: args.source, pos: args.pos }), { ok: true });
   assert.deepEqual([idWrites.length, writes.length, writes[0][2]], [1, 1, { expectedUserId: 'u1' }]);
 
-  // One kept-photo write at a time (Codex P2 on #2709): photo A's write outlasts the cap, so its sheet closes with
-  // it still out; photo B's write waits for it, so A never lands over B.
+  // The newest save wins (Codex P2s on #2709). Photo A's write outlasts the cap, so its sheet closes with it still
+  // out; photo B's write goes out at once (a request that never settles holds nothing back), and when A lands after
+  // B, B is written again over it.
   const order = [];
+  let stored = null;
   let releaseA = null;
   const slowA = (kind, doc) => {
     order.push(`start:${doc.src}`);
-    if (doc.src === 'A') return new Promise((r) => { releaseA = () => { order.push('done:A'); r({ ok: true }); }; });
-    order.push(`done:${doc.src}`);
-    return Promise.resolve({ ok: true });
+    const land = () => { order.push(`done:${doc.src}`); stored = doc.src; return { ok: true }; };
+    if (doc.src === 'A' && !releaseA) return new Promise((r) => { releaseA = () => r(land()); });
+    return Promise.resolve(land());
   };
   const queued = load({ window: win(slowA), waitMs: 20 });
   assert.deepEqual(await queued.bsSavePositionedPhoto({ ...args, source: 'A' }), { ok: true }, 'the cap still closes the sheet');
   assert.deepEqual(await queued.bsSavePositionedPhoto({ ...args, source: 'B' }), { ok: true });
-  assert.deepEqual(order, ['start:A'], "B's write went out while A's was still out");
+  assert.deepEqual(order, ['start:A', 'start:B', 'done:B'], "B's write waited on A's, which has not settled");
+  assert.equal(stored, 'B');
   releaseA();
   await new Promise((r) => setTimeout(r, 0));
-  assert.deepEqual(order, ['start:A', 'done:A', 'start:B', 'done:B'], 'the newer photo lands last');
+  assert.deepEqual(order, ['start:A', 'start:B', 'done:B', 'done:A', 'start:B', 'done:B'], 'A landed late and B was not written again');
+  assert.equal(stored, 'B', 'the older photo stayed over the newer one');
+  // In order, nothing is written twice.
+  const inOrder = [];
+  const plain = load({ window: win((kind, doc) => { inOrder.push(doc.src); return Promise.resolve({ ok: true }); }) });
+  await plain.bsSavePositionedPhoto({ ...args, source: 'C' });
+  await plain.bsSavePositionedPhoto({ ...args, source: 'D' });
+  await new Promise((r) => setTimeout(r, 0));
+  assert.deepEqual(inOrder, ['C', 'D']);
 });
 
 // Save said nothing: toasts are a no-op app-wide, so a taken handle or a failed write left the page as it
