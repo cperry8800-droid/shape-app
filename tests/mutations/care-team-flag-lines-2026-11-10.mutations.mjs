@@ -4,7 +4,7 @@ const SQL = 'supabase-migrations/2026-11-10-care-team-flag-lines.sql';
 const OV = 'src/lib/shared-overview.ts';
 const ENG = 'public/newdesign/dashSignals.js';
 export default {
-  test: 'node --test tests/care-team-flag-lines.test.mjs tests/coach-flags-by-role.test.mjs tests/coach-actions.test.mjs',
+  test: 'node --test tests/care-team-flag-lines.test.mjs tests/coach-flags-by-role.test.mjs tests/coach-actions.test.mjs tests/app-joint-attention-tuning.test.mjs',
   mutations: [
     // ── the migration ──────────────────────────────────────────────────────────
     { name: 'any signed-in caller reads every coach\'s tuning (the coach gate dropped)', file: SQL,
@@ -65,5 +65,10 @@ export default {
       find: '      if (typeof v[k] === "number" && isFinite(v[k])) { out[k] = v[k]; any = true; }', replace: '      out[k] = v[k]; any = true;' },
     { name: 'an array is taken as a set of lines', file: ENG,
       find: '    if (!v || typeof v !== "object" || Array.isArray(v)) return null;', replace: '    if (!v || typeof v !== "object") return null;' },
+    // ── the app (Codex on #2691) ───────────────────────────────────────────────
+    { name: 'the app reads the viewer\'s own side at the house line again', file: 'mobile-app/src/services/shapeSignals.js',
+      find: 'undefined, thresholds || null, role) || [];', replace: 'undefined, null, role) || [];' },
+    { name: 'the app\'s tuning is resolved for no role', file: 'mobile-app/src/services/shapeSignals.js',
+      find: "    const [records, thresholds] = await Promise.all([coachRecords(role), coachThresholds(role)]);", replace: "    const [records, thresholds] = await Promise.all([coachRecords(role), coachThresholds()]);" },
   ],
 };
