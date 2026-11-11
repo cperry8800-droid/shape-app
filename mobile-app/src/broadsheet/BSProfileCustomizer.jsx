@@ -10,6 +10,7 @@ import {
   BS_WALL_MAX, BS_SHELF_MAX, BS_LINE_MAX, BS_CAPTION_MAX, BS_SHELF_TITLE_MAX, BS_SHELF_WHEN_MAX, BS_START_TITLE_MAX,
   BS_FILM_CAPTION_MAX, BS_BIZ_NAME_MAX, BS_BIZ_WHERE_MAX, BS_BIZ_HOURS_MAX, BS_BIZ_HANDLE_MAX, BS_PINNED_REVIEWS_MAX,
   BS_PIN_KINDS, BS_PROFILE_PROMPTS, BS_COACH_PROMPTS, bsPinKindLabel, bsPinKindToken, bsPromptLabel, bsPromptToken,
+  bsProfileCustomWrite,
 } from '../services/profileCustom.mjs';
 import { bsDialogRef } from '../services/dialogBack.mjs';
 // ─── CUSTOMIZE · THE PROFILE EDITOR ──────────────────────────────────────────────────────────────
@@ -468,24 +469,28 @@ export function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coac
       window.__bsToast?.(tr('profile:editor.err.save', { defaultValue: 'Could not save — try again.' }), 'err');
       return;
     }
-    const doc = { ...stored, ...areaFields(key, form) };
-    // `look` only when it was picked here (or its focus changed: #2611), over whatever else the stored
-    // look holds; an untouched panel writes none. The old `accent` hex and `climbBg` ride through
-    // `...stored` as the doc has them.
-    if (key === 'colors' && pickChanged) doc.look = { ...(bsProfileLook(stored.look) || {}), paper: pick.paper, accent: pick.accent };
-    // The crop, the same way: over the stored look, its paper and accent kept.
-    // A position dragged on the website (pos) gives way to the stop picked here.
-    if (key === 'photos' && focusChanged) { const { pos: _dragged, ...kept } = bsProfileLook(stored.look) || {}; doc.look = { ...kept, focus: focusPick }; }
-    // Normalize only THIS role's film key against its bucket; the other role's film key
-    // isn't named here, so it passes through byte-identical.
-    const clean = bsNormalizeProfileCustom(doc, uid, { filmBucket: filmRoleBucket, filmKey });
-    let res;
-    try { res = await window.shapeDb?.saveUserGoals?.('profile_custom', clean, { expectedUserId: uid }); }
-    catch (e) { res = { error: e }; }
+    // The doc to save over `base` (the stored doc), once per try: the write is compare-and-set on the
+    // doc's rev (bsProfileCustomWrite), so a save elsewhere that lands after the read above makes it
+    // read again and put this area's change over that (owner, 2026-11-11, on #2707).
+    const make = (base) => {
+      const doc = { ...base, ...areaFields(key, form) };
+      // `look` only when it was picked here (or its focus changed: #2611), over whatever else the stored
+      // look holds; an untouched panel writes none. The old `accent` hex and `climbBg` ride through
+      // `...base` as the doc has them.
+      if (key === 'colors' && pickChanged) doc.look = { ...(bsProfileLook(base.look) || {}), paper: pick.paper, accent: pick.accent };
+      // The crop, the same way: over the stored look, its paper and accent kept.
+      // A position dragged on the website (pos) gives way to the stop picked here.
+      if (key === 'photos' && focusChanged) { const { pos: _dragged, ...kept } = bsProfileLook(base.look) || {}; doc.look = { ...kept, focus: focusPick }; }
+      // Normalize only THIS role's film key against its bucket; the other role's film key
+      // isn't named here, so it passes through byte-identical.
+      return bsNormalizeProfileCustom(doc, uid, { filmBucket: filmRoleBucket, filmKey });
+    };
+    const res = await bsProfileCustomWrite(window.shapeDb, uid, make, { stored });
     setBusy(false);
-    // saveUserGoals RESOLVES { ok } | { error } (never throws on an RLS/no-backend
+    // The write RESOLVES { ok, doc } | { ok: false, reason, error } (never throws on an RLS/no-backend
     // failure). Keep the page open + toast on any non-ok result rather than faking success.
-    if (!res || res.error) { window.__bsToast?.((res && res.error && res.error.message) || tr('profile:editor.err.save', { defaultValue: 'Could not save — try again.' }), 'err'); return; }
+    if (!res || !res.ok) { window.__bsToast?.((res && res.error && res.error.message) || tr('profile:editor.err.save', { defaultValue: 'Could not save — try again.' }), 'err'); return; }
+    const clean = res.doc;
     setSaved(clean);
     setForm(formOf(clean));
     setSavedOnce(true);
