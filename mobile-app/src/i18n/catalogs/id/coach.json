@@ -233,6 +233,8 @@
   "case.evQuiet": "SENYAP {n} HARI",
   "case.evQuietAll": "SENYAP 7 HARI",
   "case.evSessions": "{done}/{planned} SESI",
+  "case.evWorkouts": "LATIHAN YANG DITUGASKAN",
+  "case.evWorkoutsDone": "{done}/{due} SELESAI · 4 MINGGU",
   "case.evWeekend": "AKHIR PEKAN {dim}",
   "case.evWkOf": "MINGGU {date}",
   "case.flagged": "DITANDAI",

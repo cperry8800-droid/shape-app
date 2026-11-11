@@ -117,9 +117,11 @@ test('booked sessions leg: only the caller\'s own, per role, the last 42 days up
     s('trainer', 7, 'confirmed', -1), // still ahead
     s('trainer', 7, 'cancelled', 6), // never booked
   ];
-  assert.deepEqual(bsBookedSessionsLeg(rows, { trainer: 7, nutritionist: 3 }, now), { trainer: { done: 1, planned: 3 }, nutritionist: { done: 1, planned: 2 } });
-  assert.deepEqual(bsBookedSessionsLeg(rows, { trainer: '8', nutritionist: null }, now), { trainer: { done: 0, planned: 1 }, nutritionist: null }, 'ids compare as strings');
-  assert.deepEqual(bsBookedSessionsLeg([], { trainer: 7 }, now), { trainer: { done: 0, planned: 0 }, nutritionist: null });
+  // With the last session kept and the next one booked (no session booked, the coach-alerts plan).
+  const at = (daysAgo) => new Date(now - daysAgo * DAY).toISOString();
+  assert.deepEqual(bsBookedSessionsLeg(rows, { trainer: 7, nutritionist: 3 }, now), { trainer: { done: 1, planned: 3, lastKeptAt: at(3), nextAt: at(-1) }, nutritionist: { done: 1, planned: 2, lastKeptAt: at(9), nextAt: null } });
+  assert.deepEqual(bsBookedSessionsLeg(rows, { trainer: '8', nutritionist: null }, now), { trainer: { done: 0, planned: 1, lastKeptAt: null, nextAt: null }, nutritionist: null }, 'ids compare as strings');
+  assert.deepEqual(bsBookedSessionsLeg([], { trainer: 7 }, now), { trainer: { done: 0, planned: 0, lastKeptAt: null, nextAt: null }, nutritionist: null });
   assert.equal(BOOKED_SESSION_DAYS, 42);
 });
 

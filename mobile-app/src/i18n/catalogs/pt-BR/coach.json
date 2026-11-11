@@ -233,6 +233,8 @@
   "case.evQuiet": "INATIVO {n} DIAS",
   "case.evQuietAll": "INATIVO 7 DIAS",
   "case.evSessions": "{done}/{planned} SESSÕES",
+  "case.evWorkouts": "TREINOS PASSADOS",
+  "case.evWorkoutsDone": "{done}/{due} FEITOS · 4 SEMANAS",
   "case.evWeekend": "FIM DE SEMANA {dim}",
   "case.evWkOf": "SEM DE {date}",
   "case.flagged": "SINALIZADO",

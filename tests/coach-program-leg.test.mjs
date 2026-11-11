@@ -156,9 +156,10 @@ test('with no program on the calendar, an assignment row still counts, paused ru
 test('the overview sends the logged days, and where a full snapshot window stops knowing', async () => {
   const day = (n) => new Date(Date.now() - n * 86400000).toISOString().slice(0, 10);
   const rows = (n) => Array.from({ length: n }, (_, i) => ({ user_id: A, snapshot_date: day(i), dietary_kcal: i % 2 ? null : 1900 }));
-  const full = await overview({ daily_health_snapshot: rows(40) });
-  assert.equal(full.logDays.from, day(29), 'thirty rows read: nothing before the oldest of them is known');
-  assert.equal(full.logDays.days.length, 15);
+  // 42 rows: the steps baseline needs four weeks before this one (the coach-alerts plan).
+  const full = await overview({ daily_health_snapshot: rows(50) });
+  assert.equal(full.logDays.from, day(41), 'forty-two rows read: nothing before the oldest of them is known');
+  assert.equal(full.logDays.days.length, 21);
   const short = await overview({ daily_health_snapshot: rows(12) });
   assert.equal(short.logDays.from, null, 'twelve rows: every row the member has');
   const failed = await overview({ daily_health_snapshot: rows(12) }, { fail: ['daily_health_snapshot'] });

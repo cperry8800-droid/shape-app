@@ -233,6 +233,8 @@
   "case.evQuiet": "QUIET {n} DAYS",
   "case.evQuietAll": "QUIET 7 DAYS",
   "case.evSessions": "{done}/{planned} SESSIONS",
+  "case.evWorkouts": "WORKOUT WEY COACH GIVE",
+  "case.evWorkoutsDone": "{done}/{due} DONE · 4 WEEKS",
   "case.evWeekend": "WEEKEND {dim}",
   "case.evWkOf": "WK OF {date}",
   "case.flagged": "DEM FLAG",

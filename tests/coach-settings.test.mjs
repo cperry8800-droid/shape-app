@@ -963,10 +963,28 @@ test('every tunable is visible to every role whose evaluation it can move', () =
   // where that is true: a role it leaves out must see nothing move while it does, on a fixture where
   // it does move a role it names.
   const scoped = TUNABLES.filter((t) => Array.isArray(t.roles));
-  assert.deepEqual(scoped.map((t) => t.key), ['FOOD_LOG_DAYS'], 'a new role-scoped row: prove it here');
+  assert.deepEqual(scoped.map((t) => t.key), ['FOOD_LOG_DAYS', 'WORKOUT_DONE_PCT', 'WORKOUT_MISSED_ROW', 'WORKOUT_MIN_DUE', 'COMPLETION_DROP_PCT', 'LOAD_SPIKE_X', 'STEPS_DROP_PCT'], 'a new role-scoped row: prove it here');
   const thin = { profile: { id: 'c2', name: 'B', joinedAt: ago(60) }, userId: 'c2', foodLogs: { lastLoggedOn: ago(1), daysLogged7d: 3 } };
-  const view = (r, t) => JSON.stringify(DS.getTriageFeed(r, [thin], NOW, t).map((row) => [row.severity, row.flags.map((f) => f.key), row.readOnly.map((f) => f.key)]));
+  // The trainer alerts (the coach-alerts plan, PR 1): workout completion and the context reads are
+  // the trainer's evaluation alone. Each fixture trips its row at one end of the range and not the other.
+  const wk = (pairs) => ({ assignedWorkouts: { days: pairs.map(([d, done]) => ({ on: ago(d), done: !!done })) } });
+  const fixtures = {
+    // 4 of 8 done (50%), the last one missed: the share line moves it, at 10% and at 90%.
+    WORKOUT_DONE_PCT: wk([[1, 0], [3, 1], [6, 0], [9, 1], [12, 0], [15, 1], [18, 0], [21, 1]]),
+    // The last one missed, then done: one in a row flags, six don't.
+    WORKOUT_MISSED_ROW: wk([[1, 0], [3, 1], [6, 1], [9, 1], [12, 0], [15, 1], [18, 1], [21, 1]]),
+    // Three due, the last two missed: a minimum of 2 flags, 12 doesn't.
+    WORKOUT_MIN_DUE: wk([[1, 0], [3, 0], [6, 1]]),
+    // 100% then 67%: a drop of 33 points.
+    COMPLETION_DROP_PCT: wk([[1, 1], [4, 0], [7, 1], [16, 1], [19, 1], [22, 1]]),
+    // This week 1.8× the 4-week average.
+    LOAD_SPIKE_X: { trainingLoad: { days: [[30, 300], [27, 300], [23, 300], [20, 300], [16, 300], [13, 300], [9, 300], [3, 540], [1, 540]].map(([d, load]) => ({ on: ago(d), load })) } },
+    // 5,200 a day against 9,100: 43% under.
+    STEPS_DROP_PCT: { activity: { lastWorkoutOn: null, steps: Array.from({ length: 35 }, (_, d) => ({ on: ago(d), steps: d <= 6 ? 5200 : 9100 })) } },
+  };
   for (const t of scoped) {
+    const fx = { ...thin, ...(fixtures[t.key] || {}) };
+    const view = (r, th) => JSON.stringify(DS.getTriageFeed(r, [fx], NOW, th).map((row) => [row.severity, row.flags.map((f) => f.key), row.readOnly.map((f) => f.key)]));
     const lo = tuned({ [t.key]: t.min }), hi = tuned({ [t.key]: t.max });
     const reads = (r) => DS.disciplineForRole ? t.roles.includes(DS.disciplineForRole(r)) : r !== 'trainer';
     for (const r of ROLES) {
