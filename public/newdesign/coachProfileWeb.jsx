@@ -1298,6 +1298,20 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
   };
   const campTitle = { base: "Start here", day: words.day, range: nutri ? "Meal plans" : "The range", kitchen: words.kitchen, plates: "Plate notes", replays: "Replays", proof: "Proof", words: "What clients say", about: `About ${first}`, find: "Find me", posts: "Posts", summit: words.work };
 
+  // Followers and following, on the stage under the name (owner, 2026-11-11: "the followers and following
+  // should be somewhere on main profile"). They were in the bar above the stage, and hidden on a phone.
+  // Public even on a private profile, as on a member's page; each opens its list.
+  const followRow = live && follow ? (
+    <div data-follow-counts="" className="cpw-follow">
+      {[["followers", follow.followers, "Followers"], ["following", follow.following, "Following"]].map(([k, n, label]) => (
+        <button key={k} type="button" data-follow-count={k} onClick={() => follow.openList && follow.openList(k)}>
+          <span className="cpw-fig cpw-follow-n">{(Number(n) || 0).toLocaleString()}</span>
+          <span className="cpw-dtl" style={{ color: ink(0.72) }}>{label}</span>
+        </button>
+      ))}
+      {isSelf && follow.requests > 0 ? <button type="button" data-follow-requests="" onClick={() => follow.openRequests && follow.openRequests()} className="cpw-dtl" style={{ padding: "0 12px", background: ACC, color: ON_ACC, borderRadius: 6 }}>{follow.requests} request{follow.requests === 1 ? "" : "s"}</button> : null}
+    </div>
+  ) : null;
   return (
     <div className="cpw" data-coach-profile="" data-climb="" data-in-dash={chrome ? undefined : ""} data-role={role} data-mode={live ? "live" : "sample"} data-accent={DRAW} style={{ position: "relative", minHeight: chrome ? "100vh" : "auto", background: pal.PAPER_BG, color: INK, fontFamily: CPW_BODY, WebkitFontSmoothing: "antialiased", paddingBottom: docked ? 96 : 0 }}>
       <style>{`
@@ -1340,6 +1354,11 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
     .cpw .cpw-h1{margin-top:12px !important;font-size:max(44px,min(clamp(58px,7.4vw,118px),calc((0.79 * (min(100vw,1440px) - 64px) - 520px) / (var(--cpw-l,8) * 0.76)))) !important;line-height:.86 !important;font-weight:850;font-stretch:125%;letter-spacing:-0.025em !important}
     .cpw-chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:24px}
     .cpw-chip{display:inline-flex;align-items:center;gap:7px;min-height:36px;padding:0 12px;border:1px solid rgba(238,243,240,.2);border-radius:8px;background:rgba(6,9,15,.86);font-size:14.5px;font-weight:600;color:#eef3f0}
+    .cpw-follow{display:flex;flex-wrap:wrap;align-items:center;gap:2px 22px;margin-top:12px}
+    .cpw-follow button{border:0;cursor:pointer}
+    .cpw-follow button[data-follow-count]{display:inline-flex;align-items:baseline;gap:8px;min-height:44px;padding:0;background:transparent;color:inherit;font:inherit}
+    .cpw-follow button[data-follow-requests]{min-height:32px}
+    .cpw-follow-n{font-family:${CPW_DISPLAY};font-size:24px;line-height:1;color:#fff}
     .cpw-quote{margin:20px 0 0;font-size:18.5px;line-height:1.5;color:#eef3f0;white-space:pre-line;overflow-wrap:anywhere;text-shadow:0 1px 2px rgba(6,9,15,.95),0 0 16px rgba(6,9,15,.9)}
     .cpw-sample-note{margin:14px 0 0;padding:9px 12px;border-left:2px solid;background:rgba(6,9,15,.78);font-size:13.5px;line-height:1.45;color:rgba(238,243,240,.85)}
     .cpw-stage-actions{display:flex;flex-wrap:wrap;align-items:center;gap:6px 16px;margin-top:10px}
@@ -1543,7 +1562,7 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
     }
     @media (max-width:640px){
       .cpw-wrap{padding:0 16px}
-      .cpw-crumb-more,.cpw-counts{display:none !important}
+      .cpw-crumb-more{display:none !important}
       .cpw-stage{border-radius:18px}
       .cpw .cpw-h1{font-size:max(30px,min(clamp(44px,14vw,66px),calc((100vw - 72px) / (var(--cpw-l,8) * 0.7)))) !important;font-stretch:118%}
       .cpw-quote{font-size:16.5px}
@@ -1577,16 +1596,6 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
             {statusSaid ? <span data-status="" className="cpw-pill cpw-dtl" style={{ color: atCapacity ? pal.RUST : ACC, borderColor: cpwA(atCapacity ? pal.RUST : ACC, 0.45) }}>{statusSaid}</span> : null}
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            {live && follow ? (
-              <span data-follow-counts="" className="cpw-dtl cpw-counts" style={{ display: "inline-flex", alignItems: "center", color: ink(0.72) }}>
-                {[["followers", follow.followers, "followers"], ["following", follow.following, "following"]].map(([k, n, label]) => (
-                  <button key={k} type="button" onClick={() => follow.openList && follow.openList(k)} style={{ minHeight: 44, padding: "0 6px", border: 0, background: "transparent", color: "inherit", font: "inherit", letterSpacing: "inherit", textTransform: "inherit", cursor: "pointer" }}>
-                    <span style={{ color: INK }}>{Number(n) || 0}</span> {label}
-                  </button>
-                ))}
-                {isSelf && follow.requests > 0 ? <button type="button" onClick={() => follow.openRequests && follow.openRequests()} style={{ minHeight: 44, padding: "0 10px", border: 0, background: ACC, color: ON_ACC, font: "inherit", letterSpacing: "inherit", cursor: "pointer" }}>{follow.requests} request{follow.requests === 1 ? "" : "s"}</button> : null}
-              </span>
-            ) : null}
             {canFollow ? (
               <button type="button" data-follow="" onClick={onFollow} aria-pressed={followOn} className="cpw-pill" style={{ color: followOn ? ACC : INK, borderColor: followOn ? ACC : ink(0.2) }}>
                 <span aria-hidden="true">{follow.isFollowing ? "✓" : follow.isPending ? "…" : "♡"}</span>&nbsp;{follow.isFollowing ? "Following" : follow.isPending ? "Requested" : "Follow"}
@@ -1628,7 +1637,10 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
               <span className="cpw-dtl cpw-eyebrow" style={{ color: ACC }}>{[roleLine, where].filter(Boolean).join(" · ")}</span>
               <h1 className="cpw-h1" style={{ margin: 0, fontFamily: CPW_DISPLAY, color: "#fff", overflowWrap: "anywhere", "--cpw-l": cpwLongestWord(name) + 1 }}>{cpwNameHead(name)}<span style={{ whiteSpace: "nowrap" }}>{cpwNameTail(name)}<span data-name-stop="" style={{ color: DRAW }}>.</span></span></h1>
               {isPrivate ? (
-                <p style={{ margin: "16px 0 0", fontSize: 15, color: ink(0.8) }}>{row && row.visibility === "friends" ? `${first} shares their profile with friends. Connect to see more.` : `${first} keeps their profile private. Only their name and tier are shown.`}</p>
+                <React.Fragment>
+                  <p style={{ margin: "16px 0 0", fontSize: 15, color: ink(0.8) }}>{row && row.visibility === "friends" ? `${first} shares their profile with friends. Connect to see more.` : `${first} keeps their profile private. Only their name and tier are shown.`}</p>
+                  {followRow}
+                </React.Fragment>
               ) : (
                 <React.Fragment>
                   <div data-chips="" className="cpw-chips">
@@ -1637,6 +1649,7 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
                     {howSaid ? <span data-chip="how" className="cpw-chip">{howSaid}</span> : null}
                     {pronounsSaid ? <span data-chip="pronouns" className="cpw-chip">{pronounsSaid}</span> : null}
                   </div>
+                  {followRow}
                   {bio ? <p data-bio="" className="cpw-quote">“{bio}”</p>
                     : isSelf ? <p style={{ margin: "16px 0 0", fontSize: 14, color: ink(0.7) }}>Add a line about how you coach in Settings → Edit profile.</p> : null}
                   {headSocials.length ? (

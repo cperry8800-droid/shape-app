@@ -683,3 +683,35 @@ test('in the dashboard the Climb takes the page\'s width at the preview\'s scale
   // And the coach's own setup below it follows the profile's width.
   assert.match(read('public/newdesign/dashProfileExtras.jsx'), /<section className="px-setup" aria-labelledby="px-setup-title" style=\{\{ padding: "36px 32px 34px", boxSizing: "border-box" \}\}>/);
 });
+
+// Owner, 2026-11-11: "the followers and following should be somewhere on main profile". They sat in the bar
+// above the stage, and were hidden on a phone (.cpw-counts{display:none}).
+test('followers and following are on the stage under the name, public even on a private profile, and open their lists', async () => {
+  WIDE = true; backend();
+  const opened = [];
+  const follow = { followers: 1234, following: 2, canFollow: true, openList: (k) => opened.push(k) };
+  const p = await mount({ ...LIVE, follow });
+  const row = $('[data-follow-counts]');
+  assert.ok(row, 'no follower counts on the page');
+  assert.ok(row.closest('.cpw-stage-text'), 'the counts are not on the stage');
+  assert.ok(!row.closest('[data-crumbs]'), 'the counts are still in the bar');
+  assert.equal($$('[data-crumbs] [data-follow-count]').length, 0);
+  assert.equal(row.querySelector('[data-follow-count="followers"]').textContent, '1,234Followers');
+  assert.equal(row.querySelector('[data-follow-count="following"]').textContent, '2Following');
+  // Under the name and its chips, before the quote.
+  const order = $$('.cpw-stage-text [data-chips], .cpw-stage-text [data-follow-counts], .cpw-stage-text [data-bio]').map((e) => Object.keys(e.dataset)[0]);
+  assert.deepEqual(order, ['chips', 'followCounts', 'bio']);
+  await React.act(async () => row.querySelector('[data-follow-count="following"]').click());
+  await React.act(async () => row.querySelector('[data-follow-count="followers"]').click());
+  assert.deepEqual(opened, ['following', 'followers']);
+  // Follow and Share stay in the bar.
+  assert.ok($('[data-crumbs] [data-follow]'));
+  await p.unmount();
+  // A private profile keeps its counts, as a member's page does.
+  const q = await mount({ ...LIVE, follow, row: { ...ROW, is_public: false, can_view: false } });
+  assert.ok($('.cpw-stage-text [data-follow-counts]'), 'a private coach lost their counts');
+  await q.unmount();
+  // Nothing hides them on a phone.
+  const src = read('public/newdesign/coachProfileWeb.jsx');
+  assert.doesNotMatch(src, /\.cpw-counts|\.cpw-follow\{[^}]*display:none/);
+});
