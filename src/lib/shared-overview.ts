@@ -17,7 +17,7 @@
 import type { createClient } from '@/lib/supabase/server';
 import { readinessFromSeries } from '@/lib/recovery-readiness';
 import { bsVitals, bsVitalsLeg, vitalsCeilingISO, vitalsCutoffISO } from '@/lib/vitals-leg.mjs';
-import { bsCoachDay, bsProgramLeg, bsWorkoutProgramLeg, bsLogsLeg, bsLogDaysLeg, bsNutritionTargets, bsLastContactLeg, bsOnboardingLeg, bsReplyWaitLeg, bsBookedSessionsLeg, bsAssignedWorkoutsLeg, bsTrainingLoadLeg, bsActivityLeg, bsLastFromClient, BOOKED_LAST_KEPT_DAYS, BOOKED_AHEAD_DAYS, ASSIGNED_WORKOUT_DAYS, TRAINING_LOAD_DAYS, ONBOARDING_DAYS, CHECKIN_READ_LIMIT } from '@/lib/coach-client-legs.mjs';
+import { bsCoachDay, bsProgramLeg, bsWorkoutProgramLeg, bsLogsLeg, bsLogDaysLeg, bsNutritionTargets, bsLastContactLeg, bsOnboardingLeg, bsReplyWaitLeg, bsBookedSessionsLeg, bsAssignedWorkoutsLeg, bsTrainingLoadLeg, bsActivityLeg, bsLastRunDay, bsLastFromClient, BOOKED_LAST_KEPT_DAYS, BOOKED_AHEAD_DAYS, ASSIGNED_WORKOUT_DAYS, TRAINING_LOAD_DAYS, ONBOARDING_DAYS, CHECKIN_READ_LIMIT } from '@/lib/coach-client-legs.mjs';
 import { coachIntakeView, screeningState } from '../../mobile-app/src/services/coachIntake.mjs';
 import { OPEN_SUB_STATUSES } from './coach-trajectory.mjs';
 
@@ -681,6 +681,8 @@ export async function buildSharedOverview(supabase: OverviewClient, { clientId, 
   const workoutSince = new Date(Date.parse(workoutToday + 'T00:00:00Z') - ASSIGNED_WORKOUT_DAYS * 86_400_000).toISOString().slice(0, 10);
   let assignedWorkouts: ReturnType<typeof bsAssignedWorkoutsLeg> | undefined;
   let trainingLoad: ReturnType<typeof bsTrainingLoadLeg> | undefined;
+  // The newest day of the caller's own finished runs, which the snapshot misses for a 0-minute run.
+  let ownRunDay: string | null = null;
   if (mine.trainer != null) {
     const [wRes, runRes] = await Promise.all([
       supabase.from('client_workouts').select('id, scheduled_date')
@@ -704,6 +706,7 @@ export async function buildSharedOverview(supabase: OverviewClient, { clientId, 
     const dualRoleShared = mine.nutritionist != null && otherTrainer;
     assignedWorkouts = wRes.error || runRes.error || dualRoleShared ? undefined : bsAssignedWorkoutsLeg(wRes.data ?? [], doneIds, workoutToday);
     trainingLoad = runRes.error ? undefined : bsTrainingLoadLeg(runs, Date.now());
+    if (!runRes.error) ownRunDay = bsLastRunDay(runs);
   } else if (mine.nutritionist != null) {
     const { data: sharedRows, error: sharedErr } = await supabase.rpc('get_shared_client_workouts', { p_client_id: clientId });
     if (sharedErr) console.error('[shared-overview] shared workouts read failed:', sharedErr.message);
@@ -768,7 +771,13 @@ export async function buildSharedOverview(supabase: OverviewClient, { clientId, 
   // The logged days themselves, for the Week page's count in a week other than this one; `from`
   // says where a full window stops knowing. Omitted on a failed read, as `logs` is.
   // What the member did (gone quiet, not started, steps); omitted on a failed read, as `logs` is.
-  const activity = snapReadFailed ? undefined : bsActivityLeg(snapRows as Array<Record<string, unknown>>);
+  // ⚠ AND THE CALLER'S OWN RUNS (Codex on #2717): a run that rounds to 0 minutes adds nothing to the
+  // snapshot, so a trainer's quick-logged workout would read as no workout. A member's own and another
+  // coach's runs are not the caller's to read (participants policy); the War Room has that gap.
+  const snapActivity = snapReadFailed ? undefined : bsActivityLeg(snapRows as Array<Record<string, unknown>>);
+  const activity = snapActivity && ownRunDay && (!snapActivity.lastWorkoutOn || ownRunDay > snapActivity.lastWorkoutOn)
+    ? { ...snapActivity, lastWorkoutOn: ownRunDay }
+    : snapActivity;
   const logDays = snapReadFailed ? undefined : bsLogDaysLeg(snapRows as Array<Record<string, unknown>>, { full: (snapRowsDesc ?? []).length >= SNAPSHOT_WINDOW });
 
   // The coach's own nutrition targets. Without these the ledger and protein

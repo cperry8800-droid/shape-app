@@ -9,7 +9,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createRequire } from 'node:module';
 import { loadRealModule } from './helpers/load-real-module.mjs';
 import { fakeSupabase } from './helpers/fake-supabase.mjs';
-import { bsAssignedWorkoutsLeg, bsTrainingLoadLeg, bsActivityLeg, bsLastFromClient, bsBookedSessionsLeg } from '../src/lib/coach-client-legs.mjs';
+import { bsAssignedWorkoutsLeg, bsTrainingLoadLeg, bsActivityLeg, bsLastRunDay, bsLastFromClient, bsBookedSessionsLeg } from '../src/lib/coach-client-legs.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const require = createRequire(import.meta.url);
@@ -251,6 +251,11 @@ test('the legs: assigned workouts, the training load, the activity and the clien
   const act = bsActivityLeg([{ snapshot_date: '2026-11-09', workout_minutes: 40, steps: 8000 }, { snapshot_date: '2026-11-10', workout_minutes: 0, steps: 6000.4 }, { snapshot_date: '2026-11-07', steps: 0 }]);
   assert.deepEqual(act, { lastWorkoutOn: '2026-11-09', steps: [{ on: '2026-11-09', steps: 8000 }, { on: '2026-11-10', steps: 6000 }] });
   assert.equal(bsActivityLeg(null), null);
+  // A run's day, for a run with no minutes (Codex on #2717): the member's local day, else its UTC day.
+  assert.equal(bsLastRunDay([{ local_day: '2026-11-08', ended_at: '2026-11-09T02:00:00Z' }, { ended_at: '2026-11-07T10:00:00Z' }]), '2026-11-08');
+  assert.equal(bsLastRunDay([{ created_at: '2026-11-09T10:00:00Z' }, { local_day: 'bad' }]), '2026-11-09');
+  assert.equal(bsLastRunDay([{ local_day: '2026-11-03' }, { local_day: '2026-11-10' }, { local_day: '2026-11-05' }]), '2026-11-10', 'the newest, in any order');
+  assert.equal(bsLastRunDay([]), null);
   const m = (sender, at) => ({ sender_id: sender, created_at: at, conversation_id: 't' });
   assert.equal(bsLastFromClient([m('coach', '2026-11-10T10:00:00Z'), m('cli', '2026-11-08T10:00:00Z'), m('cli', '2026-11-09T10:00:00Z')], 'cli', 40), '2026-11-09T10:00:00.000Z');
   assert.equal(bsLastFromClient([m('coach', '2026-11-10T10:00:00Z')], 'cli', 40), null, 'none of theirs in a short read');
@@ -361,6 +366,13 @@ test('the overview reads 42 days of snapshots for the activity, and the client\'
   assert.equal(ov.activity.lastWorkoutOn, utcDay(5));
   const failed = await overview({ daily_health_snapshot: rows }, { fail: ['daily_health_snapshot'] });
   assert.ok(!('activity' in failed));
+  // A trainer's own run that rounded to 0 minutes (no snapshot minutes) is still a workout (Codex on #2717).
+  const quick = [{ client_id: A, client_workout_id: null, provider_role: 'trainer', provider_id: 7, status: 'completed', session_rpe: null, duration_seconds: 0, created_at: new Date(Date.now() - 2 * DAY).toISOString(), summary: { snapshotDate: utcDay(2) } }];
+  assert.equal((await overview({ daily_health_snapshot: rows, workout_sessions: quick })).activity.lastWorkoutOn, utcDay(2));
+  const older = [{ ...quick[0], created_at: new Date(Date.now() - 9 * DAY).toISOString(), summary: { snapshotDate: utcDay(9) } }];
+  assert.equal((await overview({ daily_health_snapshot: rows, workout_sessions: older })).activity.lastWorkoutOn, utcDay(5), 'the newer snapshot day stays');
+  assert.ok(!('activity' in await overview({ daily_health_snapshot: rows, workout_sessions: quick }, { fail: ['daily_health_snapshot'] })), 'a run never makes the snapshot read known');
+  assert.equal((await overview({ daily_health_snapshot: rows, workout_sessions: quick }, { fail: ['workout_sessions'] })).activity.lastWorkoutOn, utcDay(5), 'a failed runs read leaves the snapshot');
   const conv = [{ id: 'cv1', client_id: A, provider_role: 'trainer', provider_id: 7, kind: 'direct', last_message_at: null }];
   const msgs = [{ conversation_id: 'cv1', sender_id: A, created_at: new Date(Date.now() - 3 * DAY).toISOString() }, { conversation_id: 'cv1', sender_id: COACH, created_at: new Date(Date.now() - DAY).toISOString() }];
   const talk = await overview({ conversations: conv, messages: msgs });

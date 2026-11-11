@@ -437,6 +437,24 @@ export function bsTrainingLoadLeg(runs, now = Date.now()) {
   return { days };
 }
 
+// ── The newest day of the caller's own finished runs (gone quiet, not started) ──
+// ⚠ A RUN WITH NO MINUTES IS STILL A WORKOUT (Codex on #2717): save_workout_session adds nothing to the
+// day's snapshot when a run rounds to 0 minutes, so the snapshot alone misses a quick-logged one. The
+// member's local day (summary.snapshotDate), else the run's UTC day; null when none.
+/** @param {unknown[]} runs */
+export function bsLastRunDay(runs) {
+  let last = null;
+  for (const r of Array.isArray(runs) ? runs : []) {
+    if (!r || typeof r !== 'object') continue;
+    const row = /** @type {{ local_day?: unknown, ended_at?: unknown, created_at?: unknown }} */ (r);
+    const local = typeof row.local_day === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(row.local_day) ? row.local_day : null;
+    const at = ms(row.ended_at) ?? ms(row.created_at);
+    const on = local || (at != null ? isoDayUTC(at) : null);
+    if (on && (last == null || on > last)) last = on;
+  }
+  return last;
+}
+
 // ── What the member did, from the snapshot window (gone quiet, not started, steps) ──
 // The last day with workout minutes (save_workout_session adds a finished run's minutes to the day,
 // a member's own workouts included) and each day's steps. Out: { lastWorkoutOn, steps: [{ on, steps }] }
