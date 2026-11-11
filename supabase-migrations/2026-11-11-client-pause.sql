@@ -19,11 +19,13 @@
 -- the caller), while it holds and for 15 days after it ends (the engine's three days of "Back" and its
 -- count from the return day). Never the setter's id.
 --
--- Called by: src/lib/shared-overview.ts (each client's `pause`), mobile-app/src/services/shapeBackend.js
--- (the member's Settings and a coach's client file), and the crons that quiet a paused member
--- (src/lib/client-pause.mjs, with the service role).
+-- Called by: src/lib/shared-overview.ts (each client's `pause`), mobile-app/src/services/clientPause.mjs
+-- (the member's Settings and a coach's case file in the app), public/supabase.js (the website's client
+-- panel), and the live push as the member (notify-core loadMemberPaused). The service role reads the
+-- table itself: the hourly push, the Shape Score's penalties and the night-before prep reminder.
 --
--- Re-runnable: "if not exists", "create or replace", policies dropped first; a guard checks the result.
+-- Re-runnable: "if not exists", "create or replace", the read function dropped first; a guard checks
+-- the result.
 
 begin;
 
