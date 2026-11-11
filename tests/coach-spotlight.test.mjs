@@ -543,6 +543,16 @@ test('Make it yours keeps a cover spot dragged on the website, and drops it when
   assert.deepEqual(world.saved.d.look, { paper: 'dark', accent: 'rust', focus: 'top', pos: { x: 30, y: 20 } }, 'a new paper lost the dragged spot');
   await m.unmount();
 
+  // Dragged again on the website while this was open: the save keeps the newer spot and its stop,
+  // read at save time, not the one this opened with (Codex, #2704).
+  reset({ stored: { look } });
+  m = await mount(editor());
+  world.stored = { look: { ...look, focus: 'bottom', pos: { x: 70, y: 88 } } };
+  await click($('[data-paper="dark"]'));
+  await click($('[data-save-mine]'));
+  assert.deepEqual(world.saved.d.look, { paper: 'dark', accent: 'rust', focus: 'bottom', pos: { x: 70, y: 88 } }, 'the save put back the spot this opened with');
+  await m.unmount();
+
   reset({ stored: { look } });
   m = await mount(editor());
   await editorTab('Wall photo');

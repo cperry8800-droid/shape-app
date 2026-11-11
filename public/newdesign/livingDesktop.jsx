@@ -1617,6 +1617,8 @@ function ProfileCustomizer({ initial, c, onClose, onSave, coach = false, ownerUi
   const idTouched = React.useRef(new Set());
   const [photo, setPhoto] = React.useState(null);
   const [photoTouched, setPhotoTouched] = React.useState(false);
+  // A picked photo is read, decoded and drawn before it is held: Save waits for it (Codex, #2704).
+  const [photoBusy, setPhotoBusy] = React.useState(false);
   const photoRef = React.useRef(null);
   const loadIdentity = React.useCallback(async () => {
     setIdState("loading");
@@ -1637,8 +1639,10 @@ function ProfileCustomizer({ initial, c, onClose, onSave, coach = false, ownerUi
     try { e.target.value = ""; } catch (x) {}
     if (!f) return;
     if (!/^image\//.test(f.type || "")) { setErr("Choose an image for your photo."); return; }
+    setPhotoBusy(true);
     dkSquarePhoto(f).then((url) => { setPhoto(url); setPhotoTouched(true); setErr(""); })
-      .catch(() => setErr("Couldn't read that photo — try another."));
+      .catch(() => setErr("Couldn't read that photo — try another."))
+      .finally(() => setPhotoBusy(false));
   };
   const onCoverFile = async (e) => {
     const file = e && e.target && e.target.files && e.target.files[0]; if (e && e.target) e.target.value = "";
@@ -1666,7 +1670,7 @@ function ProfileCustomizer({ initial, c, onClose, onSave, coach = false, ownerUi
   const save = async () => {
     // A wall/cover upload still in flight would be omitted from the saved doc AND
     // left orphaned in storage (onSave closes the editor before it resolves) — wait.
-    if (wallBusy || coverBusy || filmBusy) { setErr("Hang on — an upload is still in progress."); return; }
+    if (wallBusy || coverBusy || filmBusy || photoBusy) { setErr("Hang on — an upload is still in progress."); return; }
     setBusy(true); setErr("");
     const doc = {
       ...init,
@@ -1757,7 +1761,7 @@ function ProfileCustomizer({ initial, c, onClose, onSave, coach = false, ownerUi
     </div>
   );
   return (
-    <ProfileEditorDialog c={c} onClose={onClose} busy={busy || wallBusy || coverBusy || filmBusy}
+    <ProfileEditorDialog c={c} onClose={onClose} busy={busy || wallBusy || coverBusy || filmBusy || photoBusy}
       saving={busy} error={err} onSave={save}>
       <div key="about" data-editor-label="About">
         <div data-dk-identity={idState} style={{ marginBottom: 22, paddingBottom: 18, borderBottom: `1px solid ${dHexA(LV_INK, 0.1)}` }}>
@@ -1769,8 +1773,8 @@ function ProfileCustomizer({ initial, c, onClose, onSave, coach = false, ownerUi
             <div style={{ minWidth: 0 }}>
               <input ref={photoRef} type="file" accept="image/*" onChange={onPhotoFile} style={{ display: "none" }} />
               <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                <button type="button" data-dk-photo-pick="" disabled={idState !== "ready"} onClick={() => photoRef.current && photoRef.current.click()} style={{ padding: "8px 15px", borderRadius: 999, border: `1px solid ${dHexA(LV_INK, 0.5)}`, background: "transparent", color: LV_INK, cursor: idState === "ready" ? "pointer" : "default", opacity: idState === "ready" ? 1 : 0.5, fontFamily: dMono, fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase" }}>{photo ? "Replace photo" : "Upload photo"}</button>
-                {photo && idState === "ready" ? <button type="button" data-dk-photo-remove="" onClick={() => { setPhoto(null); setPhotoTouched(true); }} style={{ padding: "8px 13px", borderRadius: 999, border: `1px solid ${dHexA(LV_INK, 0.3)}`, background: "transparent", color: dHexA(LV_INK, 0.8), cursor: "pointer", fontFamily: dMono, fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" }}>Remove</button> : null}
+                <button type="button" data-dk-photo-pick="" disabled={idState !== "ready" || photoBusy} onClick={() => photoRef.current && photoRef.current.click()} style={{ padding: "8px 15px", borderRadius: 999, border: `1px solid ${dHexA(LV_INK, 0.5)}`, background: "transparent", color: LV_INK, cursor: idState === "ready" ? "pointer" : "default", opacity: idState === "ready" ? 1 : 0.5, fontFamily: dMono, fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase" }}>{photo ? "Replace photo" : "Upload photo"}</button>
+                {photo && idState === "ready" ? <button type="button" data-dk-photo-remove="" disabled={photoBusy} onClick={() => { setPhoto(null); setPhotoTouched(true); }} style={{ padding: "8px 13px", borderRadius: 999, border: `1px solid ${dHexA(LV_INK, 0.3)}`, background: "transparent", color: dHexA(LV_INK, 0.8), cursor: "pointer", fontFamily: dMono, fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" }}>Remove</button> : null}
               </div>
               <div style={{ marginTop: 7, fontFamily: dMono, fontSize: 9, letterSpacing: "0.06em", color: dHexA(LV_INK, 0.5), lineHeight: 1.5 }}>Your photo is your face on Shape: your profile, posts and chats, here and in the app.</div>
             </div>

@@ -1713,10 +1713,15 @@ export function BSMakeItYours({ role = 'trainer', demo = false, ownerUid = null,
   const withChanges = (base) => {
     const doc = { ...base };
     // A position dragged on the website (look.pos) rides through unless the crop stop changed here,
-    // where the stop picked is the newer word on what stays in view.
+    // where the stop picked is the newer word on what stays in view. A stop not changed here is the
+    // doc's as read at save time, with its spot: one dragged on the website since this opened is kept
+    // (Codex, #2704).
     if (lookChanged) {
-      const pos = look.focus === seed.look.focus ? bsLookPos(initial && initial.look && initial.look.pos) : null;
-      doc.look = { paper: look.paper, accent: look.accent, focus: look.focus, ...(pos ? { pos } : {}) };
+      const was = base && base.look && typeof base.look === 'object' ? base.look : null;
+      const keepStop = look.focus === seed.look.focus;
+      const focus = keepStop && was && was.focus ? was.focus : look.focus;
+      const pos = keepStop ? bsLookPos(was && was.pos) : null;
+      doc.look = { paper: look.paper, accent: look.accent, focus, ...(pos ? { pos } : {}) };
     }
     // An emptied kitchen drops the key (the normalizer keeps none with nothing in it).
     if (kitchenChanged) doc.kitchen = { plate: kitchen.plate, rules: kitchen.rules, staples: kitchen.staples, recipes: kitchen.recipes };

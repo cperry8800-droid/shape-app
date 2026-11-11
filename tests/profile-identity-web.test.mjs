@@ -181,6 +181,24 @@ test('a picked photo is stored as the app stores it, a 256px JPEG; Remove clears
   assert.equal(acct.docs.client_identity.handle, '@cperry');
 });
 
+test('Save waits while a picked photo is still being read (Codex, #2704)', async () => {
+  const acct = account({ ...ME, photo: null });
+  await mount(editor());
+  const el = document.querySelector('[data-dk-identity] input[type="file"]');
+  Object.defineProperty(el, 'files', { value: [new window.File(['x'], 'me.png', { type: 'image/png' })], configurable: true });
+  await React.act(async () => { el.dispatchEvent(new window.Event('change', { bubbles: true })); });
+  assert.ok(!document.querySelector('[data-dk-photo]'), 'the harness read the photo before Save could be tried');
+  assert.ok(button('Save profile').disabled, 'Save was open while the photo was read');
+  assert.ok(document.querySelector('[data-dk-photo-pick]').disabled, 'a second photo could be picked over the first');
+  await React.act(async () => { button('Save profile').click(); });
+  assert.equal(acct.writes.length, 0);
+  assert.equal(acct.upserts.length, 0, 'the profile saved, and closed, without the photo');
+  await settle(); await settle();
+  assert.ok(!button('Save profile').disabled);
+  await click(button('Save profile'));
+  assert.equal(acct.docs.client_identity.photo, 'data:image/jpeg;base64,QUJDMA==');
+});
+
 test('a photo past 400 KB is refused, stored or picked, as the app refuses it', async () => {
   const BIG = 'data:image/jpeg;base64,' + 'A'.repeat(400001);
   // Stored oversized: not shown, and an untouched save leaves the account alone.
