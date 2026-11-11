@@ -1300,6 +1300,7 @@ function BSMarketplaceScreen({ onBack = null, onProfile, initialRole, goChat, in
       creds: getCoachCertifications(c).join(' · ') || null,
       // A free intro is open only where one can be booked: a coach with a Shape account (or an example's
       // own flow), not full with no times. A listing with no account behind it has no booking (Codex on #2718).
+      bookable: !!(c.provider_user_id || bsmIsDemoCoach(c)),
       introOpen: !!(c.provider_user_id || bsmIsDemoCoach(c)) && !(atCapacity && !(times && times.length)),
       compare: { max: BS_COMPARE_MAX, on: cmpKeys.includes(c.id), can: cmpKeys.includes(c.id) || cmpKeys.length < BS_COMPARE_MAX, onToggle: () => setCmpKeys((k) => bsCompareToggle(k, c.id)) },
     };

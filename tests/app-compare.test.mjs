@@ -22,7 +22,7 @@ const ofType = (d, name) => d.nodes().filter(fnNamed(name));
 const drawn = (el) => drive(el.type, el.props);
 const REG = (react) => ({ registry: new Map([['react', react], ['react-dom', { createPortal: (n) => n }]]) });
 const { BSMarketplaceScreen } = await loadRealModule(join(DIR, 'iosAppBroadsheetMarketplace.jsx'), { ...REG(SHIM), appendExports: 'exports.BSMarketplaceScreen = BSMarketplaceScreen;' });
-await loadRealModule(join(DIR, 'BSMarketDirectory.jsx'), REG(SHIM));
+const { BSMarketDirectory: BSMarketDirectoryView } = await loadRealModule(join(DIR, 'BSMarketDirectory.jsx'), REG(SHIM));
 globalThis.BSPublicProfile = function BSPublicProfile() { return null; };
 
 const screen = () => {
@@ -221,4 +221,18 @@ test('removing a coach down to one closes the sheet for good: a second pick wait
   list()[2].compare.onToggle(); s.d.render();
   assert.equal(s.dir().props.compare.cards.length, 2);
   assert.equal(s.dir().props.compare.open, false, 'the sheet opened again on its own');
+});
+
+test('a full listing with no account has no waiting list either, and the tray adds no second safe-area inset (Codex on #2718)', async () => {
+  const { readFileSync } = await import('node:fs');
+  const view = readFileSync(join(DIR, 'BSMarketDirectory.jsx'), 'utf8');
+  assert.match(view, /\{c\.introOpen \|\| \(full && c\.bookable\) \? <button type="button" data-mkt-compare-intro=""/);
+  assert.match(view, /position: 'sticky', bottom: tabH \+ 8,/);
+  assert.doesNotMatch(view, /bottom: `calc\(\$\{tabH \+ 8\}px \+ env\(safe-area-inset-bottom/);
+  // Drawn: a full listing with no account has View alone.
+  const s = screen();
+  const card = (over) => ({ ...s.dir().props.list[0], ...over });
+  const cmp = { cards: [card({ key: 'a', introOpen: false, bookable: false, next: { text: 'At capacity', full: true } }), card({ key: 'b', introOpen: true, bookable: true })], rows: [], open: true, onClose() {}, onRemove() {} };
+  const sheet = drive(ofType(drive(BSMarketDirectoryView, { compare: cmp }), 'MktDirCompareSheet')[0].type, { cmp });
+  assert.equal(sheet.nodes().filter((n) => n.props && n.props['data-mkt-compare-intro'] != null).length, 1, 'a full listing with no account offers Waiting list');
 });

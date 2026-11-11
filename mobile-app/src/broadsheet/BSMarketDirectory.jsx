@@ -518,11 +518,12 @@ function MktDirCompareTray({ cmp }) {
   const tr = useShapeTr();
   const D = bsDash(t);
   const teal = D.mark.teal;
+  // The tab bar's measured height already holds the home-indicator inset (BS_TABBAR_CSS): never add it twice (Codex on #2718).
   const tabH = window.useBSTabbarH ? window.useBSTabbarH() : (window.BS_TABBAR_H || 84);
   const n = cmp.cards.length;
   return (
     <div data-mkt-tray="" role="region" aria-label={tr('marketplace:compare.title', { defaultValue: 'Compare' })}
-      style={{ position: 'sticky', bottom: `calc(${tabH + 8}px + env(safe-area-inset-bottom, 0px))`, zIndex: 4, marginTop: 12, padding: 8, borderRadius: 16, background: t.PAPER, border: `1px solid ${bsDashA(t.INK, 0.14)}`, boxShadow: '0 10px 28px rgba(0,0,0,0.3)', display: 'flex', alignItems: 'center', gap: 6 }}>
+      style={{ position: 'sticky', bottom: tabH + 8, zIndex: 4, marginTop: 12, padding: 8, borderRadius: 16, background: t.PAPER, border: `1px solid ${bsDashA(t.INK, 0.14)}`, boxShadow: '0 10px 28px rgba(0,0,0,0.3)', display: 'flex', alignItems: 'center', gap: 6 }}>
       <div style={{ flex: '1 1 auto', minWidth: 0, display: 'flex', gap: 4, overflowX: 'auto', scrollbarWidth: 'none' }}>
         {cmp.cards.map((c) => (
           <span key={c.key} data-mkt-tray-chip="" style={{ flex: 'none', display: 'inline-flex', alignItems: 'center', gap: 4, height: 34, padding: '0 2px 0 3px', borderRadius: 99, background: D.track }}>
@@ -620,8 +621,8 @@ function MktDirCompareSheet({ cmp }) {
               const full = !!(c.next && c.next.full);
               return (
                 <div key={c.key} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  {/* No intro to book (a listing with no account behind it): View alone (Codex on #2718). */}
-                  {c.introOpen || full ? <button type="button" data-mkt-compare-intro="" onClick={c.onIntro}
+                  {/* No intro to book and no waiting list to join (a listing with no account behind it, full or not): View alone (Codex on #2718). */}
+                  {c.introOpen || (full && c.bookable) ? <button type="button" data-mkt-compare-intro="" onClick={c.onIntro}
                     style={{ minHeight: 44, padding: '0 8px', border: 0, borderRadius: 999, background: teal, color: t.isLight ? '#ffffff' : '#06201d', cursor: 'pointer', fontFamily: t.DISPLAY, fontSize: 13, fontWeight: 700 }}>
                     {full ? tr('marketplace:dir.waitingList', { defaultValue: 'Waiting list' }) : tr('marketplace:dir.bookIntro', { defaultValue: 'Book intro' })}
                   </button> : null}
