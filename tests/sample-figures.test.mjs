@@ -73,6 +73,14 @@ test("a signed-in member's strip is their own Shape Score, redemptions and tier,
   assert.equal(fullQ.redeemedSub, '50+ this quarter');
   const someQ = storeHeroFigures({ signedIn: true, score: STANDING, redemptions: [...Array(49).fill({ created_at: '2026-10-20T00:00:00Z' }), { created_at: '2026-09-01T00:00:00Z' }], now: NOW });
   assert.equal(someQ.redeemedSub, '49 this quarter');
+  // The quarter on the account's clock (Codex on #2701): 02:00Z on April 1 is still March 31 in Los Angeles.
+  const edge = { signedIn: true, score: STANDING, redemptions: [{ created_at: '2026-04-01T02:00:00Z' }], now: new Date('2026-04-02T15:00:00Z') };
+  assert.equal(storeHeroFigures({ ...edge, zone: 'UTC' }).redeemedSub, '1 this quarter');
+  assert.equal(storeHeroFigures({ ...edge, zone: 'America/Los_Angeles' }).redeemedSub, '0 this quarter');
+  assert.match(readFileSync('public/newdesign/Store.html', 'utf8'), /import \* as TZ from "\/newdesign\/shapeZone\.mjs[^"]*"; window\.ShapeZone = TZ;/, 'the Store does not load the account\'s zone');
+  // The Shape Score is net of penalties, so the strip does not call it "Lifetime earned".
+  assert.doesNotMatch(STORE, /"Lifetime earned"/);
+  assert.match(STORE, /\[fig\.lifetime, "Shape Score", fig\.lifetimeSub\]/);
 });
 
 test('a member whose reads are out sees dashes, not the example', () => {
@@ -116,7 +124,9 @@ test("a member signed in by cookie only gets the Wall, and a visitor's page neve
   const { createRoot } = require('react-dom/client');
   // The session check and the hook, one block (cmResolveSession is async, which fnSource does not cut).
   const from = COMMUNITY.indexOf('function cmHasSession(');
-  const src = COMMUNITY.slice(from, COMMUNITY.indexOf('function CmReveal(', from));
+  // The retry waits shortened, so a failure's three asks take milliseconds.
+  const src = COMMUNITY.slice(from, COMMUNITY.indexOf('function CmReveal(', from)).replace(/const CM_BRIDGE_RETRY = \[[^\]]*\];/, 'const CM_BRIDGE_RETRY = [5, 5];');
+  assert.match(src, /CM_BRIDGE_RETRY = \[5, 5\]/, 'the bridge retry moved');
   assert.ok(from >= 0 && /async function cmResolveSession\(/.test(src) && /function useCmWall\(/.test(src), 'the session block moved');
   const load = (store, fetchImpl) => new Function('React', 'useSC', 'window', 'localStorage', 'fetch', `${src}\nreturn { cmResolveSession, useCmWall };`)(
     React, React.useState, dom.window, { getItem: (k) => store[k] ?? null, get length() { return Object.keys(store).length; }, key: (i) => Object.keys(store)[i] }, fetchImpl);
@@ -128,19 +138,32 @@ test("a member signed in by cookie only gets the Wall, and a visitor's page neve
     document.body.innerHTML = '<div id="root"></div>';
     const root = createRoot(document.getElementById('root'));
     await React.act(async () => root.render(React.createElement(Probe)));
-    await React.act(async () => { await new Promise((r) => setTimeout(r, 0)); });
+    await React.act(async () => { await new Promise((r) => setTimeout(r, 40)); });
     const text = document.body.textContent;
     await React.act(async () => root.unmount());
     return text;
   }
   try {
     const calls = [];
-    const bridge = (body, ok = true) => async (url, opts) => { calls.push([url, opts && opts.credentials]); return { ok, json: async () => body }; };
+    const bridge = (body, status = 200) => async (url, opts) => { calls.push([url, opts && opts.credentials]); return { ok: status < 300, status, json: async () => body }; };
     assert.equal(await page({}, bridge({ access_token: 'a', refresh_token: 'r' })), 'the Wall', 'a cookie-only member is left on the sample');
     assert.deepEqual(calls[0], ['/api/auth/session', 'include'], 'the page did not ask the session bridge, with its cookies');
+    calls.length = 0;
     assert.equal(await page({}, bridge({ session: null })), 'the sample', 'a visitor got the Wall');
-    assert.equal(await page({}, bridge({}, false)), 'the sample', 'a failed bridge read took the reader for a member');
-    assert.equal(await page({}, async () => { throw new Error('offline'); }), 'the sample');
+    assert.equal(calls.length, 1, 'a clear "no session" was asked again');
+    calls.length = 0;
+    assert.equal(await page({}, bridge({}, 401)), 'the sample');
+    assert.equal(calls.length, 1);
+    // A failure is not an answer (Codex on #2701): asked again, and a visitor only after the retries.
+    calls.length = 0;
+    assert.equal(await page({}, bridge({}, 503)), 'the sample', 'a failed bridge read took the reader for a member');
+    assert.equal(calls.length, 3, 'a server failure was taken as signed out without asking again');
+    let n = 0;
+    const flaky = async () => { n++; if (n === 1) throw new Error('offline'); return { ok: true, status: 200, json: async () => ({ access_token: 'a' }) }; };
+    assert.equal(await page({}, flaky), 'the Wall', 'one dropped request left a member on the sample for the visit');
+    assert.equal(n, 2);
+    const badJson = async () => ({ ok: true, status: 200, json: async () => { throw new SyntaxError('html'); } });
+    assert.equal(await page({}, badJson), 'the sample');
     calls.length = 0;
     assert.equal(await page({ 'shape.auth': '{}' }, bridge({ session: null })), 'the Wall', 'a stored session is not a member');
     assert.equal(calls.length, 0, 'a member with a stored session waited on the bridge');

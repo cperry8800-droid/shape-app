@@ -32,11 +32,15 @@ async function cmResolveSession() {
   if (cmHasSession()) return true;
   try {
     const r = await fetch("/api/auth/session", { credentials: "include", cache: "no-store" });
-    if (!r.ok) return false;
+    // Signed out is an answer; a server or network failure is not (Codex on #2701): null, and ask again.
+    if (r.status === 401 || r.status === 403) return false;
+    if (!r.ok) return null;
     const j = await r.json();
     return !!(j && j.access_token);
-  } catch (e) { return false; }
+  } catch (e) { return null; }
 }
+// How long to wait before asking the bridge again after a failure, then the reader is taken for a visitor.
+const CM_BRIDGE_RETRY = [800, 2500];
 // communityFeed.jsx loads after this file, so the Wall's component may not be on window at the
 // first render; look again for a few seconds rather than leave a member on the sample.
 // `member`: true (a stored token, or the bridge says so), false (measured a visitor), null (asking).
@@ -46,9 +50,15 @@ function useCmWall() {
   const [Feed, setFeed] = useSC(() => (cmHasSession() ? find() : null));
   React.useEffect(() => {
     if (member !== null) return undefined;
-    let alive = true;
-    cmResolveSession().then((on) => { if (alive) setMember(on); });
-    return () => { alive = false; };
+    let alive = true, timer = null;
+    const ask = (tries) => cmResolveSession().then((on) => {
+      if (!alive) return;
+      if (on !== null) { setMember(on); return; }
+      if (tries >= CM_BRIDGE_RETRY.length) { setMember(false); return; }
+      timer = setTimeout(() => ask(tries + 1), CM_BRIDGE_RETRY[tries]);
+    });
+    ask(0);
+    return () => { alive = false; if (timer) clearTimeout(timer); };
   }, [member]);
   React.useEffect(() => {
     if (member !== true || Feed) return undefined;

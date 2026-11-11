@@ -128,11 +128,11 @@ const STORE_COPY_SCRIM = {
 // account's own: `score` is /api/client/score's answer (the Rewards page's: points_total is the
 // Shape Score, current_tier and next_tier/points_to_next its ladder) and `redemptions` the
 // locker's rows (GET /api/store/redeem, newest 50). Either one unread is "—", never the example.
-function storeHeroFigures({ signedIn, score, redemptions, now = new Date() }) {
+function storeHeroFigures({ signedIn, score, redemptions, now = new Date(), zone }) {
   if (!signedIn) {
     return {
       example: true,
-      lifetime: LIFETIME.toLocaleString(), lifetimeSub: "Shape Score",
+      lifetime: LIFETIME.toLocaleString(), lifetimeSub: "the example's rank",
       redeemed: String(REDEEMED_COUNT), redeemedSub: "4 this quarter",
       tier: "Tempo", tierSub: "716 to Form",
     };
@@ -143,11 +143,23 @@ function storeHeroFigures({ signedIn, score, redemptions, now = new Date() }) {
   const next = score && score.next_tier && typeof score.next_tier.name === "string" ? score.next_tier : null;
   const toNext = score ? n(score.points_to_next) : null;
   const rows = Array.isArray(redemptions) ? redemptions : null;
-  const q0 = new Date(now.getFullYear(), Math.floor(now.getMonth() / 3) * 3, 1).getTime();
-  const thisQuarter = rows ? rows.filter((r) => r && r.created_at && new Date(r.created_at).getTime() >= q0).length : null;
+  // The quarter on the account's clock (shapeZone.mjs: the account's zone this browser last read, else the
+  // device's), not the device's alone: near a quarter's first midnight the two disagree (Codex on #2701).
+  const tz = zone || (typeof window !== "undefined" && window.ShapeZone && typeof window.ShapeZone.viewerZone === "function" ? window.ShapeZone.viewerZone() : undefined);
+  let ym;
+  try { ym = new Intl.DateTimeFormat("en-US", { timeZone: tz, year: "numeric", month: "numeric" }); } catch (e) { ym = new Intl.DateTimeFormat("en-US", { year: "numeric", month: "numeric" }); }
+  const quarterOf = (t) => {
+    const d = new Date(t);
+    if (!Number.isFinite(d.getTime())) return null;
+    const parts = ym.formatToParts(d);
+    const y = Number((parts.find((p) => p.type === "year") || {}).value), m = Number((parts.find((p) => p.type === "month") || {}).value);
+    return y * 4 + Math.floor((m - 1) / 3);
+  };
+  const qNow = quarterOf(now);
+  const thisQuarter = rows ? rows.filter((r) => r && r.created_at && quarterOf(r.created_at) === qNow).length : null;
   return {
     example: false,
-    lifetime: total == null ? "—" : Math.max(0, total).toLocaleString(), lifetimeSub: "your Shape Score",
+    lifetime: total == null ? "—" : Math.max(0, total).toLocaleString(), lifetimeSub: "your rank, net of penalties",
     // The locker reads the newest 50, so 50 is "50+".
     redeemed: rows == null ? "—" : (rows.length >= 50 ? "50+" : String(rows.length)),
     // The newest 50 all inside the quarter may not be all of the quarter's (Codex on #2701): "50+".
@@ -205,7 +217,8 @@ function StoreHero({ balance = BALANCE, credit = { session: 0, nutrition: 0 }, s
             </a>
           </div>
           {[
-            [fig.lifetime, "Lifetime earned", fig.lifetimeSub],
+            // The Shape Score is net (a penalty takes points off), so the label is not Lifetime earned (Codex on #2701).
+            [fig.lifetime, "Shape Score", fig.lifetimeSub],
             [fig.redeemed, "Items redeemed", fig.redeemedSub],
             [fig.tier, "Current tier", fig.tierSub],
           ].map(([k, l, s], i) => (
