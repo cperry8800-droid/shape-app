@@ -108,24 +108,41 @@ function ScExample({ children = "Example member", style }) {
 const SC_DAY = 86400000;
 const scIsoDay = (ms) => new Date(ms).toISOString().slice(0, 10);
 
-// Points earned each UTC day (The Record's days), on the rank basis: positive rows only, no tier
-// bonus (spendable credit, not activity). Store redemptions are already out of The Record.
-function scEarnedByDay(history) {
+// The calendar day an instant falls on in `zone` ("YYYY-MM-DD"), the device's when the zone is unknown.
+function scDayIn(ms, zone) {
+  let fmt;
+  try { fmt = new Intl.DateTimeFormat("en-US", { timeZone: zone, year: "numeric", month: "2-digit", day: "2-digit" }); }
+  catch (e) { fmt = new Intl.DateTimeFormat("en-US", { year: "numeric", month: "2-digit", day: "2-digit" }); }
+  const parts = fmt.formatToParts(new Date(ms));
+  const get = (t) => (parts.find((p) => p.type === t) || {}).value;
+  return `${get("year")}-${get("month")}-${get("day")}`;
+}
+// The day `k` calendar days before a "YYYY-MM-DD" key (calendar arithmetic, so a DST change cannot
+// skip or repeat a day).
+const scDayBack = (key, k) => scIsoDay(Date.parse(key + "T00:00:00Z") - k * SC_DAY);
+
+// Points earned each day on the member's clock (owner rule: one zone per account, shapeZone.mjs; Codex
+// on #2701: The Record groups by UTC day, so two evenings in Los Angeles fell on one UTC day), on the
+// rank basis: positive rows only, no tier bonus (spendable credit, not activity). Store redemptions are
+// already out of The Record. A row with no instant keeps The Record's day.
+function scEarnedByDay(history, zone = "UTC") {
   const out = new Map();
   for (const day of Array.isArray(history) ? history : []) {
     if (!day || typeof day.date !== "string") continue;
-    let earned = 0;
     for (const r of Array.isArray(day.rows) ? day.rows : []) {
       const d = Number(r && r.delta);
-      if (Number.isFinite(d) && d > 0 && r.source_kind !== "tier_bonus") earned += d;
+      if (!Number.isFinite(d) || d <= 0 || r.source_kind === "tier_bonus") continue;
+      const at = r && r.earned_at ? Date.parse(r.earned_at) : NaN;
+      const key = Number.isFinite(at) ? scDayIn(at, zone) : day.date;
+      out.set(key, (out.get(key) || 0) + d);
     }
-    if (earned > 0) out.set(day.date, earned);
   }
   return out;
 }
 
-// The member's figures, from the Standing and (once it has answered) The Record. Pure: `now` in ms.
-function scView(score, record, now) {
+// The member's figures, from the Standing and (once it has answered) The Record. Pure: `now` in ms,
+// `zone` the member's (the page passes the viewer's; UTC when none is given).
+function scView(score, record, now, zone = "UTC") {
   const num = (x) => (typeof x === "number" && Number.isFinite(x) ? x : null);
   const total = Math.max(0, num(score && score.points_total) || 0);
   const tierName = score && score.current_tier && typeof score.current_tier.name === "string" ? score.current_tier.name : TIERS[0].name;
@@ -145,12 +162,12 @@ function scView(score, record, now) {
     streak: null, best: null, active: null, heat: null, lastWeek: null,
   };
   if (!record || !Array.isArray(record.history)) return v;
-  const days = scEarnedByDay(record.history);
-  const today = Math.floor(now / SC_DAY) * SC_DAY;
-  const has = (ms) => days.has(scIsoDay(ms));
+  const days = scEarnedByDay(record.history, zone);
+  const todayKey = scDayIn(now, zone);
+  const has = (k) => days.has(scDayBack(todayKey, k));
   // A streak runs to today, or to yesterday while today is still open.
-  let t = has(today) ? today : today - SC_DAY, streak = 0;
-  while (has(t)) { streak += 1; t -= SC_DAY; }
+  let t = has(0) ? 0 : 1, streak = 0;
+  while (has(t)) { streak += 1; t += 1; }
   let best = 0, run = 0, prev = null;
   for (const d of [...days.keys()].sort()) {
     const ms = Date.parse(d + "T00:00:00Z");
@@ -159,10 +176,12 @@ function scView(score, record, now) {
     prev = ms;
   }
   const level = (p) => (p <= 0 ? 0 : p < 10 ? 1 : p < 25 ? 2 : p < 45 ? 3 : 4);
-  const heat = Array.from({ length: 84 }, (_, i) => level(days.get(scIsoDay(today - (83 - i) * SC_DAY)) || 0));
+  const heat = Array.from({ length: 84 }, (_, i) => level(days.get(scDayBack(todayKey, 83 - i)) || 0));
   // The week before, on week_gain's own basis: week_gain is net (penalties in, Store and tier
-  // bonuses out) from midnight UTC seven days ago, so day offsets 0-7. The window before it is
+  // bonuses out) from midnight UTC seven days ago, so UTC day offsets 0-7. The window before it is
   // offsets 8-15, net on the same basis (Codex on #2701: positive-only days 7-13 overlapped it).
+  // These are UTC days, The Record's own, so the two windows meet at week_gain's midnight.
+  const today = Math.floor(now / SC_DAY) * SC_DAY;
   const net = new Map();
   for (const d of Array.isArray(record.history) ? record.history : []) {
     if (!d || typeof d.date !== "string") continue;
@@ -810,7 +829,9 @@ function ScorePage() {
     return function () { alive = false; };
   }, []);
   const loading = live === "loading";
-  const v = live && !loading ? scView(live.score, live.record, Date.now()) : null;
+  // The member's clock (shapeZone.mjs: the account's zone this browser last read, else the device's).
+  const zone = typeof window !== "undefined" && window.ShapeZone && typeof window.ShapeZone.viewerZone === "function" ? window.ShapeZone.viewerZone() : undefined;
+  const v = live && !loading ? scView(live.score, live.record, Date.now(), zone) : null;
   return (
     <div style={{ background: INK_DEEP, color: INK, fontFamily: sans, minHeight: "100vh", position: "relative" }}>
       <div aria-hidden style={{ position: "fixed", inset: 0, zIndex: 0, backgroundImage: "url('/Rewards-bg.webp')", backgroundSize: "cover", backgroundPosition: "center", pointerEvents: "none", opacity: 0.9 }} />

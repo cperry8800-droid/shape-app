@@ -127,6 +127,30 @@ const RECORD = { history: [
   day(10, [{ delta: 9, source_kind: 'habit' }]), day(11, [{ delta: 9, source_kind: 'habit' }]),
 ] };
 
+test("scView counts the member's own days in their zone, and the week before stays on week_gain's UTC days (Codex on #2701)", () => {
+  // 4:30 PM on Nov 9 and 3:30 PM on Nov 10 in Los Angeles: one UTC day (Nov 10), two of the member's.
+  const rec = { history: [{ date: '2026-11-10', rows: [
+    { delta: 10, source_kind: 'workout', earned_at: '2026-11-10T00:30:00Z' },
+    { delta: 12, source_kind: 'workout', earned_at: '2026-11-10T23:30:00Z' },
+  ] }] };
+  const now = Date.parse('2026-11-11T02:00:00Z'); // 6 PM on Nov 10 in Los Angeles
+  const la = S.scView(STANDING, rec, now, 'America/Los_Angeles');
+  assert.equal(la.streak, 2, 'two evenings in Los Angeles counted as one day');
+  assert.equal(la.active, 2);
+  assert.equal(la.heat[83], 2, "today's 12 points, on the member's today");
+  assert.equal(la.heat[82], 2, "yesterday's 10 points");
+  assert.equal(la.heat[81], 0);
+  const utc = S.scView(STANDING, rec, now, 'UTC');
+  assert.equal(utc.streak, 1);
+  assert.equal(utc.active, 1);
+  // The page reads the viewer's zone (the account's, through shapeZone.mjs), which Score.html loads.
+  assert.match(SRC, /scView\(live\.score, live\.record, Date\.now\(\), zone\)/);
+  assert.match(readFileSync(new URL('../public/newdesign/Score.html', import.meta.url), 'utf8'), /import \* as TZ from "\/newdesign\/shapeZone\.mjs[^"]*"; window\.ShapeZone = TZ;/);
+  // The week before is UTC days 8-15, whatever the zone: week_gain's window is UTC midnight.
+  const wk = { history: [{ date: '2026-11-02', rows: [{ delta: 9, source_kind: 'habit', earned_at: '2026-11-02T03:00:00Z' }] }] };
+  assert.equal(S.scView(STANDING, wk, Date.parse('2026-11-11T15:00:00Z'), 'America/Los_Angeles').lastWeek, 9);
+});
+
 test("scView: the member's streak, best run, heatmap and last week, from The Record", () => {
   const v = S.scView(STANDING, RECORD, NOW);
   assert.equal(v.total, 2340);
