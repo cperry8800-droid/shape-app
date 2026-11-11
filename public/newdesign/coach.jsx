@@ -99,7 +99,7 @@ function TrainerHero() {
             </div>
           </div>
           {/* Coach signature tag, like a clipboard owner tag */}
-          <div style={{ position: "absolute", top: -14, right: 18, background: INK, color: PAPER, padding: "5px 10px", borderRadius: 2, fontFamily: mono, fontSize: 9, letterSpacing: "0.2em", fontWeight: 700, textTransform: "uppercase", boxShadow: "0 6px 18px rgba(0,0,0,0.35)" }}>Coach · Maya O.</div>
+          <div style={{ position: "absolute", top: -14, right: 18, background: INK, color: PAPER, padding: "5px 10px", borderRadius: 2, fontFamily: mono, fontSize: 9, letterSpacing: "0.2em", fontWeight: 700, textTransform: "uppercase", boxShadow: "0 6px 18px rgba(0,0,0,0.35)" }}>Example · Coach Maya O.</div>
         </div>
       </div>
     </section>
@@ -379,7 +379,7 @@ function TrainerFAQ() {
     { q: "Can I bring my existing clients?", a: "Yes. We'll help with invitations, transfer flows, and pricing continuity." },
     { q: "How fast do payouts land?", a: "On the schedule you set in your own Stripe account, straight to your bank. Change it there any time." },
     { q: "Am I locked in?", a: "No exclusivity. Coach on Shape, on your own site, wherever — it's your business. Leave anytime, take your clients with you." },
-    { q: "What if I only want to sell programs, not sessions?", a: "That works. Publish programs as one-time purchases or subscriptions. Many trainers earn 30–50% of revenue from programs alone." },
+    { q: "What if I only want to sell programs, not sessions?", a: "That works. Publish programs as one-time purchases or subscriptions, and sell them without booking a single session." },
   ];
   const [open, setOpen] = React.useState(0);
   return (

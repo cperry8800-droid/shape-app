@@ -34,13 +34,20 @@ const LEDGER = [
 // path). Same demo rows the mobile Record computes at runtime, so the two match.
 const RECORD_DEMO = {"ranges":{"1w":{"series":[{"date":"2026-07-02","cumulative":92,"dayDelta":15},{"date":"2026-07-05","cumulative":95,"dayDelta":3},{"date":"2026-07-06","cumulative":115,"dayDelta":20}],"byCategory":[{"key":"adherence","label":"Check-ins","earned":15},{"key":"nutrition","label":"Nutrition","earned":10},{"key":"workouts","label":"Workouts","earned":10},{"key":"habits","label":"Habits","earned":3}],"earned":38,"lost":0,"net":38,"penalties":[]},"1m":{"series":[{"date":"2026-06-11","cumulative":62,"dayDelta":10},{"date":"2026-06-19","cumulative":55,"dayDelta":-7},{"date":"2026-06-23","cumulative":67,"dayDelta":12},{"date":"2026-06-27","cumulative":77,"dayDelta":10},{"date":"2026-07-02","cumulative":92,"dayDelta":15},{"date":"2026-07-05","cumulative":95,"dayDelta":3},{"date":"2026-07-06","cumulative":115,"dayDelta":20}],"byCategory":[{"key":"nutrition","label":"Nutrition","earned":20},{"key":"workouts","label":"Workouts","earned":20},{"key":"adherence","label":"Check-ins","earned":15},{"key":"prs","label":"PRs","earned":12},{"key":"habits","label":"Habits","earned":3}],"earned":70,"lost":7,"net":63,"penalties":[{"note":"Missed check-in","total":-7}]},"3m":{"series":[{"date":"2026-04-20","cumulative":30,"dayDelta":10},{"date":"2026-05-04","cumulative":42,"dayDelta":12},{"date":"2026-05-18","cumulative":52,"dayDelta":10},{"date":"2026-06-08","cumulative":62,"dayDelta":10},{"date":"2026-06-15","cumulative":55,"dayDelta":-7},{"date":"2026-06-22","cumulative":77,"dayDelta":22},{"date":"2026-06-29","cumulative":95,"dayDelta":18},{"date":"2026-07-06","cumulative":115,"dayDelta":20}],"byCategory":[{"key":"nutrition","label":"Nutrition","earned":30},{"key":"workouts","label":"Workouts","earned":30},{"key":"prs","label":"PRs","earned":24},{"key":"adherence","label":"Check-ins","earned":15},{"key":"habits","label":"Habits","earned":3}],"earned":102,"lost":7,"net":95,"penalties":[{"note":"Missed check-in","total":-7}]},"all":{"series":[{"date":"2026-02-09","cumulative":10,"dayDelta":10},{"date":"2026-03-02","cumulative":20,"dayDelta":10},{"date":"2026-04-20","cumulative":30,"dayDelta":10},{"date":"2026-05-04","cumulative":42,"dayDelta":12},{"date":"2026-05-18","cumulative":52,"dayDelta":10},{"date":"2026-06-08","cumulative":62,"dayDelta":10},{"date":"2026-06-15","cumulative":55,"dayDelta":-7},{"date":"2026-06-22","cumulative":77,"dayDelta":22},{"date":"2026-06-29","cumulative":95,"dayDelta":18},{"date":"2026-07-06","cumulative":115,"dayDelta":20}],"byCategory":[{"key":"nutrition","label":"Nutrition","earned":40},{"key":"workouts","label":"Workouts","earned":40},{"key":"prs","label":"PRs","earned":24},{"key":"adherence","label":"Check-ins","earned":15},{"key":"habits","label":"Habits","earned":3}],"earned":122,"lost":7,"net":115,"penalties":[{"note":"Missed check-in","total":-7}]}},"history":[{"date":"2026-07-06","subtotal":20,"rows":[{"note":"Workout logged","category":"workouts","label":"Workouts","delta":10,"earned_at":"2026-07-06T15:00:00Z","bucket":"workouts","isPenalty":false},{"note":"Meal logged","category":"nutrition","label":"Nutrition","delta":10,"earned_at":"2026-07-06T12:00:00Z","bucket":"nutrition","isPenalty":false}]},{"date":"2026-07-05","subtotal":3,"rows":[{"note":"Habit completed","category":"habits","label":"Habits","delta":3,"earned_at":"2026-07-05T18:00:00Z","bucket":"habits","isPenalty":false}]},{"date":"2026-07-02","subtotal":15,"rows":[{"note":"Weekly check-in","category":"adherence","label":"Check-ins","delta":15,"earned_at":"2026-07-02T09:00:00Z","bucket":"checkins","isPenalty":false}]},{"date":"2026-06-27","subtotal":10,"rows":[{"note":"Workout logged","category":"workouts","label":"Workouts","delta":10,"earned_at":"2026-06-27T15:00:00Z","bucket":"workouts","isPenalty":false}]},{"date":"2026-06-23","subtotal":12,"rows":[{"note":"Back squat PR","category":"prs","label":"PRs","delta":12,"earned_at":"2026-06-23T17:00:00Z","bucket":"prs","isPenalty":false}]},{"date":"2026-06-19","subtotal":-7,"rows":[{"note":"Missed check-in","category":"adherence","label":"Check-ins","delta":-7,"earned_at":"2026-06-19T09:00:00Z","bucket":"penalty","isPenalty":true}]},{"date":"2026-06-11","subtotal":10,"rows":[{"note":"Meal logged","category":"nutrition","label":"Nutrition","delta":10,"earned_at":"2026-06-11T12:00:00Z","bucket":"nutrition","isPenalty":false}]},{"date":"2026-05-24","subtotal":10,"rows":[{"note":"Workout logged","category":"workouts","label":"Workouts","delta":10,"earned_at":"2026-05-24T15:00:00Z","bucket":"workouts","isPenalty":false}]},{"date":"2026-05-10","subtotal":12,"rows":[{"note":"Deadlift PR","category":"prs","label":"PRs","delta":12,"earned_at":"2026-05-10T17:00:00Z","bucket":"prs","isPenalty":false}]},{"date":"2026-04-22","subtotal":10,"rows":[{"note":"Meal logged","category":"nutrition","label":"Nutrition","delta":10,"earned_at":"2026-04-22T12:00:00Z","bucket":"nutrition","isPenalty":false}]},{"date":"2026-03-08","subtotal":10,"rows":[{"note":"Workout logged","category":"workouts","label":"Workouts","delta":10,"earned_at":"2026-03-08T15:00:00Z","bucket":"workouts","isPenalty":false}]},{"date":"2026-02-12","subtotal":10,"rows":[{"note":"Meal logged","category":"nutrition","label":"Nutrition","delta":10,"earned_at":"2026-02-12T12:00:00Z","bucket":"nutrition","isPenalty":false}]}],"lifetime":115};
 
+// Five of the Store's own items, at the Store's own prices (src/lib/store-catalogue.ts: 150 points a
+// dollar, 300 for a credit). This list had its own invented prices ("$25 session credit · 500 pts" where
+// the Store charges 7,500, a "20% off merch" the Store does not sell, a "$200" credit the Store sells at
+// $60), and its Redeem did nothing; it opens the Store now. tests/score-page-examples.test.mjs holds
+// each to the catalogue.
+const SC_PTS_PER_USD = 150;
+const scRewardCost = (r) => Math.round(r.retail * (r.kind === "credit" ? SC_PTS_PER_USD * 2 : SC_PTS_PER_USD));
 const REWARDS = [
-  { title: "$25 session credit", sub: "Use with any coach", cost: 500, img: "credit" },
-  { title: "Coach intro · 2nd opinion", sub: "Free 30-min with any trainer", cost: 900, img: "coach" },
-  { title: "Nutrition plan refresh", sub: "Full plan rebuild with your RD", cost: 1200, img: "nutrition" },
-  { title: "Shape merch — 20% off", sub: "In-house apparel and essentials", cost: 400, img: "store" },
-  { title: "Annual membership credit", sub: "$200 toward next year", cost: 3500, img: "annual", locked: true },
-];
+  { id: "train_credit_25", title: "$25 session credit", sub: "Use with any Shape coach", retail: 25, kind: "credit", img: "credit" },
+  { id: "train_second_opinion", title: "Coach 2nd-opinion", sub: "A 30-min review with a Shape trainer", retail: 95, kind: "service", img: "coach" },
+  { id: "nutri_meal_plan_refresh", title: "Meal-plan Refresh", sub: "A plan rebuild with your Shape RD", retail: 140, kind: "service", img: "nutrition" },
+  { id: "merch_cap_black", title: "Shape Cap · Black", sub: "From the Shape merch drop", retail: 35, kind: "merch", img: "store" },
+  { id: "perk_annual_credit", title: "Annual membership credit", sub: "$60 toward next year", retail: 60, kind: "credit", img: "annual", locked: true },
+].map((r) => ({ ...r, cost: scRewardCost(r) }));
 
 // 84 days of activity (12 weeks × 7 days)
 const HEATMAP = Array.from({ length: 84 }, (_, i) => {
@@ -90,6 +97,105 @@ function ScExample({ children = "Example member", style }) {
   return <div data-sc-example="" style={{ fontFamily: mono, fontSize: 10, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase", color: "rgba(242,237,228,0.6)", ...style }}>{children}</div>;
 }
 
+// ⚠ A SIGNED-IN MEMBER SEES THEIR OWN STANDING, NOT THE EXAMPLE'S (owner, 2026-11-11: "fix the store
+// sample numbers too, and community page, and rewards page"). The example member above stays for a
+// visitor, labelled. A member gets /api/client/score (the Standing: the Shape Score, the tier on the
+// high-water basis, the week, the spendable balance, the newest ledger rows, momentum) and
+// /api/client/score-record (The Record: every day's points, for the heatmap and the streaks). Until
+// the Standing answers a member sees "—", never the example's numbers; a read that fails falls back
+// to the labelled example, which claims nothing.
+
+const SC_DAY = 86400000;
+const scIsoDay = (ms) => new Date(ms).toISOString().slice(0, 10);
+
+// The calendar day an instant falls on in `zone` ("YYYY-MM-DD"), the device's when the zone is unknown.
+function scDayIn(ms, zone) {
+  let fmt;
+  try { fmt = new Intl.DateTimeFormat("en-US", { timeZone: zone, year: "numeric", month: "2-digit", day: "2-digit" }); }
+  catch (e) { fmt = new Intl.DateTimeFormat("en-US", { year: "numeric", month: "2-digit", day: "2-digit" }); }
+  const parts = fmt.formatToParts(new Date(ms));
+  const get = (t) => (parts.find((p) => p.type === t) || {}).value;
+  return `${get("year")}-${get("month")}-${get("day")}`;
+}
+// The day `k` calendar days before a "YYYY-MM-DD" key (calendar arithmetic, so a DST change cannot
+// skip or repeat a day).
+const scDayBack = (key, k) => scIsoDay(Date.parse(key + "T00:00:00Z") - k * SC_DAY);
+
+// Points earned each day on the member's clock (owner rule: one zone per account, shapeZone.mjs; Codex
+// on #2701: The Record groups by UTC day, so two evenings in Los Angeles fell on one UTC day), on the
+// rank basis: positive rows only, no tier bonus (spendable credit, not activity). Store redemptions are
+// already out of The Record. A row with no instant keeps The Record's day.
+function scEarnedByDay(history, zone = "UTC") {
+  const out = new Map();
+  for (const day of Array.isArray(history) ? history : []) {
+    if (!day || typeof day.date !== "string") continue;
+    for (const r of Array.isArray(day.rows) ? day.rows : []) {
+      const d = Number(r && r.delta);
+      if (!Number.isFinite(d) || d <= 0 || r.source_kind === "tier_bonus") continue;
+      const at = r && r.earned_at ? Date.parse(r.earned_at) : NaN;
+      const key = Number.isFinite(at) ? scDayIn(at, zone) : day.date;
+      out.set(key, (out.get(key) || 0) + d);
+    }
+  }
+  return out;
+}
+
+// The member's figures, from the Standing and (once it has answered) The Record. Pure: `now` in ms,
+// `zone` the member's (the page passes the viewer's; UTC when none is given).
+function scView(score, record, now, zone = "UTC") {
+  const num = (x) => (typeof x === "number" && Number.isFinite(x) ? x : null);
+  const total = Math.max(0, num(score && score.points_total) || 0);
+  const tierName = score && score.current_tier && typeof score.current_tier.name === "string" ? score.current_tier.name : TIERS[0].name;
+  const tierIdx = Math.max(0, TIERS.findIndex((t) => t.name === tierName));
+  const next = score && score.next_tier && typeof score.next_tier.name === "string" ? score.next_tier : null;
+  const goal = next && num(next.threshold) ? next.threshold : Math.max(TIERS[tierIdx].min, total, 1);
+  const m = score && score.momentum && typeof score.momentum === "object" ? score.momentum : null;
+  const v = {
+    total, goal, tier: tierName, tierIdx,
+    next: next ? next.name : null,
+    toNext: Math.max(0, num(score && score.points_to_next) || 0),
+    weekGain: num(score && score.week_gain) || 0,
+    balance: Math.max(0, num(score && score.spendable_balance) || 0),
+    momentum: m && num(m.value) != null ? Math.max(0, Math.min(100, Math.round(m.value))) : null,
+    recent: Array.isArray(score && score.recent) ? score.recent : [],
+    // From The Record; null until it answers.
+    streak: null, best: null, active: null, heat: null, lastWeek: null,
+  };
+  if (!record || !Array.isArray(record.history)) return v;
+  const days = scEarnedByDay(record.history, zone);
+  const todayKey = scDayIn(now, zone);
+  const has = (k) => days.has(scDayBack(todayKey, k));
+  // A streak runs to today, or to yesterday while today is still open.
+  let t = has(0) ? 0 : 1, streak = 0;
+  while (has(t)) { streak += 1; t += 1; }
+  let best = 0, run = 0, prev = null;
+  for (const d of [...days.keys()].sort()) {
+    const ms = Date.parse(d + "T00:00:00Z");
+    run = prev != null && ms - prev === SC_DAY ? run + 1 : 1;
+    if (run > best) best = run;
+    prev = ms;
+  }
+  const level = (p) => (p <= 0 ? 0 : p < 10 ? 1 : p < 25 ? 2 : p < 45 ? 3 : 4);
+  const heat = Array.from({ length: 84 }, (_, i) => level(days.get(scDayBack(todayKey, 83 - i)) || 0));
+  // The week before, on week_gain's own basis: week_gain is net (penalties in, Store and tier
+  // bonuses out) from midnight UTC seven days ago, so UTC day offsets 0-7. The window before it is
+  // offsets 8-15, net on the same basis (Codex on #2701: positive-only days 7-13 overlapped it).
+  // These are UTC days, The Record's own, so the two windows meet at week_gain's midnight.
+  const today = Math.floor(now / SC_DAY) * SC_DAY;
+  const net = new Map();
+  for (const d of Array.isArray(record.history) ? record.history : []) {
+    if (!d || typeof d.date !== "string") continue;
+    for (const r of Array.isArray(d.rows) ? d.rows : []) {
+      const x = Number(r && r.delta);
+      if (!Number.isFinite(x) || r.source_kind === "tier_bonus" || r.source_kind === "store_redeem") continue;
+      net.set(d.date, (net.get(d.date) || 0) + x);
+    }
+  }
+  let lastWeek = 0;
+  for (let k = 8; k <= 15; k++) lastWeek += net.get(scIsoDay(today - k * SC_DAY)) || 0;
+  return { ...v, streak, best: Math.max(best, streak), active: heat.filter((x) => x > 0).length, heat, lastWeek };
+}
+
 function ScReveal({ children, delay = 0, style = {} }) {
   const ref = React.useRef(null);
   const [on, setOn] = React.useState(SC_RPR);
@@ -112,8 +218,27 @@ const SCORE_COPY_SCRIM = {
   maskImage: "linear-gradient(180deg, transparent 0, #000 44px, #000 calc(100% - 44px), transparent 100%)",
 };
 
-function ScoreHero() {
-  const pct = SCORE_TOTAL / SCORE_GOAL;
+function ScoreHero({ v = null, loading = false }) {
+  const example = !v && !loading;
+  const total = v ? v.total : loading ? null : SCORE_TOTAL;
+  const goal = v ? v.goal : SCORE_GOAL;
+  const pct = total == null ? 0 : Math.min(1, total / Math.max(1, goal));
+  const streakLine = v ? (v.streak == null ? "" : `${v.streak}-DAY STREAK`) : loading ? "" : `${STREAK}-DAY STREAK`;
+  const stats = v
+    ? [
+        [`${v.weekGain < 0 ? "−" : "+"}${Math.abs(v.weekGain).toLocaleString()}`, "Points this week", v.lastWeek == null ? "last 7 days" : `vs ${v.lastWeek < 0 ? "−" : ""}${Math.abs(v.lastWeek).toLocaleString()} the week before`],
+        [v.streak == null ? "—" : `${v.streak}d`, "Current streak", v.best == null ? "" : `personal best ${v.best}d`],
+        [v.tier, "Tier", v.next ? `${v.toNext.toLocaleString()} to ${v.next}` : "the top tier"],
+        [v.balance.toLocaleString(), "Available to spend", "in the Store"],
+      ]
+    : loading
+      ? [["—", "Points this week", ""], ["—", "Current streak", ""], ["—", "Tier", ""], ["—", "Available to spend", ""]]
+      : [
+          ["+36", "Points this week", "vs 32 last"],
+          [`${STREAK}d`, "Current streak", "personal best 22d"],
+          [TIER, "Tier", `${POINTS_TO_NEXT.toLocaleString()} to ${NEXT_TIER}`],
+          ["940", "Available to spend", "344 reserved"],
+        ];
   const R = 118;
   const C = 2 * Math.PI * R;
   return (
@@ -145,21 +270,16 @@ function ScoreHero() {
               </defs>
               <circle cx="140" cy="140" r={R} stroke="rgba(242,237,228,0.08)" strokeWidth="14" fill="none" />
               <circle cx="140" cy="140" r={R} stroke="url(#ring-grad)" strokeWidth="14" fill="none" strokeLinecap="round" strokeDasharray={`${C * pct} ${C}`} transform="rotate(-90 140 140)" />
-              <text x="140" y="128" textAnchor="middle" fontFamily="'Anybody', 'Anybody Fallback', system-ui, sans-serif" fontSize="72" fontWeight="400" fill={INK} letterSpacing="-3">{SCORE_TOTAL}</text>
-              <text x="140" y="152" textAnchor="middle" fontFamily="'Schibsted Grotesk', 'Schibsted Fallback', system-ui, sans-serif" fontSize="13" fill="rgba(242,237,228,0.5)">of {SCORE_GOAL}</text>
-              <text x="140" y="176" textAnchor="middle" fontFamily="JetBrains Mono, monospace" fontSize="10" fill={TEAL} letterSpacing="1.5">{STREAK}-DAY STREAK</text>
+              <text x="140" y="128" textAnchor="middle" fontFamily="'Anybody', 'Anybody Fallback', system-ui, sans-serif" fontSize="72" fontWeight="400" fill={INK} letterSpacing="-3">{total == null ? "—" : total}</text>
+              <text x="140" y="152" textAnchor="middle" fontFamily="'Schibsted Grotesk', 'Schibsted Fallback', system-ui, sans-serif" fontSize="13" fill="rgba(242,237,228,0.5)">{total == null ? "" : `of ${goal.toLocaleString()}`}</text>
+              <text x="140" y="176" textAnchor="middle" fontFamily="JetBrains Mono, monospace" fontSize="10" fill={TEAL} letterSpacing="1.5">{streakLine}</text>
             </svg>
-            <ScExample style={{ marginTop: 10 }} />
+            {example ? <ScExample style={{ marginTop: 10 }} /> : null}
           </div>
         </div>
-        <ScExample style={{ marginTop: 60 }} />
+        {example ? <ScExample style={{ marginTop: 60 }} /> : <div style={{ marginTop: 60 }} />}
         <div className="sc-stats" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 0, marginTop: 12, borderTop: "1px solid rgba(242,237,228,0.15)", borderBottom: "1px solid rgba(242,237,228,0.15)" }}>
-          {[
-            ["+36", "Points this week", "vs 32 last"],
-            [`${STREAK}d`, "Current streak", "personal best 22d"],
-            [TIER, "Tier", `${POINTS_TO_NEXT.toLocaleString()} to ${NEXT_TIER}`],
-            ["940", "Available to spend", "344 reserved"],
-          ].map(([k, l, s], i) => (
+          {stats.map(([k, l, s], i) => (
             <div key={i} style={{ padding: "30px 24px", borderLeft: i ? "1px solid rgba(242,237,228,0.08)" : "none" }}>
               <div style={{ fontFamily: serif, fontSize: 46, letterSpacing: "-0.03em", color: INK, lineHeight: 1 }}>{k}</div>
               <div style={{ fontFamily: sans, fontSize: 13, fontWeight: 600, color: INK, marginTop: 12 }}>{l}</div>
@@ -172,9 +292,12 @@ function ScoreHero() {
   );
 }
 
-function ScoreTiers() {
+function ScoreTiers({ v = null, loading = false }) {
   const [aud, setAud] = useSScore("client");
   const tiers = aud === "coach" ? TIERS_COACH : TIERS;
+  // The member's own rung on the Members ladder; the Coaches ladder stays the example coach's.
+  const mine = aud === "client" && !!v;
+  const points = mine ? v.total : aud === "client" && loading ? null : SCORE_TOTAL;
   // The teal fill reflects the member's ACTUAL points — interpolated between the
   // reached tier's node and the next one — so the line position matches the
   // "{N} to {next}" headline (e.g. 1,284 sits ~43% from Tempo→Form, not on the
@@ -185,24 +308,32 @@ function ScoreTiers() {
   const nodeCenterPct = (i) => ((i + 0.5) / nCols) * 100;
   const trackStart = nodeCenterPct(0);
   const trackEnd = nodeCenterPct(nCols - 1);
-  const reachedIdx = tiers.reduce((m, t, i) => (SCORE_TOTAL >= t.min ? i : m), 0);
+  // The reached rung is the Standing's (high-water: it never demotes), and the fill sits at the
+  // member's points between it and the next, held at the rung while they sit below its line.
+  const reachedIdx = points == null ? -1 : mine ? v.tierIdx : tiers.reduce((m, t, i) => (points >= t.min ? i : m), 0);
   let barPct;
-  if (reachedIdx >= nCols - 1) {
+  if (reachedIdx < 0) {
+    barPct = 0;
+  } else if (reachedIdx >= nCols - 1) {
     barPct = nodeCenterPct(reachedIdx);
   } else {
     const lo = tiers[reachedIdx].min, hi = tiers[reachedIdx + 1].min;
-    const frac = hi > lo ? Math.max(0, Math.min(1, (SCORE_TOTAL - lo) / (hi - lo))) : 0;
+    const frac = hi > lo ? Math.max(0, Math.min(1, (points - lo) / (hi - lo))) : 0;
     barPct = nodeCenterPct(reachedIdx) + frac * (nodeCenterPct(reachedIdx + 1) - nodeCenterPct(reachedIdx));
   }
   return (
     <section style={{ padding: "96px 72px" }}>
       <ScReveal>
         <div style={{ maxWidth: 1320, margin: "0 auto" }}>
-          <div style={{ fontFamily: mono, fontSize: 12, letterSpacing: "0.25em", textTransform: "uppercase", color: TEAL, marginBottom: 18 }}>Tiers · example member</div>
+          <div style={{ fontFamily: mono, fontSize: 12, letterSpacing: "0.25em", textTransform: "uppercase", color: TEAL, marginBottom: 18 }}>{aud === "coach" ? "Tiers · example coach" : mine ? "Tiers · your standing" : loading ? "Tiers" : "Tiers · example member"}</div>
           <h2 style={{ fontFamily: serif, fontSize: "clamp(36px, 5vw, 60px)", letterSpacing: "-0.035em", fontWeight: 300, margin: "0 0 28px", lineHeight: 1 }}>
             {aud === "coach"
               ? <>Coaches climb <em style={{ fontStyle: "italic", fontWeight: 600, color: TEAL }}>their own</em> ladder.</>
-              : <>You're <em style={{ fontStyle: "italic", fontWeight: 600, color: tiers[reachedIdx].color }}>{TIER}</em>. {POINTS_TO_NEXT.toLocaleString()} to {NEXT_TIER}.</>}
+              : reachedIdx < 0
+                ? <>Five rungs, <em style={{ fontStyle: "italic", fontWeight: 600, color: TEAL }}>one climb</em>.</>
+                : mine
+                  ? <>You're <em style={{ fontStyle: "italic", fontWeight: 600, color: tiers[reachedIdx].color }}>{v.tier}</em>. {v.next ? `${v.toNext.toLocaleString()} to ${v.next}.` : "The top tier."}</>
+                  : <>You're <em style={{ fontStyle: "italic", fontWeight: 600, color: tiers[reachedIdx].color }}>{TIER}</em>. {POINTS_TO_NEXT.toLocaleString()} to {NEXT_TIER}.</>}
           </h2>
           {/* Audience toggle — Members vs Coaches ladder */}
           <div style={{ display: "flex", gap: 8, marginBottom: 40 }}>
@@ -224,7 +355,7 @@ function ScoreTiers() {
             {Array.from({ length: tiers.length - 1 }).map(function (_, i) {
               const a = nodeCenterPct(i), b = nodeCenterPct(i + 1);
               const GAP = 34; // px clearance from each orb (covers the lit orb's halo)
-              const filled = barPct > a + 1;
+              const filled = reachedIdx >= 0 && barPct > a + 1;
               const toPct = Math.min(barPct, b);
               const fillW = barPct >= b ? `calc(${b - a}% - ${2 * GAP}px)` : `calc(${toPct - a}% - ${GAP}px)`;
               return (
@@ -237,14 +368,14 @@ function ScoreTiers() {
             {/* current-position marker — sits in open space between orbs, colored
                 as the NEXT tier you're climbing toward (falls back to the top
                 tier's color once you're at the highest rung). */}
-            {(() => {
+            {reachedIdx < 0 ? null : (() => {
               const nextColor = tiers[Math.min(reachedIdx + 1, tiers.length - 1)].color;
               return <div style={{ position: "absolute", left: `${barPct}%`, top: 58, width: 11, height: 11, borderRadius: 999, background: nextColor, boxShadow: `0 0 0 5px ${nextColor}33`, transform: "translate(-50%, -50%)", zIndex: 0 }} />;
             })()}
             <div style={{ display: "grid", gridTemplateColumns: `repeat(${tiers.length}, 1fr)`, position: "relative", zIndex: 1 }}>
               {tiers.map((t, i) => {
-                const reached = SCORE_TOTAL >= t.min;
-                const current = t.current;
+                const reached = reachedIdx >= 0 && i <= reachedIdx;
+                const current = mine ? i === reachedIdx : reachedIdx >= 0 && t.current;
                 return (
                   <div key={i} style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
                     <div style={{ height: 20, lineHeight: "20px", marginBottom: 12, fontFamily: mono, fontSize: 13, color: "rgba(242,237,228,0.55)" }}>{t.min.toLocaleString()}</div>
@@ -269,8 +400,13 @@ function ScoreTiers() {
   );
 }
 
-function ScoreActivity() {
+function ScoreActivity({ v = null, loading = false }) {
   const weeks = 12;
+  const example = !v && !loading;
+  // Oldest day first, today last; all quiet until The Record answers.
+  const heat = v ? (v.heat || Array(84).fill(0)) : loading ? Array(84).fill(0) : HEATMAP;
+  const tally = v ? (v.heat ? `${v.streak}d · ${v.active}/84` : "") : loading ? "" : `${STREAK}d · ${HEATMAP.filter(x => x > 0).length}/84`;
+  const momentum = v ? v.momentum : loading ? null : 78;
   const shade = (v) => {
     if (v === 0) return "rgba(242,237,228,0.05)";
     if (v === 1) return "rgba(10,197,168,0.25)";
@@ -290,16 +426,16 @@ function ScoreActivity() {
                 <h3 style={{ fontFamily: serif, fontSize: 34, letterSpacing: "-0.025em", fontWeight: 400, margin: "10px 0 0" }}>Consistency tells the story.</h3>
               </div>
               <div style={{ textAlign: "right" }}>
-                <ScExample style={{ marginBottom: 6 }} />
-                <div style={{ fontFamily: mono, fontSize: 11, color: "rgba(242,237,228,0.5)" }}>{STREAK}d · {HEATMAP.filter(v => v > 0).length}/84</div>
+                {example ? <ScExample style={{ marginBottom: 6 }} /> : null}
+                <div style={{ fontFamily: mono, fontSize: 11, color: "rgba(242,237,228,0.5)" }}>{tally}</div>
               </div>
             </div>
             <div style={{ display: "grid", gridTemplateColumns: `repeat(${weeks}, 1fr)`, gap: 4 }}>
               {Array.from({ length: weeks }, (_, w) => (
                 <div key={w} style={{ display: "grid", gridTemplateRows: "repeat(7, 1fr)", gap: 4 }}>
                   {Array.from({ length: 7 }, (_, d) => {
-                    const v = HEATMAP[w * 7 + d];
-                    return <div key={d} style={{ aspectRatio: "1/1", background: shade(v), borderRadius: 3 }} />;
+                    const lv = heat[w * 7 + d];
+                    return <div key={d} style={{ aspectRatio: "1/1", background: shade(lv), borderRadius: 3 }} />;
                   })}
                 </div>
               ))}
@@ -313,10 +449,10 @@ function ScoreActivity() {
             <div style={{ marginTop: 24, paddingTop: 22, borderTop: "1px solid rgba(242,237,228,0.1)" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 12 }}>
                 <div style={{ fontFamily: mono, fontSize: 11, letterSpacing: "0.2em", textTransform: "uppercase", color: TEAL }}>Momentum</div>
-                <div style={{ fontFamily: serif, fontSize: 26, lineHeight: 1 }}>78<span style={{ fontFamily: mono, fontSize: 11, color: "rgba(242,237,228,0.45)" }}>/100</span></div>
+                <div style={{ fontFamily: serif, fontSize: 26, lineHeight: 1 }}>{momentum == null ? "—" : momentum}<span style={{ fontFamily: mono, fontSize: 11, color: "rgba(242,237,228,0.45)" }}>/100</span></div>
               </div>
               <div style={{ height: 8, background: "rgba(242,237,228,0.08)", borderRadius: 999, overflow: "hidden" }}>
-                <div style={{ height: "100%", width: "78%", background: TEAL, borderRadius: 999 }} />
+                <div style={{ height: "100%", width: `${momentum == null ? 0 : momentum}%`, background: TEAL, borderRadius: 999 }} />
               </div>
               <div style={{ marginTop: 12, fontFamily: sans, fontSize: 12.5, color: "rgba(242,237,228,0.6)" }}>+7 for every active day, −12 for a miss — a notch, not a reset. Hold <span style={{ color: TEAL }}>80+</span> and bank a weekly bonus that grows with your streak — up to <span style={{ color: TEAL }}>+100</span>.</div>
             </div>
@@ -394,37 +530,26 @@ function ScoreLedger(props) {
     return slugs.indexOf(h) >= 0 ? h : "all";
   };
   const [active, setActive] = React.useState(readHash);
-  // Live ledger from the real score_ledger (members only); demo LEDGER is the
-  // signed-out / no-data fallback so the marketing preview still reads.
-  const [live, setLive] = React.useState(null);
   React.useEffect(function () {
     var onHash = function () { setActive(readHash()); };
     window.addEventListener("hashchange", onHash);
     return function () { window.removeEventListener("hashchange", onHash); };
   }, []);
-  React.useEffect(function () {
-    var alive = true;
-    var catK = function (c) {
-      c = String(c || "").toLowerCase();
-      if (c.indexOf("session") >= 0 || c.indexOf("consult") >= 0) return "session";
-      if (c.indexOf("habit") >= 0 || c.indexOf("streak") >= 0 || c.indexOf("step") >= 0 || c.indexOf("sleep") >= 0 || c.indexOf("checkin") >= 0) return "habit";
-      if (c.indexOf("nutri") >= 0 || c.indexOf("protein") >= 0 || c.indexOf("meal") >= 0 || c.indexOf("macro") >= 0 || c.indexOf("hydrat") >= 0 || c.indexOf("calorie") >= 0) return "nutrition";
-      if (c.indexOf("workout") >= 0 || c.indexOf("pr") >= 0 || c.indexOf("lift") >= 0 || c.indexOf("train") >= 0 || c.indexOf("run") >= 0) return "workout";
-      return "session";
-    };
-    var fmtD = function (iso) { try { return new Date(iso).toLocaleDateString([], { month: "short", day: "numeric" }); } catch (e) { return ""; } };
-    fetch("/api/client/score", { credentials: "same-origin", cache: "no-store" })
-      .then(function (r) { return r.ok ? r.json() : null; })
-      .then(function (d) {
-        if (!alive || !d || !Array.isArray(d.recent) || !d.recent.length) return;
-        setLive(d.recent.map(function (r) {
-          return { d: fmtD(r.earned_at), t: r.note || (r.category ? String(r.category).replace(/_/g, " ") : "Points"), p: r.delta, k: catK(r.category) };
-        }));
-      })
-      .catch(function () {});
-    return function () { alive = false; };
-  }, []);
-  const source = live || LEDGER;
+  // The member's newest rows from the page's Standing read (props.v); the example's LEDGER only for
+  // a visitor, labelled. A member with no points yet sees an empty ledger, never the example's.
+  var catK = function (c) {
+    c = String(c || "").toLowerCase();
+    if (c.indexOf("session") >= 0 || c.indexOf("consult") >= 0) return "session";
+    if (c.indexOf("habit") >= 0 || c.indexOf("streak") >= 0 || c.indexOf("step") >= 0 || c.indexOf("sleep") >= 0 || c.indexOf("checkin") >= 0) return "habit";
+    if (c.indexOf("nutri") >= 0 || c.indexOf("protein") >= 0 || c.indexOf("meal") >= 0 || c.indexOf("macro") >= 0 || c.indexOf("hydrat") >= 0 || c.indexOf("calorie") >= 0) return "nutrition";
+    if (c.indexOf("workout") >= 0 || c.indexOf("pr") >= 0 || c.indexOf("lift") >= 0 || c.indexOf("train") >= 0 || c.indexOf("run") >= 0) return "workout";
+    return "session";
+  };
+  var fmtD = function (iso) { try { return new Date(iso).toLocaleDateString([], { month: "short", day: "numeric" }); } catch (e) { return ""; } };
+  var live = props.v ? props.v.recent.map(function (r) {
+    return { d: fmtD(r.earned_at), t: r.note || (r.category ? String(r.category).replace(/_/g, " ") : "Points"), p: Number(r.delta) || 0, k: catK(r.category) };
+  }) : null;
+  const source = live || (props.loading ? [] : LEDGER);
   const activeK = LEDGER_SLUG_K[active] || null;
   const rows = activeK ? source.filter(function (r) { return r.k === activeK; }) : source;
   return (
@@ -433,7 +558,7 @@ function ScoreLedger(props) {
         <div style={{ maxWidth: 1320, margin: "0 auto" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 26, flexWrap: "wrap", gap: 16 }}>
             <div>
-              <div style={{ fontFamily: mono, fontSize: 12, letterSpacing: "0.25em", textTransform: "uppercase", color: TEAL }}>{live ? "Ledger" : "Ledger · example entries"}</div>
+              <div style={{ fontFamily: mono, fontSize: 12, letterSpacing: "0.25em", textTransform: "uppercase", color: TEAL }}>{live || props.loading ? "Ledger" : "Ledger · example entries"}</div>
               <h2 style={{ fontFamily: serif, fontSize: "clamp(34px, 4.4vw, 52px)", letterSpacing: "-0.035em", fontWeight: 300, margin: "14px 0 0", lineHeight: 1 }}>Recent earnings.</h2>
             </div>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -447,14 +572,14 @@ function ScoreLedger(props) {
           </div>
           <div className="sc-scroll" style={{ background: "rgba(11,14,12,0.62)", border: "1px solid rgba(242,237,228,0.1)", borderRadius: 6, maxHeight: 440, overflowY: "auto" }}>
             {rows.length === 0 ? (
-              <div style={{ padding: "28px 26px", fontFamily: sans, fontSize: 14, color: "rgba(242,237,228,0.55)" }}>No entries in this category yet.</div>
+              <div style={{ padding: "28px 26px", fontFamily: sans, fontSize: 14, color: "rgba(242,237,228,0.55)" }}>{props.loading ? "Loading your points…" : live && !live.length ? "No points yet. Your first logged workout, meal or check-in lands here." : "No entries in this category yet."}</div>
             ) : rows.map(function (row, i) {
               return (
                 <div key={i} style={{ display: "grid", gridTemplateColumns: "100px 86px 1fr auto", gap: 20, padding: "19px 26px", borderTop: i ? "1px solid rgba(242,237,228,0.06)" : "none", alignItems: "center" }}>
                   <div style={{ fontFamily: mono, fontSize: 11, color: "rgba(242,237,228,0.5)" }}>{row.d}</div>
                   <span style={{ fontFamily: mono, fontSize: 9, padding: "3px 8px", background: "rgba(10,197,168,0.1)", color: TEAL, borderRadius: 3, letterSpacing: "0.1em", textTransform: "uppercase", justifySelf: "start" }}>{row.k}</span>
                   <div style={{ fontFamily: serif, fontSize: 18, color: INK }}>{row.t}</div>
-                  <div style={{ fontFamily: mono, fontSize: 14, color: TEAL, fontWeight: 500 }}>+{row.p}</div>
+                  <div style={{ fontFamily: mono, fontSize: 14, color: row.p < 0 ? "#e8957f" : TEAL, fontWeight: 500 }}>{row.p < 0 ? "−" : "+"}{Math.abs(row.p)}</div>
                 </div>
               );
             })}
@@ -466,9 +591,12 @@ function ScoreLedger(props) {
   );
 }
 
-function RewardCard({ r }) {
+function RewardCard({ r, balance = 940 }) {
   const ref = React.useRef(null);
-  const canAfford = !r.locked && r.cost <= 940;
+  // A tier-locked reward stays locked for everyone: the Store shows it "Tier locked" and
+  // /api/store/redeem refuses it, so a Redeem here would lead nowhere (Codex on #2701).
+  const locked = !!r.locked;
+  const canAfford = !locked && balance != null && r.cost <= balance;
   const onMove = (e) => {
     if (SC_RPR || !ref.current) return;
     const b = ref.current.getBoundingClientRect();
@@ -477,15 +605,15 @@ function RewardCard({ r }) {
   };
   const onLeave = () => { if (ref.current) ref.current.style.transform = ""; };
   return (
-    <article ref={ref} onMouseMove={onMove} onMouseLeave={onLeave} style={{ background: "rgba(11,14,12,0.62)", border: "1px solid rgba(242,237,228,0.1)", borderRadius: 6, overflow: "hidden", opacity: r.locked ? 0.55 : 1, transition: "transform .12s ease-out", willChange: "transform" }}>
+    <article ref={ref} onMouseMove={onMove} onMouseLeave={onLeave} style={{ background: "rgba(11,14,12,0.62)", border: "1px solid rgba(242,237,228,0.1)", borderRadius: 6, overflow: "hidden", opacity: locked ? 0.55 : 1, transition: "transform .12s ease-out", willChange: "transform" }}>
       <Ph label={r.img} ratio="16/10" tone="light" style={{ borderRadius: 0, borderBottom: "1px solid rgba(242,237,228,0.06)" }} />
       <div style={{ padding: 26 }}>
         <div style={{ fontFamily: serif, fontSize: 23, letterSpacing: "-0.015em", color: INK }}>{r.title}</div>
         <div style={{ fontFamily: sans, fontSize: 13, color: "rgba(242,237,228,0.6)", marginTop: 6 }}>{r.sub}</div>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 22, paddingTop: 16, borderTop: "1px solid rgba(242,237,228,0.08)" }}>
           <div style={{ fontFamily: mono, fontSize: 14, color: canAfford ? TEAL : "rgba(242,237,228,0.5)" }}>{r.cost.toLocaleString()} pts</div>
-          <button disabled={!canAfford} style={{ padding: "9px 16px", borderRadius: 2, background: canAfford ? TEAL : "rgba(242,237,228,0.08)", color: canAfford ? PAPER : "rgba(242,237,228,0.45)", border: 0, fontFamily: sans, fontSize: 12, fontWeight: 600, cursor: canAfford ? "pointer" : "not-allowed" }}>
-            {r.locked ? "Peak tier" : canAfford ? "Redeem →" : "Keep earning"}
+          <button disabled={!canAfford} onClick={() => { if (canAfford) window.location.href = "Store.html"; }} style={{ padding: "9px 16px", borderRadius: 2, background: canAfford ? TEAL : "rgba(242,237,228,0.08)", color: canAfford ? PAPER : "rgba(242,237,228,0.45)", border: 0, fontFamily: sans, fontSize: 12, fontWeight: 600, cursor: canAfford ? "pointer" : "not-allowed" }}>
+            {locked ? "Peak tier" : canAfford ? "Redeem →" : "Keep earning"}
           </button>
         </div>
       </div>
@@ -493,7 +621,8 @@ function RewardCard({ r }) {
   );
 }
 
-function ScoreRewards() {
+function ScoreRewards({ v = null, loading = false }) {
+  const balance = v ? v.balance : loading ? null : 940;
   return (
     <section style={{ padding: "80px 72px 130px" }}>
       <ScReveal>
@@ -506,13 +635,13 @@ function ScoreRewards() {
               </h2>
             </div>
             <div style={{ fontFamily: sans, fontSize: 13, color: "rgba(242,237,228,0.6)", textAlign: "right" }}>
-              <ScExample style={{ marginBottom: 6 }} />
+              {!v && !loading ? <ScExample style={{ marginBottom: 6 }} /> : null}
               Available balance<br />
-              <span style={{ fontFamily: serif, fontSize: 38, color: INK, letterSpacing: "-0.02em" }}>940 pts</span>
+              <span style={{ fontFamily: serif, fontSize: 38, color: INK, letterSpacing: "-0.02em" }}>{balance == null ? "—" : balance.toLocaleString()} pts</span>
             </div>
           </div>
           <div className="sc-rewards" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 22, perspective: "1400px" }}>
-            {REWARDS.map((r, i) => <RewardCard key={i} r={r} />)}
+            {REWARDS.map((r, i) => <RewardCard key={i} r={r} balance={balance} />)}
           </div>
         </div>
       </ScReveal>
@@ -680,6 +809,29 @@ function ScoreRecordView({ onBack }) {
 
 function ScorePage() {
   const [recordOpen, setRecordOpen] = React.useState(false);
+  // "loading" until the Standing answers, null for a visitor (the example), else the reads. Everyone starts
+  // waiting: a member signed in through the Next.js login holds the session in cookies only, which this
+  // page cannot see, and the score route is what reads them (Codex on #2701). A visitor's 401 is quick.
+  const [live, setLive] = React.useState("loading");
+  React.useEffect(function () {
+    var alive = true;
+    var get = function (url) {
+      return fetch(url, { credentials: "same-origin", cache: "no-store" }).then(function (r) { return r.ok ? r.json() : null; });
+    };
+    get("/api/client/score").then(function (score) {
+      if (!alive) return;
+      if (!score || typeof score !== "object") { setLive(null); return; }
+      setLive({ score: score, record: null });
+      return get("/api/client/score-record").then(function (record) {
+        if (alive && record && typeof record === "object") setLive(function (cur) { return cur && cur !== "loading" ? { score: cur.score, record: record } : cur; });
+      });
+    }).catch(function () { if (alive) setLive(function (cur) { return cur === "loading" ? null : cur; }); });
+    return function () { alive = false; };
+  }, []);
+  const loading = live === "loading";
+  // The member's clock (shapeZone.mjs: the account's zone this browser last read, else the device's).
+  const zone = typeof window !== "undefined" && window.ShapeZone && typeof window.ShapeZone.viewerZone === "function" ? window.ShapeZone.viewerZone() : undefined;
+  const v = live && !loading ? scView(live.score, live.record, Date.now(), zone) : null;
   return (
     <div style={{ background: INK_DEEP, color: INK, fontFamily: sans, minHeight: "100vh", position: "relative" }}>
       <div aria-hidden style={{ position: "fixed", inset: 0, zIndex: 0, backgroundImage: "url('/Rewards-bg.webp')", backgroundSize: "cover", backgroundPosition: "center", pointerEvents: "none", opacity: 0.9 }} />
@@ -693,11 +845,11 @@ function ScorePage() {
           <ScoreRecordView onBack={function () { setRecordOpen(false); }} />
         ) : (
           <React.Fragment>
-            <ScoreHero />
-            <ScoreTiers />
-            <ScoreActivity />
-            <ScoreLedger onOpenRecord={function () { setRecordOpen(true); }} />
-            <ScoreRewards />
+            <ScoreHero v={v} loading={loading} />
+            <ScoreTiers v={v} loading={loading} />
+            <ScoreActivity v={v} loading={loading} />
+            <ScoreLedger v={v} loading={loading} onOpenRecord={function () { setRecordOpen(true); }} />
+            <ScoreRewards v={v} loading={loading} />
           </React.Fragment>
         )}
         <Footer />

@@ -1,16 +1,24 @@
 // Shape Store — spend points for rewards
 const { useState: useSStore, useMemo: useMStore, useEffect: useEStore } = React;
 
+// ⚠ THE EXAMPLE MEMBER, AND ONLY SIGNED OUT. These figures are what a visitor sees under an
+// "Example member" label; a signed-in account sees its own (storeHeroFigures below): its balance,
+// its Shape Score, its redemptions and its tier, or "—" while a read is out. Until 2026-11-11 the
+// three after the balance were shown to signed-in members too, beside their real balance.
+// The example member is the Rewards page's (score.jsx's SCORE_TOTAL 1,284 and its 940 to spend):
+// 1,284 is Tempo (750) and 716 short of Form (2,000), so the strip reads as one person. It said
+// 3,420 lifetime and "Tempo · 216 to Peak", which no score can be (Peak is 5,000).
 const BALANCE = 940;
-const LIFETIME = 3420;
+const LIFETIME = 1284;
 const REDEEMED_COUNT = 7;
+const EXAMPLE_GOLD = "#e6c373";
 
 const CATEGORIES = ["All", "Shape Merch", "Training", "Nutrition", "Shape Perks", "Coach Tools"];
 
 const PRODUCTS = [
   // Shape Merch
-  { id: 17, cat: "Shape Merch", name: "Shape Cap · Black", brand: "Shape Merch", cost: 700, retail: 35, img: "cap · black", tag: "Limited drop", stock: "Limited · 30" },
-  { id: 18, cat: "Shape Merch", name: "Shape Cap · White", brand: "Shape Merch", cost: 700, retail: 35, img: "cap · white", tag: "Limited drop", stock: "Limited · 30" },
+  { id: 17, cat: "Shape Merch", name: "Shape Cap · Black", brand: "Shape Merch", cost: 700, retail: 35, img: "cap · black", tag: "Limited drop", stock: "Limited" },
+  { id: 18, cat: "Shape Merch", name: "Shape Cap · White", brand: "Shape Merch", cost: 700, retail: 35, img: "cap · white", tag: "Limited drop", stock: "Limited" },
 
   // Training
   { id: 6, cat: "Training", name: "$25 session credit", brand: "Any Shape coach", cost: 500, retail: 25, img: "credit · 25", stock: "Unlimited", kind: "credit" },
@@ -116,8 +124,54 @@ const STORE_COPY_SCRIM = {
   maskImage: "linear-gradient(180deg, transparent 0, #000 44px, #000 calc(100% - 44px), transparent 100%)",
 };
 
-function StoreHero({ balance = BALANCE, credit = { session: 0, nutrition: 0 } }) {
+// The hero strip's four figures. Signed out, the example member's, labelled. Signed in, the
+// account's own: `score` is /api/client/score's answer (the Rewards page's: points_total is the
+// Shape Score, current_tier and next_tier/points_to_next its ladder) and `redemptions` the
+// locker's rows (GET /api/store/redeem, newest 50). Either one unread is "—", never the example.
+function storeHeroFigures({ signedIn, score, redemptions, now = new Date(), zone }) {
+  if (!signedIn) {
+    return {
+      example: true,
+      lifetime: LIFETIME.toLocaleString(), lifetimeSub: "the example's rank",
+      redeemed: String(REDEEMED_COUNT), redeemedSub: "4 this quarter",
+      tier: "Tempo", tierSub: "716 to Form",
+    };
+  }
+  const n = (v) => (typeof v === "number" && Number.isFinite(v) ? v : null);
+  const total = score ? n(score.points_total) : null;
+  const tierName = score && score.current_tier && typeof score.current_tier.name === "string" ? score.current_tier.name : null;
+  const next = score && score.next_tier && typeof score.next_tier.name === "string" ? score.next_tier : null;
+  const toNext = score ? n(score.points_to_next) : null;
+  const rows = Array.isArray(redemptions) ? redemptions : null;
+  // The quarter on the account's clock (shapeZone.mjs: the account's zone this browser last read, else the
+  // device's), not the device's alone: near a quarter's first midnight the two disagree (Codex on #2701).
+  const tz = zone || (typeof window !== "undefined" && window.ShapeZone && typeof window.ShapeZone.viewerZone === "function" ? window.ShapeZone.viewerZone() : undefined);
+  let ym;
+  try { ym = new Intl.DateTimeFormat("en-US", { timeZone: tz, year: "numeric", month: "numeric" }); } catch (e) { ym = new Intl.DateTimeFormat("en-US", { year: "numeric", month: "numeric" }); }
+  const quarterOf = (t) => {
+    const d = new Date(t);
+    if (!Number.isFinite(d.getTime())) return null;
+    const parts = ym.formatToParts(d);
+    const y = Number((parts.find((p) => p.type === "year") || {}).value), m = Number((parts.find((p) => p.type === "month") || {}).value);
+    return y * 4 + Math.floor((m - 1) / 3);
+  };
+  const qNow = quarterOf(now);
+  const thisQuarter = rows ? rows.filter((r) => r && r.created_at && quarterOf(r.created_at) === qNow).length : null;
+  return {
+    example: false,
+    lifetime: total == null ? "—" : Math.max(0, total).toLocaleString(), lifetimeSub: "your rank, net of penalties",
+    // The locker reads the newest 50, so 50 is "50+".
+    redeemed: rows == null ? "—" : (rows.length >= 50 ? "50+" : String(rows.length)),
+    // The newest 50 all inside the quarter may not be all of the quarter's (Codex on #2701): "50+".
+    redeemedSub: thisQuarter == null ? "" : `${thisQuarter}${rows.length >= 50 && thisQuarter === rows.length ? "+" : ""} this quarter`,
+    tier: tierName || "—",
+    tierSub: !tierName ? "" : next && toNext != null ? `${Math.max(0, toNext).toLocaleString()} to ${next.name}` : "the top tier",
+  };
+}
+
+function StoreHero({ balance = BALANCE, credit = { session: 0, nutrition: 0 }, signedIn = false, score = null, redemptions = null }) {
   const hasCredit = (credit.session > 0 || credit.nutrition > 0);
+  const fig = storeHeroFigures({ signedIn, score, redemptions });
   return (
     <section style={{ padding: "80px 72px 60px", position: "relative", overflow: "hidden" }}>
       <div style={{ maxWidth: 1320, margin: "0 auto", position: "relative" }}>
@@ -133,7 +187,12 @@ function StoreHero({ balance = BALANCE, credit = { session: 0, nutrition: 0 } })
           </p>
         </div>
 
-        <div className="store-stats" style={{ marginTop: 64, display: "grid", gridTemplateColumns: "1.1fr 1fr 1fr 1fr", gap: 0, borderTop: "1px solid rgba(242,237,228,0.15)", borderBottom: "1px solid rgba(242,237,228,0.15)" }}>
+        {fig.example && (
+          <div data-store-example="" style={{ marginTop: 56, fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.14em", textTransform: "uppercase", color: EXAMPLE_GOLD }}>
+            Example member · sign in to see your own
+          </div>
+        )}
+        <div className="store-stats" style={{ marginTop: fig.example ? 12 : 64, display: "grid", gridTemplateColumns: "1.1fr 1fr 1fr 1fr", gap: 0, borderTop: "1px solid rgba(242,237,228,0.15)", borderBottom: "1px solid rgba(242,237,228,0.15)" }}>
           <div style={{ padding: "28px 28px 28px 0" }}>
             <div style={{ fontFamily: sans, fontSize: 11, letterSpacing: "0.14em", textTransform: "uppercase", color: TEAL }}>Available balance</div>
             <div style={{ fontFamily: serif, fontSize: 76, letterSpacing: "-0.035em", color: INK, lineHeight: 1, marginTop: 12 }}>
@@ -158,9 +217,10 @@ function StoreHero({ balance = BALANCE, credit = { session: 0, nutrition: 0 } })
             </a>
           </div>
           {[
-            [`${LIFETIME.toLocaleString()}`, "Lifetime earned", "since Jan 2025"],
-            [`${REDEEMED_COUNT}`, "Items redeemed", "4 this quarter"],
-            ["Tempo", "Current tier", "216 to Peak"],
+            // The Shape Score is net (a penalty takes points off), so the label is not Lifetime earned (Codex on #2701).
+            [fig.lifetime, "Shape Score", fig.lifetimeSub],
+            [fig.redeemed, "Items redeemed", fig.redeemedSub],
+            [fig.tier, "Current tier", fig.tierSub],
           ].map(([k, l, s], i) => (
             <div key={i} style={{ padding: "28px 28px", borderLeft: "1px solid rgba(242,237,228,0.08)" }}>
               <div style={{ fontFamily: serif, fontSize: 44, letterSpacing: "-0.03em", color: INK, lineHeight: 1 }}>{k}</div>
@@ -752,7 +812,7 @@ function UnlockedCoupons({ redemptions, signedIn = false }) {
       <div style={{ maxWidth: 1320, margin: "0 auto" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 24 }}>
           <div>
-            <div style={{ fontFamily: sans, fontSize: 12, letterSpacing: "0.18em", textTransform: "uppercase", color: TEAL }}>Your locker</div>
+            <div style={{ fontFamily: sans, fontSize: 12, letterSpacing: "0.18em", textTransform: "uppercase", color: live ? TEAL : EXAMPLE_GOLD }}>{live ? "Your locker" : "Example locker · sign in to see yours"}</div>
             <h2 style={{ fontFamily: serif, fontSize: 44, letterSpacing: "-0.03em", fontWeight: 400, margin: "10px 0 0", lineHeight: 1 }}>Unlocked coupons.</h2>
           </div>
           <a href="Store.html" style={{ fontFamily: sans, fontSize: 13, color: "rgba(242,237,228,0.7)", borderBottom: "1px solid rgba(242,237,228,0.3)", paddingBottom: 2 }}>Redemption history →</a>
@@ -841,7 +901,8 @@ function StorePage() {
       const d = await res.json();
       setStore({
         balance: typeof d.balance === "number" ? d.balance : null,
-        redemptions: Array.isArray(d.redemptions) ? d.redemptions : [],
+        // A locker the route could not read is unread (null: the hero shows "—"), not an empty one.
+        redemptions: !d.redemptionsUnread && Array.isArray(d.redemptions) ? d.redemptions : null,
         credit: (d.credit && typeof d.credit === "object") ? d.credit : { session: 0, nutrition: 0 },
       });
     } catch (_) {}
@@ -850,6 +911,18 @@ function StorePage() {
   // the account's (GET /api/store/redeem needs no membership); only spending is the membership's.
   // Gated on the membership, a free or past-due account was shown the demo 940 points and codes.
   useEStore(() => { if (gate.signedIn) reloadStore(); }, [gate.signedIn]);
+  // The hero's Shape Score and tier, from the Rewards page's own route (a free account reads it;
+  // requireAccount). Unread stays null and the hero shows "—".
+  const [scoreSummary, setScoreSummary] = useSStore(null);
+  useEStore(() => {
+    if (!gate.signedIn) return;
+    let cancelled = false;
+    fetch("/api/client/score", { credentials: "include", cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (!cancelled && d && typeof d === "object") setScoreSummary(d); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [gate.signedIn]);
   // The sample balance only signed out; a signed-in balance not read yet is "—", never 940.
   const liveBalance = store.balance == null ? (gate.signedIn ? null : BALANCE) : store.balance;
   const liveCredit = store.credit || { session: 0, nutrition: 0 };
@@ -896,7 +969,7 @@ function StorePage() {
           <section style={{ padding: "120px 24px", textAlign: "center", fontFamily: sans, fontSize: 12, letterSpacing: "0.18em", textTransform: "uppercase", color: "rgba(242,237,228,0.6)" }}>Loading…</section>
         ) : (
           <React.Fragment>
-            <StoreHero balance={liveBalance} credit={liveCredit} />
+            <StoreHero balance={liveBalance} credit={liveCredit} signedIn={!!gate.signedIn} score={scoreSummary} redemptions={store.redemptions} />
             <StoreGrid locked={!gate.allowed} signedIn={gate.signedIn} pastDue={!!gate.pastDue} balance={liveBalance == null ? 0 : liveBalance} onRedeemed={reloadStore} />
             <UnlockedCoupons redemptions={store.redemptions} signedIn={!!gate.signedIn} />
             <StoreFAQ />
