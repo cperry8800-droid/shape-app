@@ -1213,6 +1213,18 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
   // ── Overlays ──
   const [sheet, setSheet] = React.useState(null); // { kind: 'reviews'|'piece'|'program'|'mealPlan'|'replay'|'plateDay'|'recipe', … }
   const [editing, setEditing] = React.useState(false);
+  // The doc read again: the living profile reads the page's row again on a return to the tab after 3 s
+  // away, on Nora's account setup and on an Edit profile save (livingProfilePage.jsx), so an edit made in
+  // the app shows here without a reload. The page takes the new row's doc unless Edit profile is open over
+  // it (that editor merges its own changes at save), and a read that landed while it was open is older
+  // than that save, so a save marks it seen. A re-read that fails leaves the row, and the page, as they are.
+  const rowCustomKey = live ? JSON.stringify((row && row.custom) || null) : null;
+  const seenRowCustom = React.useRef(rowCustomKey);
+  React.useEffect(() => {
+    if (!live || editing || seenRowCustom.current === rowCustomKey) return;
+    seenRowCustom.current = rowCustomKey;
+    setCustom((row && row.custom) || null);
+  }, [live, rowCustomKey, editing]);
   const [shared, setShared] = React.useState("");
   const railRef = React.useRef(null);
   // Work with: the Summit, the one place to buy, its storefront brought into view, on a phone as on a
@@ -1904,7 +1916,7 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
       {sheet && sheet.kind === "recipe" ? (
         <CpwRecipeSheet T={T} K={K} r={sheet.r} onClose={() => setSheet(null)} />
       ) : null}
-      {editing && canEdit ? <ProfileCustomizer key={uid || "self"} initial={custom} c={ACC} coach ownerUid={uid} ownerName={name} onClose={() => setEditing(false)} onSave={(doc) => { setCustom(doc); setEditing(false); }} /> : null}
+      {editing && canEdit ? <ProfileCustomizer key={uid || "self"} initial={custom} c={ACC} coach ownerUid={uid} ownerName={name} onClose={() => setEditing(false)} onSave={(doc) => { seenRowCustom.current = rowCustomKey; setCustom(doc); setEditing(false); }} /> : null}
     </div>
   );
 }
