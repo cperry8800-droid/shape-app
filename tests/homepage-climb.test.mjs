@@ -526,11 +526,14 @@ test('a moments ring points at the same pixels of the capture, whatever the card
   // the rings moved into the screen's frame as a % of the capture. Same pixels.
   // 88% since 2026-11-11 (owner: "a little larger within the box"); still the same
   // pixels, and Grocery's ring, the lowest, ends 15 px clear of the 24 px margin.
+  // Re-shot 2026-11-11 (owner: "update the screenshots of all the ones as well since we
+  // added a new tab in nav bar"), as -v6: only the tab bar changed, and the content under
+  // each ring matched the -v5 capture at a 0 px vertical shift, so every ring stands.
   const EXPECTED = [
-    { file: 'home-eat-v5.jpg', top: 566, height: 139, left: 24, right: 576 },
-    { file: 'home-grocery-v5.jpg', top: 702, height: 143, left: 15, right: 585 },
-    { file: 'home-session-v5.jpg', top: 509, height: 153, left: 34, right: 566 },
-    { file: 'home-feed-v5.jpg', top: 314, height: 301, left: 15, right: 585 },
+    { file: 'home-eat-v6.jpg', top: 566, height: 139, left: 24, right: 576 },
+    { file: 'home-grocery-v6.jpg', top: 702, height: 143, left: 15, right: 585 },
+    { file: 'home-session-v6.jpg', top: 509, height: 153, left: 34, right: 566 },
+    { file: 'home-feed-v6.jpg', top: 314, height: 301, left: 15, right: 585 },
   ];
 
   for (const [i, got] of momentsRings().entries()) {
@@ -623,7 +626,7 @@ test('the price phone is not a screen the journey rail already showed', () => {
   //
   // ⚠ AND "NO CAPTURE TWICE ON THE PAGE" WOULD FAIL CORRECT CODE, which is why
   // this is scoped to these two blocks. The moments strip and the rail SHARE
-  // home-session-v5.jpg and home-feed-v5.jpg deliberately, under different
+  // home-session-v6.jpg and home-feed-v6.jpg deliberately, under different
   // headlines, and the rail's stage 0 is the seeded markup by design — the test
   // above asserts that sameness. What must not repeat is the standing phone
   // beside the price showing a stage the rail has already walked the reader
