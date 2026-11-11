@@ -12,7 +12,9 @@ import { woff2Table, fvarAxes } from './helpers/woff2-fvar.mjs';
 
 const CSS = readFileSync(new URL('../mobile-app/src/fonts.css', import.meta.url), 'utf8');
 const PROS = readFileSync(new URL('../mobile-app/src/broadsheet/iosAppBroadsheetPros.jsx', import.meta.url), 'utf8');
-const CLIENT = readFileSync(new URL('../mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx', import.meta.url), 'utf8');
+const CLIENT = readFileSync(new URL('../mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx', import.meta.url), 'utf8')
+  // Train moved to its own module with the trainer's added exercises joining its session; it is the client's still.
+  + '\n' + readFileSync(new URL('../mobile-app/src/broadsheet/BSClientTrain.jsx', import.meta.url), 'utf8');
 const CLEAN = readFileSync(new URL('../mobile-app/src/broadsheet/bsCleanType.jsx', import.meta.url), 'utf8');
 const file = (n) => readFileSync(new URL(`../mobile-app/src/assets/fonts/font-${n}.woff2`, import.meta.url));
 const faces = (family) => CSS.split('@font-face').slice(1)

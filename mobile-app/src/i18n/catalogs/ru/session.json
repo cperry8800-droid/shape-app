@@ -380,5 +380,6 @@
   "train.coachAdded.onDay": "Добавлено · {day}",
   "train.coachAdded.count": "{count, plural, one {# упражнение} few {# упражнения} many {# упражнений} other {# упражнения}}",
   "train.coachAdded.tempo": "Темп {tempo}",
-  "train.coachAdded.start": "Начать эти"
+  "train.coachAdded.start": "Начать эти",
+  "train.coachAdded.inSession": "В сегодняшней тренировке"
 }

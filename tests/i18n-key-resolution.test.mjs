@@ -240,6 +240,8 @@ test('the session player authors no key it does not read', () => {
   bareKeys(parse(CLIENT), out);
   bareKeys(parse(SESSION_VIEW), out);
   bareKeys(parse(SESSION_FINISH), out);
+  // Train's resume banner reads the player's words too, from its own module since 2026-11-11.
+  bareKeys(parse('mobile-app/src/broadsheet/BSClientTrain.jsx'), out);
   const src = fs.readFileSync(CLIENT, 'utf8') + fs.readFileSync(SESSION_VIEW, 'utf8') + fs.readFileSync(SESSION_FINISH, 'utf8');
   const prefixes = [...src.matchAll(/tr\('session:(player\.[a-zA-Z.]*)' \+/g)].map((m) => m[1]);
   assert.ok(prefixes.length >= 1, 'the computed view family stopped being seen');
@@ -353,6 +355,8 @@ test('the app init still uses the option values this test mirrors', () => {
 test('no callback parameter shadows the translator', () => {
   const files = [
     'mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx',
+    // Train, out of the client module since its added exercises joined the day's session.
+    'mobile-app/src/broadsheet/BSClientTrain.jsx',
     'mobile-app/src/broadsheet/iosAppBroadsheetMain.jsx',
     'mobile-app/src/broadsheet/iosAppBroadsheetPros.jsx',
     'mobile-app/src/broadsheet/iosAppBroadsheetHabits.jsx',

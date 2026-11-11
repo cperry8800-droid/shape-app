@@ -380,5 +380,6 @@
   "train.coachAdded.onDay": "Ajoutés · {day}",
   "train.coachAdded.count": "{count, plural, one {# exercice} other {# exercices}}",
   "train.coachAdded.tempo": "Tempo {tempo}",
-  "train.coachAdded.start": "Les commencer"
+  "train.coachAdded.start": "Les commencer",
+  "train.coachAdded.inSession": "Dans la séance du jour"
 }

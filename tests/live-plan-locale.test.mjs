@@ -23,7 +23,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
 const PATH = 'mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx';
-const raw = fs.readFileSync(PATH, 'utf8');
+// Train's half moved to BSClientTrain.jsx (its added exercises joined the day's session); both are read.
+const raw = fs.readFileSync(PATH, 'utf8') + '\n' + fs.readFileSync('mobile-app/src/broadsheet/BSClientTrain.jsx', 'utf8');
 
 // Strip line comments before asserting — the rationale written at each site
 // quotes the very calls these tests ban, and an assertion that fires on its own

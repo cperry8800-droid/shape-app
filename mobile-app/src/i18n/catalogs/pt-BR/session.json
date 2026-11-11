@@ -380,5 +380,6 @@
   "train.coachAdded.onDay": "Adicionados · {day}",
   "train.coachAdded.count": "{count, plural, one {# exercício} other {# exercícios}}",
   "train.coachAdded.tempo": "Cadência {tempo}",
-  "train.coachAdded.start": "Começar estes"
+  "train.coachAdded.start": "Começar estes",
+  "train.coachAdded.inSession": "Na sessão de hoje"
 }

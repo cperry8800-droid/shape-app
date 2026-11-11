@@ -2,7 +2,7 @@ import React from 'react';
 import { BSFocusLead, BSFocusCountdown, BSFocusActions, BSFocusTitle, BSFocusLink } from './BSFocus.jsx';
 import { BSTrainBurn } from './BSTrainBurn.jsx';
 import { BSWeekDays, bsWeekDaysOf } from './BSWeekDays.jsx';
-import { BSCoachExercises } from './BSCoachExercises.jsx';
+import { BSCoachExercises, BSCoachExercisesView } from './BSCoachExercises.jsx';
 
 // ─── TRAIN · THE DAY ──────────────────────────────────────────────────────────────────────────
 // The member's Train page under its head, in the owner's C for Train (2026-11-04: "C for tainer page but
@@ -16,8 +16,10 @@ import { BSCoachExercises } from './BSCoachExercises.jsx';
 //     how long until it starts, who wrote it (Edit · Yours on a day the member wrote), and Start
 //     session as a glowing capsule with Swap beside it (BSFocusActions lit), or a Rest chip;
 //   · the program as a table, a row a move, each opening that move's swap; Swap at its head;
-//   · the exercises the member's trainer added that day from the website's Live console
-//     (BSCoachExercises.jsx, which reads them itself), under the program;
+//   · the exercises the member's trainer added that day from the website's Live console, under the
+//     program, off the page's own read (`coachRead`, the one its Start session runs them from: today's are
+//     part of the session, so the list says so and has no Start of its own); without one handed in,
+//     BSCoachExercises.jsx reads them itself;
 //   · On deck: the next three days, each a preview of the session (its time, length and effort, its
 //     first moves, its playlist) opening the full plan on that day; Plan opens the full plan (owner,
 //     2026-11-10: "there should be a better preview of what actually is 'on deck'"). The sheet is the
@@ -26,8 +28,7 @@ import { BSCoachExercises } from './BSCoachExercises.jsx';
 //     who pays a trainer is never sent to find one). The coach's music is no link of its own: each
 //     playlist sits in the page's Playlists under the workouts it plays with (owner, 2026-11-10).
 // The page (BSClientTrain) owns the data and every handler and hands them in; nothing here reads a plan
-// or writes one (the trainer's added exercises are BSCoachExercises' own read). Every word is a catalog
-// key the page already had.
+// or writes one. Every word is a catalog key the page already had.
 //
 // ⚠ WINDOW GLOBALS ARE READ AT CALL TIME, NEVER AT MODULE TOP (see BSLeaderboard.jsx), and this module
 // never imports the client module.
@@ -155,7 +156,9 @@ export function BSTrainDay(p) {
       )}
 
       {/* The exercises the trainer added to this day from the Live console, under the day's own program. */}
-      <BSCoachExercises dayIdx={day} today={day === todayIdx} dayLabel={shortDay(day)} />
+      {p.coachRead
+        ? <BSCoachExercisesView read={p.coachRead} date={p.coachDate} today={day === todayIdx} dayLabel={shortDay(day)} onRetry={p.onCoachRetry} inSession />
+        : <BSCoachExercises dayIdx={day} today={day === todayIdx} dayLabel={shortDay(day)} />}
 
       {/* This week — on deck: the next three days after today, from the same week as the calendar and Home.
           Each is a preview of the session: the day, its time and length, its first moves and its
