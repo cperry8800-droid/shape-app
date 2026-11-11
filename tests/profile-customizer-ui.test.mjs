@@ -33,7 +33,7 @@ async function input(name,value){
 }
 test('sections retain draft edits, roving keyboard tabs select a panel, and all panels save together',async()=>{
  let saved,write;
- window.shapeDb={client:{auth:{getUser:async()=>({data:{user:{id:'u1'}}})},from:()=>({upsert:async x=>{write=x;return{};}})}};
+ window.shapeDb={getUserGoals:async k=>k==='profile_custom'?{bio:'Existing bio',links:{instagram:'coach'},pinned:{kind:'win',title:'First race'}}:null,client:{auth:{getUser:async()=>({data:{user:{id:'u1'}}})},from:()=>({upsert:async x=>{write=x;return{};}})}};
  await mount({onSave:d=>{saved=d;}});
  assert.ok(document.querySelector('dialog').open);
  assert.equal(document.body.style.overflow,'hidden');
@@ -52,7 +52,7 @@ test('sections retain draft edits, roving keyboard tabs select a panel, and all 
 });
 test('a failed save stays open and announces the error in the fixed footer',async()=>{
  let saved=false;
- window.shapeDb={client:{auth:{getUser:async()=>({data:{user:{id:'u1'}}})},from:()=>({upsert:async()=>({error:{message:'Could not save'}})})}};
+ window.shapeDb={getUserGoals:async k=>k==='profile_custom'?{bio:'Existing bio',links:{instagram:'coach'},pinned:{kind:'win',title:'First race'}}:null,client:{auth:{getUser:async()=>({data:{user:{id:'u1'}}})},from:()=>({upsert:async()=>({error:{message:'Could not save'}})})}};
  await mount({onSave:()=>{saved=true;}});
  await click(button('Save profile'));
  assert.equal(saved,false);assert.ok(document.querySelector('dialog').open);
@@ -71,7 +71,7 @@ test('Escape dismisses through onClose and member panels keep member-only contro
 });
 test('an account switch cannot save the previous owner profile into the next account',async()=>{
  let writes=0,saved=false;
- window.shapeDb={client:{auth:{getUser:async()=>({data:{user:{id:'other-owner'}}})},from:()=>({upsert:async()=>{writes++;return{};}})}};
+ window.shapeDb={getUserGoals:async k=>k==='profile_custom'?{bio:'Existing bio',links:{instagram:'coach'},pinned:{kind:'win',title:'First race'}}:null,client:{auth:{getUser:async()=>({data:{user:{id:'other-owner'}}})},from:()=>({upsert:async()=>{writes++;return{};}})}};
  await mount({ownerUid:'original-owner',onSave:()=>{saved=true;}});
  await click(button('Save profile'));
  assert.equal(writes,0);assert.equal(saved,false);

@@ -18,7 +18,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { BS_USER_GOALS_EVENT, BS_ACCOUNT_SETUP_KINDS, bsAnnounceUserGoals, bsOnUserGoals, bsUserGoalsRevHook } from '../mobile-app/src/services/userGoalsRefresh.mjs';
+import { BS_USER_GOALS_EVENT, BS_ACCOUNT_SETUP_KINDS, BS_PROFILE_KINDS, bsAnnounceUserGoals, bsOnUserGoals, bsOnReturnToApp, bsUserGoalsRevHook } from '../mobile-app/src/services/userGoalsRefresh.mjs';
 import * as setup from '../src/lib/ai/accountSetup.mjs';
 
 const require_ = createRequire(import.meta.url);
@@ -223,4 +223,57 @@ test('the setup card reads the profile row again after Confirm and Undo', () => 
   const src = readFileSync(join(DIR, 'iosAppBroadsheetClient.jsx'), 'utf8');
   const fn = src.slice(src.indexOf('function bsAfterAccountSetup('), src.indexOf('\n}\n', src.indexOf('function bsAfterAccountSetup(')));
   assert.match(fn, /window\.ShapeAuth\?\.reloadProfile\?\.\(\)/);
+});
+
+// Parity with the website (owner, 2026-11-11: "make sure the app parity works with edits to profile as well").
+// The website's Edit profile writes client_identity and profile_custom; a screen open in the app kept its copy
+// until it was opened again. Back in the app after being away, the shell re-reads the identity cache and
+// announces both kinds, so every mounted reader reads them again.
+test('back in the app after being away, the profile kinds are read again; a flicker or a hidden page reads nothing', () => {
+  assert.deepEqual([...BS_PROFILE_KINDS], ['client_identity', 'profile_custom']);
+  assert.ok(Object.isFrozen(BS_PROFILE_KINDS));
+  const doc = new dom.window.EventTarget();
+  let clock = 0, back = 0;
+  doc.visibilityState = 'visible';
+  const off = bsOnReturnToApp(() => { back++; }, { doc, now: () => clock });
+  const show = (state) => { doc.visibilityState = state; doc.dispatchEvent(new dom.window.Event('visibilitychange')); };
+  show('visible'); assert.equal(back, 0, 'shown without having been away');
+  show('hidden'); clock += 1000; show('visible'); assert.equal(back, 0, 'a one-second flicker read again');
+  show('hidden'); clock += 60000; assert.equal(back, 0, 'read while still away');
+  show('visible'); assert.equal(back, 1);
+  show('visible'); assert.equal(back, 1, 'a second shown event read again');
+  off();
+  show('hidden'); clock += 60000; show('visible'); assert.equal(back, 1, 'read after unsubscribing');
+  // A reader that throws does not break the listener.
+  const off2 = bsOnReturnToApp(() => { back++; throw new Error('x'); }, { doc, now: () => clock });
+  show('hidden'); clock += 5000; show('visible'); show('hidden'); clock += 5000; show('visible');
+  assert.equal(back, 3);
+  off2();
+});
+
+test("the shell re-reads the identity and announces the profile's kinds on a return; a failed read keeps the cache", () => {
+  const src = readFileSync(join(ROOT, 'mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx'), 'utf8');
+  const at = src.indexOf('window.__bsProfileReturnRefresh = bsOnReturnToApp(');
+  assert.ok(at > 0, 'no return-to-app refresh in the shell');
+  const body = src.slice(at, src.indexOf('\n  });\n}', at));
+  assert.match(body, /bsHydrateIdentity\(\);/);
+  assert.match(body, /bsAnnounceUserGoals\(BS_PROFILE_KINDS\);/);
+  // The name bsMyName() prints is the auth cache's profiles.full_name: read again too (Codex on #2707).
+  assert.match(body, /window\.ShapeAuth\?\.reloadProfile\?\.\(\)/, 'a website name edit stays stale in the app');
+  assert.match(body, /if \(!window\.ShapeAuth\?\.getCachedState\?\.\(\)\?\.user\?\.id\) return;/, 'a signed-out app reads on return');
+  // Installed at the module's top, once per window, so the coach shells have it too.
+  assert.match(src, /if \(typeof window !== 'undefined' && typeof document !== 'undefined' && !window\.__bsProfileReturnRefresh\) \{/);
+  const hyd = src.slice(src.indexOf('function bsHydrateIdentity()'), src.indexOf('// Back in the app after being away'));
+  assert.match(hyd, /if \(d == null\) return;/, 'a failed read blanks every avatar');
+  // The photo hook of one's own profile follows the cache when it is read again (Codex on #2707): its state
+  // was seeded once, so the coach's own page kept the old photo after a website change.
+  const hook = src.slice(src.indexOf('function useBSProfilePhoto('), src.indexOf('const onPick = (e) =>', src.indexOf('function useBSProfilePhoto(')));
+  assert.match(hook, /window\.addEventListener\('shape:identity', again\);/);
+  assert.match(hook, /if \(id && typeof id === 'object'\) setPhoto\(id\.photo \|\| null\);/);
+  assert.match(hook, /if \(!isSelf\) return undefined;/, "another's profile follows nobody's cache");
+  // The coach's own page reads its public card again on either kind; another coach's page does not.
+  const tp = readFileSync(join(ROOT, 'mobile-app/src/broadsheet/BSTrainerProfile.jsx'), 'utf8');
+  assert.match(tp, /const BS_SELF_CARD_KINDS = \['client_identity', 'profile_custom'\];/);
+  assert.match(tp, /const liveRev = useBSUserGoalsRev\(isSelf \? BS_SELF_CARD_KINDS : BS_NO_KINDS\);/);
+  assert.match(tp, /\}, \[person\.userId, demoOn, liveRev\]\);/);
 });

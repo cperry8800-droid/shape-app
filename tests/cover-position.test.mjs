@@ -62,10 +62,13 @@ const frame = () => document.querySelector('[data-dk-cover-frame]');
 const photo = () => frame().querySelector('img');
 function backend() {
   const writes = [];
-  window.shapeDb = { client: { auth: { getUser: async () => ({ data: { user: { id: 'u1' } } }) }, from: () => ({ upsert: async (row) => { writes.push(row); return {}; } }) } };
+  // The save reads the doc as stored first (it merges onto it): here, the doc the editor opened with.
+  window.shapeDb = { getUserGoals: async (kind) => (kind === 'profile_custom' ? JSON.parse(JSON.stringify(opened)) : null),
+    client: { auth: { getUser: async () => ({ data: { user: { id: 'u1' } } }) }, from: () => ({ upsert: async (row) => { writes.push(row); return {}; } }) } };
   return writes;
 }
-const editor = (props) => React.createElement(ProfileCustomizer, { initial: {}, c: '#0ac5a8', coach: true, ownerUid: 'u1', onClose() {}, onSave() {}, ...props });
+let opened = {};
+const editor = (props) => { opened = (props && props.initial) || {}; return React.createElement(ProfileCustomizer, { initial: {}, c: '#0ac5a8', coach: true, ownerUid: 'u1', onClose() {}, onSave() {}, ...props }); };
 
 // A 480×200 frame over a 1600×1000 photo: drawn 480×300, so 100px of it hangs below the frame and none to the
 // side. A drag of 50px up shows 50 of those 100px: the photo's position moves half of the way down.
