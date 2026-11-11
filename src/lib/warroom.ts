@@ -662,6 +662,17 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
       ],
     },
     {
+      section: 'App Coaches tab: Compare, side by side, as on the website. No migration',
+      items: [
+        { label: 'Owner, 2026-11-11, asked whether the website\'s Compare is on the app: "yes i want compare on app"', status: 'done' },
+        { label: 'Each coach row has Compare under Book intro (＋ Compare, ✓ Comparing, or Compare holds 3); a tray above the tab bar holds the picks (× each, Clear) and opens the sheet once two are picked. A pick stays while a filter or a search hides it, and while a coach is open; picks made on the example roster are cleared when the live listings land, whose ids share their shape (Codex on #2718)', status: 'done' },
+        { label: 'The sheet: a column a coach (face, name, role, Example, Remove), pinned while it scrolls; Price, Rating, Experience, How you meet, City, Next open, Free intro, Verified by Shape, Credentials; Best on the lowest price (one unit only), the highest rating and the most years when one coach alone tops the row; Only what differs; Book intro (or Waiting list) and View at each foot, which close the sheet and open the coach; a listing with no Shape account behind it reads Free intro No and has View alone (Codex on #2718)', status: 'done' },
+        { label: 'The rules are one module, public/newdesign/coachCompare.mjs (the app re-exports it): three at most, every coach remote (In person + remote or Remote), the best rule and the price rule; every new string in 13 locales', status: 'done' },
+        { label: 'Tests: tests/app-compare.test.mjs (the rules; the row toggle, the tray, three at most, Clear; the sheet\'s rows, Best, Only what differs, View; a pick a filter hides)', status: 'done' },
+        { label: 'OWNER: on the app\'s Coaches tab, tap Compare on two or three coaches, open Compare in the tray, and press Only what differs', status: 'manual' },
+      ],
+    },
+    {
       section: 'A client\'s break, "away until": the member or any of their coaches sets a return date, the alerts that read their absence and their own reminders go quiet, and coaches see them back (#2705). Migration: 2026-11-11-client-pause.sql',
       items: [
         { label: 'Owner, 2026-11-11, on the coach-alerts review\'s gaps: "yes to pause", then "Member or any coach" and "No, billing continues"', status: 'done' },

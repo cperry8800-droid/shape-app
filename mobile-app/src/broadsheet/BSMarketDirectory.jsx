@@ -465,7 +465,7 @@ function MktDirRow({ card, first = false }) {
       style={look ? { position: 'relative', margin: first ? '4px 0 0' : '8px 0 0', padding: '0 12px', borderRadius: 14, border: `1px solid rgba(${P.inkRGB},0.16)`, background: mktDirLookBg(look), overflow: 'hidden' }
         : { position: 'relative', borderTop: first ? 0 : `1px solid ${t.HAIR}` }}>
       <button type="button" data-mkt-open="" data-mkt-press="" onClick={card.onOpen}
-        style={{ width: '100%', display: 'flex', alignItems: 'flex-start', gap: 12, minHeight: 72, padding: '12px 0', boxSizing: 'border-box', border: 0, background: 'transparent', textAlign: 'left', cursor: 'pointer', color: P ? P.INK : t.INK }}>
+        style={{ width: '100%', display: 'flex', alignItems: 'flex-start', gap: 12, minHeight: card.compare ? 96 : 72, padding: '12px 0', boxSizing: 'border-box', border: 0, background: 'transparent', textAlign: 'left', cursor: 'pointer', color: P ? P.INK : t.INK }}>
         <span style={{ display: 'block', opacity: card.atCapacity && full ? 0.6 : 1 }}><MktDirFace photo={card.photo} name={card.name} nutri={card.nutri} size={46} /></span>
         <span style={{ flex: 1, minWidth: 0 }}>
           <span style={{ display: 'block', paddingRight: 104 }}>
@@ -485,6 +485,157 @@ function MktDirRow({ card, first = false }) {
           {full ? tr('marketplace:dir.waitingList', { defaultValue: 'Waiting list' }) : tr('marketplace:dir.bookIntro', { defaultValue: 'Book intro' })}
         </span>
       </button>
+      {card.compare ? <MktDirCompareToggle card={card} right={look ? 12 : 0} pal={P} /> : null}
+    </div>
+  );
+}
+
+// ─── COMPARE (owner, 2026-11-11: "yes i want compare on app") ────────────────────────────────────
+// A row's Compare, under Book intro (never inside the row's button): ＋ Compare, ✓ Comparing, or, with
+// three picked, Compare holds 3. The tray under the list holds the picks; the sheet sets them side by side.
+function MktDirCompareToggle({ card, right = 0, pal = null }) {
+  const { useBS } = window;
+  const t = useBS();
+  const tr = useShapeTr();
+  const D = bsDash(t);
+  const c = card.compare;
+  const teal = pal ? pal.ACCENT : D.text.teal;
+  return (
+    <button type="button" data-mkt-compare={c.on ? 'on' : ''} aria-pressed={c.on} disabled={!c.can} onClick={c.onToggle}
+      aria-label={c.on ? tr('marketplace:compare.removeAria', { defaultValue: 'Remove {name} from compare', name: card.name }) : tr('marketplace:compare.addAria', { defaultValue: 'Add {name} to compare', name: card.name })}
+      style={{ position: 'absolute', bottom: 6, right, minHeight: 44, padding: 0, border: 0, background: 'transparent', cursor: c.can ? 'pointer' : 'default', opacity: c.can ? 1 : 0.5 }}>
+      <span style={{ display: 'inline-flex', alignItems: 'center', height: 28, padding: '0 11px', borderRadius: 999, border: `1px solid ${c.on ? teal : (pal ? `rgba(${pal.inkRGB},0.22)` : bsDashA(t.INK, 0.16))}`, color: c.on ? teal : (pal ? pal.INK_SOFT : t.INK70), fontFamily: t.DISPLAY, fontSize: 12, fontWeight: 650, whiteSpace: 'nowrap' }}>
+        {c.on ? tr('marketplace:compare.on', { defaultValue: '✓ Comparing' }) : c.can ? tr('marketplace:compare.add', { defaultValue: '＋ Compare' }) : tr('marketplace:compare.full', { defaultValue: 'Compare holds {count}', count: c.max || 3 })}
+      </span>
+    </button>
+  );
+}
+
+// The tray: the coaches picked, each with ×, then Compare (two or more) and Clear. It rides above the tab bar.
+function MktDirCompareTray({ cmp }) {
+  const { useBS } = window;
+  const t = useBS();
+  const tr = useShapeTr();
+  const D = bsDash(t);
+  const teal = D.mark.teal;
+  // The tab bar's measured height already holds the home-indicator inset (BS_TABBAR_CSS): never add it twice (Codex on #2718).
+  const tabH = window.useBSTabbarH ? window.useBSTabbarH() : (window.BS_TABBAR_H || 84);
+  const n = cmp.cards.length;
+  return (
+    <div data-mkt-tray="" role="region" aria-label={tr('marketplace:compare.title', { defaultValue: 'Compare' })}
+      style={{ position: 'sticky', bottom: tabH + 8, zIndex: 4, marginTop: 12, padding: 8, borderRadius: 16, background: t.PAPER, border: `1px solid ${bsDashA(t.INK, 0.14)}`, boxShadow: '0 10px 28px rgba(0,0,0,0.3)', display: 'flex', alignItems: 'center', gap: 6 }}>
+      <div style={{ flex: '1 1 auto', minWidth: 0, display: 'flex', gap: 4, overflowX: 'auto', scrollbarWidth: 'none' }}>
+        {cmp.cards.map((c) => (
+          <span key={c.key} data-mkt-tray-chip="" style={{ flex: 'none', display: 'inline-flex', alignItems: 'center', gap: 4, height: 34, padding: '0 2px 0 3px', borderRadius: 99, background: D.track }}>
+            <MktDirFace photo={c.photo} name={c.name} nutri={c.nutri} size={28} />
+            <span style={{ maxWidth: 74, fontFamily: t.DISPLAY, fontSize: 12.5, fontWeight: 650, color: t.INK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{String(c.name || '').split(' ')[0]}</span>
+            <button type="button" onClick={() => cmp.onRemove(c.key)} aria-label={tr('marketplace:compare.removeAria', { defaultValue: 'Remove {name} from compare', name: c.name })}
+              style={{ width: 30, height: 34, border: 0, background: 'transparent', cursor: 'pointer', color: t.INK70, fontSize: 15, padding: 0 }}>×</button>
+          </span>
+        ))}
+      </div>
+      <button type="button" data-mkt-compare-open="" disabled={n < 2} onClick={cmp.onOpen}
+        style={{ flex: 'none', minHeight: 44, padding: '0 14px', border: 0, borderRadius: 999, background: n < 2 ? D.track : teal, color: n < 2 ? t.INK50 : (t.isLight ? '#ffffff' : '#06201d'), cursor: n < 2 ? 'default' : 'pointer', fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 700, whiteSpace: 'nowrap' }}>
+        {n < 2 ? tr('marketplace:compare.pickOne', { defaultValue: 'Pick one more' }) : tr('marketplace:compare.open', { defaultValue: 'Compare {count}', count: n })}
+      </button>
+      <button type="button" data-mkt-compare-clear="" onClick={cmp.onClear}
+        style={{ flex: 'none', minHeight: 44, padding: '0 6px', border: 0, background: 'transparent', cursor: 'pointer', color: t.INK70, fontFamily: t.DISPLAY, fontSize: 13, fontWeight: 600 }}>
+        {tr('marketplace:compare.clear', { defaultValue: 'Clear' })}
+      </button>
+    </div>
+  );
+}
+
+// The side-by-side sheet: a column a coach (their face, name and role, Remove), then each row of what they
+// offer, the best of a row that can be ranked marked (coachCompare.mjs), and Only what differs to fold away
+// the rows every coach answers the same. Book intro and View at the foot of each column.
+function MktDirCompareSheet({ cmp }) {
+  const { useBS } = window;
+  const t = useBS();
+  const tr = useShapeTr();
+  const D = bsDash(t);
+  const teal = D.mark.teal;
+  const [diffOnly, setDiffOnly] = useState(false);
+  const cards = cmp.cards;
+  // The rows as the marketplace module reads them (coachCompare.mjs there): each with its words, `same`
+  // and `best`. This only draws them.
+  const rows = cmp.rows || [];
+  const sameCount = rows.filter((r) => r.same).length;
+  const shown = rows.filter((r) => !(diffOnly && r.same));
+  const cols = `repeat(${cards.length}, minmax(0, 1fr))`;
+  const hair = `1px solid ${t.HAIR}`;
+  const small = { fontFamily: t.DISPLAY, fontSize: 12, fontWeight: 600, color: t.INK50 };
+  return (
+    <div data-mkt-sheet="" data-mkt-compare-sheet="" onClick={cmp.onClose} style={{ position: 'absolute', inset: 0, zIndex: 200, background: 'rgba(6,5,4,0.48)', display: 'flex', alignItems: 'flex-end' }}>
+      <style>{MKT_DIR_CSS(teal, t.INK50)}</style>
+      <div ref={bsDialogRef(cmp.onClose)} role="dialog" aria-modal="true" aria-label={tr('marketplace:compare.sheetTitle', { defaultValue: 'Compare coaches' })} onClick={(e) => e.stopPropagation()}
+        style={{ width: '100%', maxHeight: '92%', display: 'flex', flexDirection: 'column', boxSizing: 'border-box', background: t.PAPER, color: t.INK, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderTop: `1px solid ${bsDashA(t.INK, 0.12)}`, boxShadow: '0 -18px 40px rgba(0,0,0,0.35)' }}>
+        <div aria-hidden="true" style={{ width: 36, height: 4, borderRadius: 9, background: bsDashA(t.INK, 0.22), margin: '8px auto 0' }} />
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: `2px ${t.padX - 6}px 0 ${t.padX}px` }}>
+          <h2 style={{ margin: 0, fontFamily: t.HEAD || t.DISPLAY, fontSize: 20, fontWeight: 700, letterSpacing: '-0.02em' }}>{tr('marketplace:compare.sheetTitle', { defaultValue: 'Compare coaches' })}</h2>
+          <button type="button" data-mkt-sheet-close="" onClick={cmp.onClose} aria-label={tr('marketplace:filters.close', { defaultValue: 'Close' })}
+            style={{ width: 44, height: 44, display: 'grid', placeItems: 'center', border: 0, background: 'transparent', cursor: 'pointer', padding: 0 }}>
+            <span aria-hidden="true" style={{ width: 30, height: 30, borderRadius: 99, display: 'grid', placeItems: 'center', background: D.track, color: t.INK, fontSize: 17, lineHeight: 1 }}>×</span>
+          </button>
+        </div>
+        <div className="bs-scroll" data-bs-noswipe="" style={{ flex: '1 1 auto', minHeight: 0, overflowY: 'auto', padding: `0 ${t.padX}px 14px` }}>
+          {/* The coaches, a column each, pinned while the rows scroll. */}
+          <div data-mkt-compare-heads="" style={{ position: 'sticky', top: 0, zIndex: 1, background: t.PAPER, display: 'grid', gridTemplateColumns: cols, gap: 8, padding: '10px 0', borderBottom: hair }}>
+            {cards.map((c) => (
+              <div key={c.key} style={{ minWidth: 0, display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 4 }}>
+                <MktDirFace photo={c.photo} name={c.name} nutri={c.nutri} size={40} />
+                <span style={{ maxWidth: '100%', fontFamily: t.HEAD || t.DISPLAY, fontSize: 14, fontWeight: 700, letterSpacing: '-0.02em', lineHeight: 1.2, color: t.INK }}>{c.name}</span>
+                <span style={{ ...small, color: mktDirRole(t, c.nutri).text }}>{mktDirRoleWord(tr, c.nutri)}{c.example ? <span style={{ color: t.INK50 }}> · {tr('marketplace:dir.example', { defaultValue: 'Example' })}</span> : null}</span>
+                <button type="button" data-mkt-compare-remove="" onClick={() => cmp.onRemove(c.key)} style={{ minHeight: 32, padding: 0, border: 0, background: 'transparent', cursor: 'pointer', ...small, textDecoration: 'underline', textUnderlineOffset: 3 }}>
+                  {tr('marketplace:compare.remove', { defaultValue: 'Remove' })}
+                </button>
+              </div>
+            ))}
+          </div>
+          {sameCount ? (
+            <button type="button" data-mkt-compare-diff="" aria-pressed={diffOnly} onClick={() => setDiffOnly((v) => !v)}
+              style={{ marginTop: 10, minHeight: 36, padding: '0 12px', borderRadius: 999, border: `1px solid ${diffOnly ? teal : bsDashA(t.INK, 0.18)}`, background: 'transparent', color: diffOnly ? teal : t.INK70, cursor: 'pointer', fontFamily: t.DISPLAY, fontSize: 12.5, fontWeight: 650 }}>
+              {tr('marketplace:compare.onlyDiff', { defaultValue: 'Only what differs' })}
+            </button>
+          ) : null}
+          {shown.map((r) => (
+            <div key={r.key} data-mkt-compare-row={r.key} data-same={r.same ? '' : undefined} style={{ padding: '10px 0', borderBottom: hair }}>
+              <div style={small}>{r.label}</div>
+              <div style={{ display: 'grid', gridTemplateColumns: cols, gap: 8, marginTop: 4 }}>
+                {r.texts.map((txt, i) => (
+                  <span key={cards[i].key} data-best={r.best === i ? '' : undefined} style={{ minWidth: 0, fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: r.best === i ? 700 : 500, lineHeight: 1.35, color: r.same ? t.INK70 : t.INK, overflowWrap: 'anywhere' }}>
+                    {txt}{r.best === i ? <span data-mkt-best="" style={{ display: 'inline-block', marginLeft: 5, padding: '0 5px', borderRadius: 5, border: `1px solid ${teal}`, color: teal, fontSize: 10, fontWeight: 800, letterSpacing: '0.04em', verticalAlign: 1 }}>{tr('marketplace:compare.best', { defaultValue: 'Best' })}</span> : null}
+                  </span>
+                ))}
+              </div>
+            </div>
+          ))}
+          {diffOnly && sameCount ? (
+            <p data-mkt-compare-same="" style={{ ...small, margin: '10px 0 0', fontWeight: 500 }}>
+              {tr('marketplace:compare.sameRows', { defaultValue: '{count, plural, one {# row is} other {# rows are}} the same for all', count: sameCount })}
+            </p>
+          ) : null}
+          {/* Book intro and View, at the foot of each column. */}
+          <div style={{ display: 'grid', gridTemplateColumns: cols, gap: 8, marginTop: 14 }}>
+            {cards.map((c) => {
+              const full = !!(c.next && c.next.full);
+              return (
+                <div key={c.key} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {/* No intro to book and no waiting list to join (a listing with no account behind it, full or not): View alone (Codex on #2718). */}
+                  {c.introOpen || (full && c.bookable) ? <button type="button" data-mkt-compare-intro="" onClick={c.onIntro}
+                    style={{ minHeight: 44, padding: '0 8px', border: 0, borderRadius: 999, background: teal, color: t.isLight ? '#ffffff' : '#06201d', cursor: 'pointer', fontFamily: t.DISPLAY, fontSize: 13, fontWeight: 700 }}>
+                    {full ? tr('marketplace:dir.waitingList', { defaultValue: 'Waiting list' }) : tr('marketplace:dir.bookIntro', { defaultValue: 'Book intro' })}
+                  </button> : null}
+                  <button type="button" data-mkt-compare-view="" onClick={c.onOpen}
+                    style={{ minHeight: 44, padding: '0 8px', borderRadius: 999, border: `1px solid ${bsDashA(t.INK, 0.2)}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.DISPLAY, fontSize: 13, fontWeight: 650 }}>
+                    {tr('marketplace:compare.view', { defaultValue: 'View' })}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -586,6 +737,7 @@ export function BSMarketDirectory({
   onBack = null, corner = null, team = [], query = '', onQuery, filters = null,
   loading = false, error = '', deepMiss = false, onDeepMissDismiss, picks = [], list = [], listKind = 'bookable',
   sort = 'best', sorts = ['best', 'rated', 'price', 'years'], onSort, planTab = 'program', onPlanTab, plans = [], onApply,
+  compare = null,
 }) {
   const { useBS, BSPage, BSFooter, BSBackRow, BSLogo } = window;
   const base = useBS();
@@ -612,6 +764,8 @@ export function BSMarketDirectory({
   const anyExample = list.some((c) => c.example) || picks.some((c) => c.example) || (team || []).some((c) => c.example);
   const applied = filters && Array.isArray(filters.applied) ? filters.applied : [];
   const note = { fontFamily: t.DISPLAY, fontSize: 12.5, lineHeight: 1.45, color: t.INK50 };
+  // The compare sheet portals onto the phone surface, as the filter sheet does.
+  const cmpSurface = (typeof document !== 'undefined' && document.getElementById && document.getElementById('bs-phone-surface')) || (typeof document !== 'undefined' ? document.body : null);
 
   return (
     <BSPage>
@@ -681,6 +835,7 @@ export function BSMarketDirectory({
                 ) : null}
               </div>
             ) : null}
+            {compare && compare.cards.length ? <MktDirCompareTray cmp={compare} /> : null}
             {anyExample ? <p data-mkt-example-note="" style={{ ...note, margin: '10px 0 0' }}>{tr('marketplace:dir.exampleNote', { defaultValue: 'Coaches marked Example are example profiles. Their ratings, prices and open times are examples too.' })}</p> : null}
           </div>
 
@@ -703,6 +858,7 @@ export function BSMarketDirectory({
       </BSCleanType>
 
       <BSFooter right={tr('marketplace:footer.marketplace', { defaultValue: 'Marketplace' })} />
+      {compare && compare.open ? (cmpSurface ? createPortal(bsCleanSheet(t, <MktDirCompareSheet cmp={compare} />), cmpSurface) : bsCleanSheet(t, <MktDirCompareSheet cmp={compare} />)) : null}
     </BSPage>
   );
 }

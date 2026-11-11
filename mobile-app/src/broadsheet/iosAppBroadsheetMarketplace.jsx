@@ -34,6 +34,7 @@ import { bsUserGoalsRevHook } from '../services/userGoalsRefresh.mjs';
 const useBSUserGoalsRev = bsUserGoalsRevHook(React);
 const BSM2_LOOK_KINDS = ['profile_custom'];
 import { bsCoachCardLook } from '../services/coachCardLook.mjs';
+import { bsCompareToggle, bsCompareMeets, bsCompareRows, bsComparePriceRank, BS_COMPARE_MAX } from '../services/coachCompare.mjs';
 
 // The i18n translator for this module. Mirrors client.jsx's useShapeTr —
 // self-contained on the window globals (ShapeI18n/ShapeLocale), so this module
@@ -1018,6 +1019,13 @@ function BSMarketplaceScreen({ onBack = null, onProfile, initialRole, goChat, in
   const [query, setQuery] = useStateBSM2('');
   const [filtersOpen, setFiltersOpen] = useStateBSM2(false);
   const [open, setOpen] = useStateBSM2(null);
+  // Compare (owner, 2026-11-11: "yes i want compare on app"): up to three coaches picked from the rows, kept
+  // while the list is filtered or a coach is opened, and the side-by-side sheet over the page.
+  const [cmpKeys, setCmpKeys] = useStateBSM2([]);
+  const [cmpOpen, setCmpOpen] = useStateBSM2(false);
+  // The roster the picks were made on (read below); a hook, so it sits with the others, above every early
+  // return (Codex on #2718: below them, opening a coach changed the hook count).
+  const cmpRosterRef = React.useRef(null);
   // The tapped coach's 1-based position in the list (LISTING Nº) — null from the
   // picks and the plan rail, which aren't numbered rows.
   const [openNo, setOpenNo] = useStateBSM2(null);
@@ -1284,8 +1292,45 @@ function BSMarketplaceScreen({ onBack = null, onProfile, initialRole, goChat, in
       look: c.provider_user_id && !bsmIsDemoCoach(c) ? bsCoachCardLook(cardByUser[c.provider_user_id], getPublicProfileKind(c) === 'nutritionist' ? 'nutritionist' : 'trainer', c.provider_user_id) : null,
       onOpen: () => { setOpenNo(n); setOpenIntro(false); setOpen(c); },
       onIntro: () => { setOpenNo(n); setOpenIntro(true); setOpen(c); },
+      // What Compare reads: the years, how they meet (every coach remote: coachCompare.mjs), the city,
+      // the credentials, and whether a free intro is open (not for a coach full and taking none).
+      years: Number.isFinite(Number(c.years)) && Number(c.years) > 0 ? Number(c.years) : null,
+      meet: bsCompareMeets(c.format),
+      city: bsmCityOf(c),
+      creds: getCoachCertifications(c).join(' · ') || null,
+      // A free intro is open only where one can be booked: a coach with a Shape account (or an example's
+      // own flow), not full with no times. A listing with no account behind it has no booking (Codex on #2718).
+      bookable: !!(c.provider_user_id || bsmIsDemoCoach(c)),
+      introOpen: !!(c.provider_user_id || bsmIsDemoCoach(c)) && !(atCapacity && !(times && times.length)),
+      compare: { max: BS_COMPARE_MAX, on: cmpKeys.includes(c.id), can: cmpKeys.includes(c.id) || cmpKeys.length < BS_COMPARE_MAX, onToggle: () => setCmpKeys((k) => bsCompareToggle(k, c.id)) },
     };
   };
+  // The picks are of one roster: the example coaches shown while the live listings are read, or the live
+  // ones. Their ids share a shape (t1, n2…), so a pick made on one roster is cleared when the other lands,
+  // never read as another person there (Codex on #2718).
+  const cmpRoster = remoteCoaches ? 'live' : 'example';
+  if (cmpRosterRef.current !== cmpRoster) { cmpRosterRef.current = cmpRoster; if (cmpKeys.length) { setCmpKeys([]); setCmpOpen(false); } }
+  // The coaches picked to compare, in the order picked, from everyone (a filter that hides one keeps it).
+  const cmpCoaches = (cmpRosterRef.current === cmpRoster ? cmpKeys : []).map((k) => everyone.find((c) => c.id === k)).filter(Boolean);
+  const cmpCards = cmpCoaches.map((c) => { const card = mktDirCard(c); return { ...card, onOpen: () => { setCmpOpen(false); card.onOpen(); }, onIntro: () => { setCmpOpen(false); card.onIntro(); } }; });
+  // Compare's rows, read here (coachCompare.mjs): each coach's words, the best where one coach alone tops a
+  // row that can be ranked, and whether every coach answers the same. The view only draws them.
+  const cmpOnPage = tr('marketplace:compare.onPage', { defaultValue: 'On their page' });
+  const cmpPrice = (p) => (!p ? cmpOnPage : p.per === 'month'
+    ? tr('marketplace:price.perMonth', { defaultValue: '${amount}/month', amount: p.amount })
+    : tr('marketplace:price.perSession', { defaultValue: '${amount}/session', amount: p.amount }));
+  const cmpRowsIn = [
+    { key: 'price', label: tr('marketplace:compare.rowPrice', { defaultValue: 'Price' }), text: (c) => cmpPrice(c.price), rank: bsComparePriceRank(cmpCards, (c) => c.price) },
+    { key: 'rating', label: tr('marketplace:compare.rowRating', { defaultValue: 'Rating' }), text: (c) => (c.score ? tr('marketplace:compare.score', { defaultValue: '{score}/10', score: Number(c.score).toFixed(1) }) : tr('marketplace:rating.new', { defaultValue: 'New' })), rank: (c) => (c.score ? Number(c.score) : null) },
+    { key: 'years', label: tr('marketplace:compare.rowYears', { defaultValue: 'Experience' }), text: (c) => (c.years ? tr('marketplace:compare.years', { defaultValue: '{count, plural, one {# year} other {# years}}', count: c.years }) : '—'), rank: (c) => c.years },
+    { key: 'meet', label: tr('marketplace:filters.meet', { defaultValue: 'How you meet' }), text: (c) => (c.meet === 'both' ? tr('marketplace:compare.meetBoth', { defaultValue: 'In person + remote' }) : tr('marketplace:meet.remote', { defaultValue: 'Remote' })) },
+    { key: 'city', label: tr('marketplace:compare.rowCity', { defaultValue: 'City' }), text: (c) => c.city || cmpOnPage },
+    { key: 'next', label: tr('marketplace:compare.rowNext', { defaultValue: 'Next open' }), text: (c) => (c.next ? c.next.text : cmpOnPage) },
+    { key: 'intro', label: tr('marketplace:compare.rowIntro', { defaultValue: 'Free intro' }), text: (c) => (c.introOpen ? tr('marketplace:compare.yes', { defaultValue: 'Yes' }) : tr('marketplace:compare.no', { defaultValue: 'No' })) },
+    { key: 'verified', label: tr('marketplace:compare.rowVerified', { defaultValue: 'Verified by Shape' }), text: (c) => (c.verified ? tr('marketplace:compare.verifiedYes', { defaultValue: '✓ Yes' }) : tr('marketplace:compare.notYet', { defaultValue: 'Not yet' })) },
+    { key: 'creds', label: tr('marketplace:compare.rowCreds', { defaultValue: 'Credentials' }), text: (c) => c.creds || '—' },
+  ];
+  const cmpRows = bsCompareRows(cmpCards, cmpRowsIn).map((r, i) => ({ ...r, label: cmpRowsIn[i].label }));
   // Editors' picks: the listings Shape features (an example roster's best rated, labelled Example),
   // in the role picked. Nothing paid puts a coach here.
   const inRole = (c) => bsmPass(c, BSM_FILTERS0, pill, '', now);
@@ -1351,7 +1396,15 @@ function BSMarketplaceScreen({ onBack = null, onProfile, initialRole, goChat, in
       sort={sort} sorts={BSM_SORTS} onSort={setSort}
       planTab={planTab} onPlanTab={setPlanTab} plans={tabPlans}
       // The application door, on the role picked (a trainer's on Both).
-      onApply={() => setApplyRole(pill === 'Nutritionists' ? 'nutritionist' : 'trainer')} />
+      onApply={() => setApplyRole(pill === 'Nutritionists' ? 'nutritionist' : 'trainer')}
+      compare={{
+        cards: cmpCards, rows: cmpRows,
+        open: cmpOpen && cmpCoaches.length > 1,
+        onOpen: () => setCmpOpen(true), onClose: () => setCmpOpen(false),
+        // Under two, the sheet closes for good: adding a second coach later waits for the tray's Compare (Codex on #2718).
+        onRemove: (key) => { const next = cmpKeys.filter((x) => x !== key); setCmpKeys(next); if (next.length < 2) setCmpOpen(false); },
+        onClear: () => { setCmpKeys([]); setCmpOpen(false); },
+      }} />
   );
 }
 
