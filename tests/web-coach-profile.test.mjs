@@ -716,3 +716,15 @@ test('the page takes a doc read again only while Edit profile is shut, and a sav
   assert.match(page, /if \(away >= 3000\) setSetupRev\(\(n\) => n \+ 1\);/);
   assert.match(page, /if \(again && rowFailed\) return;/);
 });
+
+// Every coach is listed remote (owner, 2026-11-11): the page's how chip reads Remote for a coach who has not said
+// how they meet, as the Coaches page lists them, and In person + remote for one who meets in person (Codex on #2715).
+test('the how chip: Remote when the coach has not said, In person + remote when they meet in person', async () => {
+  WIDE = true; backend();
+  let p = await mount(LIVE);
+  assert.equal(document.querySelector('[data-chip="how"]')?.textContent, 'Remote', 'a coach who has not said is listed nowhere as remote');
+  await p.unmount();
+  p = await mount({ ...LIVE, row: { ...LIVE.row, custom: { about: { story: 'Ten years on the floor.', how: 'in_person' } } } });
+  assert.equal(document.querySelector('[data-chip="how"]')?.textContent, 'In person + remote');
+  await p.unmount();
+});

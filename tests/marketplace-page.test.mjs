@@ -40,7 +40,7 @@ window.HTMLElement.prototype.scrollIntoView = function () {};
 globalThis.ReactDOM = { createRoot: () => ({ render() {} }) };
 const SRC = read('marketplace.jsx');
 const mk = await loadRealModule(join(ND, 'marketplace.jsx'), {
-  appendExports: 'Object.assign(exports, { Marketplace, CoachCard, MkQuickView, mapLiveCoach, mkPriceOf, mkCoachTier, mkRating10, mkRatingLabel, mkIsRated, mkKind, mkCanBook, mkIntroHref, mkProfileHref, mkGoalsOf, mkPass, MK_DEFAULTS, MK_GOALS, MK_COACH_LADDER, COACHES_FULL, mkTabFromHash, mkReadOpenTimes, mkEachLimited });',
+  appendExports: 'Object.assign(exports, { Marketplace, CoachCard, MkQuickView, mapLiveCoach, mkPriceOf, mkCoachTier, mkRating10, mkRatingLabel, mkIsRated, mkKind, mkCanBook, mkIntroHref, mkProfileHref, mkGoalsOf, mkPass, MK_DEFAULTS, MK_GOALS, MK_COACH_LADDER, COACHES_FULL, mkTabFromHash, mkReadOpenTimes, mkEachLimited, MkCompare, mkMeetLabel: typeof mkMeetLabel === "function" ? mkMeetLabel : null });',
 });
 const { createRoot } = require('react-dom/client');
 globalThis.ReactDOM = require('react-dom');
@@ -552,4 +552,79 @@ test('the city picker keeps a select\'s type-ahead: a letter jumps, the same let
   await key('Enter');
   assert.equal(box.querySelector('.v').textContent, target);
   await m.unmount();
+});
+
+// ── Owner, 2026-11-11: "every coach should have remote listed"; a tap anywhere on the card opens its quick
+// view "minus when you click the book free intro and view boxes"; and the Compare sheet improved ──────────
+test('every coach is listed remote: in person reads In person + remote, none stated reads Remote', () => {
+  const byFormat = (format) => mk.mkMeetLabel({ format });
+  assert.equal(byFormat('In-person'), 'In person + remote');
+  assert.equal(byFormat('Hybrid'), 'In person + remote');
+  assert.equal(byFormat('Remote'), 'Remote');
+  assert.equal(byFormat(null), 'Remote', 'a live listing with no format is not listed remote');
+  // The Remote filter keeps every coach; In person still narrows; a city still narrows.
+  const f = (patch) => ({ ...mk.MK_DEFAULTS, ...patch });
+  const withGoals = (c) => ({ ...c, goals: mk.mkGoalsOf(c) });
+  const inPerson = withGoals(mk.COACHES_FULL.find((c) => c.format === 'In-person'));
+  const live = withGoals(mk.mapLiveCoach(SEEDED, 'Trainer'));
+  assert.equal(mk.mkPass(inPerson, f({ meet: 'remote' })), true, 'an in-person coach was left out of Remote');
+  assert.equal(mk.mkPass(live, f({ meet: 'remote' })), true, 'a live coach was left out of Remote');
+  assert.equal(mk.mkPass(live, f({ meet: 'inperson' })), false);
+  assert.equal(mk.mkPass(inPerson, f({ city: inPerson.city === 'Lisbon' ? 'Miami' : 'Lisbon' })), false, 'a city no longer narrows the list');
+  // The website's coach page and the app's say the same of a coach who meets in person.
+  const web = readFileSync(join(ROOT, 'public/newdesign/coachProfileWeb.jsx'), 'utf8');
+  // A coach who has not said how they meet is Remote on both pages too (Codex on #2715).
+  assert.match(web, /const howSaid = aboutDoc && \(aboutDoc\.how === "in_person" \|\| aboutDoc\.how === "both"\) \? "In person \+ remote" : "Remote";/);
+  const app = readFileSync(join(ROOT, 'mobile-app/src/broadsheet/BSTrainerProfile.jsx'), 'utf8');
+  assert.match(app, /const how = isPrivate \? ''\n\s*: aboutDoc && \(aboutDoc\.how === 'in_person' \|\| aboutDoc\.how === 'both'\) \? tr\('profile:climb\.howBoth'[^\n]*\n\s*: tr\('profile:climb\.howOnline', \{ defaultValue: 'Remote' \}\);/);
+  assert.doesNotMatch(app, /profile:climb\.howInPerson|profile:about\.howInPerson/, 'the app still says in person alone');
+});
+
+test('a tap anywhere on a coach card opens its quick view, save on View, Book a free intro and Compare', async () => {
+  const c = { ...mk.COACHES_FULL.find((x) => x.format === 'In-person'), key: 'k1' };
+  c.goals = mk.mkGoalsOf(c);
+  document.body.innerHTML = '<div id="root"></div>';
+  const root = createRoot(document.getElementById('root'));
+  const seen = { quick: 0, compare: 0 };
+  await React.act(async () => root.render(React.createElement(mk.CoachCard, { c, onCompare() { seen.compare += 1; }, onQuick() { seen.quick += 1; } })));
+  const card = document.querySelector('.mk-cc');
+  assert.match(card.textContent, /In person \+ remote/, 'the card lists no remote');
+  for (const sel of ['.mk-why', '.mk-plates', '.mk-meta', '.mk-creds', '.mk-cover', '.mk-roleb']) {
+    const before = seen.quick;
+    await click(card.querySelector(sel));
+    assert.equal(seen.quick, before + 1, `a tap on ${sel} did not open the quick view`);
+  }
+  const before = seen.quick;
+  // Links are stopped from navigating in jsdom's eyes; what matters is that the card did not also open.
+  for (const a of card.querySelectorAll('.mk-acts a')) { a.addEventListener('click', (e) => e.preventDefault()); await click(a); }
+  await click(card.querySelector('.mk-cmp'));
+  assert.equal(seen.quick, before, 'View, Book a free intro or Compare opened the quick view');
+  assert.equal(seen.compare, 1);
+  assert.ok(card.classList.contains('tap'), 'the card does not show it can be tapped');
+  await React.act(async () => root.unmount());
+});
+
+test('Compare marks the best of a row it can rank, and folds away the rows every coach answers the same', async () => {
+  const pick = (name) => ({ ...mk.COACHES_FULL.find((x) => x.name === name), key: name });
+  const list = [pick('Leo Martins'), pick('Diego Alvarez'), pick('Rhea Kapoor')];
+  document.body.innerHTML = '<div id="root"></div>';
+  const root = createRoot(document.getElementById('root'));
+  await React.act(async () => root.render(React.createElement(mk.MkCompare, { list, onClose() {}, onRemove() {} })));
+  const row = (label) => [...document.querySelectorAll('.mk-cmp-t tbody tr')].find((tr) => tr.querySelector('th').textContent === label);
+  const bestOf = (label) => { const r = row(label); return r ? [...r.querySelectorAll('td')].findIndex((td) => td.hasAttribute('data-best')) : 'gone'; };
+  assert.equal(bestOf('Price'), 2, 'the lowest price ($70, Rhea) is not marked');
+  assert.equal(bestOf('Experience'), 0, 'the most years (8, Leo) is not marked');
+  assert.equal(bestOf('City'), -1, 'a row that cannot be ranked marked a best');
+  assert.match(row('How you meet').textContent, /In person \+ remote/);
+  // Only what differs: Tier, Free intro and Verified are the same for all three.
+  const diff = [...document.querySelectorAll('button')].find((b) => b.textContent === 'Only what differs');
+  assert.ok(diff, 'no way to see only what differs');
+  await click(diff);
+  assert.equal(diff.getAttribute('aria-pressed'), 'true');
+  for (const gone of ['Tier', 'Free intro', 'Verified by Shape']) assert.equal(row(gone), undefined, `${gone} is the same for all and still shows`);
+  assert.ok(row('Price') && row('City'));
+  assert.match(document.querySelector('.mk-cmp-same').textContent, /rows are the same for all 3/);
+  // Book a free intro and View stay on one line: the actions do not wrap.
+  assert.match(SRC, /\.mk-cmp-t \.act\{display:flex;gap:8px\}/);
+  await React.act(async () => root.unmount());
 });

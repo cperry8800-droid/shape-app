@@ -578,6 +578,11 @@ function mkFirst(name) { return String(name || "").replace(/^Dr\.?\s+/i, "").spl
 function mkInitials(name) { const p = String(name || "").replace(/^Dr\.?\s+/i, "").trim().split(/\s+/).filter(Boolean); return (((p[0] || "")[0] || "") + ((p[1] || "")[0] || "")).toUpperCase() || "?"; }
 
 // ── Filters ────────────────────────────────────────────────────────────────────────────────────
+// How a coach meets. Every coach on Shape coaches remotely through the app (owner, 2026-11-11: "every coach
+// should have remote listed"), so one who meets in person meets remotely too, and one with no stated
+// format is remote. The card, the quick view and Compare say it the same way.
+function mkMeetsInPerson(c) { return c.format === "In-person" || c.format === "Hybrid"; }
+function mkMeetLabel(c) { return mkMeetsInPerson(c) ? "In person + remote" : "Remote"; }
 const MK_DEFAULTS = { role: "Both", goals: [], specs: [], maxSession: null, maxMonth: null, meet: "either", city: "Anywhere", openWeek: false, verified: false, intro: false, taking: false, q: "" };
 function mkPass(c, f) {
   if (f.role !== "Both" && c.tag !== f.role) return false;
@@ -586,12 +591,13 @@ function mkPass(c, f) {
   const p = mkPriceOf(c);
   if (p && p.per === "session" && f.maxSession != null && p.amount > f.maxSession) return false;
   if (p && p.per === "month" && f.maxMonth != null && p.amount > f.maxMonth) return false;
-  const inPerson = c.format === "In-person" || c.format === "Hybrid";
-  const remote = c.format === "Remote" || c.format === "Hybrid";
-  if (f.meet === "inperson" && !inPerson) return false;
-  if (f.meet === "remote" && !remote) return false;
-  // A city: coaches there, and, unless the visitor asked for in person, coaches who work remotely.
-  if (f.city !== "Anywhere" && c.city !== f.city && !(f.meet !== "inperson" && remote)) return false;
+  // Remote is every coach (mkMeetLabel), so only In person narrows the list.
+  if (f.meet === "inperson" && !mkMeetsInPerson(c)) return false;
+  // A city: coaches there, and, unless the visitor asked for in person, coaches whose listing says they
+  // work remotely (Remote or Hybrid). The city rule keeps reading what the listing states, so a city still
+  // narrows the list.
+  const statedRemote = c.format === "Remote" || c.format === "Hybrid";
+  if (f.city !== "Anywhere" && c.city !== f.city && !(f.meet !== "inperson" && statedRemote)) return false;
   if (f.openWeek && !mkWithinWeek(c)) return false;
   if (f.verified && !c.verified) return false;
   if (f.intro && !mkIntroOpen(c)) return false;
@@ -694,9 +700,18 @@ function CoachCard({ c, comparing = false, canCompare = true, peek = false, onCo
   else if (first) next = <><span className="mk-live" /><span className="t">{kind === "example" ? "Example · " : ""}Next open <b>{mkSlotText(first)}</b></span></>;
   else if (times && !times.length) next = <><span className="mk-live off" /><span className="t">No open times this week</span></>;
   else next = <><span className="mk-live off" /><span className="t">Open times on their page</span></>;
-  const where = [c.city, c.format === "Hybrid" ? "In person + remote" : c.format === "In-person" ? "In person" : c.format].filter(Boolean).join(" · ");
+  const where = [c.city, mkMeetLabel(c)].filter(Boolean).join(" · ");
+  // A tap anywhere on the card opens its quick view (owner, 2026-11-11), save on what is its own control:
+  // View and Book a free intro (links), Compare, and the quick view's own buttons. The keyboard has the
+  // card's Quick view button and the name.
+  const cardTap = (e) => {
+    if (!onQuick) return;
+    const t = e.target;
+    if (t && t.closest && t.closest("a, button, input, select, textarea, label, [data-no-quick]")) return;
+    onQuick(c);
+  };
   return (
-    <article className={"mk-cc " + role + (comparing ? " sel" : "") + (peek ? " peek" : "")} aria-label={c.name} data-kind={kind}
+    <article className={"mk-cc " + role + (comparing ? " sel" : "") + (peek ? " peek" : "") + (onQuick ? " tap" : "")} aria-label={c.name} data-kind={kind} onClick={cardTap}
       data-paper={c.pal ? (c.pal.paperKey || "climb") : undefined} data-light={c.pal && c.pal.isLight ? "" : undefined} style={mkCardVars(c)}>
       <div className="edge"><div className="in">
         <div className="mk-cover">
@@ -1077,7 +1092,7 @@ function MkQuickView({ c, index, total, onPrev, onNext, onClose, signedIn, compa
   const times = mkOpenTimes(c) || [];
   const { sx, sy } = mkCoverPos(c);
   const role = c.tag === "Nutritionist" ? "nu" : "tr";
-  const where = [c.city, c.format === "Hybrid" ? "in person + remote" : c.format === "In-person" ? "in person" : c.format ? "remote" : null].filter(Boolean).join(" · ");
+  const where = [c.city, mkMeetLabel(c).toLowerCase()].filter(Boolean).join(" · ");
   const status = kind === "listing" ? "Not bookable yet" : mkIntroShut(c) ? "Full · waiting list open" : mkIntroAtCap(c) ? "Full · free intros open" : kind === "example" ? "Example coach" : "Taking new clients";
   const packages = [];
   if (mkIntroOpen(c)) packages.push(["Start here", "Free intro", "15 min · see if you fit", "$0", "", true]);
@@ -1125,7 +1140,7 @@ function MkQuickView({ c, index, total, onPrev, onNext, onClose, signedIn, compa
               <div className="mk-qchips">
                 {c.verified ? <span className="v">✓ Verified by Shape</span> : null}
                 {mkCoachTier(c) ? <span><i style={{ background: mkCoachTier(c).color }} />{mkCoachTier(c).name}</span> : null}
-                {c.format ? <span>{c.format === "Hybrid" ? "In person + remote" : c.format === "In-person" ? "In person" : "Remote"}</span> : null}
+                <span>{mkMeetLabel(c)}</span>
               </div>
             </div>
           </div>
@@ -1225,30 +1240,54 @@ function MkCompare({ list, onClose, onRemove }) {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, []);
+  // Only what differs (owner, 2026-11-11: "can we improve this"): rows every coach answers the same way
+  // fold away, and the best of a row that can be ranked is marked.
+  const [diffOnly, setDiffOnly] = useS(false);
+  // [label, text, rank]: rank(c) is a number where more is better, or null when it can't be ranked.
+  // Price ranks only when every coach prices the same way (per session, or per month).
+  const pers = new Set(list.map((c) => { const p = mkPriceOf(c); return p ? p.per : null; }));
+  const priceRank = pers.size === 1 && !pers.has(null) ? (c) => -mkPriceOf(c).amount : null;
   const rows = [
-    ["Price", (c) => mkPriceText(c)],
-    ["Rating", (c) => (mkIsRated(c) ? mkRating10(c).toFixed(1) + "/10 · " + mkReviewCount(c) + " reviews" : "New · no reviews yet")],
+    ["Price", (c) => mkPriceText(c), priceRank],
+    ["Rating", (c) => (mkIsRated(c) ? mkRating10(c).toFixed(1) + "/10 · " + mkReviewCount(c) + " reviews" : "New · no reviews yet"), (c) => (mkIsRated(c) ? mkRating10(c) : null)],
     ["Tier", (c) => (mkCoachTier(c) ? mkCoachTier(c).name : "—")],
-    ["Experience", (c) => (c.years ? c.years + " years" : "—")],
-    ["How you meet", (c) => (c.format === "Hybrid" ? "In person + remote" : c.format === "In-person" ? "In person" : c.format || "On their page")],
+    ["Experience", (c) => (c.years ? c.years + " years" : "—"), (c) => (c.years ? Number(c.years) : null)],
+    ["How you meet", (c) => mkMeetLabel(c)],
     ["City", (c) => c.city || "On their page"],
     ["Next open", (c) => { const t = mkOpenTimes(c); return mkKind(c) === "listing" ? "Not bookable yet" : mkIntroShut(c) ? "Full · waiting list" : t && t.length ? (mkKind(c) === "example" ? "Example · " : "") + mkSlotText(t[0]) : "On their page"; }],
     ["Free intro", (c) => (mkIntroOpen(c) ? "Yes" : "No")],
     ["Verified by Shape", (c) => (c.verified ? "✓ Yes" : "Not yet")],
     ["Credentials", (c) => c.cert || c.certFull || "—"],
-  ];
+  ].map(([label, fn, rank]) => {
+    const texts = list.map(fn);
+    const same = texts.every((t) => t === texts[0]);
+    // The best: the top rank, marked only when it is one coach's alone (a tie, or one coach ranked, marks none).
+    let best = null;
+    if (rank && !same) {
+      const r = list.map((c) => { const v = rank(c); return typeof v === "number" && Number.isFinite(v) ? v : null; });
+      const ranked = r.filter((v) => v != null);
+      if (ranked.length > 1) { const top = Math.max(...ranked); if (r.filter((v) => v === top).length === 1) best = r.indexOf(top); }
+    }
+    return { label, texts, same, best };
+  });
+  const sameCount = rows.filter((r) => r.same).length;
   return (
     <>
       <div className="mk-scrim" onClick={onClose} aria-hidden="true" />
       <div className="mk-cmpdlg" role="dialog" aria-modal="true" aria-label="Compare coaches">
-        <div className="mk-cmp-top"><span className="mk-eb">Compare · side by side</span><button type="button" ref={closeRef} className="mk-qx" onClick={onClose} aria-label="Close compare">×</button></div>
+        <div className="mk-cmp-top"><span className="mk-eb">Compare · side by side</span>
+          <span className="mk-cmp-tools">
+            {sameCount ? <button type="button" className={"mk-cmp-diff" + (diffOnly ? " on" : "")} aria-pressed={diffOnly} onClick={() => setDiffOnly((v) => !v)}>Only what differs</button> : null}
+            <button type="button" ref={closeRef} className="mk-qx" onClick={onClose} aria-label="Close compare">×</button>
+          </span></div>
         <div className="mk-cmp-scroll">
           <table className="mk-cmp-t" style={{ "--n": list.length }}>
             <thead><tr><th scope="col"><span className="mk-sr">Coach</span></th>{list.map((c) => (
               <th key={c.key} scope="col" className={c.tag === "Nutritionist" ? "nu" : "tr"}><div className="hd"><MkPrism c={c} size={56} /><div><b>{c.name}</b><span>{c.tag} · {c.role}</span>{c.sample ? <span className="mk-exlabel">Example</span> : null}</div></div>
                 <button type="button" className="rm" onClick={() => onRemove(c)}>Remove</button></th>
             ))}</tr></thead>
-            <tbody>{rows.map(([label, fn]) => <tr key={label}><th scope="row">{label}</th>{list.map((c) => <td key={c.key}>{fn(c)}</td>)}</tr>)}
+            <tbody>{rows.filter((r) => !(diffOnly && r.same)).map((r) => <tr key={r.label} data-same={r.same ? "" : undefined}><th scope="row">{r.label}</th>{list.map((c, i) => <td key={c.key} data-best={r.best === i ? "" : undefined}>{r.texts[i]}{r.best === i ? <span className="mk-best">Best</span> : null}</td>)}</tr>)}
+              {diffOnly ? <tr className="mk-cmp-same"><th scope="row" /><td colSpan={list.length}>{sameCount} {sameCount === 1 ? "row is" : "rows are"} the same for {list.length === 2 ? "both" : "all " + list.length}</td></tr> : null}
               <tr><th scope="row"><span className="mk-sr">Actions</span></th>{list.map((c) => <td key={c.key}><div className={"act " + (c.tag === "Nutritionist" ? "nu" : "tr")}>
                 {mkKind(c) === "listing" ? <span className="mk-key off" aria-disabled="true">Not bookable yet</span> : mkIntroShut(c) ? <a className="mk-key wait" href={mkProfileHref(c)}>Join waiting list</a> : <a className="mk-key role" href={mkIntroHref(c)}>Book a free intro</a>}
                 <a className="mk-key" href={mkProfileHref(c)}>View</a></div></td>)}</tr>
@@ -1669,6 +1708,7 @@ function Marketplace() {
 
         /* the coach card: a miniature of the coach's page */
         .mk-cc{position:relative;color:var(--fg);filter:drop-shadow(0 16px 18px rgba(0,0,0,.5));transition:transform .2s ease}
+        .mk-cc.tap{cursor:pointer}
         .mk-cc:hover{transform:translateY(-4px)}
         .mk-cc .edge{height:100%;clip-path:polygon(0 0,calc(100% - 20px) 0,100% 20px,100% 100%,0 100%);padding:1px;background:linear-gradient(180deg,rgba(255,255,255,.2),rgba(255,255,255,.06) 30%,rgba(255,255,255,.05) 70%,rgba(255,255,255,.1))}
         .mk-cc .in{position:relative;height:100%;display:flex;flex-direction:column;clip-path:polygon(0 0,calc(100% - 19.6px) 0,100% 19.6px,100% 100%,0 100%);background:var(--card-wash,none),var(--card-sheen,none),linear-gradient(180deg,var(--card-2) 0%,var(--card) 40%)}
@@ -1869,15 +1909,26 @@ function Marketplace() {
         .mk-cmpdlg{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:90;width:min(960px,calc(100vw - 32px));max-height:calc(100vh - 48px);display:flex;flex-direction:column;border-radius:16px;background:#0a1018;border:1px solid rgba(255,255,255,.12);box-shadow:var(--elev-2);color:var(--fg);font-family:var(--sans)}
         .mk-cmp-top{display:flex;align-items:center;justify-content:space-between;padding:12px 16px 12px 22px;border-bottom:1px solid var(--line-2)}
         .mk-cmp-scroll{overflow:auto}
-        .mk-cmp-t{width:100%;border-collapse:collapse;font-size:13px}
+        .mk-cmp-t{width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed}
+        .mk-cmp-t thead th{position:sticky;top:0;z-index:1;background:var(--card,#0b1017)}
+        .mk-cmp-tools{display:flex;align-items:center;gap:10px}
+        .mk-cmp-diff{min-height:32px;padding:0 12px;border-radius:8px;border:1px solid var(--line);background:none;color:var(--fg-2);font-size:12px;font-weight:700;cursor:pointer}
+        .mk-cmp-diff.on{color:var(--teal);border-color:rgba(52,214,197,.5)}
+        .mk-cmp-t td[data-best]{color:var(--fg)}
+        .mk-best{display:inline-block;margin-left:8px;padding:1px 6px;border-radius:5px;font-size:10px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--teal);border:1px solid rgba(52,214,197,.45);vertical-align:1px}
+        .mk-cmp-t tr[data-same] td{color:var(--fg-3)}
+        .mk-cmp-same td{color:var(--fg-3);font-size:12px;font-style:italic}
         .mk-cmp-t th,.mk-cmp-t td{padding:11px 14px;border-bottom:1px solid var(--line-2);text-align:left;vertical-align:top}
         .mk-cmp-t tbody th{width:150px;font-weight:600;color:var(--fg-3);font-size:12.5px}
+        .mk-cmp-t thead th:first-child{width:150px}
         .mk-cmp-t thead th{border-bottom:1px solid var(--line)}
         .mk-cmp-t .hd{display:flex;align-items:center;gap:12px}
         .mk-cmp-t .hd b{display:block;font-family:var(--disp);font-weight:600;font-variation-settings:'wdth' 100;font-size:16px}
         .mk-cmp-t .hd span{display:block;font-size:12px;color:var(--fg-3);font-weight:500}
         .mk-cmp-t .rm{margin-top:8px;font-size:12px;color:var(--fg-3);text-decoration:underline;background:none;border:0;cursor:pointer;min-height:28px}
-        .mk-cmp-t .act{display:flex;flex-wrap:wrap;gap:8px}
+        .mk-cmp-t .act{display:flex;gap:8px}
+        .mk-cmp-t .act .mk-key{white-space:nowrap}
+        .mk-cmp-t .act .mk-key.role,.mk-cmp-t .act .mk-key.wait,.mk-cmp-t .act .mk-key.off{flex:1 1 auto}
 
         /* the phone bar and the filter sheet */
         .mk-pbar-wrap{display:none}
@@ -1975,7 +2026,8 @@ function Marketplace() {
           .mk-qv-foot .fine{flex-direction:column;gap:6px}
           .mk-qnm{font-size:25px}
           .mk-qv-id{padding:0 16px}.mk-qv-bio,.mk-qv-loc,.mk-qv-stats,.mk-qv-sec{margin-left:16px;margin-right:16px}
-          .mk-cmp-t tbody th{width:110px}
+          .mk-cmp-t tbody th,.mk-cmp-t thead th:first-child{width:110px}
+          .mk-cmp-t{table-layout:auto}
           .mk-cmp-t thead th:not(:first-child),.mk-cmp-t td{min-width:200px}
           .mk-cmp-t .hd{flex-direction:column;align-items:flex-start}
           .mk-summit-g{display:none}

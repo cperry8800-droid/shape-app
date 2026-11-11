@@ -843,7 +843,10 @@ async function fetchMemberFacts(actor: Actor, zone = 'UTC', morningZone: string 
 // (the example directory carries all of them), and nothing is defaulted in.
 function coachLine(c: Coach): string {
   const where = [c.role, c.city].filter(Boolean).join(', ');
-  const creds = [c.cert, c.years != null ? `${c.years}y` : '', c.format].filter(Boolean).join(', ');
+  // Every coach coaches remotely through the app (owner, 2026-11-11: "every coach should have remote
+  // listed"): one who meets in person meets remotely too, and one with no stated format is remote.
+  const meets = c.format === 'In-person' || c.format === 'Hybrid' ? 'in person + remote' : 'remote';
+  const creds = [c.cert, c.years != null ? `${c.years}y` : '', meets].filter(Boolean).join(', ');
   const terms = [c.rate != null ? `$${c.rate}/session` : '', c.rating != null ? `★${c.rating}` : ''].filter(Boolean).join(', ');
   const flags = [c.verified ? 'Verified' : '', c.atCapacity ? 'at capacity' : '', c.example ? 'example listing' : ''].filter(Boolean).join(', ');
   return [`${c.name} — ${where}`, c.specialties.join(', '), creds, terms, flags].filter(Boolean).join('. ') + '.';

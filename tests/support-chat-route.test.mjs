@@ -513,7 +513,9 @@ test('the coach lines and chips are built from what a listing states — a live 
   const r = await loadRoute({ tables, answers: [calls(call('recommend_coaches', { role: 'trainer', focus: '', limit: 1 })), say('x')] });
   const out = await (await r.mod.POST(post({ ...ask('a trainer'), surface: 'app' }))).json();
   const res = JSON.parse(r.calls.ai[1].body.input.find((it) => it.type === 'function_call_output').output);
-  assert.deepEqual(res.coaches[0], { name: 'Bare Row', role: 'Personal training', kind: 'Trainer', listing: 'live', specialties: [], summary: 'Bare Row — Personal training.' });
+  assert.deepEqual(res.coaches[0], { name: 'Bare Row', role: 'Personal training', kind: 'Trainer', listing: 'live', specialties: [], summary: 'Bare Row — Personal training. remote.' });
+  // Every coach meets remotely through the app (owner, 2026-11-11: "every coach should have remote listed"),
+  // so a row that states no format still reads remote in Nora's line.
   const chip = out.actions.find((a) => a.type === 'coach');
   assert.deepEqual(chip, { type: 'coach', label: 'Bare Row →', role: 'trainer', slug: 'bare-row', url: '/newdesign/MemberProfile.html?name=Bare%20Row&role=trainer', meta: 'Personal training', providerId: 5 });
 });
