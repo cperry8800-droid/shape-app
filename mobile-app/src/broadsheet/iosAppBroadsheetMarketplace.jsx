@@ -28,6 +28,11 @@ import { bsNormalizeListingMedia } from '../services/listingMedia.mjs';
 // The directory ("Find your coach.") draws in its own module; this one keeps every rule it reads.
 import { BSMarketDirectory } from './BSMarketDirectory.jsx';
 import { bsDialogRef } from '../services/dialogBack.mjs';
+import { bsUserGoalsRevHook } from '../services/userGoalsRefresh.mjs';
+// A coach's look is in their profile_custom: read the cards again when that kind is announced (a return to
+// the app after an edit on the website, or a save here; Codex on #2708).
+const useBSUserGoalsRev = bsUserGoalsRevHook(React);
+const BSM2_LOOK_KINDS = ['profile_custom'];
 import { bsCoachCardLook } from '../services/coachCardLook.mjs';
 
 // The i18n translator for this module. Mirrors client.jsx's useShapeTr —
@@ -1120,6 +1125,7 @@ function BSMarketplaceScreen({ onBack = null, onProfile, initialRole, goChat, in
   // 2026-11-11: "make the coach cards look the same also on marketplace on app"). Six reads at a time; a
   // card that fails to read keeps the directory's own look. Samples and listings with no account read none.
   const [cardByUser, setCardByUser] = useStateBSM2({});
+  const lookRev = useBSUserGoalsRev(BSM2_LOOK_KINDS);
   useEffectBSM2(() => {
     const ids = [...new Set((everyone || []).filter((c) => !bsmIsDemoCoach(c)).map((c) => c.provider_user_id).filter(Boolean))];
     if (!ids.length || !(window.ShapeProfiles && window.ShapeProfiles.getPublicProfile)) return undefined;
@@ -1132,9 +1138,10 @@ function BSMarketplaceScreen({ onBack = null, onProfile, initialRole, goChat, in
         try { const r = await window.ShapeProfiles.getPublicProfile(id); if (r) got[id] = { can_view: r.can_view, custom: r.custom || null }; } catch (e) { /* the directory's own look */ }
       }
     };
-    Promise.all(Array.from({ length: Math.min(6, ids.length) }, one)).then(() => { if (on) setCardByUser({ ...got }); });
+    // A re-read that fails for a coach keeps the card already read for them.
+    Promise.all(Array.from({ length: Math.min(6, ids.length) }, one)).then(() => { if (on) setCardByUser((prev) => ({ ...prev, ...got })); });
     return () => { on = false; };
-  }, [everyone]);
+  }, [everyone, lookRev]);
   // Portrait ladder: the coach's listing portrait (normalized — an invalid one
   // is already null and falls through) → their profile photo/avatar → the
   // fetched account avatar → initials (the face's own fallback, MktPortrait's on the listing).

@@ -106,6 +106,12 @@ test('the Coaches tab reads each live coach\'s public card and hands the look to
   assert.match(m, /filter\(\(c\) => !bsmIsDemoCoach\(c\)\)\.map\(\(c\) => c\.provider_user_id\)/, 'samples read nothing');
   assert.match(m, /window\.ShapeProfiles\.getPublicProfile\(id\)/);
   assert.match(m, /Array\.from\(\{ length: Math\.min\(6, ids\.length\) \}, one\)/, 'six at a time');
+  // A look changed elsewhere (the website, then a return to the app) reads the cards again; a coach whose
+  // re-read fails keeps the card read before (Codex on #2708).
+  assert.match(m, /const BSM2_LOOK_KINDS = \['profile_custom'\];/);
+  assert.match(m, /const lookRev = useBSUserGoalsRev\(BSM2_LOOK_KINDS\);/);
+  assert.match(m, /\}, \[everyone, lookRev\]\);/, 'the cards read once, until the tab is opened again');
+  assert.match(m, /setCardByUser\(\(prev\) => \(\{ \.\.\.prev, \.\.\.got \}\)\)/, 'a failed re-read drops the look');
   assert.match(m, /look: c\.provider_user_id && !bsmIsDemoCoach\(c\) \? bsCoachCardLook\(cardByUser\[c\.provider_user_id\]/);
 });
 
