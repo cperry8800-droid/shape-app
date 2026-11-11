@@ -15,6 +15,7 @@ import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { loadRealModule } from './helpers/load-real-module.mjs';
+import { bsCoachPagePalette } from '../mobile-app/src/services/coachPagePalette.mjs';
 
 const require_ = createRequire(import.meta.url);
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -387,7 +388,8 @@ test('the module stands alone: its own useShapeTr, globals read at call time, sh
   assert.doesNotMatch(src, /^const \{[^}]*\} = window;/m, 'a global read when the module loads');
   // The figures as the chat feed sets them (owner, 9 Nov): Saira 700, tight, even-width numerals; no Doto left.
   assert.match(src, /FIG: "'Saira', /);
-  assert.match(src, /const numFace = \(size, color = CLIMB\.INK\) => \(\{ fontFamily: CLIMB\.FIG, fontWeight: 700, [^}]*fontVariantNumeric: 'tabular-nums', letterSpacing: '-0\.035em' \}\);/);
+  // In the page's theme (climbType: the coach's ink, the Climb's with no pick).
+  assert.match(src, /numFace: \(size, color = C\.INK\) => \(\{ fontFamily: C\.FIG, fontWeight: 700, [^}]*fontVariantNumeric: 'tabular-nums', letterSpacing: '-0\.035em' \}\),/);
   assert.doesNotMatch(src, /Doto|DOTO|ROND/, 'no Doto on the coach profile');
   assert.doesNotMatch(readFileSync(join(ROOT, 'mobile-app/src/broadsheet/BSTrainerProfile.jsx'), 'utf8'), /Doto|DOTO|ROND/, 'nor on the page that feeds it');
   assert.doesNotMatch(src, /\bconfirm\(/);
@@ -480,22 +482,22 @@ test('a failed read of the posts, programs or reviews says so in its camp, with 
 
 // ── The coach's accent: the drawing, never the words ─────────────────────────────────────────
 const colorOf = (hex) => { const d = document.createElement('div'); d.style.color = hex; return d.style.color; };
-test('the accent the coach picked tints the route, the spine and the full stop; labels and Book keep the role colours', async () => {
+test("the accent the coach picked paints the drawing, the labels and the tabs at its readable step; Book keeps the role's rust", async () => {
   fullCoach();
   world.custom = { ...world.custom, look: { accent: 'violet' } };
   let m = await mount(page());
-  const V = CLIMB_ACCENTS.violet;
+  // Owner, 2026-11-11 (after #2706 on the website): the kit's palette, an accent alone on the Climb's ground.
+  const P = bsCoachPagePalette({ accent: 'violet' }, 'trainer');
+  const V = P.DRAW;
   assert.equal($('[data-climb-route-glow]').getAttribute('stroke'), V, 'the route');
   assert.ok($$('[data-climb-contour]').every((c) => c.getAttribute('stroke') === V), 'the contours');
-  assert.equal($('[data-climb-stop]').style.color, colorOf(V), 'the name\'s full stop');
-  assert.ok($$('[data-climb-camp-stop]').length && $$('[data-climb-camp-stop]').every((d) => d.style.color === colorOf(V)), 'each camp title\'s full stop');
-  assert.match($('[data-climb-spine]').style.background, /167, 139, 250|#a78bfa/i, 'the spine');
+  assert.equal($('[data-climb-stop]').style.color, colorOf(V), "the name's full stop");
+  assert.ok($$('[data-climb-camp-stop]').length && $$('[data-climb-camp-stop]').every((d) => d.style.color === colorOf(V)), "each camp title's full stop");
   assert.ok($$('[data-climb-diamond]').every((d) => d.style.borderColor === colorOf(V)), 'the diamonds');
   assert.equal($('[data-climb-pin-ring]').style.borderColor, colorOf(V), 'the pins');
-  assert.match($('[data-climb-summit-ring]').style.border, /167, 139, 250/, 'the summit ring');
-  // Text and controls: teal labels, the rust Book.
-  assert.equal($('[data-climb-eyebrow]').style.color, colorOf('#34d6c5'), 'a label stays teal');
-  assert.equal($('[data-climb-camp-tab][aria-current]').style.color, colorOf('#34d6c5'), 'the tab you are at stays teal');
+  // Text and controls: the accent at its readable step (was: always teal); Book keeps the rust.
+  assert.equal($('[data-climb-eyebrow]').style.color, colorOf(P.ACCENT), 'a label takes the accent');
+  assert.equal($('[data-climb-camp-tab][aria-current]').style.color, colorOf(P.ACCENT), 'the tab you are at');
   const probe = document.createElement('div'); probe.style.background = '#c0533b';
   assert.equal($('[data-climb-book]').style.background, probe.style.background, 'Book stays rust');
   await m.unmount();
