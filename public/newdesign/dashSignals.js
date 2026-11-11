@@ -414,6 +414,13 @@
     var p = pauseOf(c, now);
     return p && p.state === "back" ? toDate(p.since) : null;
   }
+  // The days since they came back, on the member's calendar (pauseOf's `day`, from backAt), while the
+  // gaps still count from it; else null. ⚠ NOT daysBetween(resumeDay, now) (Codex on #2705): that is
+  // their return date on the viewer's clock, so a coach a day behind the member counted a day fewer.
+  function resumeDays(c, now) {
+    var p = pauseOf(c, now);
+    return p && p.state === "back" ? p.day : null;
+  }
   // The coach's welcome back, for PAUSE_BACK_DAYS after a break: both coaches' (FLAG_DISCIPLINE general).
   function rulePauseEnded(p) {
     if (!p || p.state !== "back" || !p.fresh) return null;
@@ -793,7 +800,7 @@
       // A log from before their break counts the gap from the day they came back (pauseOf).
       var backDay = resumeDay(c, now);
       if (backDay && last < backDay && (!bounded || joinDay < backDay)) {
-        gap = daysBetween(backDay, now);
+        gap = resumeDays(c, now);
         if (gap < THRESHOLDS.FOOD_GAP_DAYS) return null;
         return { key: "food_gap", label: "No logs " + gap + "d", reason: "No food logs in the " + gap + " days since their break", figures: { days: gap, sinceBreak: true }, sig: "back:" + iso(backDay) };
       }
@@ -914,7 +921,7 @@
     // Quiet since before their break: counted from the day they came back.
     var backDay = resumeDay(c, now);
     if (backDay && last < backDay) {
-      gap = daysBetween(backDay, now);
+      gap = resumeDays(c, now);
       if (gap < THRESHOLDS.CONTACT_GAP_DAYS) return null;
       return { key: "contact_gap", label: "Quiet " + gap + "d", reason: "No contact in the " + gap + " days since their break", sig: "back:" + iso(backDay), figures: { days: gap, sinceBreak: true } };
     }

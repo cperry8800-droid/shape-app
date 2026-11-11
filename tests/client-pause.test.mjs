@@ -193,6 +193,15 @@ test('on the member\'s calendar: a coach a day ahead still sees them away, one b
   // The days back count from that instant: day 13 a minute before two weeks, then as if no break.
   assert.equal(feed('UTC', '2026-12-05T07:59:00Z', la).pause.day, 13);
   assert.equal(feed('UTC', '2026-12-05T08:00:00Z', la).pause, null);
+  // The gaps since they came back count those same days (Codex on #2705). A member in Kiritimati is back
+  // at their midnight, 10:00 UTC on the 20th: 73 hours on it is 3 days without a food log, and a week on 7
+  // without contact, for a coach on their calendar and for one a day behind it alike.
+  const kir = { until: '2026-11-20', backAt: '2026-11-20T10:00:00+00:00' };
+  const nut = (zone, at) => E.inZone(zone, new Date(at), (now) => E.getTriageFeed('nutritionist', [away(kir)], now)[0]);
+  for (const z of ['Pacific/Kiritimati', 'Pacific/Honolulu', 'UTC']) {
+    assert.deepEqual(nut(z, '2026-11-23T11:00:00Z').reasons, ['No food logs in the 3 days since their break'], z);
+    assert.ok(nut(z, '2026-11-27T11:00:00Z').reasons.includes('No contact in the 7 days since their break'), z);
+  }
   // The website's panel and data layer read it too.
   assert.match(read('public/supabase.js'), /if \(pause && typeof row\.back_at === 'string' && !isNaN\(Date\.parse\(row\.back_at\)\)\) pause\.backAt = row\.back_at;/);
   assert.match(read('public/newdesign/dashRoster.jsx'), /const holds = !!p && \(Number\.isFinite\(backAt\) \? Date\.now\(\) < backAt : p\.until >= bounds\.min\);/);
