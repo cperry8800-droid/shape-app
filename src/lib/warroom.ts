@@ -658,6 +658,17 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
       ],
     },
     {
+      section: 'Website: a member sees their own figures on the Store and Rewards pages, the real Wall on Community; every sample says it is one. No migration',
+      items: [
+        { label: 'Owner, 2026-11-11: "fix the store sample numbers too, and community page, and rewards page. Look at every page on website"', status: 'done' },
+        { label: 'Store (store.jsx): the hero strip\'s Lifetime earned, Items redeemed and Current tier were constants (3,420; 7, "4 this quarter"; "Tempo · 216 to Peak", which no score can be) shown to members beside their real balance. A member now reads their Shape Score and tier from /api/client/score and counts their own redemptions (this quarter\'s too); a read still out is "—". Signed out, the example is the Rewards page\'s member (1,284, Tempo, 716 to Form) under "Example member · sign in to see your own", and the sample locker is "Example locker"', status: 'done' },
+        { label: 'Rewards (score.jsx): a signed-in member\'s page is theirs on every section: the ring and streak, the four figures (this week vs the week before, streak and best, tier and points to the next, spendable balance), the ladder, the 12-week heatmap and momentum from /api/client/score and /api/client/score-record, the ledger (a lost point reads −7, not +-7), and which rewards they can afford. No example label on a member\'s figures; "—" while the reads are out; a failed read falls back to the labelled example', status: 'done' },
+        { label: 'Community (community.jsx): a signed-in member\'s feed section is the Wall itself (communityFeed.jsx\'s CommunityFeed); a visitor\'s sample is "Example posts". The rooms, events and challenges are labelled examples ("Rooms · live", "Events · this month" and "Your challenges · from your team" claimed otherwise); an example event no longer offers an RSVP that did nothing. No events or challenges product exists', status: 'done' },
+        { label: 'Tests: tests/sample-figures.test.mjs (the Store\'s strip for a visitor, a member and an unread member; the Community labels and the Wall swap); tests/score-page-examples.test.mjs renders the Rewards page signed in, waiting and signed out', status: 'done' },
+        { label: 'The rest of the website: a page-by-page sweep for unlabelled sample figures, in progress on this branch', status: 'pending' },
+      ],
+    },
+    {
       section: 'Website: the app screenshots fit the screen\'s height; a coach\'s page scales on a short screen; the coach cards and the Store fit a phone; the app banner\'s header gap (#2699). No migration',
       items: [
         { label: 'Owner, 2026-11-11: "everything looks huge on smaller screens", "the screenshots on index for example get huge, take up the whole screen on smaller monitors", "also just check mobile website to make sure everything is up to date there", of the App page on a phone, "yes shrink the app page screenshots on phones too", of the homepage moments, "a little larger within the box", and "the overall coaches profile page is looking a little large on smaller monitors"', status: 'done' },

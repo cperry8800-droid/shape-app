@@ -36,11 +36,11 @@ const code = babel.transformSync(SRC.slice(0, mountAt), OPTS).code;
 // The shell globals the page reads, stubbed. A 401 is what the score route
 // answers a visitor who is not signed in.
 let fetchImpl = async () => ({ ok: false, status: 401, json: async () => ({}) });
-const S = new Function('React', 'ReactDOM', 'window', 'document', 'location', 'fetch', 'matchMedia', 'IntersectionObserver',
+const S = new Function('React', 'ReactDOM', 'window', 'document', 'location', 'fetch', 'matchMedia', 'IntersectionObserver', 'localStorage',
   'mono', 'sans', 'serif', 'INK', 'INK_DEEP', 'PAPER', 'RUST', 'TEAL', 'TEAL_BRIGHT', 'Ph', 'Header', 'Footer',
-  code + '\nreturn { ScoreHero, ScoreTiers, ScoreActivity, ScoreLedger, ScoreRewards };')(
+  code + '\nreturn { ScoreHero, ScoreTiers, ScoreActivity, ScoreLedger, ScoreRewards, ScorePage, scView };')(
   React, ReactDOM, dom.window, dom.window.document, dom.window.location, (...a) => fetchImpl(...a),
-  () => ({ matches: false }), class { observe() {} disconnect() {} },
+  () => ({ matches: false }), class { observe() {} disconnect() {} }, dom.window.localStorage,
   'monospace', 'sans-serif', 'serif', '#f2ede4', '#0b0e0c', '#1a1612', '#c0533b', '#0ac5a8', '#2ee0c4',
   ({ label }) => React.createElement('div', null, label), () => null, () => null,
 );
@@ -82,20 +82,136 @@ test('every group of the example member\'s figures carries its label', async () 
   await rewards.close();
 });
 
-test('the ledger is labelled an example until a member\'s own rows load, then the label comes off', async () => {
-  fetchImpl = async () => ({ ok: false, status: 401, json: async () => ({}) });
+test('the ledger is labelled an example for a visitor; a member\'s own rows carry no label', async () => {
+  // The page reads the Standing once (ScorePage) and hands the ledger its rows as props.v.
   const out = await render(S.ScoreLedger, { onOpenRecord: () => {} });
   assert.match(out.el.textContent, /example entries/i, 'a visitor sees the demo ledger with nothing saying it is an example');
   await out.close();
 
-  fetchImpl = async (url) => (String(url).includes('/api/client/score')
-    ? { ok: true, status: 200, json: async () => ({ recent: [{ category: 'workouts', delta: 10, note: 'Tempo run logged', earned_at: '2026-09-22T15:00:00Z' }] }) }
-    : { ok: false, status: 404, json: async () => ({}) });
-  const live = await render(S.ScoreLedger, { onOpenRecord: () => {} });
+  const v = S.scView({ points_total: 10, recent: [
+    { category: 'workouts', delta: 10, note: 'Tempo run logged', earned_at: '2026-09-22T15:00:00Z' },
+    { category: 'adherence', delta: -7, note: 'Missed check-in', earned_at: '2026-09-21T15:00:00Z' },
+  ] }, null, Date.parse('2026-09-23T12:00:00Z'));
+  const live = await render(S.ScoreLedger, { v, onOpenRecord: () => {} });
   assert.match(live.el.textContent, /Tempo run logged/, 'the member\'s own row never reached the ledger — this is reading nothing');
   assert.doesNotMatch(live.el.textContent, /example entries/i, 'a member\'s own ledger is still labelled an example');
+  assert.doesNotMatch(live.el.textContent, /\+-/, 'a lost point reads "+-7"');
+  assert.match(live.el.textContent, /−7/, 'a lost point is not shown as a minus');
   await live.close();
+
+  const empty = await render(S.ScoreLedger, { v: S.scView({ points_total: 0, recent: [] }, null, Date.now()), onOpenRecord: () => {} });
+  assert.doesNotMatch(empty.el.textContent, /Session kept · Maya Okafor|example entries/i, 'a member with no points is shown the example\'s ledger');
+  await empty.close();
+
+  const loading = await render(S.ScoreLedger, { loading: true, onOpenRecord: () => {} });
+  assert.doesNotMatch(loading.el.textContent, /Session kept · Maya Okafor|example entries/i, 'a member loading is shown the example\'s ledger');
+  await loading.close();
+});
+
+// The Standing and The Record a signed-in member's reads answer with (/api/client/score,
+// /api/client/score-record), for a member at 2,340: Form, 2,660 to Peak.
+const NOW = Date.parse('2026-11-11T15:00:00Z');
+const STANDING = {
+  points_total: 2340, week_gain: 57, spendable_balance: 1180,
+  current_tier: { name: 'Form', threshold: 2000 }, next_tier: { name: 'Peak', threshold: 5000 }, points_to_next: 2660,
+  momentum: { value: 64, bonusThisWeek: false, streakWeeks: 2, points: 0 },
+  recent: [{ category: 'workouts', delta: 10, note: 'Upper pull logged', earned_at: '2026-11-11T09:00:00Z' }],
+};
+const day = (ago, rows) => ({ date: new Date(Math.floor(NOW / 86400000) * 86400000 - ago * 86400000).toISOString().slice(0, 10), rows });
+const RECORD = { history: [
+  day(0, [{ delta: 10, source_kind: 'workout' }]),
+  day(1, [{ delta: 12, source_kind: 'session' }, { delta: -7, source_kind: 'penalty' }]),
+  day(2, [{ delta: 30, source_kind: 'workout' }]),
+  day(4, [{ delta: 500, source_kind: 'tier_bonus' }]),
+  day(8, [{ delta: 9, source_kind: 'habit' }]), day(9, [{ delta: 9, source_kind: 'habit' }]),
+  day(10, [{ delta: 9, source_kind: 'habit' }]), day(11, [{ delta: 9, source_kind: 'habit' }]),
+] };
+
+test("scView: the member's streak, best run, heatmap and last week, from The Record", () => {
+  const v = S.scView(STANDING, RECORD, NOW);
+  assert.equal(v.total, 2340);
+  assert.equal(v.tier, 'Form');
+  assert.equal(v.next, 'Peak');
+  assert.equal(v.toNext, 2660);
+  assert.equal(v.goal, 5000, 'the ring is not measured against the next tier');
+  assert.equal(v.balance, 1180);
+  assert.equal(v.momentum, 64);
+  assert.equal(v.streak, 3, 'today, yesterday and the day before');
+  assert.equal(v.best, 4, 'days 8-11 ago are the longest run');
+  // A tier bonus is credit, not activity: day 4 is quiet.
+  assert.equal(v.active, 7);
+  assert.equal(v.heat.length, 84);
+  assert.equal(v.heat[83], 2, "today's 10 points");
+  assert.equal(v.heat[81], 3, 'two days ago, 30 points');
+  assert.equal(v.heat[79], 0, 'a tier bonus counted as activity');
+  assert.equal(v.lastWeek, 36, 'days 7-13 ago');
+  // A streak waits for today to close: with nothing today it runs to yesterday.
+  const noToday = S.scView(STANDING, { history: RECORD.history.slice(1) }, NOW);
+  assert.equal(noToday.streak, 2);
+  // At the top tier the ring is the member's own score, never a smaller goal.
+  const top = S.scView({ ...STANDING, points_total: 16000, current_tier: { name: 'Legend', threshold: 15000 }, next_tier: null, points_to_next: 0 }, null, NOW);
+  assert.equal(top.next, null);
+  assert.ok(top.goal >= 16000);
+  assert.equal(top.streak, null, 'a streak claimed before The Record answered');
+});
+
+async function renderPage() {
+  const el = document.createElement('div');
+  document.body.appendChild(el);
+  const root = createRoot(el);
+  await act(async () => { root.render(React.createElement(S.ScorePage)); });
+  for (let i = 0; i < 4; i++) await act(async () => { await new Promise((r) => setTimeout(r, 0)); });
+  return { el, close: () => act(async () => { root.unmount(); el.remove(); }) };
+}
+
+test("a signed-in member sees their own standing on every section, with no example label", async () => {
+  dom.window.localStorage.setItem('shape.auth', '{"access_token":"x"}');
+  fetchImpl = async (url) => {
+    const u = String(url);
+    if (u.endsWith('/api/client/score')) return { ok: true, status: 200, json: async () => STANDING };
+    if (u.endsWith('/api/client/score-record')) return { ok: true, status: 200, json: async () => RECORD };
+    return { ok: false, status: 404, json: async () => ({}) };
+  };
+  const page = await renderPage();
+  const text = page.el.textContent;
+  assert.equal(marks(page.el), 0, 'a member\'s own page still carries ' + marks(page.el) + ' example labels');
+  assert.match(text, /2340/, "the ring is not the member's score");
+  assert.match(text, /You're Form\. 2,660 to Peak\./, "the tier headline is not the member's");
+  assert.match(text, /Tiers · your standing/);
+  assert.match(text, /1,180 pts/, "the rewards balance is not the member's");
+  assert.match(text, /\+57/, "this week's points are not the member's");
+  assert.match(text, /3d/, "the streak is not the member's");
+  assert.match(text, /Upper pull logged/);
+  for (const ex of ['1284', '940 pts', '716 to Form', 'Session kept · Maya Okafor', '344 reserved']) {
+    assert.ok(!text.includes(ex), 'a member is shown the example member\'s "' + ex + '"');
+  }
+  await page.close();
+  dom.window.localStorage.removeItem('shape.auth');
   fetchImpl = async () => ({ ok: false, status: 401, json: async () => ({}) });
+});
+
+test('a member whose reads are still out sees dashes, never the example; a visitor sees the labelled example', async () => {
+  dom.window.localStorage.setItem('shape.auth', '{"access_token":"x"}');
+  fetchImpl = () => new Promise(() => {});
+  const waiting = await renderPage();
+  for (const ex of ['1284', '940', '716 to Form', 'Session kept · Maya Okafor']) {
+    assert.ok(!waiting.el.textContent.includes(ex), 'a member waiting on their reads is shown the example\'s "' + ex + '"');
+  }
+  assert.equal(marks(waiting.el), 0);
+  await waiting.close();
+
+  // The session was stale: the route answers 401, and the page falls back to the labelled example.
+  fetchImpl = async () => ({ ok: false, status: 401, json: async () => ({}) });
+  const stale = await renderPage();
+  assert.match(stale.el.textContent, /1284/);
+  assert.ok(marks(stale.el) >= 4, 'the fallback example is not labelled');
+  await stale.close();
+  dom.window.localStorage.removeItem('shape.auth');
+
+  const visitor = await renderPage();
+  assert.match(visitor.el.textContent, /1284/);
+  assert.ok(marks(visitor.el) >= 4, "a visitor's example is not labelled");
+  await visitor.close();
 });
 
 test('no component shows the example member\'s figures without a label, itself or from the section that renders it', () => {

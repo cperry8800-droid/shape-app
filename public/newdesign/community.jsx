@@ -3,6 +3,41 @@ const { useState: useSC } = React;
 
 const CM_RPR = typeof matchMedia !== "undefined" && matchMedia("(prefers-reduced-motion: reduce)").matches;
 
+// ⚠ EVERY SAMPLE ON THIS PAGE SAYS SO, AND A MEMBER GETS THE REAL WALL (owner, 2026-11-11: "fix the
+// store sample numbers too, and community page, and rewards page"). The feed, the rooms, the events
+// and the challenges below are illustrations: no events or challenges product exists, and the feed
+// is a sample. They were headed "Live · across the network", "Rooms · live", "Events · this month"
+// and "Your challenges · from your team", to every visitor. Each now carries an example label
+// (data-cm-example), and a signed-in member's feed section is the Wall itself: the chat bubble's
+// CommunityFeed (communityFeed.jsx), the same posts the app's Wall reads.
+const CM_EXAMPLE_GOLD = "#e6c373";
+function CmExample({ children, style }) {
+  return <div data-cm-example="" style={{ fontFamily: mono, fontSize: 10.5, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase", color: CM_EXAMPLE_GOLD, ...style }}>{children}</div>;
+}
+function cmHasSession() {
+  try {
+    if (localStorage.getItem("shape.auth")) return true;
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i) || "";
+      if (k.indexOf("sb-") === 0 && k.indexOf("-auth-token") > 0) return true;
+    }
+  } catch (e) {}
+  return false;
+}
+// communityFeed.jsx loads after this file, so the Wall's component may not be on window at the
+// first render; look again for a few seconds rather than leave a member on the sample.
+function useCmWall() {
+  const pick = () => (cmHasSession() && typeof window !== "undefined" && typeof window.CommunityFeed === "function" ? window.CommunityFeed : null);
+  const [Feed, setFeed] = useSC(() => pick());
+  React.useEffect(() => {
+    if (Feed || !cmHasSession()) return undefined;
+    const t = setInterval(() => { const f = pick(); if (f) { setFeed(() => f); clearInterval(t); } }, 120);
+    const stop = setTimeout(() => clearInterval(t), 6000);
+    return () => { clearInterval(t); clearTimeout(stop); };
+  }, [Feed]);
+  return Feed;
+}
+
 function CmReveal({ children, delay = 0, style = {} }) {
   const ref = React.useRef(null);
   const [on, setOn] = React.useState(CM_RPR);
@@ -308,21 +343,28 @@ function CmPreviewNotice() {
 }
 
 function LiveActivity() {
+  const Wall = useCmWall();
   return (
     <section style={{ padding: "70px 72px 40px", borderTop: "1px solid rgba(242,237,228,0.12)" }}>
       <div style={{ maxWidth: 980, margin: "0 auto" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "end", marginBottom: 36, flexWrap: "wrap", gap: 16 }}>
           <div>
             <div style={{ fontFamily: mono, fontSize: 12, letterSpacing: "0.25em", textTransform: "uppercase", color: TEAL, marginBottom: 16, display: "flex", alignItems: "center", gap: 10 }}>
-              <span style={{ width: 8, height: 8, borderRadius: 999, background: TEAL_BRIGHT, boxShadow: `0 0 8px ${TEAL_BRIGHT}` }}/> Live · across the network
+              {Wall ? <><span style={{ width: 8, height: 8, borderRadius: 999, background: TEAL_BRIGHT, boxShadow: `0 0 8px ${TEAL_BRIGHT}` }}/> The Wall · live</> : "The Wall"}
             </div>
             <h2 style={{ fontFamily: serif, fontSize: "clamp(44px, 6vw, 64px)", letterSpacing: "-0.04em", fontWeight: 300, margin: 0, lineHeight: 0.95 }}>
               Today on <em style={{ fontStyle: "italic", fontWeight: 600, color: TEAL }}>Shape</em>.
             </h2>
+            {Wall ? null : <CmExample style={{ marginTop: 14 }}>Example posts · what the Wall looks like</CmExample>}
           </div>
-          <a href="/newdesign/Login.html" style={{ fontFamily: mono, fontSize: 11, letterSpacing: "0.16em", color: TEAL_BRIGHT, textDecoration: "none", whiteSpace: "nowrap" }}>JOIN THE FEED →</a>
+          {Wall ? null : <a href="/newdesign/Login.html" style={{ fontFamily: mono, fontSize: 11, letterSpacing: "0.16em", color: TEAL_BRIGHT, textDecoration: "none", whiteSpace: "nowrap" }}>JOIN THE FEED →</a>}
         </div>
 
+        {Wall ? (
+          <div data-cm-wall="" style={{ background: "rgba(11,14,12,0.62)", border: "1px solid rgba(242,237,228,0.1)", borderRadius: 6, padding: "8px 0" }}>
+            {React.createElement(Wall, { place: "wall" })}
+          </div>
+        ) : (
         <div className="cm-feed-scroll" style={{ display: "flex", flexDirection: "column", gap: 16, maxHeight: 720, overflowY: "auto", maskImage: "linear-gradient(180deg, #000 0, #000 calc(100% - 56px), transparent 100%)", WebkitMaskImage: "linear-gradient(180deg, #000 0, #000 calc(100% - 56px), transparent 100%)", scrollbarWidth: "none", msOverflowStyle: "none" }}>
           {LIVE_ACTIVITY.map((a, i) => (
             <CmReveal key={i} delay={Math.min(i * 50, 200)}>
@@ -338,11 +380,12 @@ function LiveActivity() {
             </CmReveal>
           )).flatMap((post, i) => (i === 0 ? [post, <CmPreviewNotice key="preview" />] : [post]))}
         </div>
+        )}
 
-        <div style={{ marginTop: 32, textAlign: "center" }}>
+        {Wall ? null : <div style={{ marginTop: 32, textAlign: "center" }}>
           <a href="/newdesign/Login.html" style={{ display: "inline-block", padding: "15px 30px", borderRadius: 2, background: TEAL, color: PAPER, fontFamily: sans, fontSize: 13.5, fontWeight: 600, letterSpacing: "0.04em", textDecoration: "none" }}>Join the feed</a>
           <div style={{ marginTop: 12, fontFamily: mono, fontSize: 10.5, letterSpacing: "0.14em", color: "rgba(242,237,228,0.45)" }}>FREE WITH A SHAPE ACCOUNT</div>
-        </div>
+        </div>}
       </div>
     </section>
   );
@@ -357,10 +400,11 @@ function Events() {
       <div style={{ maxWidth: 1320, margin: "0 auto" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "end", marginBottom: 44, flexWrap: "wrap", gap: 20 }}>
           <div>
-            <div style={{ fontFamily: mono, fontSize: 12, letterSpacing: "0.25em", textTransform: "uppercase", color: TEAL, marginBottom: 16 }}>Events · this month</div>
+            <div style={{ fontFamily: mono, fontSize: 12, letterSpacing: "0.25em", textTransform: "uppercase", color: TEAL, marginBottom: 16 }}>Events</div>
             <h2 style={{ fontFamily: serif, fontSize: "clamp(44px, 6vw, 64px)", letterSpacing: "-0.04em", fontWeight: 300, margin: 0, lineHeight: 0.95 }}>
               Find your <em style={{ fontStyle: "italic", fontWeight: 600, color: TEAL }}>people</em>.
             </h2>
+            <CmExample style={{ marginTop: 14 }}>Example events · none is scheduled yet</CmExample>
           </div>
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "flex-end", maxWidth: 500 }}>
             {cities.map(c => (
@@ -383,7 +427,7 @@ function Events() {
                 </div>
                 <div style={{ display: "flex", justifyContent: "space-between", fontFamily: mono, fontSize: 11, color: "rgba(242,237,228,0.55)" }}>
                   <span>{e.rsvp} / {e.cap} spots</span>
-                  <a style={{ color: INK, borderBottom: `1px solid ${TEAL}`, cursor: "pointer" }}>RSVP →</a>
+                  <span style={{ color: CM_EXAMPLE_GOLD }}>Example</span>
                 </div>
               </article>
             </CmReveal>
@@ -399,13 +443,14 @@ function Challenges() {
     <section style={{ padding: "110px 72px", background: INK, color: PAPER }}>
       <div style={{ maxWidth: 1320, margin: "0 auto" }}>
         <div style={{ marginBottom: 52 }}>
-          <div style={{ fontFamily: mono, fontSize: 12, letterSpacing: "0.25em", textTransform: "uppercase", color: TEAL, marginBottom: 16 }}>Your challenges · from your team</div>
+          <div style={{ fontFamily: mono, fontSize: 12, letterSpacing: "0.25em", textTransform: "uppercase", color: TEAL, marginBottom: 16 }}>Challenges · from your team</div>
           <h2 style={{ fontFamily: serif, fontSize: "clamp(46px, 6.4vw, 72px)", letterSpacing: "-0.04em", fontWeight: 300, margin: 0, lineHeight: 0.95 }}>
             Built <em style={{ fontStyle: "italic", fontWeight: 600, color: TEAL }}>for you.</em>
           </h2>
           <p style={{ fontFamily: sans, fontSize: 17, lineHeight: 1.55, color: "rgba(242,237,228,0.6)", maxWidth: 620, marginTop: 22 }}>
             Your trainer and nutritionist write the challenges. You run them at your pace, share the wins with the people in your room, and they adjust the next block from how you actually did.
           </p>
+          <CmExample style={{ marginTop: 18 }}>Example challenges · a sample member's team</CmExample>
         </div>
         <div className="cm-2" style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 20 }}>
           {CHALLENGES.map((c, i) => (
@@ -577,13 +622,14 @@ function Chat() {
     <section style={{ padding: "40px 72px 110px", color: INK }}>
       <div style={{ maxWidth: 1320, margin: "0 auto" }}>
         <div style={{ marginBottom: 44 }}>
-          <div style={{ fontFamily: mono, fontSize: 12, letterSpacing: "0.25em", textTransform: "uppercase", color: TEAL, marginBottom: 16 }}>Rooms · live</div>
+          <div style={{ fontFamily: mono, fontSize: 12, letterSpacing: "0.25em", textTransform: "uppercase", color: TEAL, marginBottom: 16 }}>Rooms</div>
           <h2 style={{ fontFamily: serif, fontSize: "clamp(46px, 6.4vw, 72px)", letterSpacing: "-0.04em", fontWeight: 300, margin: 0, lineHeight: 0.95 }}>
             Talk to your <em style={{ fontStyle: "italic", fontWeight: 600, color: TEAL }}>coach</em>.<br />Talk to your <em style={{ fontStyle: "italic", fontWeight: 600, color: TEAL }}>community</em>.
           </h2>
           <p style={{ fontFamily: sans, fontSize: 17, lineHeight: 1.55, color: "rgba(242,237,228,0.62)", maxWidth: 560, marginTop: 24 }}>
             Members and coaches, one thread. Direct lines to your trainer and nutritionist, plus rooms by city, specialty, and challenge. No algorithm, no ads.
           </p>
+          <CmExample style={{ marginTop: 18 }}>Example rooms · your own open in the chat bubble</CmExample>
         </div>
 
         {/* tab switcher */}
