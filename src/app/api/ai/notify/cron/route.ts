@@ -128,18 +128,24 @@ async function evaluateSnapshot(admin: ReturnType<typeof createAdminClient>, use
   // The coach's own office-settings tuning (R14), so the cron's alerts agree with
   // the roster the same thresholds produce on their dashboard.
   // …and their dismissals and check-in reviews read fresh (P2), so one made since the snapshot holds.
-  // …and each client's break as it is now (Codex on #2705): one set since the roster was saved holds.
-  const [thresholds, coachContext, clientBreaks] = isCoach
+  // …and who of the roster they still have, with each one's break as it is now (Codex and CodeRabbit on
+  // #2705): a break set since the roster was saved holds, and a client they no longer have is dropped.
+  const [thresholds, coachContext, rosterAccess] = isCoach
     ? await Promise.all([
       loadCoachThresholds(admin, userId, snapshot.role),
       loadCoachContext(admin, userId),
       loadClientBreaks(admin, userId, (Array.isArray(snapshot.clients) ? snapshot.clients : []).map(coachRecordId).filter((v): v is string => !!v), now),
     ])
     : [null, null, null];
+  // ⚠ FAIL CLOSED: who the coach still has can't be read, so nothing is sent about anyone this hour.
+  if (isCoach && !rosterAccess) {
+    console.warn('[shape-ai] notify cron: roster access check failed; skipped this hour for', userId);
+    return null;
+  }
   // The reader's language: a member's notices, and a coach's alert titles and digest.
   const copy = memberCopy(localeDoc, settings);
 
-  const { audience, candidates, coachSeen } = candidatesFor(snapshot, { tone: prefs.tone, lastSeverity: (last.coachClients as Record<string, string>) || {}, now, habitContext, checkinOptedOut, thresholds, copy, coachContext, zone: prefs.tz, memberPaused, clientBreaks });
+  const { audience, candidates, coachSeen } = candidatesFor(snapshot, { tone: prefs.tone, lastSeverity: (last.coachClients as Record<string, string>) || {}, now, habitContext, checkinOptedOut, thresholds, copy, coachContext, zone: prefs.tz, memberPaused, rosterAccess });
   // The pushes decided are claimed under the person's cap before anything is sent (decideAndClaim).
   const { decided, claim } = await decideAndClaim(admin, userId, { candidates, last, prefs, now, audience, checkinOptedOut, pushedToday, memberPaused, tr: copy?.tr, coachSeen }, prefs.capTz);
   const { send, digest, nextState } = decided;

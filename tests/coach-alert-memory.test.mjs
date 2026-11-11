@@ -209,8 +209,8 @@ const cronRoute = await loadRealModule(join(ROOT, 'src/app/api/ai/notify/cron/ro
   ]),
 });
 // The fake database, with the upsert writeUserGoal makes.
-function notifyDb(tables) {
-  const fake = fakeSupabase({ tables, rpcs: { is_coach_on_client: () => true } });
+function notifyDb(tables, fail = []) {
+  const fake = fakeSupabase({ tables, rpcs: { is_coach_on_client: () => true }, fail });
   const from = fake.from;
   fake.from = (table) => {
     const chain = from(table);
@@ -224,6 +224,18 @@ function notifyDb(tables) {
     return chain;
   };
   return fake;
+}
+// The coach's listings, and an active subscription from each client to the listing of its role: the hourly
+// run evaluates only the clients the coach still has (notify-core loadClientBreaks; CodeRabbit on #2705).
+function coaching(coachId, byRole) {
+  const out = { trainers: [], nutritionists: [], subscriptions: [], client_pauses: [], profiles: [] };
+  let n = 100;
+  for (const [role, ids] of Object.entries(byRole)) {
+    const pid = ++n;
+    out[role === 'trainer' ? 'trainers' : 'nutritionists'].push({ id: pid, owner_id: coachId });
+    for (const id of ids) out.subscriptions.push({ client_id: id, provider_id: pid, provider_role: role, status: 'active' });
+  }
+  return out;
 }
 // A client the engine reads on the real clock: this week's check-in filed, logging daily, and the given
 // last contact per role (six days is amber; one day is clear).
@@ -276,7 +288,7 @@ test('the hourly run evaluates both rosters, each on its own memory: a client on
     // s1 is on both rosters: clear for the trainer, amber for the nutritionist.
     { user_id: 'coach-1', kind: 'notify_snapshot:trainer', data: { role: 'trainer', at: Date.now(), clients: [rosterClient('t1', { trainer: daysAgo(8) }), rosterClient('s1', { trainer: daysAgo(1) })] } },
     { user_id: 'coach-1', kind: 'notify_snapshot:nutritionist', data: { role: 'nutritionist', at: Date.now(), clients: [rosterClient('s1', { nutritionist: daysAgo(8) })] } },
-  ] };
+  ], ...coaching('coach-1', { trainer: ['t1', 's1'], nutritionist: ['s1'] }) };
   db = notifyDb(tables);
   delivered.length = 0;
   const first = await runCron();
@@ -287,6 +299,32 @@ test('the hourly run evaluates both rosters, each on its own memory: a client on
   assert.deepEqual(delivered, [], "the trainer reading s1 clear does not make the nutritionist alert again");
   assert.deepEqual(Object.keys(docOf(tables, 'notify_state:nutritionist').coachClients), ['s1']);
   assert.deepEqual(Object.keys(docOf(tables, 'notify_state:trainer').coachClients), ['t1']);
+});
+
+test('the hourly run alerts only about the clients the coach still has, and sends nothing when it can\'t tell (CodeRabbit on #2705)', async () => {
+  const held = { type: 'client_amber', key: 'gone1', sig: 'amber:No contact', title: 'Client gone1', body: 'No contact in 8 days', route: 'client', data: { providerRole: 'trainer', clientId: 'gone1' }, priority: 'med', channels: { push: true }, at: Date.now() - 3600e3 };
+  const fixture = () => ({ user_goals: [
+    { user_id: 'coach-1', kind: 'notify_snapshot:trainer', data: { role: 'trainer', at: Date.now(), clients: [rosterClient('t1', { trainer: daysAgo(8) }), rosterClient('gone1', { trainer: daysAgo(8) })] } },
+    { user_id: 'coach-1', kind: 'notify_state:trainer', data: { coachClients: { gone1: 'amber' }, pendingDigest: [held] } },
+  ], ...coaching('coach-1', { trainer: ['t1'] }) });
+  // gone1 left after the roster was saved: no alert about them, the one held for them dropped, forgotten.
+  const tables = fixture();
+  db = notifyDb(tables);
+  delivered.length = 0;
+  await runCron();
+  assert.deepEqual(sentAs(), ['trainer:t1']);
+  const state = docOf(tables, 'notify_state:trainer');
+  assert.ok(!(state.pendingDigest || []).some((i) => i.key === 'gone1'), 'the held alert is not kept for later');
+  assert.ok(!('gone1' in (state.coachClients || {})), 'and they are forgotten');
+  // Who the coach has can't be read: nothing about anyone this hour, and the memory untouched.
+  for (const t of ['subscriptions', 'trainers']) {
+    const failing = fixture();
+    db = notifyDb(failing, [t]);
+    delivered.length = 0;
+    await runCron();
+    assert.deepEqual(delivered, [], `a failed ${t} read sends nothing`);
+    assert.deepEqual(docOf(failing, 'notify_state:trainer').pendingDigest, [held], `${t}: the held alert waits for an hour that can tell`);
+  }
 });
 
 // ── The engine audit of 2026-11-11 ─────────────────────────────────────────
@@ -304,7 +342,7 @@ test('the hourly run reads a roster as of its save: a client active then is not 
   // Read against the run's clock, as it was, a1 is red: no food log in 8 days, no contact in 8.
   const against = core.candidatesFor({ ...snapshot, at: Date.now() }, { tone: 'neutral', lastSeverity: {}, now: new Date() });
   assert.ok(against.candidates.some((c) => c.type === 'client_red' && c.key === 'a1'), 'the fixture is the false alert the run sent');
-  const tables = { user_goals: [{ user_id: 'coach-9', kind: 'notify_snapshot:nutritionist', data: snapshot }] };
+  const tables = { user_goals: [{ user_id: 'coach-9', kind: 'notify_snapshot:nutritionist', data: snapshot }], ...coaching('coach-9', { nutritionist: ['a1', 's1'] }) };
   db = notifyDb(tables);
   delivered.length = 0;
   const first = await runCron();
@@ -367,7 +405,7 @@ test('the run still reads the one snapshot from before the split, until that rol
   const tables = { user_goals: [
     { user_id: 'coach-1', kind: 'notify_snapshot', data: { role: 'trainer', at: Date.now(), clients: [rosterClient('t1', { trainer: daysAgo(8) }), rosterClient('t2', { trainer: daysAgo(8) })] } },
     { user_id: 'coach-1', kind: 'notify_state', data: legacyState },
-  ] };
+  ], ...coaching('coach-1', { trainer: ['t1', 't2'] }) };
   db = notifyDb(tables);
   delivered.length = 0;
   await runCron();

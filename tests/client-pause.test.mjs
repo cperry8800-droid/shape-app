@@ -284,35 +284,61 @@ test('the hourly run reads each client\'s break fresh, over the roster the coach
   // The latest break of each of the coach's own clients, with the instant their return day begins in
   // their zone (UTC for one unknown); none, or one long over, is null.
   const own = { p1: { until: '2026-11-20', by: 'trainer', backAt: '2026-11-21T08:00:00.000Z' }, p2: null, p3: { until: '2026-11-25', by: 'member', backAt: '2026-11-26T00:00:00.000Z' }, p4: null };
-  assert.deepEqual(Object.fromEntries(await core.loadClientBreaks(db(), 'c1', ['p1', 'p2', 'p3', 'p4', 'p1'], at)), own);
+  const one = await core.loadClientBreaks(db(), 'c1', ['p1', 'p2', 'p3', 'p4', 'p1'], at);
+  assert.deepEqual(Object.fromEntries(one.breaks), own);
+  assert.deepEqual([...one.coached].sort(), ['p1', 'p2', 'p3', 'p4'], 'who of the roster they still have');
   // ⚠ A ROSTER THAT NAMES SOMEONE ELSE'S CLIENT READS NOTHING OF THEM (CodeRabbit's security check):
   // the stored roster is the coach's own row, which they may write directly. Nor a cancelled client,
   // nor one on a listing of another role's id; and an account with no listings, nobody.
-  assert.deepEqual(Object.fromEntries(await core.loadClientBreaks(db(), 'c1', ['p1', 'p2', 'p3', 'p4', 'p8', 'p9'], at)), own);
-  assert.equal((await core.loadClientBreaks(db(), 'member-x', ['p1', 'p9'], at)).size, 0);
-  assert.equal((await core.loadClientBreaks(db(), '', ['p1'], at)).size, 0);
-  for (const t of ['trainers', 'nutritionists', 'subscriptions', 'client_pauses']) assert.equal(await core.loadClientBreaks(db([t]), 'c1', ['p1'], at), null, `a failed ${t} read reads nothing`);
-  assert.deepEqual((await core.loadClientBreaks(db(['profiles']), 'c1', ['p1'], at)).get('p1'), { until: '2026-11-20', by: 'trainer' }, 'no zone read: no instant, so the coach\'s day');
-  assert.equal((await core.loadClientBreaks(db(), 'c1', [], at)).size, 0);
+  const mixed = await core.loadClientBreaks(db(), 'c1', ['p1', 'p2', 'p3', 'p4', 'p8', 'p9'], at);
+  assert.deepEqual(Object.fromEntries(mixed.breaks), own);
+  assert.deepEqual([...mixed.coached].sort(), ['p1', 'p2', 'p3', 'p4'], 'a cancelled client and a stranger\'s are not theirs');
+  for (const who of ['member-x', '']) {
+    const none = await core.loadClientBreaks(db(), who, ['p1', 'p9'], at);
+    assert.deepEqual([none.coached.size, none.breaks.size], [0, 0], `${who || 'nobody'} has nobody`);
+  }
+  // The access check failing reads nothing (null: the run sends nothing); the breaks alone failing
+  // still says who they have.
+  for (const t of ['trainers', 'nutritionists', 'subscriptions']) assert.equal(await core.loadClientBreaks(db([t]), 'c1', ['p1'], at), null, `a failed ${t} read reads nothing`);
+  const unread = await core.loadClientBreaks(db(['client_pauses']), 'c1', ['p1'], at);
+  assert.deepEqual([[...unread.coached], unread.breaks], [['p1'], null]);
+  assert.deepEqual((await core.loadClientBreaks(db(['profiles']), 'c1', ['p1'], at)).breaks.get('p1'), { until: '2026-11-20', by: 'trainer' }, 'no zone read: no instant, so the coach\'s day');
+  assert.equal((await core.loadClientBreaks(db(), 'c1', [], at)).breaks.size, 0);
   // Saved before they went away, the roster reads them red; read fresh, they are away and clear.
   const savedHere = { role: 'trainer', at: +NOW, clients: [E.engineSnapshot(away(undefined))] };
   const savedAway = { role: 'trainer', at: +NOW, clients: [E.engineSnapshot(away({ until: '2026-11-20' }))] };
-  const run = (snap, clientBreaks) => core.candidatesFor(snap, { tone: 'neutral', lastSeverity: {}, now: NOW, clientBreaks });
+  const has = (breaks) => ({ coached: new Set(['p1']), breaks });
+  const run = (snap, rosterAccess, revokedClients) => core.candidatesFor(snap, { tone: 'neutral', lastSeverity: {}, now: NOW, rosterAccess, revokedClients });
   assert.deepEqual(run(savedHere, null).candidates.map((c) => c.type), ['client_red']);
-  const fresh = run(savedHere, new Map([['p1', { until: '2026-11-20', by: 'member' }]]));
+  assert.deepEqual(run(savedHere, has(null)).candidates.map((c) => c.type), ['client_red'], 'theirs, the breaks unread: as saved');
+  const fresh = run(savedHere, has(new Map([['p1', { until: '2026-11-20', by: 'member' }]])));
   assert.deepEqual(fresh.candidates, []);
   assert.ok('p1' in fresh.coachSeen && !['red', 'amber'].includes(fresh.coachSeen.p1), 'seen clear');
   // A break the roster was saved with and no longer on record: as if none. One the read didn't list: as saved.
-  assert.deepEqual(run(savedAway, new Map([['p1', null]])).candidates.map((c) => c.type), ['client_red']);
-  assert.deepEqual(run(savedAway, new Map()).candidates, []);
+  assert.deepEqual(run(savedAway, has(new Map([['p1', null]]))).candidates.map((c) => c.type), ['client_red']);
+  assert.deepEqual(run(savedAway, has(new Map())).candidates, []);
+  // ⚠ A CLIENT THEY NO LONGER HAVE IS NOT EVALUATED (CodeRabbit's security check): red in the saved
+  // roster, nothing sent, and seen clear, so an alert held for them goes too. So for the live route's
+  // refused clients.
+  const gone = run(savedHere, { coached: new Set(), breaks: new Map() });
+  assert.deepEqual([gone.candidates, gone.coachSeen], [[], { p1: 'clear' }]);
+  assert.deepEqual(run({ ...savedHere, clients: [] }, null, ['p1']).coachSeen, { p1: 'clear' });
   // The alert held for them before they went away is dropped, not sent.
   const held = { type: 'client_red', key: 'p1', sig: 'red:No food logs', title: 'Pat', body: 'No food logs', route: 'client', data: { providerRole: 'trainer' }, priority: 'high', channels: { push: true }, at: +NOW - 3600000 };
-  const d = NOTIFY.decideNotifications({ candidates: fresh.candidates, last: { date: 'never', pendingDigest: [held] }, prefs: { ...NOTIFY.DEFAULT_PREFS, tz: 'UTC', capTz: 'UTC' }, now: NOW, audience: 'coach', coachSeen: fresh.coachSeen });
-  assert.deepEqual([d.nextState.pendingDigest, d.digest, d.send], [[], null, []]);
+  for (const r of [fresh, gone]) {
+    const d = NOTIFY.decideNotifications({ candidates: r.candidates, last: { date: 'never', pendingDigest: [held], coachClients: { p1: 'red' } }, prefs: { ...NOTIFY.DEFAULT_PREFS, tz: 'UTC', capTz: 'UTC' }, now: NOW, audience: 'coach', coachSeen: r.coachSeen });
+    assert.deepEqual([d.nextState.pendingDigest, d.digest, d.send, d.nextState.coachClients], [[], null, [], {}]);
+  }
   // The hourly run reads them for a coach's roster, with its other per-coach reads.
   const cron = read('src/app/api/ai/notify/cron/route.ts');
   assert.match(cron, /loadClientBreaks\(admin, userId, \(Array\.isArray\(snapshot\.clients\) \? snapshot\.clients : \[\]\)\.map\(coachRecordId\)\.filter\(\(v\): v is string => !!v\), now\),/);
-  assert.match(cron, /zone: prefs\.tz, memberPaused, clientBreaks \}\);/);
+  assert.match(cron, /zone: prefs\.tz, memberPaused, rosterAccess \}\);/);
+  // Fail closed: who they still have can't be read, so nothing goes this hour.
+  assert.match(cron, /if \(isCoach && !rosterAccess\) \{\n[^\n]*\n    return null;\n  \}/);
+  // The live route hands on the clients its scope check refused.
+  const live = read('src/app/api/ai/notify/route.ts');
+  assert.match(live, /revokedClients = clients\.map\(\(c, i\) => \(checks\[i\] === null \? coachRecordId\(c\) : null\)\)\.filter\(\(v\): v is string => !!v\);/);
+  assert.match(live, /zone: prefs\.tz, memberPaused, revokedClients \}\);/);
 });
 test('a member on a break is sent nothing held from before it began; a coach\'s held alert stays (Codex on #2705)', () => {
   const at = new Date('2026-11-11T15:00:00Z');

@@ -66,6 +66,7 @@ export async function POST(request: Request) {
   let habitContext: HabitContext | undefined;
   // A member on a break gets none of their own notices (loadMemberPaused, asked as the member).
   let memberPaused = false;
+  let revokedClients: string[] = [];
   if (isCoach) {
     const clients = Array.isArray(parsed.data.clients) ? parsed.data.clients.slice(0, 100) : [];
     // Re-check coach scope for every client in PARALLEL — sequential RPCs for up
@@ -83,6 +84,8 @@ export async function POST(request: Request) {
       })
     );
     snapshot.clients = checks.filter((c): c is unknown => c !== null);
+    // The posted clients it refused (or couldn't check): an alert held for them is dropped (CodeRabbit on #2705).
+    revokedClients = clients.map((c, i) => (checks[i] === null ? coachRecordId(c) : null)).filter((v): v is string => !!v);
   } else {
     const record = parsed.data.record;
     if (!record || typeof record !== 'object') {
@@ -102,7 +105,7 @@ export async function POST(request: Request) {
     : [null, null];
   // The reader's language: a member's notices, and a coach's alert titles and digest.
   const copy = memberCopy(localeDoc, settings);
-  const { audience, candidates, coachSeen } = candidatesFor(snapshot, { tone, lastSeverity: (last.coachClients as Record<string, string>) || {}, now, habitContext, checkinOptedOut, thresholds, copy, coachContext, zone: prefs.tz, memberPaused });
+  const { audience, candidates, coachSeen } = candidatesFor(snapshot, { tone, lastSeverity: (last.coachClients as Record<string, string>) || {}, now, habitContext, checkinOptedOut, thresholds, copy, coachContext, zone: prefs.tz, memberPaused, revokedClients });
   // The pushes decided are claimed under the person's cap before anything is sent (decideAndClaim).
   const admin = createAdminClient();
   const { decided, claim } = await decideAndClaim(admin, actor.user.id, { candidates, last, prefs, now, audience, checkinOptedOut, pushedToday, memberPaused, tr: copy?.tr, coachSeen }, prefs.capTz);

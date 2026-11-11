@@ -249,6 +249,9 @@ export async function loadMemberPaused(client: SupabaseClient, userId: string, n
 // A client's break as the engine reads it (dashSignals.js pauseOf): its last day away, who set it, and
 // the instant their return day begins in their own zone (get_client_pause's back_at).
 export type ClientBreak = { until: string; by: string | null; backAt?: string };
+// Who of a stored roster the coach still has (`coached`), and those clients' latest breaks read fresh
+// (`breaks`: null when they couldn't be read). loadClientBreaks.
+export type RosterAccess = { coached: Set<string>; breaks: Map<string, ClientBreak | null> | null };
 // ⚠ A COACH'S STORED ROSTER HOLDS EACH CLIENT'S BREAK AS OF ITS SAVE (Codex on #2705). The hourly run
 // reads that roster while the coach is away from Shape, so a break set since read as no break: an alert
 // for a client now away was still sent, or sent from the digest it was held in. Each client's latest
@@ -262,10 +265,14 @@ export type ClientBreak = { until: string; by: string | null; backAt?: string };
 // ended, to whoever wrote it. A client is read only when is_coach_on_client would answer for this coach
 // (an active, trialing or past-due subscription to a listing they own); the rest are left out, read as
 // saved. A check that can't be made reads nothing (null).
-export async function loadClientBreaks(admin: SupabaseClient, coachId: string, clientIds: string[], now: Date): Promise<Map<string, ClientBreak | null> | null> {
+// ⚠ AND ONLY THE COACH'S OWN CLIENTS ARE EVALUATED (CodeRabbit's security check on #2705): `coached` is
+// who of the roster they still have, and candidatesFor `rosterAccess` evaluates those alone, dropping
+// the alerts held for the rest. So a client who has left, or one a forged roster names, is never
+// alerted about from what the roster held. null when the check can't be made: the run sends nothing.
+export async function loadClientBreaks(admin: SupabaseClient, coachId: string, clientIds: string[], now: Date): Promise<RosterAccess | null> {
   const asked = [...new Set((Array.isArray(clientIds) ? clientIds : []).filter((v) => typeof v === 'string' && v))].slice(0, 100);
   const out = new Map<string, ClientBreak | null>();
-  if (!asked.length || typeof coachId !== 'string' || !coachId) return out;
+  if (!asked.length || typeof coachId !== 'string' || !coachId) return { coached: new Set(), breaks: out };
   try {
     // 16 days of UTC's calendar: get_client_pause's 15 in the member's own, whichever side of UTC.
     const floor = new Date(now.getTime() - 16 * 86_400_000).toISOString().slice(0, 10);
@@ -278,13 +285,14 @@ export async function loadClientBreaks(admin: SupabaseClient, coachId: string, c
       admin.from('profiles').select('id, timezone').in('id', asked),
     ]);
     if (trainers.error || nutritionists.error || subs.error || !Array.isArray(subs.data)) return null;
-    if (pauses.error || !Array.isArray(pauses.data)) return null;
     const own = (r: { data: unknown }) => new Set((Array.isArray(r.data) ? r.data as { id?: unknown }[] : []).map((x) => String(x.id)));
     const tIds = own(trainers), nIds = own(nutritionists);
     const coached = new Set((subs.data as { client_id?: unknown; provider_id?: unknown; provider_role?: unknown }[])
       .filter((x) => (x.provider_role === 'trainer' && tIds.has(String(x.provider_id))) || (x.provider_role === 'nutritionist' && nIds.has(String(x.provider_id))))
       .map((x) => String(x.client_id)));
     const ids = asked.filter((id) => coached.has(id));
+    // The breaks unread: who they still have is known, their breaks are as the roster was saved.
+    if (pauses.error || !Array.isArray(pauses.data)) return { coached, breaks: null };
     const zoneOf = zones.error || !Array.isArray(zones.data) ? null
       : new Map((zones.data as { id?: unknown; timezone?: unknown }[]).map((z) => [String(z.id), normalizeZone(z.timezone) || 'UTC']));
     const latest = new Map<string, { id: number; from_on: string; until_on: string; set_by_role: unknown }>();
@@ -308,7 +316,7 @@ export async function loadClientBreaks(admin: SupabaseClient, coachId: string, c
       }
       out.set(id, b);
     }
-    return out;
+    return { coached, breaks: out };
   } catch {
     return null;
   }
@@ -346,17 +354,26 @@ export function candidatesFor(
     // A member on a break (loadMemberPaused): none of their own notices. A coach's roster reads each
     // client's pause from the roster itself, unless `clientBreaks` says otherwise.
     memberPaused?: boolean;
-    // Each client's latest break read fresh (loadClientBreaks), laid over a coach's roster: a client
-    // listed with null has none. Omitted or null: the breaks the roster was saved with.
-    clientBreaks?: Map<string, ClientBreak | null> | null;
+    // Who of a coach's stored roster they still have, and those clients' breaks read fresh
+    // (loadClientBreaks): only those clients are evaluated, each break laid over the saved one (null:
+    // none). Omitted: the roster as saved (the live route, whose roster is checked as it is posted).
+    rosterAccess?: RosterAccess | null;
+    // Clients the coach no longer has (the live route's scope check, and loadClientBreaks): an alert
+    // held for them is dropped, and they are forgotten (coachSeen 'clear').
+    revokedClients?: string[];
   },
 ): { audience: 'client' | 'coach'; candidates: Candidate[]; coachSeen?: Record<string, string> } {
   const role = snapshot.role || '';
   if (isCoachRole(role)) {
     const saved = Array.isArray(snapshot.clients) ? snapshot.clients : [];
-    // Each client's break as it is now, over the one the roster was saved with (loadClientBreaks).
-    const fresh = opts.clientBreaks;
-    const raw = !fresh ? saved : saved.map((c) => {
+    // Only the clients the coach still has, each break as it is now over the one the roster was saved
+    // with (loadClientBreaks); the rest are dropped, and so are the alerts held for them.
+    const access = opts.rosterAccess || null;
+    const kept = !access ? saved : saved.filter((c) => { const id = coachRecordId(c); return !!id && access.coached.has(id); });
+    const revoked = new Set((Array.isArray(opts.revokedClients) ? opts.revokedClients : []).filter((v) => typeof v === 'string' && v));
+    if (access) for (const c of saved) { const id = coachRecordId(c); if (id && !access.coached.has(id)) revoked.add(id); }
+    const fresh = access ? access.breaks : null;
+    const raw = !fresh ? kept : kept.map((c) => {
       const id = coachRecordId(c);
       if (!id || !fresh.has(id) || !c || typeof c !== 'object') return c;
       return { ...(c as Record<string, unknown>), pause: fresh.get(id) ?? null };
@@ -378,8 +395,9 @@ export function candidatesFor(
     return {
       audience: 'coach',
       candidates: Notify.coachCandidates({ triageRows: rows, lastSeverity: opts.lastSeverity, providerRole: role, tr: opts.copy?.tr }),
-      // Who this run saw clear, so the alert memory forgets them (settleCoachMemory).
-      coachSeen: Notify.coachSeen(rows),
+      // Who this run saw clear, so the alert memory forgets them (settleCoachMemory), and those the coach
+      // no longer has, so an alert held for them is dropped (decideNotifications).
+      coachSeen: { ...Object.fromEntries([...revoked].map((id) => [id, 'clear'])), ...Notify.coachSeen(rows) },
     };
   }
   const candidates: Candidate[] = [];

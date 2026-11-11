@@ -94,9 +94,9 @@ export default {
     { name: 'a member\'s record is read in no zone', file: CORE,
       find: '    const { directive, flags } = engine.inZone(opts.zone || snapshot.tz || null, opts.now, (at) => ({', replace: '    const { directive, flags } = engine.inZone(null, opts.now, (at) => ({' },
     { name: 'the hourly run passes no zone', file: CRON,
-      find: 'thresholds, copy, coachContext, zone: prefs.tz, memberPaused, clientBreaks });', replace: 'thresholds, copy, coachContext, memberPaused, clientBreaks });' },
+      find: 'thresholds, copy, coachContext, zone: prefs.tz, memberPaused, rosterAccess });', replace: 'thresholds, copy, coachContext, memberPaused, rosterAccess });' },
     { name: 'the live route passes no zone', file: LIVE,
-      find: 'thresholds, copy, coachContext, zone: prefs.tz, memberPaused });', replace: 'thresholds, copy, coachContext, memberPaused });' },
+      find: 'thresholds, copy, coachContext, zone: prefs.tz, memberPaused, revokedClients });', replace: 'thresholds, copy, coachContext, memberPaused, revokedClients });' },
     { name: 'Nora triages in no zone', file: NORA,
       find: '      try { feed = engine.inZone(zone, now, (at) =>', replace: '      try { feed = engine.inZone(null, now, (at) =>' },
     // ── F3: Nora's reason ──────────────────────────────────────────────────────
