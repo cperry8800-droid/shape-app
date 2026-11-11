@@ -26943,7 +26943,7 @@ function BSVideoCall({ url, onClose, title = 'Live call' }) {
   const t = useBS();
   // A call is ended with its own button, never by a stray Back: the phone's back stays on it (services/dialogBack.mjs).
   return (
-    <div role="dialog" aria-modal="true" aria-label={title} data-bs-dialog="stay" style={{ position: 'fixed', inset: 0, zIndex: 9999, background: '#000', display: 'flex', flexDirection: 'column' }}>
+    <div ref={bsDialogRef(null)} role="dialog" aria-modal="true" aria-label={title} data-bs-dialog="stay" style={{ position: 'fixed', inset: 0, zIndex: 9999, background: '#000', display: 'flex', flexDirection: 'column' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: 'calc(env(safe-area-inset-top, 0px) + 10px) 14px 10px', background: '#000', borderBottom: '1px solid rgba(255,255,255,0.12)' }}>
         <span style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.2em', textTransform: 'uppercase', color: '#fff', fontWeight: 700 }}>Shape · {title}</span>
         <button onClick={onClose} style={{ padding: '8px 14px', borderRadius: 999, border: 0, background: t.RUST, color: '#fff', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer' }}>Leave</button>

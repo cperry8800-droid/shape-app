@@ -98,6 +98,12 @@ test('the shell hears a dialog appear and go, but not a re-render', async () => 
     gone(null);
     await new Promise((r) => setTimeout(r, 5));
     assert.equal(heard, 2, 'a dialog that went');
+    // A dialog that must be answered registers with no close, and the shell still hears it open (Codex P2 on
+    // #2696: the required update and the clock question appear without a tap).
+    const gate = el({ role: 'alertdialog', 'data-bs-dialog': BS_DIALOG_STAY });
+    bsDialogRef(null)(gate);
+    assert.equal(heard, 3, 'a stay dialog that opened');
+    assert.equal(bsDialogStays(gate), true);
   } finally {
     globalThis.window = prevWindow;
   }
@@ -141,16 +147,18 @@ for (const f of FILES) {
     const open = n.openingElement;
     const ref = attrOf(open, 'ref');
     const viaRef = !!(ref && ref.value && ref.value.type === 'JSXExpressionContainer' && ref.value.expression.type === 'CallExpression' && ref.value.expression.callee.name === 'bsDialogRef');
-    DIALOGS.push({ at: `${f.rel}:${open.loc.start.line}`, file: f.rel, viaRef, stay: strAttr(open, 'data-bs-dialog') === BS_DIALOG_STAY, closeArgs: viaRef ? ref.value.expression.arguments.length : 0 });
+    DIALOGS.push({ at: `${f.rel}:${open.loc.start.line}`, file: f.rel, viaRef, stay: strAttr(open, 'data-bs-dialog') === BS_DIALOG_STAY, closeArgs: viaRef ? ref.value.expression.arguments.length : 0, firstArg: viaRef && ref.value.expression.arguments[0] ? ref.value.expression.arguments[0].type : null });
   });
 }
 
-test('every role="dialog" and role="alertdialog" takes bsDialogRef(close) or data-bs-dialog="stay"', () => {
+test('every role="dialog" and role="alertdialog" takes bsDialogRef(close), or bsDialogRef(null) with data-bs-dialog="stay"', () => {
   assert.ok(DIALOGS.length >= 70, `only ${DIALOGS.length} dialogs found: the scan broke`);
-  const bare = DIALOGS.filter((d) => !d.viaRef && !d.stay).map((d) => d.at);
-  assert.deepEqual(bare, [], 'a dialog a Back cannot close: the phone\'s back would step the page behind it, or leave the app');
-  const both = DIALOGS.filter((d) => d.viaRef && d.stay).map((d) => d.at);
-  assert.deepEqual(both, [], 'a dialog is one or the other');
+  const bare = DIALOGS.filter((d) => !d.viaRef).map((d) => d.at);
+  assert.deepEqual(bare, [], 'a dialog a Back cannot close, or one the shell is never told of: the phone\'s back would step the page behind it, or leave the app');
+  // A stay dialog registers too, with no close: its ref is what tells the shell it opened, so a gate that appears
+  // without a tap (a required update, the clock question) still arms the guard (Codex P2 on #2696).
+  const stayNoNull = DIALOGS.filter((d) => d.stay && d.firstArg !== 'NullLiteral').map((d) => d.at);
+  assert.deepEqual(stayNoNull, [], 'a dialog that must be answered names a close');
   for (const d of DIALOGS.filter((x) => x.viaRef)) assert.ok(d.closeArgs >= 1, `${d.at}: bsDialogRef() names no close`);
   // The 23 files the War Room named are all in.
   const files = new Set(DIALOGS.map((d) => d.file.replace('mobile-app/src/broadsheet/', '')));
@@ -168,8 +176,8 @@ test('the dialogs a Back may not close are the three that must be answered', () 
     'mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx',
   ]);
   const client = read('mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx');
-  assert.match(between(client, 'function BSVideoCall(', '\n}\n'), /role="dialog" aria-modal="true" aria-label=\{title\} data-bs-dialog="stay"/);
-  assert.match(read('mobile-app/src/broadsheet/BSUpdateGate.jsx'), /role="alertdialog"[^>]*data-bs-update="required" data-bs-dialog="stay"/);
+  assert.match(between(client, 'function BSVideoCall(', '\n}\n'), /<div ref=\{bsDialogRef\(null\)\} role="dialog" aria-modal="true" aria-label=\{title\} data-bs-dialog="stay"/);
+  assert.match(read('mobile-app/src/broadsheet/BSUpdateGate.jsx'), /ref=\{bsDialogRef\(null, gateRef\)\} role="alertdialog"[^>]*data-bs-update="required" data-bs-dialog="stay"/);
 });
 
 test('a sheet\'s scrim always holds a dialog, so a Back finds the sheet a tap outside would close', () => {

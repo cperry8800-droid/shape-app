@@ -9,7 +9,8 @@
 //                                       element's own ref after it (bsDialogRef(close, panelRef)) and both
 //                                       are kept. A close of null (bsDialogRef(busy ? null : onClose)) is a
 //                                       dialog that cannot close right now: a Back stays.
-//   data-bs-dialog="stay"               a dialog that must be answered (a required update, a question with
+//   ref={bsDialogRef(null, ownRef?)} data-bs-dialog="stay"
+//                                       a dialog that must be answered (a required update, a question with
 //                                       no way out but its answers): a Back does nothing while it shows. It
 //                                       never leaves the app and never steps the page behind it.
 // tests/dialog-back.test.mjs holds every dialog in mobile-app/src to one of the two.
