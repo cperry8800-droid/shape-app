@@ -499,7 +499,10 @@ test('the screens: the member\'s Settings, the coach\'s case file and roster, th
   assert.doesNotMatch(mod, /from '\.\/iosAppBroadsheet/, 'never an import back into a client module');
   // A saved break re-reads the roster behind the case file (Codex on #2705: ShapeSignals.changed, tested
   // in tests/app-roster-loading.test.mjs), read at call time.
-  assert.match(mod, /if \(r\.ok\) \{ setSave\(\{ kind: 'idle' \}\); setAttempt\(\(n\) => n \+ 1\); try \{ window\.ShapeSignals\?\.changed\?\.\(\); \} catch \(e\) \{\} \}/);
+  assert.match(mod, /if \(r\.ok\) \{\n\s+setSave\(\{ kind: 'idle' \}\);\n\s+setAttempt\(\(n\) => n \+ 1\);\n\s+try \{ window\.ShapeSignals\?\.changed\?\.\(\); \} catch \(e\) \{\}\n/);
+  // …and the member's own break takes this device's habit reminders down, or puts them back (habitBreak.mjs,
+  // tests/habit-break.test.mjs).
+  assert.match(mod, /if \(clientId === uid\) \{ try \{ window\.ShapeHabitReminders\?\.syncBreak\?\.\(true\); \} catch \(e\) \{\} \}/);
   const words = [...mod.matchAll(/defaultValue: (?:[^']*?)'([^']*)'(?: : '([^']*)')?/g)].flatMap((m) => [m[1], m[2]]).filter(Boolean);
   assert.ok(words.length > 15, 'its words found');
   assert.deepEqual(words.filter((w) => /\bpaus/i.test(w)), [], 'its words say away and break, never pause (the membership\'s)');

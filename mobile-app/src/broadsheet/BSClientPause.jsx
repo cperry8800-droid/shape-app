@@ -62,7 +62,13 @@ function usePause(clientId) {
     const r = await writeClientPause(dbClient(), clientId, until);
     if (currentUid() !== uid) return;
     // Saved: the roster behind this case file re-reads too, so Clients says Away (or not) on the way back.
-    if (r.ok) { setSave({ kind: 'idle' }); setAttempt((n) => n + 1); try { window.ShapeSignals?.changed?.(); } catch (e) {} }
+    if (r.ok) {
+      setSave({ kind: 'idle' });
+      setAttempt((n) => n + 1);
+      try { window.ShapeSignals?.changed?.(); } catch (e) {}
+      // Their own break: this device's habit reminders go down with it, or come back (habitBreak.mjs).
+      if (clientId === uid) { try { window.ShapeHabitReminders?.syncBreak?.(true); } catch (e) {} }
+    }
     else setSave({ kind: 'failed', error: r.error });
   };
   return { read, save, write, retry: () => setAttempt((n) => n + 1) };

@@ -21,8 +21,10 @@ const REM = 'src/app/api/cron/reminders/route.ts';
 const WEB = 'public/supabase.js';
 const PAUSE_UI = 'mobile-app/src/broadsheet/BSClientPause.jsx';
 const SIG = 'mobile-app/src/services/shapeSignals.js';
+const HB = 'mobile-app/src/services/habitBreak.mjs';
+const BE = 'mobile-app/src/services/shapeBackend.js';
 export default {
-  test: 'node --test tests/client-pause.test.mjs tests/client-pause-sql.test.mjs tests/coach-alert-memory.test.mjs tests/member-engine-reasons.test.mjs tests/dash-signals.test.mjs tests/app-roster-loading.test.mjs',
+  test: 'node --test tests/client-pause.test.mjs tests/client-pause-sql.test.mjs tests/coach-alert-memory.test.mjs tests/member-engine-reasons.test.mjs tests/dash-signals.test.mjs tests/app-roster-loading.test.mjs tests/habit-break.test.mjs',
   mutations: [
     // ── the migration ──────────────────────────────────────────────────────────
     { name: 'the table has no row level security', file: SQL,
@@ -108,11 +110,38 @@ export default {
     { name: 'the contact gap since a break counts the viewer\'s days, not the member\'s (Codex on #2705)', file: ENG,
       find: '      gap = resumeDays(c, now);\n      if (gap < THRESHOLDS.CONTACT_GAP_DAYS) return null;', replace: '      gap = daysBetween(backDay, now);\n      if (gap < THRESHOLDS.CONTACT_GAP_DAYS) return null;' },
     { name: 'a break saved from the case file leaves the roster on its cached feed (Codex on #2705)', file: PAUSE_UI,
-      find: " try { window.ShapeSignals?.changed?.(); } catch (e) {} }", replace: " }" },
+      find: "      try { window.ShapeSignals?.changed?.(); } catch (e) {}\n", replace: '' },
     { name: 'the roster is told to re-read, but its cached feed is kept', file: SIG,
       find: "  changed() {\n    for (const k of Object.keys(_triageCache)) delete _triageCache[k];\n", replace: "  changed() {\n" },
     { name: 'the cached feed is dropped, but the roster is never told', file: SIG,
       find: "    for (const k of Object.keys(_triageCache)) delete _triageCache[k];\n    try { window.dispatchEvent(new CustomEvent('shape:signalsChanged')); } catch (e) {}\n  },\n  async restore", replace: "    for (const k of Object.keys(_triageCache)) delete _triageCache[k];\n  },\n  async restore" },
+    // ── the device's own habit reminders (Codex on #2705) ──
+    { name: 'a break leaves the phone\'s habit reminders up', file: HB,
+      find: "    await cancelAll();\n", replace: '' },
+    { name: 'reminders taken down for a break are never put back', file: HB,
+      find: "    markTakenDown(storage, uid, [...ids]);\n", replace: '' },
+    { name: 'every reminder is put up again, whether or not a break took it down', file: HB,
+      find: "  if (!before) return 'present';\n", replace: '' },
+    { name: 'a failed read of the reminders forgets they were taken down', file: HB,
+      find: "  if (!Array.isArray(rows)) return 'unread';", replace: "  if (!Array.isArray(rows)) { markTakenDown(storage, uid, null); return 'unread'; }" },
+    { name: 'one refused reminder keeps the rest down', file: HB,
+      find: "    try { await schedule(row); } catch { /* that one */ }", replace: "    await schedule(row);" },
+    { name: 'a break that isn\'t there yet puts reminders up', file: HB,
+      find: "  if (!read.ok || !read.ready) return 'unread';", replace: "  if (!read.ok) return 'unread';" },
+    { name: 'a reminder switched off is put back up', file: HB,
+      find: "    if (!row || row.enabled === false) continue;", replace: "    if (!row) continue;" },
+    { name: 'every reminder switched on goes back up, not only the ones this phone took down', file: HB,
+      find: "    if (!back.has(ALL) && !back.has(String(row.habit_id))) continue;\n", replace: '' },
+    { name: 'a second take-down forgets the reminders the first took down', file: HB,
+      find: "    const ids = new Set(before || []);", replace: "    const ids = new Set();" },
+    { name: 'a phone that can\'t tell which are on it puts none back', file: HB,
+      find: "    else ids.add(ALL);\n", replace: '' },
+    { name: 'the member\'s own break saved on the phone leaves its reminders as they were', file: PAUSE_UI,
+      find: "      if (clientId === uid) { try { window.ShapeHabitReminders?.syncBreak?.(true); } catch (e) {} }\n", replace: '' },
+    { name: 'a reminder saved while away stays up', file: BE,
+      find: "  // Saved while away: the break takes it down again with the rest (syncHabitBreak).\n  void syncHabitBreak(true);\n", replace: '' },
+    { name: 'the app never checks the break at sign-in', file: BE,
+      find: "  if (uid && uid !== prevUid) { try { setTimeout(() => { void syncHabitBreak(true); }, 0); } catch (e) {} }\n", replace: '' },
     { name: 'the roster a coach posts drops the break (Codex on #2705)', file: ENG,
       find: '    "pause"];', replace: '    ];' },
     { name: 'the overview drops when the member is back', file: OV,
