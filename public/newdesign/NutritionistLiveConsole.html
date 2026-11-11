@@ -245,6 +245,8 @@ function NutritionistLiveConsolePage() {
           // last 90 days, which "Logged today" used to show. A failed read is said, not shown as nothing.
           const todayByClient = d.todayByClient || {};
           const todayUnread = d.todayUnread === true;
+          // The 90-day read failed: the chart and the latest snapshot didn't load, which is not "no data yet".
+          const trajectoryUnread = d.trajectoryUnread === true;
           const mapped = d.clients.map(c => {
             const s = snapByClient[c.id] || {};
             const today = todayByClient[c.id] || null;
@@ -278,12 +280,15 @@ function NutritionistLiveConsolePage() {
                 sleep: s.sleep_hours != null ? fmt1(s.sleep_hours) : '—',
                 stress: s.stress != null ? Number(s.stress) : '—',
               },
-              recoveryNote: s.snapshot_date
+              recoveryNote: trajectoryUnread
+                ? "Recent data didn't load. Refresh to try again."
+                : s.snapshot_date
                 ? 'Latest snapshot ' + s.snapshot_date + '. Resting HR, sleep, and stress refresh as new wearable / check-in data syncs.'
                 : 'Recovery signals will appear once a wearable connects or the client logs a daily snapshot.',
               focusBanner: '',
               plan: [],
               realSeries: series,
+              trajectoryUnread,
             };
           });
           setServerClients(mapped);
@@ -690,7 +695,7 @@ function NutritionistLiveConsolePage() {
         }>Trajectory</SectionTitle>
         {(client.isReal && metricsForView.length === 0) ? (
           <div style={{ padding: "26px 4px", color: "var(--sh-ink2, #a09b94)", fontSize: 13, lineHeight: 1.55 }}>
-            Trajectory appears once {firstName(client.name)}'s daily_health_snapshot rows start landing (WHOOP / Strava sync, workout log, or manual nutrition entry).
+            {client.trajectoryUnread ? "The trajectory didn't load. Refresh to try again." : <>Trajectory appears once {firstName(client.name)}'s daily_health_snapshot rows start landing (WHOOP / Strava sync, workout log, or manual nutrition entry).</>}
           </div>
         ) : (<>
         {range === "custom" && (
