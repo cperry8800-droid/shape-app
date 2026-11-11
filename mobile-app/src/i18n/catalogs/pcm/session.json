@@ -371,5 +371,14 @@
   "burn.page.toCome": "Still dey come",
   "burn.page.notTracked": "No track",
   "burn.page.today": "Today",
-  "burn.page.rule": "One day count once: di watch reading for di whole day, or di workouts wey you log dat day."
+  "burn.page.rule": "One day count once: di watch reading for di whole day, or di workouts wey you log dat day.",
+  "train.coachAdded.unread": "The exercise wey your trainer add no gree load.",
+  "train.coachAdded.retry": "Try am again",
+  "train.coachAdded.from": "From {name}",
+  "train.coachAdded.fromTrainer": "From your trainer",
+  "train.coachAdded.today": "Dem add am today",
+  "train.coachAdded.onDay": "Dem add am · {day}",
+  "train.coachAdded.count": "{count, plural, one {# exercise} other {# exercises}}",
+  "train.coachAdded.tempo": "Tempo {tempo}",
+  "train.coachAdded.start": "Start dem"
 }

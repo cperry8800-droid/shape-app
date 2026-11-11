@@ -371,5 +371,14 @@
   "burn.page.toCome": "Da venire",
   "burn.page.notTracked": "Non registrato",
   "burn.page.today": "Oggi",
-  "burn.page.rule": "Un giorno conta una volta: la lettura di un orologio per tutta la giornata, altrimenti gli allenamenti registrati quel giorno."
+  "burn.page.rule": "Un giorno conta una volta: la lettura di un orologio per tutta la giornata, altrimenti gli allenamenti registrati quel giorno.",
+  "train.coachAdded.unread": "Non è stato possibile caricare gli esercizi aggiunti dal tuo trainer.",
+  "train.coachAdded.retry": "Riprova",
+  "train.coachAdded.from": "Da {name}",
+  "train.coachAdded.fromTrainer": "Dal tuo trainer",
+  "train.coachAdded.today": "Aggiunti oggi",
+  "train.coachAdded.onDay": "Aggiunti · {day}",
+  "train.coachAdded.count": "{count, plural, one {# esercizio} other {# esercizi}}",
+  "train.coachAdded.tempo": "Tempo {tempo}",
+  "train.coachAdded.start": "Inizia questi"
 }

@@ -371,5 +371,14 @@
   "burn.page.toCome": "Kommt noch",
   "burn.page.notTracked": "Nicht erfasst",
   "burn.page.today": "Heute",
-  "burn.page.rule": "Ein Tag zählt einmal: der Wert einer Uhr für den ganzen Tag, sonst die an dem Tag erfassten Workouts."
+  "burn.page.rule": "Ein Tag zählt einmal: der Wert einer Uhr für den ganzen Tag, sonst die an dem Tag erfassten Workouts.",
+  "train.coachAdded.unread": "Die von deinem Trainer hinzugefügten Übungen konnten nicht geladen werden.",
+  "train.coachAdded.retry": "Erneut versuchen",
+  "train.coachAdded.from": "Von {name}",
+  "train.coachAdded.fromTrainer": "Von deinem Trainer",
+  "train.coachAdded.today": "Heute hinzugefügt",
+  "train.coachAdded.onDay": "Hinzugefügt · {day}",
+  "train.coachAdded.count": "{count, plural, one {# Übung} other {# Übungen}}",
+  "train.coachAdded.tempo": "Tempo {tempo}",
+  "train.coachAdded.start": "Diese starten"
 }

@@ -371,5 +371,14 @@
   "burn.page.toCome": "Por vir",
   "burn.page.notTracked": "Sem registro",
   "burn.page.today": "Hoje",
-  "burn.page.rule": "Cada dia conta uma vez: a leitura de um relógio para o dia todo ou, se não houver, os treinos registrados naquele dia."
+  "burn.page.rule": "Cada dia conta uma vez: a leitura de um relógio para o dia todo ou, se não houver, os treinos registrados naquele dia.",
+  "train.coachAdded.unread": "Não foi possível carregar os exercícios que seu treinador adicionou.",
+  "train.coachAdded.retry": "Tentar de novo",
+  "train.coachAdded.from": "De {name}",
+  "train.coachAdded.fromTrainer": "Do seu treinador",
+  "train.coachAdded.today": "Adicionados hoje",
+  "train.coachAdded.onDay": "Adicionados · {day}",
+  "train.coachAdded.count": "{count, plural, one {# exercício} other {# exercícios}}",
+  "train.coachAdded.tempo": "Cadência {tempo}",
+  "train.coachAdded.start": "Começar estes"
 }

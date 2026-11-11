@@ -10380,6 +10380,9 @@ async function fetchCoachConsoleFeed() {
         .from('coach_pushed_items')
         .select('id, provider_role, provider_id, kind, payload, sent_at')
         .eq('client_id', userId)
+        // A coach's exercises and meals: never the live cues (kind 'cue'), a row a cue that only the
+        // workout screen reads (subscribeWorkoutCoachCues).
+        .in('kind', ['exercise', 'meal'])
         .is('removed_at', null)
         .order('sent_at', { ascending: true }),
     ]);
@@ -10445,7 +10448,9 @@ async function sendWorkoutCoachCue({ clientId, text, role = 'trainer' } = {}) {
   try {
     const response = await fetch(`${apiBaseUrl || ''}/api/${discipline}/console`, {
       method: 'POST', credentials: 'same-origin', headers: sessionsAuthHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({ action: 'focus', clientId: recipient, text: cue }), signal: controller.signal,
+      // ⚠ 'cue', NEVER 'focus' (2026-11-10): the focus is the coach's weekly banner on the member's Home,
+      // one row per coach and client, and a cue sent as 'focus' replaced it.
+      body: JSON.stringify({ action: 'cue', clientId: recipient, text: cue }), signal: controller.signal,
     });
     const result = await response.json().catch(() => ({}));
     if (state.user?.id !== owner) throw new Error('Account changed. Reopen the client before sending another cue.');
@@ -10455,9 +10460,11 @@ async function sendWorkoutCoachCue({ clientId, text, role = 'trainer' } = {}) {
 }
 
 let workoutCueSubscriptionId = 0;
-// Focus banners retain only the latest cue per coach. Read the client's own
-// RLS-scoped rows and ignore anything sent before this workout began. Polling
-// and foreground refresh recover missed websocket events; neither is a receipt.
+// A coach's live cues are coach_pushed_items rows of kind 'cue' (payload { text }), one a cue
+// (2026-11-10-coach-live-cues.sql); the focus banner is the coach's weekly focus and never a cue. Read
+// the client's own RLS-scoped rows and ignore anything sent before this workout began. Polling and
+// foreground refresh recover missed websocket events; neither is a receipt. Each row reaches onCue as
+// { id, client_id, provider_role, provider_id, text, sent_at }.
 function subscribeWorkoutCoachCues({ userId, startedAt, onCue, onStatus = () => {} } = {}) {
   const owner = state.user?.id;
   const since = Date.parse(startedAt);
@@ -10493,21 +10500,28 @@ function subscribeWorkoutCoachCues({ userId, startedAt, onCue, onStatus = () => 
     readAbort = new AbortController();
     const deadline = setTimeout(() => readAbort?.abort(), 15000);
     try {
-      const result = await supabase.from('coach_focus_banners')
-        .select('id, client_id, provider_role, provider_id, text, sent_at')
-        .eq('client_id', owner).gte('sent_at', new Date(since).toISOString())
+      const result = await supabase.from('coach_pushed_items')
+        .select('id, client_id, provider_role, provider_id, kind, payload, sent_at')
+        .eq('client_id', owner).eq('kind', 'cue').gte('sent_at', new Date(since).toISOString())
         .abortSignal(readAbort.signal)
         .order('sent_at', { ascending: false });
       if (!isCurrent()) return;
       if (result.error) throw result.error;
-      const eligible = (result.data || []).filter(row => row.client_id === owner
+      const rows = (result.data || []).filter(row => row && row.kind === 'cue').map(row => ({
+        id: row.id, client_id: row.client_id, provider_role: row.provider_role, provider_id: row.provider_id,
+        text: row.payload && typeof row.payload.text === 'string' ? row.payload.text : '', sent_at: row.sent_at,
+      }));
+      const eligible = rows.filter(row => row.client_id === owner
         && typeof row.text === 'string' && row.text.trim()
         && Number.isFinite(Date.parse(row.sent_at)) && Date.parse(row.sent_at) >= since)
         .sort((a, b) => Date.parse(b.sent_at) - Date.parse(a.sent_at));
       const key = row => JSON.stringify([row.id, row.provider_role, row.provider_id, row.sent_at, row.text]);
-      const latest = eligible.find(row => !seen.has(key(row)));
-      eligible.forEach(row => seen.add(key(row)));
-      if (latest) onCue(latest);
+      // ⚠ EVERY UNSEEN CUE, OLDEST FIRST (Codex P2 on #2686). A cue is a row of its own, not the one
+      // focus banner it was, so two sent within one read (inside the 8-second poll, or while a read is
+      // in flight) are two cues. Handing over only the newest marked the older one seen and lost it.
+      const fresh = eligible.filter(row => !seen.has(key(row))).reverse();
+      fresh.forEach(row => seen.add(key(row)));
+      fresh.forEach(row => onCue(row));
       onStatus('ready');
     } catch {
       if (isCurrent()) onStatus('error');
@@ -10526,7 +10540,7 @@ function subscribeWorkoutCoachCues({ userId, startedAt, onCue, onStatus = () => 
   onStatus('connecting');
   try {
     channel = supabase.channel(`workout-cues:${owner}:${++workoutCueSubscriptionId}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'coach_focus_banners', filter: `client_id=eq.${owner}` }, refresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'coach_pushed_items', filter: `client_id=eq.${owner}` }, refresh)
       .subscribe(status => {
         if (!isCurrent()) return;
         if (status === 'SUBSCRIBED') void refresh();
@@ -10537,11 +10551,56 @@ function subscribeWorkoutCoachCues({ userId, startedAt, onCue, onStatus = () => 
   return stop;
 }
 
+// The exercises the member's trainers pushed from the Live console, by the member's day
+// (/api/client/coach-exercises; Train shows them, BSCoachExercises.jsx). Resolves
+//   { status: 'ready', today, days }  days: { 'YYYY-MM-DD': exercise[] }, an empty list a day with none;
+//   { status: 'none' }                 signed out, another account by the time it answered, or refused
+//                                      by the age gate (403; a 402 too, should the route ever be paid):
+//                                      nothing to show;
+//   { status: 'error' }                the read failed: unread, never "your trainer added nothing".
+async function getCoachExercises() {
+  const owner = state.user?.id;
+  if (!supabase || !owner) return { status: 'none' };
+  try {
+    const res = await fetch(`${apiBaseUrl || ''}/api/client/coach-exercises`, { headers: sessionsAuthHeaders(), credentials: 'same-origin', cache: 'no-store' });
+    if (state.user?.id !== owner) return { status: 'none' };
+    if (res.status === 402 || res.status === 403) return { status: 'none' };
+    const body = await res.json().catch(() => null);
+    if (!res.ok || !body || body.ok !== true || !body.days || typeof body.days !== 'object') return { status: 'error' };
+    return { status: 'ready', today: typeof body.today === 'string' ? body.today : null, days: body.days };
+  } catch (e) {
+    return { status: 'error' };
+  }
+}
+
+// A change to the member's pushed exercises (an add, or a removal from the console), live. Each caller
+// gets a channel of its own: two subscribers on one topic would share it, and the first to leave would
+// close the other's. A cue's row (kind 'cue') is no exercise and is ignored.
+let coachExerciseChannelId = 0;
+function subscribeCoachExercises(onChange) {
+  const userId = state.user?.id;
+  if (!userId || !supabase || typeof onChange !== 'function') return () => {};
+  let channel = null;
+  try {
+    channel = supabase
+      .channel(`coach-exercises:${userId}:${++coachExerciseChannelId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'coach_pushed_items', filter: `client_id=eq.${userId}` }, (change) => {
+        const kind = change && ((change.new && change.new.kind) || (change.old && change.old.kind));
+        if (kind && kind !== 'exercise') return;
+        onChange(change);
+      })
+      .subscribe();
+  } catch (e) { return () => {}; }
+  return () => { try { supabase.removeChannel(channel); } catch (e) {} };
+}
+
 window.ShapeCoachFeed = {
   fetch: fetchCoachConsoleFeed,
   subscribe: subscribeCoachConsoleFeed,
   sendCue: sendWorkoutCoachCue,
   subscribeWorkoutCues: subscribeWorkoutCoachCues,
+  exercises: getCoachExercises,
+  subscribeExercises: subscribeCoachExercises,
 };
 
 // ─── Pro Console API (trainer / nutritionist side) ───────────────────────────
