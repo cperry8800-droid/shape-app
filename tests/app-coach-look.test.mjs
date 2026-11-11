@@ -157,6 +157,12 @@ test("on a coach's paper, a program's price and Start here's All posts read at 4
   const cl = fs.readFileSync(join(ROOT, 'mobile-app/src/broadsheet/BSCoachClimb.jsx'), 'utf8');
   assert.match(cl, /data-climb-price="" style=\{\{ padding: '6px 8px', background: CLIMB\.picked \? CLIMB\.BG : 'rgba\(0,0,0,0\.35\)'/, 'the price on a fixed black well');
   assert.match(cl, /data-climb-all-posts=""[^\n]*color: CLIMB\.picked \? ACC : \(nutri \? CLIMB\.GOLD : '#e0785f'\)/, 'All posts in the dark Climb\'s rust on a light paper');
+  // No text the theme colours sits on a fixed dark well: every rgba(0,0,0,…) behind CLIMB.INK is the Climb's
+  // own, kept only off a coach's paper (Codex on #2708: the price, then the empty wall's button).
+  for (const line of cl.split('\n').filter((l) => /background: 'rgba\(0,0,0,/.test(l) && /CLIMB\.INK|numFace\(/.test(l))) {
+    assert.fail(`a fixed dark well behind the theme's ink: ${line.trim().slice(0, 120)}`);
+  }
+  assert.match(cl, /data-climb-add-wall=""[^\n]*background: CLIMB\.picked \? CLIMB\.BG : 'rgba\(0,0,0,0\.35\)', color: CLIMB\.INK/, 'the empty wall\'s button');
   for (const paper of Object.keys(kit.BS_COACH_PAPERS)) for (const accent of Object.keys(kit.BS_COACH_ACCENTS)) for (const role of ['trainer', 'nutritionist']) {
     const P = bsCoachPagePalette({ paper, accent }, role);
     if (!P) continue;

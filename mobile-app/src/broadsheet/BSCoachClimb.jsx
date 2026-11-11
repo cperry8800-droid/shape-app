@@ -325,7 +325,7 @@ export function BSCoachClimb({ nutri = false, isSelf = false, isPrivate = false,
         </div>
         <div style={{ position: 'relative' }}>{mast}</div>
         {onAddWall && !wall ? (
-          <button type="button" data-climb-add-wall="" onClick={onAddWall} style={{ position: 'absolute', right: gutter, top: 'calc(var(--bs-mast-top, 12px) + 96px)', zIndex: 2, minHeight: 44, padding: '0 12px', border: `1px solid ${CLIMB.LINE2}`, borderRadius: 99, background: 'rgba(0,0,0,0.35)', color: CLIMB.INK, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>＋ {tr('profile:trainer.addWall', { defaultValue: 'Add a wall photo' })}</button>
+          <button type="button" data-climb-add-wall="" onClick={onAddWall} style={{ position: 'absolute', right: gutter, top: 'calc(var(--bs-mast-top, 12px) + 96px)', zIndex: 2, minHeight: 44, padding: '0 12px', border: `1px solid ${CLIMB.LINE2}`, borderRadius: 99, background: CLIMB.picked ? CLIMB.BG : 'rgba(0,0,0,0.35)', color: CLIMB.INK, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>＋ {tr('profile:trainer.addWall', { defaultValue: 'Add a wall photo' })}</button>
         ) : null}
         {/* The summit and the pins stand on the route, in the terrain's own 600px box. */}
         <div style={{ position: 'absolute', left: 0, right: 0, top: 0, height: 600, pointerEvents: 'none' }}>
