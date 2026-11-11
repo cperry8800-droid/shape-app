@@ -677,7 +677,7 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'OWNER: confirm the starting values, all changeable in Settings: the steps drop at 30% is an estimate; workouts missed at 50% and 2 in a row, quiet at 7 days, not started at 3, no booking at 14, the load at 1.5×', status: 'pending' },
         { label: 'The demo has no not-started client: Tess B., the one new client, logs from day one and is the green NEW example', status: 'pending' },
         { label: 'Gone quiet reads a message to this coach only (the caller\'s threads), not to the other coach', status: 'pending' },
-        { label: 'A nutritionist sees workouts missed only for a client with one trainer: split by trainer needs get_shared_client_workouts to return the trainer\'s listing id (a migration)', status: 'pending' },
+        { label: 'A nutritionist sees workouts missed only for a client with one trainer, and only while get_shared_client_workouts\' 200 newest rows reach back to the 4-week window (it caps before any date filter; Codex P2). Both want one migration: the RPC returning the trainer\'s listing id and taking a date range', status: 'pending' },
         { label: 'Tests: tests/coach-alerts-trainer.test.mjs; mutation spec tests/mutations/coach-alerts-trainer.mutations.mjs', status: 'done' },
         { label: 'OWNER, manual check: as a trainer, a client with assigned workouts missed reads "3 of 8 assigned workouts done in the last 4 weeks", and Settings → Client flags shows the new rows', status: 'manual' },
       ],

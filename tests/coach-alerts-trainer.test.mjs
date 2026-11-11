@@ -319,6 +319,14 @@ test('the overview gives a nutritionist the trainers\' workouts through the shar
   // Two trainer accounts of the same name (Codex on #2717, again): the care team says two, so unknown.
   const twoAlex = { get_my_shared_clients: () => [cp('u-alex', 9, 'Alex'), cp('u-alex-2', 11, 'Alex')] };
   assert.ok(!('assignedWorkouts' in await overview({}, { me, subs, rpcs: { ...twoAlex, get_shared_client_workouts: rows('Alex', 'Alex') } })));
+  // A read at the RPC's 200-row cap that stops short of the window is unknown (Codex on #2717): 200
+  // workouts published ahead crowd the due ones out. One that reaches back into the window is read.
+  const ahead = (n, fromDay) => Array.from({ length: n }, (_, i) => ({ scheduled_date: utcDay(fromDay - i), runs: [], trainer_name: 'Alex' }));
+  assert.ok(!('assignedWorkouts' in await overview({}, { me, subs, rpcs: { ...one1, get_shared_client_workouts: () => ahead(200, -1) } })));
+  const reaches = await overview({}, { me, subs, rpcs: { ...one1, get_shared_client_workouts: () => ahead(200, 35) } });
+  assert.ok(reaches.assignedWorkouts && reaches.assignedWorkouts.days.length > 0, 'a full read that reaches back past the window start');
+  assert.ok(!('assignedWorkouts' in await overview({}, { me, subs, rpcs: { ...one1, get_shared_client_workouts: () => ahead(200, 10) } })), 'full, and reaching back only 10 days: the window was not read');
+  assert.ok((await overview({}, { me, subs, rpcs: { ...one1, get_shared_client_workouts: () => ahead(199, -1) } })).assignedWorkouts, 'under the cap: the whole read');
   // A care team read short is not a known one trainer; nor is no trainer on it.
   assert.ok(!('assignedWorkouts' in await overview({}, { me, subs, rpcs: { ...one1, get_shared_client_workouts: rows('Alex', 'Alex') }, fail: ['rpc:get_client_coaches'] })));
   assert.ok(!('assignedWorkouts' in await overview({}, { me, subs, rpcs: { get_shared_client_workouts: rows('Alex', 'Alex') } })));

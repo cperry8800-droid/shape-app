@@ -42,6 +42,8 @@ const PROGRAM_DAY_CAP = 1000;
 const SNAPSHOT_WINDOW = 42;
 // The newest messages the reply wait and the client's last message read.
 const REPLY_WAIT_READ = 40;
+// get_shared_client_workouts' own `limit 200` (2026-10-29-shared-schedules-any-coach.sql).
+const SHARED_WORKOUTS_CAP = 200;
 type ProgramDayRow = { scheduled_date: string | null; template_id: string | null; template_name: string | null; template_week: string | null };
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -709,7 +711,14 @@ export async function buildSharedOverview(supabase: OverviewClient, { clientId, 
     const teamTrainers = careTeam.filter((m) => m.role === 'trainer');
     const teamTrainerIds = new Set(teamTrainers.map((m) => m.userId));
     const oneTrainer = !careTeamPartial && teamTrainers.every((m) => typeof m.userId === 'string' && m.userId) && teamTrainerIds.size === 1;
-    assignedWorkouts = sharedErr || trainersIn.size > 1 || !oneTrainer ? undefined : bsAssignedWorkoutsLeg(shared as unknown[], null, workoutToday);
+    // ⚠ AND A CAPPED READ THAT STOPS SHORT OF THE WINDOW IS UNKNOWN (Codex on #2717): the RPC returns at
+    // most SHARED_WORKOUTS_CAP rows, newest first, before any date filter, so a long program published
+    // ahead can crowd every due workout out of it. Full, and its oldest row after the window's start: the
+    // window was not read.
+    const datesIn = shared.map((r) => (r as { scheduled_date?: unknown }).scheduled_date).filter((d): d is string => typeof d === 'string' && d.length >= 10).map((d) => d.slice(0, 10));
+    const oldestIn = datesIn.length ? datesIn.reduce((a, b) => (b < a ? b : a)) : null;
+    const capped = shared.length >= SHARED_WORKOUTS_CAP && (oldestIn == null || oldestIn > workoutSince);
+    assignedWorkouts = sharedErr || capped || trainersIn.size > 1 || !oneTrainer ? undefined : bsAssignedWorkoutsLeg(shared as unknown[], null, workoutToday);
   }
   // The program: what the caller put on the client's calendar (bsWorkoutProgramLeg), else an
   // assignment row (the program-tools route's, which keeps its paused rule in bsProgramLeg).
