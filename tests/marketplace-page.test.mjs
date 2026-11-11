@@ -40,7 +40,7 @@ window.HTMLElement.prototype.scrollIntoView = function () {};
 globalThis.ReactDOM = { createRoot: () => ({ render() {} }) };
 const SRC = read('marketplace.jsx');
 const mk = await loadRealModule(join(ND, 'marketplace.jsx'), {
-  appendExports: 'Object.assign(exports, { Marketplace, CoachCard, MkQuickView, mapLiveCoach, mkPriceOf, mkCoachTier, mkRating10, mkRatingLabel, mkIsRated, mkKind, mkCanBook, mkIntroHref, mkProfileHref, mkGoalsOf, mkPass, MK_DEFAULTS, MK_GOALS, MK_COACH_LADDER, COACHES_FULL, mkTabFromHash, mkReadOpenTimes, mkEachLimited, MkCompare, mkMeetLabel });',
+  appendExports: 'Object.assign(exports, { Marketplace, CoachCard, MkQuickView, mapLiveCoach, mkPriceOf, mkCoachTier, mkRating10, mkRatingLabel, mkIsRated, mkKind, mkCanBook, mkIntroHref, mkProfileHref, mkGoalsOf, mkPass, MK_DEFAULTS, MK_GOALS, MK_COACH_LADDER, COACHES_FULL, mkTabFromHash, mkReadOpenTimes, mkEachLimited, MkCompare, mkMeetLabel: typeof mkMeetLabel === "function" ? mkMeetLabel : null });',
 });
 const { createRoot } = require('react-dom/client');
 globalThis.ReactDOM = require('react-dom');
