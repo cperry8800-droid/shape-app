@@ -15,8 +15,8 @@ rule changes, replace its line. **No changelog**: the PR description is the reco
 - ⚠ **A stacked PR gets no CI** (`ci.yml` runs only on PRs into `main`; a base change starts
   no run). Stack only on a base that merges first, and run `workflow_dispatch` once it does.
 - **The PR description is the record:** what changed and why, each review finding and its
-  answer, what was verified, what is left open. What is left open goes to the War Room,
-  and below if it waits on the owner. ⚠ **The War Room entry goes in the PR's first push,
+  answer, what was verified, what is left open, which goes to the War Room, and below if it
+  waits on the owner. ⚠ **The War Room entry goes in the PR's first push,
   with the code**; a review fix edits it with the fix. No War-Room-only commit
   (owner, 2026-11-10).
 - **Review.**
@@ -27,18 +27,21 @@ rule changes, replace its line. **No changelog**: the PR description is the reco
     head it read.
   - Copilot is not a step (owner, 2026-11-10).
   - CodeRabbit only when the owner asks on that PR: brief in the PR description, wait for
-    its notice, post just `@coderabbitai full review`, one round, never re-trigger ($0.25 a
-    file past the included review each hour).
+    its notice, post just `@coderabbitai full review`, one round, never re-trigger (billed
+    per file).
   - A head no reviewer covered merges only on the owner's word. Docs-only diffs merge on
     green CI without a review round.
   - ⚠ **Codex never reviews a War Room PR** (owner, 2026-10-16), and it can't skip a PR by
     its files: the War Room entry rides in the PR it records. Never open a War-Room-only PR.
-- **Pre-commit hook:** `.githooks/pre-commit` → `scripts/verify-staged.sh` (`git config
-  core.hooksPath .githooks`). Commit with `SKIP_VERIFY=1`; the PR lists what ran.
-- **One test and mutation round per PR, before it opens** (owner, 2026-11-09); a rebase or a
-  review fix reruns only its own tests. Money, data or a migration:
-  `node scripts/mutate.mjs --spec tests/mutations/<subject>.mutations.mjs --fail-on-skipped`.
-  A survivor is a missing guard (fix the test) or a proven no-op (`expectSurvive`).
+- **Let CI run the suite** (owner, 2026-11-11). Once, before the PR opens: the changed files'
+  tests and, for money, data or a migration, `node scripts/mutate.mjs --spec
+  tests/mutations/<subject>.mutations.mjs --fail-on-skipped` (a survivor is a missing guard, or a
+  proven no-op: `expectSurvive`). A fix, rebase or red job reruns only its tests. Never the
+  suite, `tsc` or a build for what CI checks, nor while it runs; commit with `SKIP_VERIFY=1`
+  (the hook runs the suite).
+- ⚠ **One run at a time:** `pgrep -af 'mutate.mjs|node --test'` first. A mutation round breaks
+  files in place: until it ends, nothing else in that checkout runs, edits or commits (a helper
+  takes a worktree); then `git status` clean (`kill -9` can't restore), never `--allow-dirty`.
 - **Migrations:** idempotent. Reply with only the
   `raw.githubusercontent.com/.../supabase-migrations/<file>.sql` link (the owner runs it),
   then check it live with read-only queries.
@@ -55,13 +58,13 @@ rule changes, replace its line. **No changelog**: the PR description is the reco
 
 - **Website: `public/newdesign/`**, one live page per `*.html`; shared `pageShell.jsx`,
   `living*.jsx`, `chatWidget.jsx`. Never bump a script's `?v=` (`scripts/build-newdesign.mjs`
-  hashes it at deploy), but an image replaced under its own name takes a new `?v=` by hand (the
-  build never touches images); check a legacy `*.jsx` is still loaded before editing it. `coachForecast.js`
-  holds the coach Business figures for the app too, and `splitGlassMark.js` the 3D mark. A
-  coach's public page is `coachProfileWeb.jsx` (kit `coachProfileKit.mjs`): the app profile
-  for the web, selling through `livingShared.jsx`'s `useLvCoachCommerce` like the old layout.
+  hashes it at deploy), but an image replaced under its own name takes a new `?v=` by hand;
+  check a legacy `*.jsx` is still loaded before editing it. `coachForecast.js` holds the coach
+  Business figures for the app too, and `splitGlassMark.js` the 3D mark. A coach's public page
+  is `coachProfileWeb.jsx` (kit `coachProfileKit.mjs`): the app profile for the web, selling
+  through `livingShared.jsx`'s `useLvCoachCommerce`.
 - **Next.js (`src/`):** API routes, `/dashboard`, `/admin`. Read the Next docs first;
-  typecheck with `npx tsc --noEmit`. A new route goes in the War Room's `RAW_ROUTES`. A
+  CI typechecks (`npx tsc --noEmit`). A new route goes in the War Room's `RAW_ROUTES`. A
   route the app calls reads the caller with `clientForRequest`/`currentUser`
   (`src/lib/request-auth.ts`): the installed app sends a Bearer token, no cookie
   (`tests/app-routes-bearer.test.mjs`). Fonts: `src/app/fonts`, `next/font/local`, Latin only
@@ -76,7 +79,7 @@ rule changes, replace its line. **No changelog**: the PR description is the reco
   - Raise `mobile-app/package.json`'s version per store release (CI sets build numbers).
     `src/lib/app-version.mjs` holds each store's minimum for `BSUpdateGate.jsx`: raise it
     only in the PR that breaks older builds, once that store has the new version live.
-- **`iosAppBroadsheetClient.jsx`** is the member app (~38k lines). A PR that touches a
+- **`iosAppBroadsheetClient.jsx`** is the member app. A PR that touches a
   self-contained screen moves it into its own module, as `BSIntegrationsPage.jsx` and
   `BSLeaderboard.jsx` do: window globals read at call time, its own `useShapeTr()`, never an
   import back into the client.
@@ -86,7 +89,7 @@ rule changes, replace its line. **No changelog**: the PR description is the reco
   (editor `BSMakeItYours.jsx`; Studio `BSCoachStudio.jsx` on `coachWork.mjs`; a nutritionist's
   kitchen is `studio` kind `kitchen`; samples in `trainerDemo` and the like). `coachWork`,
   `studioKit`, `planPreview`, `planOutline`, `coachPronoun` and the demos live in
-  `public/newdesign/` (the website uses them); `mobile-app/src/services/` only re-exports.
+  `public/newdesign/`; `mobile-app/src/services/` only re-exports.
   Night-before prep: `services/prepAhead.mjs` (Eat and the cron), `services/mealDays.mjs`
   (account-bound, compare-and-set), `BSPlanDay.jsx`.
 - ⚠ **Window globals** (`Object.assign(window, …)`): read one before its module defines it
@@ -122,7 +125,7 @@ rule changes, replace its line. **No changelog**: the PR description is the reco
 
 ## Open items
 
-Known gaps live in the War Room (`src/lib/warroom.ts`), as each section's pending items.
+Known gaps: the War Room's pending items (`src/lib/warroom.ts`).
 
 **Waiting on the owner**
 - The Exchange mail flow rule for the logo under Nora's support replies (#2479's Owner steps).
@@ -161,10 +164,10 @@ Known gaps live in the War Room (`src/lib/warroom.ts`), as each section's pendin
 
 ## History
 
-- Changelog entries up to 2026-10-16: [`-2026-10`](WORKLOG-ARCHIVE-2026-10.md),
+- Changelog to 2026-10-16: [`-2026-10`](WORKLOG-ARCHIVE-2026-10.md),
   [`-2026-09`](WORKLOG-ARCHIVE-2026-09.md), [`-2026-08`](WORKLOG-ARCHIVE-2026-08.md),
   [`-2026-06-07`](WORKLOG-ARCHIVE-2026-06-07.md),
   [`-2026-06-cycles-2-5`](WORKLOG-ARCHIVE-2026-06-cycles-2-5.md).
-- The old version of this file, with every reviewer ruling and why:
+- The old rules and each ruling's why:
   [`-conventions-2026-10-16`](WORKLOG-ARCHIVE-conventions-2026-10-16.md).
 - Handoffs (`docs/HANDOFF-*.md`) are history.

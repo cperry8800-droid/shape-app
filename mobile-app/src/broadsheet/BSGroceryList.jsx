@@ -2,6 +2,7 @@ import React from 'react';
 import { createPortal } from 'react-dom';
 import { useBSClean, BSCleanType } from './bsCleanType.jsx';
 import { bsTrainT } from './bsClientWeekDemo.js';
+import { BSCoachGroceryNotes } from './BSCoachMeals.jsx';
 import { bsGrocerySkipped, bsGroceryByMeal, bsGroceryAisleStops, bsReadShopBy, bsSaveShopBy, bsReadSkippedMeals, bsSaveSkippedMeals, bsReadGotItems, bsSaveGotItems, bsToggleGot, bsGroceryCheckedKeys } from '../services/focusLayout.mjs';
 import { bsDialogRef } from '../services/dialogBack.mjs';
 // ─── GROCERY (Eat → Grocery: the shop list) ─────────────────────────────────────────────────────────
@@ -17,7 +18,7 @@ import { bsDialogRef } from '../services/dialogBack.mjs';
 //
 // Every function stays: the list picker and a new list, ticking and removing, More / In the cart, Aisle |
 // Meal, skipping a meal, adding by hand or by voice, Instacart, Save to library, Share, Send to a member,
-// the coach's sent list, Prep the week.
+// the coach's sent list, Prep the week, and the nutritionist's grocery note under the list's head.
 //
 // ⚠ WINDOW GLOBALS ARE READ AT CALL TIME, NEVER AT MODULE TOP. The client module imports this file, so
 // it evaluates before that module's body has put its pieces on window; a top-level read would capture
@@ -625,6 +626,9 @@ export function BSGrocery({ list: activeList, planList = null, onBack, onLibrary
           </div>
         ) : <div style={{ height: 10 }} />}
       </div>
+
+      {/* The nutritionist's grocery note, from the Live console (BSCoachMeals.jsx reads it itself). */}
+      <BSCoachGroceryNotes />
 
       {/* List picker — coach plan + everything in the library, switch in place */}
       {pickerOpen && createPortal(

@@ -371,5 +371,15 @@
   "burn.page.toCome": "Belum",
   "burn.page.notTracked": "Tidak tercatat",
   "burn.page.today": "Hari ini",
-  "burn.page.rule": "Satu hari dihitung sekali: bacaan jam untuk seharian, atau latihan yang dicatat hari itu."
+  "burn.page.rule": "Satu hari dihitung sekali: bacaan jam untuk seharian, atau latihan yang dicatat hari itu.",
+  "train.coachAdded.unread": "Latihan yang ditambahkan pelatihmu gagal dimuat.",
+  "train.coachAdded.retry": "Coba lagi",
+  "train.coachAdded.from": "Dari {name}",
+  "train.coachAdded.fromTrainer": "Dari pelatihmu",
+  "train.coachAdded.today": "Ditambahkan hari ini",
+  "train.coachAdded.onDay": "Ditambahkan · {day}",
+  "train.coachAdded.count": "{count, plural, other {# latihan}}",
+  "train.coachAdded.tempo": "Tempo {tempo}",
+  "train.coachAdded.start": "Mulai latihan ini",
+  "train.coachAdded.inSession": "Dalam sesi hari ini"
 }

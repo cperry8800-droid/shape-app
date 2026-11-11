@@ -465,5 +465,18 @@
   "planDay.linkSub": "Heute oder morgen, aus der Shape Kitchen",
   "planDay.cta": "Für heute oder morgen planen →",
   "planDay.yours": "Von dir geplant",
-  "planDay.daySwapped": "Für heute getauscht"
+  "planDay.daySwapped": "Für heute getauscht",
+  "eat.coachAdded.unread": "Die Mahlzeiten deiner Ernährungsberaterin konnten nicht geladen werden.",
+  "eat.coachAdded.retry": "Erneut versuchen",
+  "eat.coachAdded.from": "Von {name}",
+  "eat.coachAdded.fromNutritionist": "Von deiner Ernährungsberatung",
+  "eat.coachAdded.today": "Heute hinzugefügt",
+  "eat.coachAdded.onDay": "Hinzugefügt · {day}",
+  "eat.coachAdded.count": "{count, plural, one {# Mahlzeit} other {# Mahlzeiten}}",
+  "eat.coachAdded.kcal": "{kcal} kcal",
+  "eat.coachAdded.protein": "{g} g Protein",
+  "eat.coachAdded.swaps": "Alternativen: {list}",
+  "grocery.coachNote.from": "Einkaufsnotiz · {name}",
+  "grocery.coachNote.fromAnon": "Einkaufsnotiz · deine Ernährungsberatung",
+  "grocery.coachNote.unread": "Die Einkaufsnotiz deiner Ernährungsberatung konnte nicht geladen werden."
 }

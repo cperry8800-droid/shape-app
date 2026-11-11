@@ -1,50 +1,37 @@
 // Live Console persistence for the newdesign Trainer "Console" page.
 //
-// GET  → hydrate this trainer's focus banners + active pushed items
+// GET  → hydrate this trainer's focus banners + today's pushed exercises
 //        grouped by client_id, so a refresh restores the Console state.
-// POST → three actions, keyed by `action`:
+// POST → four actions, keyed by `action`:
 //          • 'focus'      — upsert the focus banner for (provider, client)
+//          • 'cue'        — append a live cue (coach_pushed_items kind 'cue')
 //          • 'addItem'    — append an exercise to the client's pushed items
 //          • 'removeItem' — soft-delete a pushed item (sets removed_at)
 //
 // RLS (coach_focus_banners / coach_pushed_items) enforces that this
 // trainer can only see / write rows for their own provider id.
+//
+// ⚠ A CUE IS NOT THE FOCUS (2026-11-10). The live panel's Send cue posted 'focus', so a cue replaced
+// the coach's weekly focus on the member's Home (one banner row per coach and client), and a focus
+// saved mid-workout popped up as a cue. A cue is its own row now (2026-11-10-coach-live-cues.sql),
+// read by the member's workout screen; the banner is the focus alone.
 
 import { NextResponse } from 'next/server';
-import { createClient as createAnonClient } from '@supabase/supabase-js';
-import { createClient } from '@/lib/supabase/server';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { readJson, dbError } from '@/lib/request-utils';
+import { profileNames } from '@/lib/client-names';
+import { normalizeZone } from '@/lib/time';
+import { memberDay, shiftDay } from '@/lib/workout-days';
+import { readAllById, ROW_PAGE } from '@/lib/read-all-by-id';
+import { exerciseReadSince, pushedExerciseOf } from '@/lib/coach-exercises';
 import { OPEN_SUB_STATUSES } from '../../../../lib/coach-trajectory.mjs';
-
-async function clientForRequest(request: Request) {
-  const auth = request.headers.get('authorization') ?? '';
-  const m = auth.match(/^Bearer\s+(.+)$/i);
-  if (m) {
-    return createAnonClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      { global: { headers: { Authorization: `Bearer ${m[1]}` } } },
-    );
-  }
-  return createClient();
-}
-
-async function userForRequest(request: Request) {
-  const auth = request.headers.get('authorization') ?? '';
-  const m = auth.match(/^Bearer\s+(.+)$/i);
-  const supabase = await clientForRequest(request);
-  if (m) {
-    const { data } = await supabase.auth.getUser(m[1]);
-    return { user: data?.user ?? null, supabase };
-  }
-  const { data: { user } } = await supabase.auth.getUser();
-  return { user, supabase };
-}
 
 export const dynamic = 'force-dynamic';
 
 const ROLE = 'trainer' as const;
 const KIND = 'exercise' as const;
+const CUE_MAX = 500;
 const RECENT_CLIENT_MS = 60 * 86_400_000; // 60 days = "current"
 const TRAJECTORY_DAYS = 90;
 
@@ -69,6 +56,22 @@ function dailyShapeScore(row: Record<string, unknown>): number {
   return s;
 }
 
+// One daily_health_snapshot row of the 90-day trajectory read; `id` is the walk's cursor only.
+type SnapRow = {
+  id: string;
+  user_id: string;
+  snapshot_date: string;
+  weight_lb: number | null;
+  sleep_hours: number | null;
+  resting_hr: number | null;
+  stress: number | null;
+  calories: number | null;
+  protein_g: number | null;
+  hrv_ms: number | null;
+  recovery_score: number | null;
+  workout_minutes: number | null;
+};
+
 type PushedItemRow = {
   id: string;
   client_id: string;
@@ -77,15 +80,21 @@ type PushedItemRow = {
   sent_at: string;
 };
 
+// ⚠ A NAME THE ROUTE DOESN'T HAVE IS NULL, NEVER "Client" (2026-11-10). A subscriber with no session
+// was listed as "Client" because only sessions carry a name; the name is read from their profile now
+// (src/lib/client-names.ts, the analytics routes' read: RLS lets a coach read the profiles of their
+// active, trialing and past-due clients), and a session's name is the fallback. `nameUnread` says the
+// read failed, which is not "no name on file".
 type ConsoleClient = {
   id: string;
-  name: string;
+  name: string | null;
+  nameUnread: boolean;
   status: 'current' | 'past';
   lastAt: string | null;
 };
 
 async function getProviderId(
-  supabase: Awaited<ReturnType<typeof createClient>>,
+  supabase: SupabaseClient,
   userId: string,
 ): Promise<number | null> {
   const { data } = await supabase
@@ -101,7 +110,7 @@ async function getProviderId(
 // "current" = an open subscription (active, trialing or past_due: a renewal Stripe is still
 // retrying keeps the client, owner 2026-10-18) OR a session in the last 60 days.
 async function fetchClientsForProvider(
-  supabase: Awaited<ReturnType<typeof createClient>>,
+  supabase: SupabaseClient,
   providerId: number,
 ): Promise<ConsoleClient[]> {
   const [subRes, sessRes] = await Promise.all([
@@ -119,12 +128,13 @@ async function fetchClientsForProvider(
       .limit(1000),
   ]);
 
-  type Entry = { id: string; name: string; status: 'current' | 'past'; lastAt: number | null };
+  // `sessionName` is the newest session's client_name (sessions come newest first).
+  type Entry = { id: string; sessionName: string | null; status: 'current' | 'past'; lastAt: number | null };
   const byId = new Map<string, Entry>();
 
   for (const sub of subRes.data ?? []) {
     if (!sub.client_id) continue;
-    const e: Entry = byId.get(sub.client_id) ?? { id: sub.client_id, name: 'Client', status: 'past', lastAt: null };
+    const e: Entry = byId.get(sub.client_id) ?? { id: sub.client_id, sessionName: null, status: 'past', lastAt: null };
     if (OPEN_SUB_STATUSES.includes(sub.status)) e.status = 'current';
     byId.set(sub.client_id, e);
   }
@@ -132,21 +142,28 @@ async function fetchClientsForProvider(
   const now = Date.now();
   for (const s of sessRes.data ?? []) {
     if (!s.client_id) continue;
-    const e: Entry = byId.get(s.client_id) ?? { id: s.client_id, name: 'Client', status: 'past', lastAt: null };
-    if (s.client_name && e.name === 'Client') e.name = s.client_name;
+    const e: Entry = byId.get(s.client_id) ?? { id: s.client_id, sessionName: null, status: 'past', lastAt: null };
+    const booked = typeof s.client_name === 'string' ? s.client_name.trim() : '';
+    if (booked && !e.sessionName) e.sessionName = booked;
     const t = new Date(s.scheduled_at).getTime();
     if (e.lastAt == null || t > e.lastAt) e.lastAt = t;
     if (now - t < RECENT_CLIENT_MS && e.status !== 'current') e.status = 'current';
     byId.set(s.client_id, e);
   }
 
+  // The name on the client's profile, else the one their newest session was booked under.
+  const { names, unread } = await profileNames(supabase, [...byId.keys()]);
   return [...byId.values()]
     .sort((a, b) => (b.lastAt ?? 0) - (a.lastAt ?? 0))
-    .map((e) => ({ id: e.id, name: e.name, status: e.status, lastAt: e.lastAt ? new Date(e.lastAt).toISOString() : null }));
+    .map((e) => {
+      const name = names.get(e.id) || e.sessionName || null;
+      return { id: e.id, name, nameUnread: !name && unread.has(e.id), status: e.status, lastAt: e.lastAt ? new Date(e.lastAt).toISOString() : null };
+    });
 }
 
 export async function GET(request: Request) {
-  const { user, supabase } = await userForRequest(request);
+  const supabase = await clientForRequest(request);
+  const user = await currentUser(request);
 
   if (!user) {
     return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
@@ -154,10 +171,11 @@ export async function GET(request: Request) {
 
   const providerId = await getProviderId(supabase, user.id);
   if (providerId == null) {
-    return NextResponse.json({ isTrainer: false, clients: [], focusByClient: {}, itemsByClient: {}, snapshotByClient: {} });
+    return NextResponse.json({ isTrainer: false, clients: [], focusByClient: {}, itemsByClient: {}, snapshotByClient: {}, todayByClient: {} });
   }
 
   const clients = await fetchClientsForProvider(supabase, providerId);
+  const now = Date.now();
 
   // Pull the supporting data for each client in parallel.
   // RLS does the gating: providers_read_subscriber_snapshots covers
@@ -166,34 +184,83 @@ export async function GET(request: Request) {
   const snapshotByClient: Record<string, Record<string, unknown>> = {};
   const seriesByClient: Record<string, Record<string, Array<number | null>>> = {};
   const profileByClient: Record<string, { age: number | null; focus: string | null }> = {};
+  // What each client logged on THEIR today (their zone, UTC without one): { date, calories, protein_g },
+  // or absent when they have no row today. ⚠ NOT THE LATEST ROW: "Logged today" read snapshotByClient,
+  // the newest row of the last 90 days, so a client who last logged in March read March's food as
+  // today's. `todayUnread` says the read failed, which is not "nothing logged".
+  const todayByClient: Record<string, { date: string; calories: number | null; protein_g: number | null }> = {};
+  let todayUnread = false;
+  // The 90-day trajectory read failed: the chart and the latest row are unread, not empty.
+  let trajectoryUnread = false;
+  // ⚠ A FAILED ZONE READ IS UNREAD, NOT UTC (Codex P2 on #2686). A client with no zone on file counts
+  // in UTC; a client whose zone could not be read does not, or near midnight their today's log (and the
+  // trainer's session list) is read on the wrong date and shown as nothing. src/lib/roster-days.ts falls
+  // back to UTC for a 30-day window, where a day's shift moves one end; for "today" it is the answer.
+  let zonesUnread = false;
+  // Each client's zone (client_profiles.timezone): their today for "Logged today" and the session list.
+  const zoneByClient = new Map<string, string>();
 
   if (clients.length > 0) {
     const clientIds = clients.map((c) => c.id);
-    const since = new Date(Date.now() - TRAJECTORY_DAYS * 86_400_000).toISOString().slice(0, 10);
+    const since = new Date(now - TRAJECTORY_DAYS * 86_400_000).toISOString().slice(0, 10);
+    // Any zone's today is the UTC date or a day either side of it.
+    const utcToday = memberDay(now, null) as string;
+    const nearDays = [shiftDay(utcToday, -1), utcToday, shiftDay(utcToday, 1)];
 
-    const [snapRes, profRes] = await Promise.all([
-      supabase
-        .from('daily_health_snapshot')
-        // `calories` here is calories EATEN, read from dietary_kcal under the name the
-        // score below and the live console's snapshotByClient already use; the
-        // snapshot's own `calories` column is a device's burn.
-        .select('user_id, snapshot_date, weight_lb, sleep_hours, resting_hr, stress, calories:dietary_kcal, protein_g, hrv_ms, recovery_score')
-        .in('user_id', clientIds)
-        .gte('snapshot_date', since)
-        .order('snapshot_date', { ascending: true }),
+    const [snapRes, profRes, todayRes] = await Promise.all([
+      // ⚠ EVERY ROW, A PAGE AT A TIME (left by #2686). One select stops at 1,000 rows with no error,
+      // and oldest first that cut the NEWEST days: 12 clients logging daily pass it in 90 days, and the
+      // chart and snapshotByClient (the latest row) went stale. readAllById walks it on id; the rows
+      // are put back in date order below.
+      readAllById<SnapRow>((after) => {
+        let q = supabase
+          .from('daily_health_snapshot')
+          // `calories` here is calories EATEN, read from dietary_kcal under the name the
+          // score below and the live console's snapshotByClient already use; the
+          // snapshot's own `calories` column is a device's burn. `workout_minutes` is
+          // the score's 10 points (dailyShapeScore), which it scored but never read.
+          .select('id, user_id, snapshot_date, weight_lb, sleep_hours, resting_hr, stress, calories:dietary_kcal, protein_g, hrv_ms, recovery_score, workout_minutes')
+          .in('user_id', clientIds)
+          .gte('snapshot_date', since);
+        if (after) q = q.gt('id', after);
+        // capped-read-ok: one page of a cursor walk over every row (readAllById), not a cap.
+        return q.order('id', { ascending: true }).limit(ROW_PAGE);
+      }),
       supabase
         .from('client_profiles')
-        .select('user_id, data')
+        .select('user_id, data, timezone')
         .in('user_id', clientIds),
+      // Today's rows on their own: three dates a client at most, so a long trajectory read can't
+      // crowd them out. ⚠ EVERY ROW, A PAGE AT A TIME (Codex P2 on #2686): one select stops at 1,000
+      // rows without a word, three dates reach that at 334 clients, and a client past it read "Nothing
+      // logged yet today". readAllById walks them by id; a read past its ceiling is unread.
+      readAllById<{ id: string; user_id: string; snapshot_date: string; calories: number | null; protein_g: number | null }>((after) => {
+        let q = supabase
+          .from('daily_health_snapshot')
+          .select('id, user_id, snapshot_date, calories:dietary_kcal, protein_g')
+          .in('user_id', clientIds)
+          .in('snapshot_date', nearDays);
+        if (after) q = q.gt('id', after);
+        // capped-read-ok: one page of a cursor walk over every row (readAllById), not a cap.
+        return q.order('id', { ascending: true }).limit(ROW_PAGE);
+      }),
     ]);
 
     // daily_health_snapshot: walk ascending so the LAST row per client is
     // the latest snapshot. Also accumulate per-metric series for trajectory,
     // including a cumulative Shape Score derived per-day.
+    // A failed or over-long walk is no trajectory, never a short one (`trajectoryUnread`).
+    if (snapRes.error) {
+      trajectoryUnread = true;
+      console.warn('[shape-app] trainer console: trajectory read failed — the chart renders as unread:', snapRes.error.message);
+    }
+    const snapRows = (snapRes.data ?? []).slice().sort((a, b) => String(a.snapshot_date).localeCompare(String(b.snapshot_date)));
     const cumScoreByClient: Record<string, number> = {};
-    for (const row of snapRes.data ?? []) {
+    for (const row of snapRows) {
       const uid = row.user_id as string;
-      snapshotByClient[uid] = row as Record<string, unknown>;
+      const { id: _id, ...latest } = row;
+      void _id;
+      snapshotByClient[uid] = latest as Record<string, unknown>;
       const s = (seriesByClient[uid] ??= { weight: [], sleep: [], hr: [], stress: [], protein: [], score: [] });
       s.weight.push(row.weight_lb != null ? Number(row.weight_lb) : null);
       s.sleep.push(row.sleep_hours != null ? Number(row.sleep_hours) : null);
@@ -211,6 +278,26 @@ export async function GET(request: Request) {
         age: ageFromDob(data.dob),
         focus: typeof data.goal === 'string' && data.goal ? data.goal : null,
       };
+      const zone = normalizeZone(row.timezone);
+      if (zone) zoneByClient.set(uid, zone);
+    }
+
+    if (profRes.error) {
+      zonesUnread = true;
+      console.warn('[shape-app] trainer console: client zones read failed — today renders as unread:', profRes.error.message);
+    }
+    if (todayRes.error || zonesUnread) todayUnread = true;
+    if (todayRes.error) {
+      console.warn('[shape-app] trainer console: today\'s logs read failed — "Logged today" renders as unread:', todayRes.error.message);
+    }
+    for (const row of zonesUnread ? [] : todayRes.data ?? []) {
+      const uid = row.user_id as string;
+      if (row.snapshot_date !== memberDay(now, zoneByClient.get(uid) ?? null)) continue;
+      todayByClient[uid] = {
+        date: String(row.snapshot_date),
+        calories: row.calories != null ? Number(row.calories) : null,
+        protein_g: row.protein_g != null ? Number(row.protein_g) : null,
+      };
     }
   }
 
@@ -227,18 +314,37 @@ export async function GET(request: Request) {
     }
   }
 
-  const { data: itemRows } = await supabase
-    .from('coach_pushed_items')
-    .select('id, client_id, kind, payload, sent_at')
-    .eq('provider_role', ROLE)
-    .eq('provider_id', providerId)
-    .is('removed_at', null)
-    .order('sent_at', { ascending: true });
+  // Today's session: the exercises sent on each client's today (src/lib/coach-exercises.ts), never a
+  // cue (kind 'cue') and never an exercise from another day, which stays on that day in the member's
+  // Train week. ⚠ A FAILED READ IS `itemsUnread`, NOT AN EMPTY SESSION (Codex P2 on #2686): the page
+  // said "Nothing added today" and offered no Remove, so a coach could add the same exercise twice.
+  // Read a page at a time, like today's logs above: two days of a roster's exercises pass 1,000 rows at
+  // 100 clients and five a day, and a cut read is a session list short without a word.
+  const { data: itemPages, error: itemsErr } = await readAllById<PushedItemRow>((after) => {
+    let q = supabase
+      .from('coach_pushed_items')
+      .select('id, client_id, kind, payload, sent_at')
+      .eq('provider_role', ROLE)
+      .eq('provider_id', providerId)
+      .eq('kind', KIND)
+      .is('removed_at', null)
+      .gte('sent_at', exerciseReadSince(now, 1));
+    if (after) q = q.gt('id', after);
+    // capped-read-ok: one page of a cursor walk over every row (readAllById), not a cap.
+    return q.order('id', { ascending: true }).limit(ROW_PAGE);
+  });
+  // Paged by id; the session lists in the order the coach added them.
+  const itemRows = (itemPages ?? []).slice().sort((a, b) => (Date.parse(a.sent_at) || 0) - (Date.parse(b.sent_at) || 0));
 
+  const itemsUnread = !!itemsErr || zonesUnread;
+  if (itemsErr) console.warn('[shape-app] trainer console: pushed exercises read failed — today\'s session renders as unread:', itemsErr.message);
   const itemsByClient: Record<string, Array<Record<string, unknown>>> = {};
-  for (const r of (itemRows ?? []) as PushedItemRow[]) {
+  for (const r of (zonesUnread ? [] : itemRows ?? []) as PushedItemRow[]) {
+    const zone = zoneByClient.get(r.client_id) ?? null;
+    const ex = pushedExerciseOf(r, zone);
+    if (!ex || ex.day !== memberDay(now, zone)) continue;
     const list = itemsByClient[r.client_id] ?? [];
-    list.push({ id: r.id, ...(r.payload ?? {}) });
+    list.push({ id: ex.id, name: ex.name, sets: ex.sets ?? '—', reps: ex.reps ?? '—', tempo: ex.tempo ?? '—', cue: ex.cue ?? '' });
     itemsByClient[r.client_id] = list;
   }
 
@@ -247,14 +353,19 @@ export async function GET(request: Request) {
     clients,
     focusByClient,
     itemsByClient,
+    itemsUnread,
     snapshotByClient,
+    todayByClient,
+    todayUnread,
+    trajectoryUnread,
     seriesByClient,
     profileByClient,
   });
 }
 
 export async function POST(req: Request) {
-  const { user, supabase } = await userForRequest(req);
+  const supabase = await clientForRequest(req);
+  const user = await currentUser(req);
 
   if (!user) {
     return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
@@ -314,6 +425,27 @@ export async function POST(req: Request) {
       },
       { onConflict: 'provider_role,provider_id,client_id' },
     );
+    if (error) return dbError(error, 'trainer console write', 400);
+    return NextResponse.json({ ok: true });
+  }
+
+  // A live cue from the workout panel: a row of its own, read by the member's workout screen as it
+  // lands. It never touches the focus banner.
+  if (action === 'cue') {
+    const text = String(body?.text ?? '').trim();
+    if (!text) {
+      return NextResponse.json({ error: 'Cue text is empty.' }, { status: 400 });
+    }
+    if (text.length > CUE_MAX) {
+      return NextResponse.json({ error: `Keep cues to ${CUE_MAX} characters or fewer.` }, { status: 400 });
+    }
+    const { error } = await supabase.from('coach_pushed_items').insert({
+      provider_role: ROLE,
+      provider_id: providerId,
+      client_id: clientId,
+      kind: 'cue',
+      payload: { text },
+    });
     if (error) return dbError(error, 'trainer console write', 400);
     return NextResponse.json({ ok: true });
   }

@@ -371,5 +371,15 @@
   "burn.page.toCome": "Впереди",
   "burn.page.notTracked": "Не записано",
   "burn.page.today": "Сегодня",
-  "burn.page.rule": "День считается один раз: показание часов за весь день или, если его нет, тренировки, записанные в этот день."
+  "burn.page.rule": "День считается один раз: показание часов за весь день или, если его нет, тренировки, записанные в этот день.",
+  "train.coachAdded.unread": "Не удалось загрузить упражнения, которые добавил тренер.",
+  "train.coachAdded.retry": "Повторить",
+  "train.coachAdded.from": "От {name}",
+  "train.coachAdded.fromTrainer": "От вашего тренера",
+  "train.coachAdded.today": "Добавлено сегодня",
+  "train.coachAdded.onDay": "Добавлено · {day}",
+  "train.coachAdded.count": "{count, plural, one {# упражнение} few {# упражнения} many {# упражнений} other {# упражнения}}",
+  "train.coachAdded.tempo": "Темп {tempo}",
+  "train.coachAdded.start": "Начать эти",
+  "train.coachAdded.inSession": "В сегодняшней тренировке"
 }

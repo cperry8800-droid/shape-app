@@ -102,7 +102,9 @@ export async function POST(request: Request) {
     const { data: rows } = await supabase
       .from('coach_pushed_items')
       .select('payload')
-      .eq('client_id', user.id);
+      .eq('client_id', user.id)
+      // The meals alone: an exercise has no ingredients, and a live cue (kind 'cue') is a row a cue.
+      .eq('kind', 'meal');
     for (const row of rows ?? []) lineItems.push(...ingredientsFromPayload((row as { payload: unknown }).payload));
   }
 

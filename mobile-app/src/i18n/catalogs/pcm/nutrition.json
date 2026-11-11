@@ -465,5 +465,18 @@
   "planDay.linkSub": "Today or tomorrow, from Shape Kitchen",
   "planDay.cta": "Plan am for today or tomorrow →",
   "planDay.yours": "Na you plan am",
-  "planDay.daySwapped": "Changed for today"
+  "planDay.daySwapped": "Changed for today",
+  "eat.coachAdded.unread": "The food wey your nutritionist add no gree load.",
+  "eat.coachAdded.retry": "Try am again",
+  "eat.coachAdded.from": "From {name}",
+  "eat.coachAdded.fromNutritionist": "From your nutritionist",
+  "eat.coachAdded.today": "Dem add am today",
+  "eat.coachAdded.onDay": "Dem add am · {day}",
+  "eat.coachAdded.count": "{count, plural, one {# food} other {# food}}",
+  "eat.coachAdded.kcal": "{kcal} kcal",
+  "eat.coachAdded.protein": "{g} g protein",
+  "eat.coachAdded.swaps": "Wetin you fit swap: {list}",
+  "grocery.coachNote.from": "Market note · {name}",
+  "grocery.coachNote.fromAnon": "Market note · your nutritionist",
+  "grocery.coachNote.unread": "The market note wey your nutritionist send no gree load."
 }

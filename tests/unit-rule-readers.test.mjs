@@ -443,7 +443,7 @@ const walk = (node, visit) => {
   for (const [k, v] of Object.entries(node)) if (k !== 'loc' && k !== 'start' && k !== 'end' && v && typeof v === 'object') walk(v, visit);
 };
 test('the Train deck applies a swap through the rule, never a bare spread', () => {
-  const src = readFileSync(new URL('../mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx', import.meta.url), 'utf8');
+  const src = readFileSync(new URL('../mobile-app/src/broadsheet/BSClientTrain.jsx', import.meta.url), 'utf8'); // Train's own module since 2026-11-11
   const ast = parse(src, { sourceType: 'module', plugins: ['jsx'] });
   const decls = [];
   walk(ast, (n) => { if (n.type === 'VariableDeclarator' && n.id?.name === 'effMoves') decls.push(n); });

@@ -102,7 +102,9 @@ function CoachLiveWorkoutSession({ clientId, clientName = 'client', role = 'trai
     try {
       const res = await fetch(`/api/${role === 'nutritionist' ? 'nutritionist' : 'trainer'}/console`, {
         method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ clientId, action: 'focus', text }), signal: controller.signal,
+        // ⚠ 'cue', NEVER 'focus' (2026-11-10): 'focus' is the coach's weekly banner on the member's Home,
+        // one row per coach and client, so a cue sent as it replaced the focus.
+        body: JSON.stringify({ clientId, action: 'cue', text }), signal: controller.signal,
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || data.ok !== true) throw new Error(data.error || 'Could not save cue. Try again.');

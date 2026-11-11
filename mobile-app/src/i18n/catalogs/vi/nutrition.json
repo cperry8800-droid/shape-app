@@ -465,5 +465,18 @@
   "planDay.linkSub": "Hôm nay hoặc ngày mai, từ Shape Kitchen",
   "planDay.cta": "Lên kế hoạch cho hôm nay hoặc ngày mai →",
   "planDay.yours": "Bạn tự lên kế hoạch",
-  "planDay.daySwapped": "Đã đổi cho hôm nay"
+  "planDay.daySwapped": "Đã đổi cho hôm nay",
+  "eat.coachAdded.unread": "Không tải được các bữa ăn chuyên gia dinh dưỡng đã thêm.",
+  "eat.coachAdded.retry": "Thử lại",
+  "eat.coachAdded.from": "Từ {name}",
+  "eat.coachAdded.fromNutritionist": "Từ chuyên gia dinh dưỡng của bạn",
+  "eat.coachAdded.today": "Đã thêm hôm nay",
+  "eat.coachAdded.onDay": "Đã thêm · {day}",
+  "eat.coachAdded.count": "{count, plural, other {# bữa}}",
+  "eat.coachAdded.kcal": "{kcal} kcal",
+  "eat.coachAdded.protein": "{g} g đạm",
+  "eat.coachAdded.swaps": "Món thay thế: {list}",
+  "grocery.coachNote.from": "Ghi chú mua sắm · {name}",
+  "grocery.coachNote.fromAnon": "Ghi chú mua sắm · chuyên gia dinh dưỡng",
+  "grocery.coachNote.unread": "Không tải được ghi chú mua sắm của chuyên gia dinh dưỡng."
 }
