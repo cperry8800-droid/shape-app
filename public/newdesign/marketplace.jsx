@@ -109,16 +109,18 @@ function mkTopo(W, H, sxp, syp, seed) {
   MK_TOPO_CACHE.set(key, out);
   return out;
 }
+// The drawing's colour: a card's coach accent (mkCardVars), else the Climb's teal.
+const MK_DRAW = "var(--draw, #34d6c5)";
 function MkTopo({ w, h, sx, sy, seed, gid }) {
   const t = mkTopo(w, h, sx, sy, seed);
   return (
     <svg className="mk-topo" viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" aria-hidden="true">
-      <defs><linearGradient id={gid} x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#0b1622" stopOpacity=".25" /><stop offset="1" stopColor="#0e1a27" stopOpacity=".85" /></linearGradient></defs>
+      <defs><linearGradient id={gid} x1="0" y1="0" x2="0" y2="1"><stop offset="0" style={{ stopColor: "var(--topo-1, #0b1622)" }} stopOpacity=".25" /><stop offset="1" style={{ stopColor: "var(--topo-2, #0e1a27)" }} stopOpacity=".85" /></linearGradient></defs>
       <path d={t.fill} fill={`url(#${gid})`} />
-      <path d={t.top} fill="none" stroke="#34d6c5" strokeOpacity=".62" strokeWidth="1.2" vectorEffect="non-scaling-stroke" />
-      {t.lines.map((l, i) => <path key={i} d={l.d} fill="none" stroke={l.c} strokeOpacity={l.o} strokeWidth="1" vectorEffect="non-scaling-stroke" />)}
-      <path d={t.route} fill="none" stroke="#34d6c5" strokeOpacity=".3" strokeWidth="5" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
-      <path d={t.route} fill="none" stroke="#effffc" strokeWidth="1.6" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+      <path d={t.top} fill="none" style={{ stroke: MK_DRAW }} strokeOpacity=".62" strokeWidth="1.2" vectorEffect="non-scaling-stroke" />
+      {t.lines.map((l, i) => <path key={i} d={l.d} fill="none" style={{ stroke: l.c === "#34d6c5" ? MK_DRAW : l.c }} strokeOpacity={l.o} strokeWidth="1" vectorEffect="non-scaling-stroke" />)}
+      <path d={t.route} fill="none" style={{ stroke: MK_DRAW }} strokeOpacity=".3" strokeWidth="5" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+      <path d={t.route} fill="none" style={{ stroke: "var(--route, #effffc)" }} strokeWidth="1.6" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
     </svg>
   );
 }
@@ -402,6 +404,66 @@ function mkReadOpenTimes(c) {
     })
     .catch(() => null);
 }
+// ── The coach's own look on their card ────────────────────────────────────────────────────────
+// Owner, 2026-11-11: "coaches should be able to customize how their page appears publicly ... This
+// should also effect the marketplace card as well". The kit (coachProfileKit.mjs, window.ShapeCoachKit,
+// the coach page's own loader) turns the coach's profile doc into the card's look: their paper and
+// accent (bsCoachPagePalette, the colours their page takes), the climb background's wash, their cover
+// photo (the page's wall, held to their own media) and the spot they dragged it to. A coach with no
+// pick, a sample, a listing with no account and a page whose kit did not load keep the Climb's card.
+function mkLoadKit() {
+  if (typeof window === "undefined") return Promise.resolve(null);
+  if (window.ShapeCoachKit) return Promise.resolve(window.ShapeCoachKit);
+  if (!window.__cpwKitLoad) {
+    try {
+      window.__cpwKitLoad = import("/newdesign/coachProfileKit.mjs")
+        .then((K) => { window.ShapeCoachKit = K; return K; })
+        .catch((e) => { window.__cpwKitLoad = null; throw e; });
+    } catch (e) { return Promise.resolve(null); }
+  }
+  return window.__cpwKitLoad.catch(() => null);
+}
+// The cover's three stops, as the coach page's stage (coachProfileWeb.jsx CPW_FOCUS).
+const MK_FOCUS = { top: "center 22%", center: "center 50%", bottom: "center 80%" };
+const mkFn = (K, name) => (K && typeof K[name] === "function" ? K[name] : null);
+function mkCardLook(c, custom, K) {
+  if (!custom || typeof custom !== "object" || Array.isArray(custom) || !K) return;
+  const look = mkFn(K, "bsProfileLook") ? K.bsProfileLook(custom.look) : null;
+  const palOf = mkFn(K, "bsCoachPagePalette");
+  c.pal = look && palOf ? palOf(look, c.tag === "Nutritionist" ? "nutritionist" : "trainer") : null;
+  c.wash = mkFn(K, "bsClimbWash") ? K.bsClimbWash(custom.climbBg) : null;
+  const cov = mkFn(K, "bsProfileCover") ? K.bsProfileCover(custom.cover, c.ownerId) : null;
+  if (cov && cov.image) c.cover = cov.image;
+  c.coverPos = look && (look.pos || look.focus) && mkFn(K, "bsLookPosition") ? K.bsLookPosition(look, MK_FOCUS) : null;
+}
+// The digits are extracted, never sliced: a paper token (var(--…, #hex)) parses to its hex.
+const mkRgbOf = (hex) => { const m = /#([0-9a-f]{6})(?![0-9a-f])/i.exec(String(hex || "")); if (!m) return null; const n = parseInt(m[1], 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255].join(","); };
+// The card's custom properties for that look (the stylesheet's .mk-cc rules read them). A picked
+// accent alone keeps the Climb's dark card and takes the accent; a picked paper brings its stock.
+function mkCardVars(c) {
+  const p = c.pal;
+  if (!p && !c.wash) return undefined;
+  const v = {};
+  if (p) {
+    Object.assign(v, {
+      "--teal": p.ACCENT, "--teal-rgb": p.ACCENT_RGB, "--on-teal": p.ON_ACCENT, "--draw": p.DRAW, "--draw-rgb": p.DRAW_RGB,
+      "--cv-acc": p.ACCENT_DARK, "--cv-acc-rgb": p.ACCENT_DARK_RGB, "--role-text": p.CTA_TEXT,
+    });
+    if (p.paperKey) {
+      Object.assign(v, {
+        "--card": p.PAPER, "--card-2": p.PAPER2, "--card-2-rgb": mkRgbOf(p.PAPER2) || "16,25,38", "--plate": p.DEEP3, "--ridge-2": p.DEEP4,
+        "--fg": p.INK, "--fg-rgb": p.inkRGB, "--fg-2": p.INK_SOFT, "--fg-3": p.INK_MUTED,
+        "--line": `rgba(${p.inkRGB},${p.isLight ? ".2" : ".11"})`, "--line-2": `rgba(${p.inkRGB},${p.isLight ? ".12" : ".06"})`,
+        "--ph-1": p.DEEP2, "--ph-2": p.DEEP3, "--topo-1": p.DEEP4, "--topo-2": p.PAPER2, "--route": p.ROUTE,
+      });
+    }
+  }
+  // A metallic stock's sheen (steel), as on the coach's page (Codex on #2706).
+  if (p && p.PAPER_SHEEN) v["--card-sheen"] = p.PAPER_SHEEN;
+  if (c.wash) v["--card-wash"] = c.wash;
+  return v;
+}
+
 // Every listing, read once window.shapeDb is ready (not only when a tab switch re-runs the read,
 // which is how the old page lost them on a first load), then each account's reviews, face, points
 // and open times.
@@ -418,6 +480,7 @@ function useLiveCoaches() {
       if (on) setSt({ state: "ready", rows });
       const owned = rows.filter((c) => c.ownerId);
       if (!owned.length) return;
+      const kit = mkLoadKit();
       // Every account's real average, by ACCOUNT (a slug is a name, and names can differ).
       try {
         const sum = await fetch("/api/coaches/reviews", { credentials: "same-origin" }).then((r) => (r.ok ? r.json() : null));
@@ -433,8 +496,16 @@ function useLiveCoaches() {
           // The place the coach wrote in Edit profile (get_public_profile.location, under can_view): the
           // card's city, which a listing row has none of (Codex, #2704).
           if (row && typeof row.location === "string" && row.location.trim()) c.city = row.location.trim().slice(0, 80);
+          // The look the coach set for their page (get_public_profile.custom, under can_view).
+          c.lookDoc = row && row.can_view !== false ? row.custom : null;
         } catch (e) { /* keep initials */ }
       }));
+      // The look waits on the kit and nothing waits on it: the times are read meanwhile.
+      kit.then((K) => {
+        if (!K) return;
+        owned.forEach((c) => mkCardLook(c, c.lookDoc, K));
+        if (on) setSt({ state: "ready", rows: [...rows] });
+      });
       // Every account's times, six reads at a time: a cap left the coaches past it with no times, so
       // they failed "Open this week" and sank in the sort (Codex on #2619).
       // The intros rule rides along: a full coach who takes intros keeps Book a free intro (Codex on #2619).
@@ -625,10 +696,11 @@ function CoachCard({ c, comparing = false, canCompare = true, peek = false, onCo
   else next = <><span className="mk-live off" /><span className="t">Open times on their page</span></>;
   const where = [c.city, c.format === "Hybrid" ? "In person + remote" : c.format === "In-person" ? "In person" : c.format].filter(Boolean).join(" · ");
   return (
-    <article className={"mk-cc " + role + (comparing ? " sel" : "") + (peek ? " peek" : "")} aria-label={c.name} data-kind={kind}>
+    <article className={"mk-cc " + role + (comparing ? " sel" : "") + (peek ? " peek" : "")} aria-label={c.name} data-kind={kind}
+      data-paper={c.pal ? (c.pal.paperKey || "climb") : undefined} data-light={c.pal && c.pal.isLight ? "" : undefined} style={mkCardVars(c)}>
       <div className="edge"><div className="in">
         <div className="mk-cover">
-          {c.cover ? <img src={c.cover} alt="" loading="lazy" /> : null}
+          {c.cover ? <img src={c.cover} alt="" loading="lazy" style={c.coverPos ? { objectPosition: c.coverPos } : undefined} /> : null}
           <span className="shade" />
           <MkTopo w={360} h={142} sx={sx / 100} sy={sy / 100} seed={seed} gid={"cg" + c.key} />
           <span className="mk-sdot" style={{ left: sx + "%", top: sy + "%" }} />
@@ -797,7 +869,7 @@ function Spotlight({ tab = "Both", picks, onOpen }) {
           return (
             <button type="button" key={c.key} className={"mk-pick " + (c.tag === "Nutritionist" ? "nu" : "tr")} onClick={() => onOpen && onOpen(c)} aria-label={"Quick view: " + c.name}>
               <span className="edge"><span className="in">
-                <span className="pc">{c.cover ? <img src={c.cover} alt="" loading="lazy" /> : null}<span className="shade" /><MkTopo w={300} h={56} sx={sx / 100} sy={0.5} seed={mkHash(c.name) % 997} gid={"pg" + c.key} /></span>
+                <span className="pc">{c.cover ? <img src={c.cover} alt="" loading="lazy" style={c.coverPos ? { objectPosition: c.coverPos } : undefined} /> : null}<span className="shade" /><MkTopo w={300} h={56} sx={sx / 100} sy={0.5} seed={mkHash(c.name) % 997} gid={"pg" + c.key} /></span>
                 <span className="body">
                   <MkPrism c={c} size={54} />
                   <span className="who"><b>{c.name}</b><span className="ro">{c.tag} · {c.role}</span></span>
@@ -1011,7 +1083,7 @@ function MkQuickView({ c, index, total, onPrev, onNext, onClose, signedIn, compa
         </div>
         <div className="mk-qv-body">
           <div className="mk-qv-hero">
-            {c.cover ? <img src={c.cover} alt="" /> : null}<span className="shade" />
+            {c.cover ? <img src={c.cover} alt="" style={c.coverPos ? { objectPosition: c.coverPos } : undefined} /> : null}<span className="shade" />
             <MkTopo w={600} h={230} sx={0.8} sy={0.6} seed={(mkHash(c.name) % 997) + 33} gid={"qg" + c.key} />
             {c.years ? <span className="mk-camp" style={{ left: "32%", top: "86.5%" }}><i /><span className="mk-dtl">{new Date().getFullYear() - c.years} · first client</span></span> : null}
             {c.sessions >= 1000 ? <span className="mk-camp" style={{ left: "58%", top: "74%" }}><i /><span className="mk-dtl">1,000 sessions</span></span> : null}
@@ -1355,7 +1427,7 @@ function Marketplace() {
            one teal, Anybody display on its width axis, Doto for measured figures on a dark plate (never
            a blurred glow), Schibsted Grotesk body. Role colours: trainer rust, nutritionist gold; text
            in a role colour uses the lighter step so it clears AA on the dark card. */
-        .mk{--ink:#06090f;--ink-2:#0a0f17;--ridge-2:#0e1d28;--fg:#eef3f0;--fg-2:rgba(238,243,240,.76);--fg-3:rgba(238,243,240,.64);
+        .mk{--ink:#06090f;--ink-2:#0a0f17;--ridge-2:#0e1d28;--fg:#eef3f0;--fg-rgb:238,243,240;--fg-2:rgba(238,243,240,.76);--fg-3:rgba(238,243,240,.64);
           --teal:#34d6c5;--teal-d:#0a8f87;--teal-rgb:52,214,197;--ex:#e6c373;--line:rgba(238,243,240,.11);--line-2:rgba(238,243,240,.06);
           --card:#0c131d;--card-2:#101926;--plate:#060a10;
           --disp:'Anybody','Anybody Fallback',system-ui,sans-serif;--num:'Doto','Courier New',ui-monospace,monospace;--sans:'Schibsted Grotesk','Schibsted Fallback',system-ui,sans-serif;
@@ -1569,20 +1641,21 @@ function Marketplace() {
         .mk-key.off:hover{transform:none}
 
         /* the coach card: a miniature of the coach's page */
-        .mk-cc{position:relative;filter:drop-shadow(0 16px 18px rgba(0,0,0,.5));transition:transform .2s ease}
+        .mk-cc{position:relative;color:var(--fg);filter:drop-shadow(0 16px 18px rgba(0,0,0,.5));transition:transform .2s ease}
         .mk-cc:hover{transform:translateY(-4px)}
         .mk-cc .edge{height:100%;clip-path:polygon(0 0,calc(100% - 20px) 0,100% 20px,100% 100%,0 100%);padding:1px;background:linear-gradient(180deg,rgba(255,255,255,.2),rgba(255,255,255,.06) 30%,rgba(255,255,255,.05) 70%,rgba(255,255,255,.1))}
-        .mk-cc .in{position:relative;height:100%;display:flex;flex-direction:column;clip-path:polygon(0 0,calc(100% - 19.6px) 0,100% 19.6px,100% 100%,0 100%);background:linear-gradient(180deg,var(--card-2) 0%,var(--card) 40%)}
+        .mk-cc .in{position:relative;height:100%;display:flex;flex-direction:column;clip-path:polygon(0 0,calc(100% - 19.6px) 0,100% 19.6px,100% 100%,0 100%);background:var(--card-wash,none),var(--card-sheen,none),linear-gradient(180deg,var(--card-2) 0%,var(--card) 40%)}
         .mk-cc .in::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;z-index:4;background:linear-gradient(180deg,var(--role-hi),var(--role) 40%,rgba(var(--role-rgb),.15))}
         .mk-cc.sel .edge{background:linear-gradient(180deg,rgba(52,214,197,.9),rgba(52,214,197,.45))}
         .mk-cc.peek .edge{background:linear-gradient(180deg,#34d6c5,rgba(52,214,197,.6))}
-        .mk-cover{position:relative;height:142px;overflow:hidden;background:var(--ridge-2)}
+        .mk-cover{position:relative;height:142px;overflow:hidden;background:var(--ridge-2);
+          --fg:#eef3f0;--fg-rgb:238,243,240;--fg-2:rgba(238,243,240,.76);--fg-3:rgba(238,243,240,.64);--teal:var(--cv-acc,#34d6c5);--teal-rgb:var(--cv-acc-rgb,52,214,197);color:var(--fg)}
         .mk-cover>img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;filter:saturate(.75) brightness(.9)}
-        .mk-cover .shade,.mk-qv-hero .shade{position:absolute;inset:0;background:linear-gradient(180deg,rgba(6,9,15,.18) 0%,rgba(6,9,15,.5) 52%,rgba(16,25,38,.96) 100%),linear-gradient(100deg,rgba(10,143,135,.26),rgba(10,143,135,0) 55%)}
+        .mk-cover .shade,.mk-qv-hero .shade{position:absolute;inset:0;background:linear-gradient(180deg,rgba(6,9,15,.18) 0%,rgba(6,9,15,.5) 52%,rgba(var(--card-2-rgb,16,25,38),.96) 100%),linear-gradient(100deg,rgba(var(--draw-rgb,10,143,135),.26),rgba(var(--draw-rgb,10,143,135),0) 55%)}
         .mk-topo{position:absolute;inset:0;width:100%;height:100%;display:block}
-        .mk-sdot{position:absolute;z-index:2;width:7px;height:7px;margin:-3.5px 0 0 -3.5px;border-radius:50%;background:#f2fffd;box-shadow:0 0 0 3px rgba(52,214,197,.35),0 0 12px 3px rgba(52,214,197,.45)}
+        .mk-sdot{position:absolute;z-index:2;width:7px;height:7px;margin:-3.5px 0 0 -3.5px;border-radius:50%;background:#f2fffd;box-shadow:0 0 0 3px rgba(var(--teal-rgb),.35),0 0 12px 3px rgba(var(--teal-rgb),.45)}
         .mk-summit{position:absolute;z-index:2;transform:translate(-50%,calc(-100% - 9px));text-align:center;pointer-events:none}
-        .mk-summit .plate{display:inline-flex;align-items:baseline;gap:2px;padding:5px 7px 4px;border-radius:6px;background:rgba(6,9,15,.82);border:1px solid rgba(52,214,197,.42)}
+        .mk-summit .plate{display:inline-flex;align-items:baseline;gap:2px;padding:5px 7px 4px;border-radius:6px;background:rgba(6,9,15,.82);border:1px solid rgba(var(--teal-rgb),.42)}
         .mk-summit .plate .dig{font-size:19px}
         .mk-summit .plate small{font-size:10px;font-weight:600;color:var(--fg-2);white-space:nowrap;line-height:1}
         .mk-summit .lb{display:table;margin:3px auto 0;padding:3px 5px 2px;border-radius:4px;background:rgba(6,9,15,.84);color:var(--teal);white-space:nowrap;font-family:var(--num);font-weight:700;font-variation-settings:'ROND' 30;letter-spacing:.09em;text-transform:uppercase;font-size:9.5px;line-height:1.2}
@@ -1590,13 +1663,13 @@ function Marketplace() {
         .mk-summit.big{transform:translate(-50%,calc(-100% - 12px))}
         .mk-summit.big .plate{padding:7px 10px 5px}.mk-summit.big .plate .dig{font-size:32px}.mk-summit.big .plate small{font-size:14px}
         .mk-quickhit{position:absolute!important;inset:0;z-index:1;display:grid!important;place-items:center}
-        .mk-quickhit span{opacity:0;padding:6px 12px;border-radius:7px;background:rgba(6,9,15,.82);border:1px solid rgba(52,214,197,.5);font-size:12px;font-weight:700;transition:opacity .15s}
+        .mk-quickhit span{opacity:0;padding:6px 12px;border-radius:7px;background:rgba(6,9,15,.82);border:1px solid rgba(var(--teal-rgb),.5);font-size:12px;font-weight:700;transition:opacity .15s}
         .mk-cc:hover .mk-quickhit span,.mk-quickhit:focus-visible span{opacity:1}
         .mk-cmp{position:absolute!important;top:10px;left:12px;z-index:3;display:inline-flex!important;align-items:center;gap:6px;min-height:28px;padding:0 9px 0 7px!important;border-radius:7px;background:rgba(6,9,15,.78)!important;border:1px solid rgba(255,255,255,.2)!important;font-size:11.5px;font-weight:600;color:var(--fg);backdrop-filter:blur(4px)}
         .mk-cmp .mk-cb{width:14px;height:14px;font-size:10px}
         .mk-cmp.on{background:rgba(10,40,38,.88)!important;border-color:rgba(52,214,197,.7)!important}
         .mk-cmp.off{color:var(--fg-3);cursor:default}
-        .mk-badge{position:absolute;top:12px;left:106px;z-index:3;display:inline-flex;align-items:center;gap:5px;min-height:24px;padding:0 7px;border-radius:5px;font-family:var(--num);font-weight:700;font-size:9.5px;letter-spacing:.07em;text-transform:uppercase;font-variation-settings:'ROND' 30;background:rgba(6,9,15,.82);color:var(--teal);border:1px solid rgba(52,214,197,.45);white-space:nowrap}
+        .mk-badge{position:absolute;top:12px;left:106px;z-index:3;display:inline-flex;align-items:center;gap:5px;min-height:24px;padding:0 7px;border-radius:5px;font-family:var(--num);font-weight:700;font-size:9.5px;letter-spacing:.07em;text-transform:uppercase;font-variation-settings:'ROND' 30;background:rgba(6,9,15,.82);color:var(--teal);border:1px solid rgba(var(--teal-rgb),.45);white-space:nowrap}
         .mk-badge.full{color:#ffd29a;border-color:rgba(255,180,84,.5)}
         .mk-badge.muted{color:var(--fg-2);border-color:rgba(238,243,240,.28)}
         .mk-badge.ex{color:var(--ex);border-color:rgba(230,195,115,.5)}
@@ -1605,7 +1678,7 @@ function Marketplace() {
         .mk-nm{display:flex!important;align-items:center;gap:6px;max-width:100%;font-family:var(--disp);font-weight:600;font-variation-settings:'wdth' 100;font-size:18.5px;line-height:1.15;white-space:nowrap;text-align:left}
         .mk-nm .t{overflow:hidden;text-overflow:ellipsis}
         .mk-nm .dot,.mk-qnm .dot{color:var(--teal)}
-        .mk-vf{flex:none;width:16px;height:16px;border-radius:50%;display:grid;place-items:center;background:var(--teal);color:#04110f;font-family:var(--sans);font-size:10px;font-weight:800}
+        .mk-vf{flex:none;width:16px;height:16px;border-radius:50%;display:grid;place-items:center;background:var(--teal);color:var(--on-teal,#04110f);font-family:var(--sans);font-size:10px;font-weight:800}
         .mk-tier{display:flex;flex-wrap:wrap;align-items:center;gap:5px;margin-top:5px;font-family:var(--num);font-weight:700;font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--fg-2);font-variation-settings:'ROND' 30}
         .mk-tier span{display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
         .mk-tier i{width:7px;height:7px;border-radius:2px;transform:rotate(45deg);display:inline-block}
@@ -1616,7 +1689,7 @@ function Marketplace() {
         .mk-pl{position:relative;padding:7px 8px 11px;background:var(--plate);clip-path:polygon(0 0,calc(100% - 7px) 0,100% 7px,100% 100%,0 100%);box-shadow:inset 0 0 0 1px rgba(255,255,255,.07),inset 0 1px 0 rgba(255,255,255,.1);min-width:0}
         .mk-pl .dig{font-size:18px;white-space:nowrap}
         .mk-pl>span:nth-child(2){display:block;margin-top:5px;font-family:var(--num);font-weight:700;font-variation-settings:'ROND' 30;letter-spacing:.08em;text-transform:uppercase;font-size:9.5px;color:var(--fg-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1}
-        .mk-pl::after,.mk-ip::after{content:"";position:absolute;left:8px;right:8px;bottom:4px;height:3px;background:repeating-linear-gradient(90deg,rgba(238,243,240,.22) 0 1px,transparent 1px 4px)}
+        .mk-pl::after,.mk-ip::after{content:"";position:absolute;left:8px;right:8px;bottom:4px;height:3px;background:repeating-linear-gradient(90deg,rgba(var(--fg-rgb),.22) 0 1px,transparent 1px 4px)}
         .mk-pl .tk,.mk-ip .tk{position:absolute;left:8px;bottom:4px;height:3px;width:calc((100% - 16px) * var(--v));z-index:1;background:repeating-linear-gradient(90deg,var(--teal) 0 1px,transparent 1px 4px)}
         .mk-pl.role .tk{background:repeating-linear-gradient(90deg,var(--role-text) 0 1px,transparent 1px 4px)}
         .mk-meta{display:grid;gap:5px;margin:12px 16px 0 18px;font-size:12.5px;color:var(--fg-2)}
@@ -1626,9 +1699,15 @@ function Marketplace() {
         .mk-meta .r .t{overflow:hidden;text-overflow:ellipsis}
         .mk-live{flex:none;display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--teal);animation:mklivep 2.2s ease-out infinite;margin:0 2px 0 3px}
         .mk-live.warm{background:#ffb454;animation:none}
-        .mk-live.off{background:rgba(238,243,240,.3);animation:none}
-        @keyframes mklivep{0%{box-shadow:0 0 0 0 rgba(52,214,197,.55)}100%{box-shadow:0 0 0 8px rgba(52,214,197,0)}}
+        .mk-live.off{background:rgba(var(--fg-rgb),.3);animation:none}
+        @keyframes mklivep{0%{box-shadow:0 0 0 0 rgba(var(--teal-rgb),.55)}100%{box-shadow:0 0 0 8px rgba(var(--teal-rgb),0)}}
         @media (prefers-reduced-motion: reduce){.mk-live{animation:none}.mk-cc,.mk-goal,.mk-pick,.mk-key{transition:none}}
+        /* A coach's light paper (mkCardVars): the keys, plates and figures in the paper's ink. */
+        .mk-cc[data-light] .mk-pl .dig{color:var(--fg)}
+        .mk-cc[data-light] .mk-pl{box-shadow:inset 0 0 0 1px rgba(var(--fg-rgb),.14),inset 0 1px 0 rgba(255,255,255,.4)}
+        .mk-cc[data-light] .mk-acts .mk-key:not(.role):not(.wait):not(.off){background:linear-gradient(180deg,rgba(var(--fg-rgb),.07),rgba(var(--fg-rgb),.03))!important;box-shadow:inset 0 1px 0 rgba(255,255,255,.5),0 1px 2px rgba(0,0,0,.16)}
+        .mk-cc[data-light] .mk-key.off{border-color:rgba(var(--fg-rgb),.32)!important}
+        .mk-cc[data-light] .mk-key.wait{color:#7a4300!important;border-color:rgba(160,90,0,.5)!important;background:rgba(255,180,84,.2)!important}
         .mk-creds{margin:8px 16px 0 18px;font-size:11.5px;color:var(--fg-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
         .mk-acts{display:grid;grid-template-columns:auto minmax(0,1fr);gap:8px;margin-top:auto;padding:14px 16px 16px 18px;border-top:1px solid var(--line-2);margin-top:14px}
         .mk-acts .mk-key{min-height:44px}
@@ -1636,8 +1715,8 @@ function Marketplace() {
         /* the prism portrait */
         .mk-prism{--s:78px;--c:16px;position:relative;display:block;width:var(--s);height:calc(var(--s) * 1.12);flex:none;filter:drop-shadow(0 10px 14px rgba(0,0,0,.6))}
         .mk-prism>*{position:absolute;--k:var(--c);clip-path:polygon(0 0,calc(100% - var(--k)) 0,100% var(--k),100% 100%,var(--k) 100%,0 calc(100% - var(--k)))}
-        .mk-prism .ring{inset:0;background:linear-gradient(140deg,#bff5ee,var(--teal) 22%,rgba(52,214,197,.18) 46%,rgba(var(--role-rgb),.3) 58%,var(--role) 86%,var(--role-end))}
-        .mk-prism .ph{inset:2px;--k:calc(var(--c) - 1px);overflow:hidden;background:linear-gradient(150deg,#1b2733,#0e1520);display:grid;place-items:center}
+        .mk-prism .ring{inset:0;background:linear-gradient(140deg,#bff5ee,var(--teal) 22%,rgba(var(--teal-rgb),.18) 46%,rgba(var(--role-rgb),.3) 58%,var(--role) 86%,var(--role-end))}
+        .mk-prism .ph{inset:2px;--k:calc(var(--c) - 1px);overflow:hidden;background:linear-gradient(150deg,var(--ph-1,#1b2733),var(--ph-2,#0e1520));display:grid;place-items:center}
         .mk-prism .ph img{width:100%;height:100%;object-fit:cover;object-position:center 20%}
         .mk-prism .ini{font-family:var(--disp);font-weight:700;font-variation-settings:'wdth' 110;color:var(--role-text);line-height:1}
         .mk-prism .gl{inset:2px;--k:calc(var(--c) - 1px);pointer-events:none;background:linear-gradient(118deg,rgba(255,255,255,0) 0 7%,rgba(255,255,255,.32) 10%,rgba(255,255,255,0) 16%),linear-gradient(118deg,rgba(255,255,255,0) 0 17%,rgba(255,255,255,.14) 18.5%,rgba(255,255,255,0) 21%),linear-gradient(180deg,transparent 62%,rgba(6,9,15,.45))}
