@@ -62,7 +62,8 @@ The rules and the code map. Every session loads it: when a rule changes, replace
   check a legacy `*.jsx` is still loaded before editing it. `coachForecast.js` holds the coach
   Business figures for the app too, and `splitGlassMark.js` the 3D mark. A coach's public page
   is `coachProfileWeb.jsx` (kit `coachProfileKit.mjs`): the app profile for the web, selling
-  through `livingShared.jsx`'s `useLvCoachCommerce`.
+  through `livingShared.jsx`'s `useLvCoachCommerce`. Its colours and its Coaches card's
+  (`marketplace.jsx`) are the coach's look through the kit's `bsCoachPagePalette` (null: the Climb).
 - **Next.js (`src/`):** API routes, `/dashboard`, `/admin`. Read the Next docs first;
   CI typechecks (`npx tsc --noEmit`). A new route goes in the War Room's `RAW_ROUTES`. A
   route the app calls reads the caller with `clientForRequest`/`currentUser`
