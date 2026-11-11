@@ -799,11 +799,12 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
   const tier = points != null && typeof lvTierFor === "function" ? lvTierFor(points, true).name : "";
   const [custom, setCustom] = React.useState(() => (live ? (row && row.custom) || null : (sample && sample.custom) || null));
   React.useEffect(() => { setCustom(live ? (row && row.custom) || null : (sample && sample.custom) || null); }, [live, uid, sample]);
-  // A sample's photo comes in on the link (marketplace `&avatar=`): only https or this site's own paths.
-  const avatar = live ? (row && row.avatar) || null : (/^(https:\/\/|\/[^/\\])/.test(String(avatarIn || "")) ? avatarIn : null);
-  const [brokenAvatar, setBrokenAvatar] = React.useState(null);
-  const avatarShown = avatar && avatar !== brokenAvatar ? avatar : null;
-  const bio = isPrivate ? "" : String((live ? (row && (row.goal || row.bio)) : (sample && sample.live && sample.live.goal)) || "").trim();
+  // Their line: the Bio written in Edit profile (profile_custom.bio, as the member app's profile reads it),
+  // else the line from their account (client_identity's goal or bio, get_public_profile). The Bio field
+  // wrote a doc this page never read, so the editor's change did not show (owner, 2026-11-11: "make sure
+  // these edits and changes actually work").
+  const customBio = custom && typeof custom.bio === "string" ? custom.bio.trim() : "";
+  const bio = isPrivate ? "" : String((live ? (customBio || (row && (row.goal || row.bio))) : (sample && sample.live && sample.live.goal)) || "").trim();
 
   // ── The Climb's colours: one dark page for every coach (it is one layout, not a picker), Shape's teal
   //    for a trainer and gold for a nutritionist, and the booking colour (trainer rust, nutritionist
@@ -823,6 +824,13 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
   const L = listed ? listing.row : (demo && sample ? sample.provider : null);
   const media = isPrivate ? { cover: null, gallery: [] } : (listed ? listing.row.listing_media : sample ? sample.provider.listing_media : { cover: null, gallery: [] }) || { cover: null, gallery: [] };
   const gallery = Array.isArray(media.gallery) ? media.gallery : [];
+  // Their face: the photo on their account (Edit profile → You, or the app), else their listing's portrait
+  // (the dashboard's "Portrait · you"), so a coach who set only the one is not a placeholder (owner,
+  // 2026-11-11: "where do i upload my profile image"). A sample's photo comes in on the link (marketplace
+  // `&avatar=`): only https or this site's own paths.
+  const avatar = live ? (row && row.avatar) || media.portrait || null : (/^(https:\/\/|\/[^/\\])/.test(String(avatarIn || "")) ? avatarIn : null);
+  const [brokenAvatar, setBrokenAvatar] = React.useState(null);
+  const avatarShown = avatar && avatar !== brokenAvatar ? avatar : null;
   const coverDoc = sample ? (custom && custom.cover && sample.photos.includes(custom.cover.image) ? { image: custom.cover.image } : null) : K.bsProfileCover(custom && custom.cover, uid);
   const wall = isPrivate ? null : ((coverDoc && coverDoc.image) || media.cover || null);
   const studio = nutri || isPrivate ? null : K.bsProfileStudio(custom && custom.studio);
@@ -1193,6 +1201,25 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
   const toDay = () => { setSheet(null); setTimeout(() => toCamp("day"), 40); };
   const message = () => { if (cm.provId) cm.openChat(); else onMessage(); };
   const canEdit = isSelf && typeof ProfileCustomizer !== "undefined";
+  // Settings' "Open Edit profile" lands here with ?edit=profile on the tab's hash (owner, 2026-11-11: the
+  // Settings card and this editor merged into this one): open it once, and drop the ask from the address.
+  React.useEffect(() => {
+    if (!canEdit) return undefined;
+    const take = () => {
+      const h = String(window.location.hash || "");
+      const q = h.indexOf("?");
+      if (q < 0) return;
+      const params = new URLSearchParams(h.slice(q + 1));
+      if (params.get("edit") !== "profile") return;
+      params.delete("edit");
+      const rest = params.toString();
+      try { window.history.replaceState(window.history.state, "", window.location.pathname + window.location.search + h.slice(0, q) + (rest ? "?" + rest : "")); } catch (e) {}
+      setEditing(true);
+    };
+    take();
+    window.addEventListener("hashchange", take);
+    return () => window.removeEventListener("hashchange", take);
+  }, [canEdit]);
   const hoursHref = nutri ? "/newdesign/NutritionistSchedule.html" : "/newdesign/TrainerSchedule.html";
   const scoreHref = nutri ? "/newdesign/NutritionistScore.html" : "/newdesign/TrainerScore.html";
   const followOn = !!(follow && (follow.isFollowing || follow.isPending));
@@ -1651,7 +1678,7 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
                   </div>
                   {followRow}
                   {bio ? <p data-bio="" className="cpw-quote">“{bio}”</p>
-                    : isSelf ? <p style={{ margin: "16px 0 0", fontSize: 14, color: ink(0.7) }}>Add a line about how you coach in Settings → Edit profile.</p> : null}
+                    : isSelf ? <p style={{ margin: "16px 0 0", fontSize: 14, color: ink(0.7) }}>Add a line about how you coach: Edit profile, then Bio.</p> : null}
                   {headSocials.length ? (
                     <div data-head-socials="" role="group" aria-label={`Find ${first} online`} style={{ display: "flex", flexWrap: "wrap", margin: "6px 0 0 -12px" }}>
                       {headSocials.map(([k, href]) => (
@@ -1674,7 +1701,7 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
                       {points != null ? <a href={scoreHref} className="cpw-dtl" style={{ alignSelf: "center", color: ink(0.78), textDecoration: "none", minHeight: 44, display: "inline-flex", alignItems: "center" }}>Shape Score {points.toLocaleString()} ›</a> : null}
                     </div>
                   ) : null}
-                  {isSelf ? <p style={{ margin: "8px 0 0", fontSize: 13, lineHeight: 1.45, color: ink(0.7), maxWidth: 560 }}>Your wall photo, spotlight, studio or kitchen and About me are set in the Shape app, in Make it yours. Members see them here.</p> : null}
+                  {isSelf ? <p style={{ margin: "8px 0 0", fontSize: 13, lineHeight: 1.45, color: ink(0.7), maxWidth: 560 }}>Your photo, name, bio and cover are in Edit profile; your spotlight, {nutri ? "kitchen" : "studio"} and About me are set in the Shape app, in Make it yours. Members see them here.</p> : null}
                 </React.Fragment>
               )}
               {!isPrivate && (plateStats.length || openThisWeek != null) ? (

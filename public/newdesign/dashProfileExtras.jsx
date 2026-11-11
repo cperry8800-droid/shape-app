@@ -818,24 +818,13 @@ function CoachGuidesCard() {
 }
 
 function CoachAccountSettings({ accountId }) {
-  const [details,setDetails]=React.useState(null);
-  const [error,setError]=React.useState("");
-  const [editing,setEditing]=React.useState(false);
-  const load=React.useCallback(async()=>{
-    if(!accountId)return;
-    setError("");
-    try {
-      const lib=await cmeSettingsSync();
-      const saved=await lib.loadSettings(window.shapeDb);
-      if(saved.userId!==accountId)throw new Error("Your account changed. Reopen Settings.");
-      setDetails(saved.profile);
-    } catch(e) { setError(e.message || "Could not load your profile details."); }
-  },[accountId]);
-  React.useEffect(()=>{load();},[load]);
-  async function persist(patch,uid) {
-    try { const lib=await cmeSettingsSync();await lib.saveSettingsPatch(window.shapeDb,patch,uid);return null; }
-    catch(e) { return e.message || "Could not save your profile details."; }
-  }
+  // ⚠ ONE PLACE TO EDIT YOUR PROFILE (owner, 2026-11-11, of this card's "Edit profile details" beside the
+  // profile's Edit profile: "Can one be removed?", then "Merge into Edit profile"). The name, handle,
+  // location and pronouns this card edited, and the links, are in Edit profile now (About → You and Links),
+  // with the photo; this card says so and opens it.
+  const role = (typeof dashShellRole === "function" && dashShellRole()) || "trainer";
+  const editHref = typeof dashLinkedTab === "function" ? dashLinkedTab("profile", role, { edit: "profile" })
+    : (role === "nutritionist" ? "NutritionistApp.html" : "TrainerApp.html") + "#profile?edit=profile";
   // ⚠ THE SAME PLATES AS THE REST OF SETTINGS — owner, 2026-10-15: "improve look and layout of
   // this on settings page in dashboard". This section was a 900px column centred under full-width
   // plates, with a bare heading and its own rounded cards, so the page changed width and style
@@ -850,10 +839,8 @@ function CoachAccountSettings({ accountId }) {
       <div className="dk-3up" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 16 }}>
         <div className="dash-plate" style={plate("var(--sh-accent, #2ee0c4)")}>
           {pxSetHead("profile", "Profile details")}
-          <p style={note}>Your name, handle, location and links are shared with the app. Manage your bio, credentials and listing on your profile.</p>
-          {error && <p role="alert" style={{ ...note, color: "var(--sh-danger, #e07856)" }}>{error} <button type="button" onClick={load} style={{ ...btn(false), padding: "4px 10px", marginLeft: 6 }}>Retry</button></p>}
-          <button type="button" disabled={!accountId || !details} style={{ ...btn(false), opacity: (!accountId || !details) ? 0.5 : 1 }} onClick={()=>setEditing(true)}>Edit profile details</button>
-          {editing && <EditProfileModal initial={details} accountId={accountId} onClose={()=>setEditing(false)} onPersist={persist} onSaved={patch=>setDetails({...details,...patch})} />}
+          <p style={note}>Your photo, name, handle, location, pronouns, bio and links are edited in one place: Edit profile, on your profile. They are shared with the app.</p>
+          <a href={editHref} data-open-edit-profile="" style={{ ...btn(false), display: "inline-block", textDecoration: "none" }}>Open Edit profile</a>
         </div>
       </div>
       <div className="dash-plate" style={{ ...plate("var(--sh-danger, #e07856)"), marginTop: 16 }}>

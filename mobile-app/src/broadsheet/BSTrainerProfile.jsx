@@ -293,9 +293,10 @@ function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = fal
   const avatarShown = avatar && avatar !== brokenAvatar ? avatar : null;
   const initials = W.bsInitials ? W.bsInitials(name) : String(name).split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
   const online = isSelf ? (W.bsAmLive ? W.bsAmLive() : false) : (W.bsIsUserOnline ? W.bsIsUserOnline(person.userId) : false);
-  // As members read it (get_public_profile: the line in Settings → Edit profile), as the Signal
-  // profile does.
-  const bio = (!isPrivate && ((live && live.goal) || (live && live.bio) || person.bio)) || '';
+  // The Bio written in the website's Edit profile (profile_custom.bio, as the member profile reads it),
+  // else as members read it (get_public_profile: the line in Settings → Edit profile).
+  const customBio = custom && typeof custom.bio === 'string' ? custom.bio.trim() : '';
+  const bio = (!isPrivate && (customBio || (live && live.goal) || (live && live.bio) || person.bio)) || '';
 
   // ── Their listing (provider row): open times, prices, verified, photos ──
   const [provider, setProvider] = React.useState(() => (selfDemo ? selfDemo.provider : null));

@@ -1125,6 +1125,37 @@ function DkLookPicker({ look, setLook, kit }) {
 // The panel opens on the doc's look, else on what the page is in now: a member's page is the site's dark
 // stock with teal until they pick; a coach's the kit's default for their role, read off the accent the page
 // hands the editor (`c`: amber for a nutritionist, teal for a trainer).
+// The identity photo as the app stores it: a data URL of an image, nothing else (an outside URL would load
+// on everyone's device). Anything else reads as no photo.
+function dkIdentityPhoto(v) {
+  return typeof v === "string" && /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(v) && v.length <= 400000 ? v : null;
+}
+// A picked file as the app's avatar: centred, cropped square, 256px, JPEG at 0.82 (useBSProfilePhoto).
+function dkSquarePhoto(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error("read"));
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error("decode"));
+      img.onload = () => {
+        try {
+          const S = 256, cv = document.createElement("canvas");
+          cv.width = S; cv.height = S;
+          const ctx = cv.getContext("2d");
+          const k = Math.max(S / img.width, S / img.height), w = img.width * k, h = img.height * k;
+          ctx.drawImage(img, (S - w) / 2, (S - h) / 2, w, h);
+          const url = cv.toDataURL("image/jpeg", 0.82);
+          if (!dkIdentityPhoto(url)) throw new Error("encode");
+          resolve(url);
+        } catch (e) { reject(e); }
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
 // The look a save writes: the doc's own, with the paper and accent picked (`pick`, or null) and the
 // cover's dragged spot (`pos`, null to clear it) when `posChanged`. Empty is null.
 function dkNextLook(initLook, pick, posChanged, pos, plib) {
@@ -1576,6 +1607,39 @@ function ProfileCustomizer({ initial, c, onClose, onSave, coach = false, ownerUi
   const coverRef = React.useRef(null);
   const [busy, setBusy] = React.useState(false);
   const [err, setErr] = React.useState("");
+  // You: the account's name, handle, location, pronouns and photo (client_identity, the app's own identity
+  // document), edited here with the rest of the profile (owner, 2026-11-11, of Settings' "Profile details"
+  // beside this editor: "Can one be removed?", "Merge into Edit profile"; and "where do i upload my profile
+  // image"). Only what is touched is written, through settingsSync like Settings did; the photo is a 256px
+  // JPEG, as the app stores it. The section waits for its read and is skipped by the save until it lands.
+  const [idf, setIdf] = React.useState(null);
+  const [idState, setIdState] = React.useState("loading"); // loading | ready | error
+  const idTouched = React.useRef(new Set());
+  const [photo, setPhoto] = React.useState(null);
+  const [photoTouched, setPhotoTouched] = React.useState(false);
+  const photoRef = React.useRef(null);
+  const loadIdentity = React.useCallback(async () => {
+    setIdState("loading");
+    try {
+      const db = window.shapeDb;
+      if (!db || typeof db.getUserGoals !== "function") throw new Error("unavailable");
+      const d = await db.getUserGoals("client_identity");
+      if (d == null || typeof d !== "object") throw new Error("unread");
+      setIdf({ displayName: d.name || ownerName || "", handle: d.handle || "", location: d.location || "", pronouns: d.pronouns || "" });
+      setPhoto(dkIdentityPhoto(d.photo));
+      setIdState("ready");
+    } catch (e) { setIdState("error"); }
+  }, []);
+  React.useEffect(() => { loadIdentity(); }, [loadIdentity]);
+  const setId = (k, v) => { idTouched.current.add(k); setIdf((prev) => ({ ...prev, [k]: v })); };
+  const onPhotoFile = (e) => {
+    const f = e.target.files && e.target.files[0];
+    try { e.target.value = ""; } catch (x) {}
+    if (!f) return;
+    if (!/^image\//.test(f.type || "")) { setErr("Choose an image for your photo."); return; }
+    dkSquarePhoto(f).then((url) => { setPhoto(url); setPhotoTouched(true); setErr(""); })
+      .catch(() => setErr("Couldn't read that photo — try another."));
+  };
   const onCoverFile = async (e) => {
     const file = e && e.target && e.target.files && e.target.files[0]; if (e && e.target) e.target.value = "";
     if (!file) return;
@@ -1647,6 +1711,23 @@ function ProfileCustomizer({ initial, c, onClose, onSave, coach = false, ownerUi
     if (!cl || !uid) { setBusy(false); setErr("Sign in to save your profile."); return; }
     if (ownerUid && uid !== ownerUid) { setBusy(false); setErr("Your account changed. Close the editor and reopen your profile."); return; }
     if (!plib || !plib.bsNormalizeProfileCustom) { setBusy(false); setErr("Editor is still loading — try again in a moment."); return; }
+    // You first: a name left empty stops the save before anything is written.
+    const idPatch = idState === "ready" && idf ? Object.fromEntries([...idTouched.current].map((k) => [k, idf[k]])) : {};
+    const idChanged = Object.keys(idPatch).length > 0 || (idState === "ready" && photoTouched);
+    if (idChanged) {
+      try {
+        const lib = await cmeSettingsSync();
+        if (Object.keys(idPatch).length) await lib.saveSettingsPatch(window.shapeDb, idPatch, uid);
+        if (photoTouched) await lib.saveAccountDocPatch(window.shapeDb, "client_identity", { photo: photo || null }, uid);
+      } catch (e) { setBusy(false); setErr((e && e.message) || "Couldn't save your details — try again."); return; }
+      idTouched.current = new Set(); setPhotoTouched(false);
+      // Every avatar and name on the page reads again (livingProfilePage, the app's own listeners).
+      try {
+        const fresh = window.shapeDb && window.shapeDb.getUserGoals ? await window.shapeDb.getUserGoals("client_identity") : null;
+        if (fresh && typeof fresh === "object") window.ShapeIdentity = fresh;
+      } catch (e) {}
+      try { window.dispatchEvent(new Event("shape:identity")); } catch (e) {}
+    }
     const out = plib.bsNormalizeProfileCustom(doc, uid, { filmBucket: filmRoleBucket, filmKey });
     let error = null;
     try { const r = await cl.from("user_goals").upsert({ user_id: uid, kind: "profile_custom", data: out }, { onConflict: "user_id,kind" }); error = r && r.error; }
@@ -1679,6 +1760,33 @@ function ProfileCustomizer({ initial, c, onClose, onSave, coach = false, ownerUi
     <ProfileEditorDialog c={c} onClose={onClose} busy={busy || wallBusy || coverBusy || filmBusy}
       saving={busy} error={err} onSave={save}>
       <div key="about" data-editor-label="About">
+        <div data-dk-identity={idState} style={{ marginBottom: 22, paddingBottom: 18, borderBottom: `1px solid ${dHexA(LV_INK, 0.1)}` }}>
+          <span style={label}>You</span>
+          <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 14 }}>
+            <div aria-hidden="true" style={{ width: 76, height: 76, flex: "none", borderRadius: "50%", overflow: "hidden", background: dHexA(c, 0.22), border: `1px solid ${dHexA(c, 0.5)}`, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: dSerif, fontSize: 26, color: LV_INK }}>
+              {photo ? <img data-dk-photo="" src={photo} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : String((idf && idf.displayName) || ownerName || "·").trim().slice(0, 1).toUpperCase()}
+            </div>
+            <div style={{ minWidth: 0 }}>
+              <input ref={photoRef} type="file" accept="image/*" onChange={onPhotoFile} style={{ display: "none" }} />
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                <button type="button" data-dk-photo-pick="" disabled={idState !== "ready"} onClick={() => photoRef.current && photoRef.current.click()} style={{ padding: "8px 15px", borderRadius: 999, border: `1px solid ${dHexA(LV_INK, 0.5)}`, background: "transparent", color: LV_INK, cursor: idState === "ready" ? "pointer" : "default", opacity: idState === "ready" ? 1 : 0.5, fontFamily: dMono, fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase" }}>{photo ? "Replace photo" : "Upload photo"}</button>
+                {photo && idState === "ready" ? <button type="button" data-dk-photo-remove="" onClick={() => { setPhoto(null); setPhotoTouched(true); }} style={{ padding: "8px 13px", borderRadius: 999, border: `1px solid ${dHexA(LV_INK, 0.3)}`, background: "transparent", color: dHexA(LV_INK, 0.8), cursor: "pointer", fontFamily: dMono, fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" }}>Remove</button> : null}
+              </div>
+              <div style={{ marginTop: 7, fontFamily: dMono, fontSize: 9, letterSpacing: "0.06em", color: dHexA(LV_INK, 0.5), lineHeight: 1.5 }}>Your photo is your face on Shape: your profile, posts and chats, here and in the app.</div>
+            </div>
+          </div>
+          {idState === "error" ? (
+            <p role="status" style={{ margin: "0 0 4px", fontSize: 13, color: dHexA(LV_INK, 0.7) }}>Your name and photo didn't load. <button type="button" onClick={loadIdentity} style={{ background: "transparent", border: 0, padding: 0, color: c, textDecoration: "underline", cursor: "pointer", font: "inherit" }}>Try again</button></p>
+          ) : (
+            <div className="dk-editor-business">
+              {[["displayName", "Name", "Your name"], ["handle", "Handle", "@yourname"], ["location", "Location", "City, or online"], ["pronouns", "Pronouns", "e.g. she/her"]].map(([k, l, ph]) => (
+                <label key={k} className="dk-editor-business-field"><span>{l}</span>
+                  <input aria-label={l} data-dk-id={k} disabled={idState !== "ready"} value={(idf && idf[k]) || ""} onChange={(e) => setId(k, e.target.value)} maxLength={k === "pronouns" ? 24 : 60} placeholder={idState === "loading" ? "Loading…" : ph} style={field} />
+                </label>
+              ))}
+            </div>
+          )}
+        </div>
         <div style={{ marginBottom: 18 }}><span style={label}>Bio</span><textarea aria-label="Bio" value={bio} onChange={(e) => setBio(e.target.value)} rows={3} maxLength={280} placeholder="A line about you, your training, your why…" style={{ ...field, resize: "vertical" }} /><span className="dk-editor-hint">{bio.length}/280 characters</span></div>
         {coach && (<>
           {/* P2 · The Line (shared key) */}
