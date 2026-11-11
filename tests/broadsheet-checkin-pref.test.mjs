@@ -550,7 +550,7 @@ test('both Home surfaces consult the pref', () => {
   assert.match(src, /engineFlag && !bsCheckinLeadSuppressed\(engineFlag\)/,
     'the LEAD must consult the rule, or Home leads with a second check-in');
   // The weekly line is on Team now, with the coaches it is for (owner, 2026-11-11): one check-in on Home.
-  assert.match(src, /weekly=\{!sample && checkinDue && checkinPrefOn &&/,
+  assert.match(src, /weekly=\{!sample && checkinDue && checkinPrefOn \? \{ onOpen: \(\) => setCheckinPage\(true\) \} : null\}/,
     'the WEEKLY line derives from a missing row and must also consult the pref');
 });
 
