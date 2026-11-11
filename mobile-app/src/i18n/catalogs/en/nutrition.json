@@ -465,5 +465,18 @@
   "planDay.linkSub": "Today or tomorrow, from Shape Kitchen",
   "planDay.cta": "Plan it for today or tomorrow →",
   "planDay.yours": "Planned by you",
-  "planDay.daySwapped": "Swapped for today"
+  "planDay.daySwapped": "Swapped for today",
+  "eat.coachAdded.unread": "Your nutritionist’s meals didn’t load.",
+  "eat.coachAdded.retry": "Try again",
+  "eat.coachAdded.from": "From {name}",
+  "eat.coachAdded.fromNutritionist": "From your nutritionist",
+  "eat.coachAdded.today": "Added today",
+  "eat.coachAdded.onDay": "Added · {day}",
+  "eat.coachAdded.count": "{count, plural, one {# meal} other {# meals}}",
+  "eat.coachAdded.kcal": "{kcal} kcal",
+  "eat.coachAdded.protein": "{g} g protein",
+  "eat.coachAdded.swaps": "Swaps: {list}",
+  "grocery.coachNote.from": "Grocery note · {name}",
+  "grocery.coachNote.fromAnon": "Grocery note · your nutritionist",
+  "grocery.coachNote.unread": "Your nutritionist’s grocery note didn’t load."
 }

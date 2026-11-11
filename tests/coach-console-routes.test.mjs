@@ -33,7 +33,7 @@ const NOW = Date.parse('2026-11-10T03:00:00.000Z')
 // Every read answers from `tables`, filtered by the eq / in / is / gte filters the route names (so a
 // filter the route drops lets the wrong rows through); `fail(call)` fails a read it picks. Writes are
 // recorded and answer ok. `rpc` answers is_coach_on_client from `onClient`.
-function fakeDb(tables, { fail = null, onClient = true } = {}) {
+function fakeDb(tables, { fail = null, failWrite = null, onClient = true } = {}) {
   const calls = []
   const writes = []
   const keep = (row, ops) => ops.every(([op, col, v]) => {
@@ -48,6 +48,7 @@ function fakeDb(tables, { fail = null, onClient = true } = {}) {
     calls.push(call)
     const answer = (single) => {
       if (call.write) {
+        if (failWrite && failWrite(call)) return { data: null, error: { message: 'refused' } }
         writes.push({ table, ...call.write, ops: call.ops })
         return { data: single ? { id: 'new-item' } : null, error: null }
       }
@@ -81,7 +82,8 @@ async function libs() {
   const time = await ts('src/lib/time.ts')
   const workoutDays = await ts('src/lib/workout-days.ts', new Map([['@/lib/time', time]]))
   const exercises = await ts('src/lib/coach-exercises.ts', new Map([['@/lib/workout-days', workoutDays]]))
-  return { time, workoutDays, exercises, names: await ts('src/lib/client-names.ts'), utils: await ts('src/lib/request-utils.ts', new Map([['next/server', nextServer]])) }
+  const meals = await ts('src/lib/coach-meals.ts', new Map([['@/lib/workout-days', workoutDays]]))
+  return { time, workoutDays, exercises, meals, names: await ts('src/lib/client-names.ts'), utils: await ts('src/lib/request-utils.ts', new Map([['next/server', nextServer]])) }
 }
 const LIBS = await libs()
 
@@ -105,6 +107,7 @@ async function route(role, db) {
       ['@/lib/time', LIBS.time],
       ['@/lib/workout-days', LIBS.workoutDays],
       ['@/lib/coach-exercises', LIBS.exercises],
+      ['@/lib/coach-meals', LIBS.meals],
     ]),
   })
 }
@@ -157,8 +160,12 @@ const world = (role = 'trainer', over = {}) => ({
     { id: 'cue-1', client_id: A, provider_role: role, provider_id: 7, kind: 'cue', payload: { text: 'Brace' }, sent_at: '2026-11-10T02:00:00.000Z', removed_at: null },
     // C's today (UTC).
     ex('e-c', C, '2026-11-10T02:30:00.000Z', { name: 'Sled push', sets: '4', reps: '20 m' }),
-    { id: 'meal-1', client_id: A, provider_role: 'nutritionist', provider_id: 7, kind: 'meal', payload: { name: 'Oats' }, sent_at: '2026-11-01T08:00:00.000Z', removed_at: null },
-    { id: 'note-1', client_id: A, provider_role: 'nutritionist', provider_id: 7, kind: 'grocery_note', payload: { text: 'Buy oats' }, sent_at: '2026-11-02T08:00:00.000Z', removed_at: null },
+    // A's today in Los Angeles, and a meal from yesterday there, which stays on that day.
+    { id: 'meal-1', client_id: A, provider_role: 'nutritionist', provider_id: 7, kind: 'meal', payload: { name: 'Oats', time: '8:00 am', kcal: '420', protein: 30, ingredients: ['Oats', ''], alternatives: ['Eggs'] }, sent_at: '2026-11-10T01:00:00.000Z', removed_at: null },
+    { id: 'meal-old', client_id: A, provider_role: 'nutritionist', provider_id: 7, kind: 'meal', payload: { name: 'Last night\'s soup' }, sent_at: '2026-11-09T05:00:00.000Z', removed_at: null },
+    // The grocery note stands until replaced: the newest wins, whatever order the rows come in.
+    { id: 'note-2', client_id: A, provider_role: 'nutritionist', provider_id: 7, kind: 'grocery_note', payload: { text: 'Buy oats' }, sent_at: '2026-11-02T08:00:00.000Z', removed_at: null },
+    { id: 'note-1', client_id: A, provider_role: 'nutritionist', provider_id: 7, kind: 'grocery_note', payload: { text: 'Old note' }, sent_at: '2026-10-02T08:00:00.000Z', removed_at: null },
     { id: 'cue-n', client_id: A, provider_role: 'nutritionist', provider_id: 7, kind: 'cue', payload: { text: 'Sip water' }, sent_at: '2026-11-10T02:00:00.000Z', removed_at: null },
   ],
   ...over,
@@ -262,13 +269,76 @@ test('trainer console: today\'s session is the exercises sent on each client\'s 
   assert.equal(body.focusByClient[A], 'Control the eccentric.')
 })
 
-test('nutritionist console: the plan and the grocery note, never a live cue', async () => {
-  const db = fakeDb(world('nutritionist'))
+test('nutritionist console: today\'s plan is the meals sent on each client\'s today, and the newest grocery note, never a cue', async () => {
+  const w = world('nutritionist')
+  w.coach_pushed_items = [...w.coach_pushed_items, { id: 'cue-n', client_id: A, provider_role: 'nutritionist', provider_id: 7, kind: 'cue', payload: { text: 'Sip water' }, sent_at: '2026-11-10T01:30:00.000Z', removed_at: null }]
+  const db = fakeDb(w)
   const { body } = await get('nutritionist', db)
-  assert.deepEqual(body.itemsByClient[A].map((m) => m.id), ['meal-1'])
-  assert.equal(body.groceryNoteByClient[A], 'Buy oats')
-  const read = db.calls.find((c) => c.table === 'coach_pushed_items')
-  assert.ok(read.ops.some(([op, col, v]) => op === 'in' && col === 'kind' && v.join() === 'meal,grocery_note'))
+  assert.deepEqual(body.itemsByClient[A], [{ id: 'meal-1', name: 'Oats', time: '8:00 am', kcal: 420, protein: 30, note: '', ingredients: ['Oats'], alternatives: ['Eggs'] }], 'yesterday\'s meal is not today\'s plan')
+  assert.equal(body.groceryNoteByClient[A], 'Buy oats', 'the newest note, not the last row read')
+  assert.equal(body.itemsUnread, false)
+  assert.equal(body.groceryNoteUnread, false)
+  const reads = db.calls.filter((c) => c.table === 'coach_pushed_items')
+  assert.ok(reads.every((c) => c.ops.some(([op, col, v]) => op === 'eq' && col === 'kind' && (v === 'meal' || v === 'grocery_note'))), 'no read takes a cue')
+})
+
+test('nutritionist console: a failed read of today\'s plan or the grocery note is unread, never empty (left by #2686)', async () => {
+  const meals = await get('nutritionist', fakeDb(world('nutritionist'), { fail: (c) => c.table === 'coach_pushed_items' && c.ops.some(([op, col, v]) => op === 'eq' && col === 'kind' && v === 'meal') }))
+  assert.equal(meals.body.itemsUnread, true)
+  assert.deepEqual(meals.body.itemsByClient, {})
+  assert.equal(meals.body.groceryNoteByClient[A], 'Buy oats', 'the note still reads')
+  const notes = await get('nutritionist', fakeDb(world('nutritionist'), { fail: (c) => c.table === 'coach_pushed_items' && c.ops.some(([op, col, v]) => op === 'eq' && col === 'kind' && v === 'grocery_note') }))
+  assert.equal(notes.body.groceryNoteUnread, true)
+  assert.deepEqual(notes.body.groceryNoteByClient, {})
+  assert.equal(notes.body.itemsUnread, false)
+  const zones = await get('nutritionist', fakeDb(world('nutritionist'), { fail: (c) => c.table === 'client_profiles' }))
+  assert.equal(zones.body.itemsUnread, true, 'no plan read on a guessed date')
+})
+
+test('nutritionist console: a grocery note is saved before the old one is set aside, and a refused save keeps it (left by #2686)', async () => {
+  const db = fakeDb(world('nutritionist'))
+  const ok = await post('nutritionist', db, { clientId: A, action: 'groceryNote', text: '  Swap salmon for cod  ' })
+  assert.equal(ok.status, 200, JSON.stringify(ok.body))
+  assert.deepEqual(db.writes.map((w) => w.kind), ['insert', 'update'], 'the new note first, then the old ones; nothing deleted')
+  assert.deepEqual(db.writes[0].row, { provider_role: 'nutritionist', provider_id: 7, client_id: A, kind: 'grocery_note', payload: { text: 'Swap salmon for cod' } })
+  const older = db.writes[1]
+  assert.ok(older.row.removed_at, 'the older notes are marked removed')
+  for (const [col, v] of [['provider_role', 'nutritionist'], ['provider_id', 7], ['client_id', A], ['kind', 'grocery_note']]) {
+    assert.ok(older.ops.some(([op, c, x]) => op === 'eq' && c === col && String(x) === String(v)), `the update is held to ${col}`)
+  }
+  assert.ok(older.ops.some(([op, c, x]) => op === 'neq' && c === 'id' && x === 'new-item'), 'the new note is kept')
+
+  const refused = fakeDb(world('nutritionist'), { failWrite: (c) => c.write.kind === 'insert' })
+  const no = await post('nutritionist', refused, { clientId: A, action: 'groceryNote', text: 'Buy oats' })
+  assert.equal(no.status, 400, 'a refused note is said, never ok')
+  assert.deepEqual(refused.writes, [], 'the old note is untouched')
+
+  const cleared = fakeDb(world('nutritionist'))
+  const empty = await post('nutritionist', cleared, { clientId: A, action: 'groceryNote', text: '   ' })
+  assert.equal(empty.status, 200)
+  assert.deepEqual(cleared.writes.map((w) => w.kind), ['update'], 'clearing marks the note removed')
+  assert.ok(!cleared.writes[0].ops.some(([op]) => op === 'neq'))
+
+  const long = fakeDb(world('nutritionist'))
+  const over = await post('nutritionist', long, { clientId: A, action: 'groceryNote', text: 'x'.repeat(1001) })
+  assert.equal(over.status, 400)
+  assert.deepEqual(long.writes, [])
+})
+
+test('the grocery-note migration lets a note save, and files it as a grocery notice, not an exercise', () => {
+  const sql = readFileSync(join(ROOT, 'supabase-migrations/2026-11-10-coach-grocery-note.sql'), 'utf8').replace(/--.*$/gm, '')
+  assert.match(sql, /drop constraint if exists coach_pushed_items_kind_check/)
+  assert.match(sql, /check \(kind in \('exercise', 'meal', 'cue', 'grocery_note'\)\)/)
+  assert.match(sql, /create or replace function public\.notify_on_pushed_item\(\)/)
+  // The cue still files nothing, and the note has its own branch ahead of the exercise else-branch.
+  assert.match(sql, /if new\.kind = 'cue' then\s+return new;/)
+  const note = sql.indexOf("if new.kind = 'grocery_note' then")
+  assert.ok(note > 0 && note < sql.indexOf("'New exercise from your coach'"))
+  assert.match(sql.slice(note, sql.indexOf('elsif', note)), /'grocery', 'Note on your grocery list',\s+coalesce\(new\.payload->>'text', ''\), 'eat'/)
+  // The meal branches are as #2686's migration left them.
+  const cues = readFileSync(join(ROOT, 'supabase-migrations/2026-11-10-coach-live-cues.sql'), 'utf8').replace(/--.*$/gm, '')
+  const mealBranches = (src) => src.slice(src.indexOf("new.kind = 'meal' and"), src.indexOf("'New exercise from your coach'"))
+  assert.equal(mealBranches(sql), mealBranches(cues))
 })
 
 test('the migration lets a cue be its own row, and files no notice for one', () => {

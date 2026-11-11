@@ -465,5 +465,18 @@
   "planDay.linkSub": "Yau ko gobe, daga Shape Kitchen",
   "planDay.cta": "Tsara shi don yau ko gobe →",
   "planDay.yours": "Kai ka tsara",
-  "planDay.daySwapped": "An canja don yau"
+  "planDay.daySwapped": "An canja don yau",
+  "eat.coachAdded.unread": "Ba a iya loda abincin da masanin abincinka ya ƙara ba.",
+  "eat.coachAdded.retry": "Sake gwadawa",
+  "eat.coachAdded.from": "Daga {name}",
+  "eat.coachAdded.fromNutritionist": "Daga masanin abincinka",
+  "eat.coachAdded.today": "An ƙara yau",
+  "eat.coachAdded.onDay": "An ƙara · {day}",
+  "eat.coachAdded.count": "{count, plural, one {abinci #} other {abinci #}}",
+  "eat.coachAdded.kcal": "kcal {kcal}",
+  "eat.coachAdded.protein": "furotin g {g}",
+  "eat.coachAdded.swaps": "Musaya: {list}",
+  "grocery.coachNote.from": "Bayanin sayayya · {name}",
+  "grocery.coachNote.fromAnon": "Bayanin sayayya · masanin abincinka",
+  "grocery.coachNote.unread": "Ba a iya loda bayanin sayayyar masanin abincinka ba."
 }

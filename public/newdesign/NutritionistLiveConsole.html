@@ -116,7 +116,6 @@ const CONSOLE_CLIENTS = [
   },
 ];
 
-function newId() { return "m" + Math.random().toString(36).slice(2, 9); }
 function firstName(name) { return (name || "").split(" ")[0]; }
 
 // Trajectory series — per-client params drive a deterministic 26-week series
@@ -213,6 +212,16 @@ function NutritionistLiveConsolePage() {
   const [focusById, setFocusById] = React.useState({});
   const [groceryNoteById, setGroceryNoteById] = React.useState({});
   const [plansById, setPlansById] = React.useState({});
+  // Add / Remove / Send wait for the server (as the trainer console's do): nothing is shown as saved
+  // until it is, and a failure keeps the entry and says so.
+  const [adding, setAdding] = React.useState(false);
+  const addRequest = React.useRef(false);
+  const [removing, setRemoving] = React.useState({});
+  const [noteSending, setNoteSending] = React.useState(false);
+  // The route could not read today's plan (itemsUnread) or the grocery note (groceryNoteUnread): said
+  // so, never "Nothing on today's plan" or an empty note box to save over.
+  const [itemsUnread, setItemsUnread] = React.useState(false);
+  const [groceryNoteUnread, setGroceryNoteUnread] = React.useState(false);
   // Add-meal form
   const [meal, setMeal] = React.useState({ name: "", time: "", kcal: "", protein: "", note: "", ingredients: "", alternatives: "" });
   // Transient toast
@@ -294,18 +303,11 @@ function NutritionistLiveConsolePage() {
         if (d.focusByClient && Object.keys(d.focusByClient).length) {
           setFocusById(prev => ({ ...prev, ...d.focusByClient }));
         }
-        if (d.groceryNoteByClient && Object.keys(d.groceryNoteByClient).length) {
-          setGroceryNoteById(prev => ({ ...prev, ...d.groceryNoteByClient }));
-        }
-        if (d.itemsByClient && Object.keys(d.itemsByClient).length) {
-          setPlansById(prev => {
-            const next = { ...prev };
-            for (const [cid, items] of Object.entries(d.itemsByClient)) {
-              next[cid] = items;
-            }
-            return next;
-          });
-        }
+        setItemsUnread(d.itemsUnread === true);
+        setGroceryNoteUnread(d.groceryNoteUnread === true);
+        // The server's answer replaces what was here: a meal removed elsewhere, or a reload, never lingers.
+        setGroceryNoteById(d.groceryNoteByClient && typeof d.groceryNoteByClient === 'object' ? { ...d.groceryNoteByClient } : {});
+        setPlansById(d.itemsByClient && typeof d.itemsByClient === 'object' ? { ...d.itemsByClient } : {});
       })
       .catch(error => { if (!cancelled) setLoadError(error.message || "Could not load your clients."); });
     return () => { cancelled = true; };
@@ -339,19 +341,28 @@ function NutritionistLiveConsolePage() {
   // Grocery note — separate from the focus banner; shows on the client's grocery page.
   const groceryNote = groceryNoteById[clientId] || "";
   const setGroceryNote = (v) => setGroceryNoteById({ ...groceryNoteById, [clientId]: v });
-  const sendGroceryNote = () => {
-    flash(groceryNote.trim() ? "Grocery note sent to " + firstName(client.name) : "Grocery note cleared");
-    if (live) {
-      fetch('/api/nutritionist/console', {
+  const sendGroceryNote = async () => {
+    if (noteSending) return;
+    const text = groceryNote.trim();
+    const who = firstName(client.name);
+    setNoteSending(true);
+    try {
+      const res = await fetch('/api/nutritionist/console', {
         method: 'POST',
         credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ clientId, action: 'groceryNote', text: groceryNote }),
-      }).catch(() => {});
-    }
+        body: JSON.stringify({ clientId, action: 'groceryNote', text }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.ok !== true) throw new Error(data.error || "Could not send the grocery note. Try again.");
+      setGroceryNoteUnread(false);
+      flash(text ? "Grocery note sent to " + who : "Grocery note cleared");
+    } catch (error) { flash(error.message || "Could not send the grocery note. Your note is still here."); }
+    finally { setNoteSending(false); }
   };
-  const addMeal = () => {
+  const addMeal = async () => {
     if (!meal.name.trim()) { flash("Add a meal name first"); return; }
+    if (addRequest.current) return;
     const ingredients = meal.ingredients
       .split(/\r?\n|,/)
       .map(s => s.trim())
@@ -369,38 +380,42 @@ function NutritionistLiveConsolePage() {
       ingredients,
       alternatives,
     };
-    const tempId = newId();
-    setPlansById({ ...plansById, [clientId]: [...plan, { id: tempId, ...payload }] });
-    setMeal({ name: "", time: "", kcal: "", protein: "", note: "", ingredients: "", alternatives: "" });
-    flash("Added to " + firstName(client.name) + "'s plan");
-    if (live) {
-      fetch('/api/nutritionist/console', {
+    const forClient = clientId;
+    const who = firstName(client.name);
+    addRequest.current = true; setAdding(true);
+    try {
+      const res = await fetch('/api/nutritionist/console', {
         method: 'POST',
         credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ clientId, action: 'addItem', payload }),
-      })
-        .then(r => (r.ok ? r.json() : null))
-        .then(d => {
-          if (!d || !d.id) return;
-          setPlansById(prev => ({
-            ...prev,
-            [clientId]: (prev[clientId] || []).map(it => it.id === tempId ? { ...it, id: d.id } : it),
-          }));
-        })
-        .catch(() => {});
-    }
+        body: JSON.stringify({ clientId: forClient, action: 'addItem', payload }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.ok !== true || !data.id) throw new Error(data.error || "Could not add the meal. Try again.");
+      setPlansById(prev => ({ ...prev, [forClient]: [...(prev[forClient] || []), { id: data.id, ...payload }] }));
+      setMeal({ name: "", time: "", kcal: "", protein: "", note: "", ingredients: "", alternatives: "" });
+      flash("Added to " + who + "'s plan");
+    } catch (error) { flash(error.message || "Could not add the meal. Your entry is still here."); }
+    finally { addRequest.current = false; setAdding(false); }
   };
-  const removeMeal = (id) => {
-    setPlansById({ ...plansById, [clientId]: plan.filter(m => m.id !== id) });
-    if (live) {
-      fetch('/api/nutritionist/console', {
+  const removeMeal = async (id) => {
+    if (!id || removing[id]) return;
+    const forClient = clientId;
+    const who = firstName(client.name);
+    setRemoving(prev => ({ ...prev, [id]: true }));
+    try {
+      const res = await fetch('/api/nutritionist/console', {
         method: 'POST',
         credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ clientId, action: 'removeItem', itemId: id }),
-      }).catch(() => {});
-    }
+        body: JSON.stringify({ clientId: forClient, action: 'removeItem', itemId: id }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.ok !== true) throw new Error(data.error || "Could not remove the meal. Try again.");
+      setPlansById(prev => ({ ...prev, [forClient]: (prev[forClient] || []).filter(m => m.id !== id) }));
+      flash("Removed from " + who + "'s plan");
+    } catch (error) { flash(error.message || "Could not remove the meal. Try again."); }
+    finally { setRemoving(prev => { const next = { ...prev }; delete next[id]; return next; }); }
   };
 
   const progressPct = client.meals.total ? Math.round((client.meals.done / client.meals.total) * 100) : 0;
@@ -600,6 +615,9 @@ function NutritionistLiveConsolePage() {
             <div style={{ height: 1, background: "rgba(var(--sh-ink-rgb, 242,237,228),0.08)", margin: "22px 0" }} />
 
             <FieldLabel>Grocery note</FieldLabel>
+            {groceryNoteUnread ? (
+              <div role="status" data-console-grocery-unread="" style={{ fontSize: 13, lineHeight: 1.5, marginBottom: 8 }}>The grocery note didn't load, so a note already sent isn't shown. Reload the page before sending a new one.</div>
+            ) : null}
             <textarea
               value={groceryNote}
               onChange={(e) => setGroceryNote(e.target.value)}
@@ -609,13 +627,13 @@ function NutritionistLiveConsolePage() {
             />
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 10, gap: 12 }}>
               <div style={{ fontSize: 12, color: "var(--sh-ink2, #a09b94)", lineHeight: 1.45 }}>Shows on {firstName(client.name)}'s grocery page (separate from the focus banner).</div>
-              <button onClick={sendGroceryNote} style={{
+              <button onClick={sendGroceryNote} disabled={noteSending} style={{
                 background: "transparent",
                 color: TEAL,
                 border: "1px solid " + TEAL, padding: "9px 18px", borderRadius: 999,
-                fontFamily: sans, fontSize: 13, fontWeight: 500,
-                cursor: "pointer", flex: "none",
-              }}>Send</button>
+                fontFamily: sans, fontSize: 13, fontWeight: 500, minHeight: 44,
+                cursor: noteSending ? "default" : "pointer", flex: "none", opacity: noteSending ? 0.7 : 1,
+              }}>{noteSending ? "Sending…" : "Send"}</button>
             </div>
 
             <div style={{ height: 1, background: "rgba(var(--sh-ink-rgb, 242,237,228),0.08)", margin: "22px 0" }} />
@@ -661,14 +679,42 @@ function NutritionistLiveConsolePage() {
                 style={{ width: "100%", boxSizing: "border-box", padding: "10px 12px", borderRadius: 8, background: "rgba(var(--sh-ink-rgb, 242,237,228),0.04)", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.12)", color: "var(--sh-ink, #f2ede4)", fontFamily: "'JetBrains Mono', monospace", fontSize: 12.5, lineHeight: 1.55, outline: "none", resize: "vertical" }}
               />
             </div>
-            <button onClick={addMeal} style={{
+            <button onClick={addMeal} disabled={adding} style={{
               marginTop: 16, width: "100%",
               background: TEAL,
               color: PAPER,
               border: 0, padding: "12px 18px", borderRadius: 10,
               fontFamily: sans, fontSize: 13.5, fontWeight: 500,
-              cursor: "pointer",
-            }}>+ Add to today's plan</button>
+              cursor: adding ? "default" : "pointer", opacity: adding ? 0.7 : 1,
+            }}>{adding ? "Adding…" : "+ Add to today's plan"}</button>
+
+            {/* Today's plan: what this client's Eat screen shows for today, each with Remove. Another day's
+                meals stay on that day in their Eat week and are not listed here. */}
+            <div style={{ height: 1, background: "rgba(var(--sh-ink-rgb, 242,237,228),0.08)", margin: "22px 0" }} />
+            <SectionTitle right={plan.length ? (plan.length === 1 ? "1 MEAL" : plan.length + " MEALS") : null}>Today's plan</SectionTitle>
+            {itemsUnread ? (
+              <div role="status" data-console-plan-unread="" style={{ fontSize: 13, lineHeight: 1.5, marginBottom: plan.length ? 10 : 0 }}>Today's plan didn't load, so meals already added aren't listed. Reload the page before adding more.</div>
+            ) : null}
+            {plan.length === 0 ? (itemsUnread ? null :
+              <div data-console-plan="empty" style={{ fontSize: 13, color: "var(--sh-ink2, #a09b94)", lineHeight: 1.5 }}>Nothing on today's plan. What you add shows on {firstName(client.name)}'s Eat screen for today.</div>
+            ) : (
+              <ul data-console-plan="" style={{ listStyle: "none", margin: 0, padding: 0 }}>
+                {plan.map((m, i) => {
+                  const figures = [m.time && m.time !== "—" ? m.time : null, m.kcal != null ? m.kcal + " kcal" : null, m.protein != null ? m.protein + " g protein" : null].filter(Boolean).join(" · ");
+                  return (
+                    <li key={m.id || i} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 0", borderTop: i === 0 ? 0 : "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)" }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 14, fontWeight: 500, overflowWrap: "anywhere" }}>{m.name}</div>
+                        {figures ? <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "var(--sh-ink2, #a09b94)", marginTop: 3 }}>{figures}</div> : null}
+                        {m.note ? <div style={{ fontSize: 12.5, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.78)", marginTop: 3, overflowWrap: "anywhere" }}>{m.note}</div> : null}
+                      </div>
+                      <button type="button" onClick={() => removeMeal(m.id)} disabled={!!removing[m.id]} aria-label={"Remove " + m.name}
+                        style={{ flex: "none", minHeight: 44, padding: "8px 14px", borderRadius: 999, background: "transparent", color: "var(--sh-ink2, #a09b94)", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.16)", fontFamily: sans, fontSize: 12.5, cursor: removing[m.id] ? "default" : "pointer" }}>{removing[m.id] ? "Removing…" : "Remove"}</button>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
           </Card>
         </div>
       </div>

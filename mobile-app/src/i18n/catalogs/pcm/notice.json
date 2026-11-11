@@ -170,5 +170,6 @@
   "email.link": "Open Shape",
   "email.manage": "Change di emails wey you dey get for Settings → Notifications.",
   "listingJoined.title": "{coach} don dey Shape now",
-  "listingJoined.body": "You ask {coach} for time before dem join. Message dem or check wetin dem dey offer for dem listing."
+  "listingJoined.body": "You ask {coach} for time before dem join. Message dem or check wetin dem dey offer for dem listing.",
+  "grocery.note.title": "Note for your market list"
 }

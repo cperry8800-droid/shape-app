@@ -11,6 +11,8 @@ import { readJson, dbError } from '@/lib/request-utils';
 import { profileNames } from '@/lib/client-names';
 import { normalizeZone } from '@/lib/time';
 import { memberDay, shiftDay } from '@/lib/workout-days';
+import { exerciseReadSince } from '@/lib/coach-exercises';
+import { GROCERY_NOTE_MAX, latestGroceryNotes, pushedMealOf } from '@/lib/coach-meals';
 import { OPEN_SUB_STATUSES } from '../../../../lib/coach-trajectory.mjs';
 
 export const dynamic = 'force-dynamic';
@@ -248,27 +250,50 @@ export async function GET(request: Request) {
     }
   }
 
-  const { data: itemRows } = await supabase
-    .from('coach_pushed_items')
-    .select('id, client_id, kind, payload, sent_at')
-    .eq('provider_role', ROLE)
-    .eq('provider_id', providerId)
-    // The plan's meals and the grocery note: never a live cue (kind 'cue'), which piles up a row a cue.
-    .in('kind', [KIND, 'grocery_note'])
-    .is('removed_at', null)
-    .order('sent_at', { ascending: true });
+  // Today's plan: the meals sent on each client's today (src/lib/coach-meals.ts), as the member's Eat
+  // day shows them; a meal from another day stays on that day in their Eat week. ⚠ A FAILED READ IS
+  // `itemsUnread`, NOT AN EMPTY PLAN (left by #2686): the page would say "Nothing on today's plan" and a
+  // coach could add the same meal twice, as the trainer's session list could (Codex P2 on #2686).
+  // The grocery note is a standing note, read on its own with no day window; `groceryNoteUnread` is a
+  // failed read of it, which the page says rather than showing an empty box to save over.
+  const [mealRes, noteRes] = await Promise.all([
+    supabase
+      .from('coach_pushed_items')
+      .select('id, client_id, kind, payload, sent_at')
+      .eq('provider_role', ROLE)
+      .eq('provider_id', providerId)
+      .eq('kind', KIND)
+      .is('removed_at', null)
+      .gte('sent_at', exerciseReadSince(now, 1))
+      .order('sent_at', { ascending: true }),
+    supabase
+      .from('coach_pushed_items')
+      .select('id, client_id, kind, provider_id, payload, sent_at')
+      .eq('provider_role', ROLE)
+      .eq('provider_id', providerId)
+      .eq('kind', 'grocery_note')
+      .is('removed_at', null),
+  ]);
 
+  const itemsUnread = !!mealRes.error || zonesUnread;
+  if (mealRes.error) console.warn('[shape-app] nutritionist console: pushed meals read failed — today\'s plan renders as unread:', mealRes.error.message);
   const itemsByClient: Record<string, Array<Record<string, unknown>>> = {};
-  const groceryNoteByClient: Record<string, string> = {};
-  for (const r of (itemRows ?? []) as PushedItemRow[]) {
-    if (r.kind === 'grocery_note') {
-      const text = r.payload && typeof r.payload.text === 'string' ? r.payload.text : '';
-      if (text) groceryNoteByClient[r.client_id] = text; // ascending order → last wins = latest
-      continue;
-    }
+  for (const r of (zonesUnread ? [] : mealRes.data ?? []) as PushedItemRow[]) {
+    const zone = zoneByClient.get(r.client_id) ?? null;
+    const m = pushedMealOf(r, zone);
+    if (!m || m.day !== memberDay(now, zone)) continue;
     const list = itemsByClient[r.client_id] ?? [];
-    list.push({ id: r.id, ...(r.payload ?? {}) });
+    list.push({ id: m.id, name: m.name, time: m.time ?? '—', kcal: m.kcal, protein: m.protein, note: m.note ?? '', ingredients: m.ingredients, alternatives: m.alternatives });
     itemsByClient[r.client_id] = list;
+  }
+
+  const groceryNoteUnread = !!noteRes.error;
+  if (noteRes.error) console.warn('[shape-app] nutritionist console: grocery notes read failed — the note renders as unread:', noteRes.error.message);
+  const groceryNoteByClient: Record<string, string> = {};
+  const noteRows = (noteRes.data ?? []) as PushedItemRow[];
+  for (const cid of new Set(noteRows.map((r) => r.client_id))) {
+    const note = latestGroceryNotes(noteRows.filter((r) => r.client_id === cid)).get(String(providerId));
+    if (note) groceryNoteByClient[cid] = note.text;
   }
 
   return NextResponse.json({
@@ -276,7 +301,9 @@ export async function GET(request: Request) {
     clients,
     focusByClient,
     groceryNoteByClient,
+    groceryNoteUnread,
     itemsByClient,
+    itemsUnread,
     snapshotByClient,
     todayByClient,
     todayUnread,
@@ -372,25 +399,38 @@ export async function POST(req: Request) {
   }
 
   if (action === 'groceryNote') {
-    // Dedicated grocery-list note (separate from the focus banner / home Op-ed).
-    // Replace any prior note for this coach→client, then insert the new one.
+    // The note on the client's grocery list (separate from the focus banner). ⚠ THE NEW NOTE FIRST, THEN
+    // THE OLD ONES MARKED REMOVED. This deleted every note and then inserted, ignoring the delete's error
+    // and with no role filter, so a refused insert (the live kind check refused every one: left by #2686)
+    // lost the note that was there and still answered ok. An empty text clears the note.
     const text = String(body?.text ?? '').trim();
-    await supabase
-      .from('coach_pushed_items')
-      .delete()
-      .eq('client_id', clientId)
-      .eq('provider_id', providerId)
-      .eq('kind', 'grocery_note');
-    if (text) {
-      const { error } = await supabase.from('coach_pushed_items').insert({
-        provider_role: ROLE,
-        provider_id: providerId,
-        client_id: clientId,
-        kind: 'grocery_note',
-        payload: { text },
-      });
-      if (error) return dbError(error, 'nutritionist console write', 400);
+    if (text.length > GROCERY_NOTE_MAX) {
+      return NextResponse.json({ error: `Keep the grocery note to ${GROCERY_NOTE_MAX} characters or fewer.` }, { status: 400 });
     }
+    let keep: string | null = null;
+    if (text) {
+      const { data, error } = await supabase
+        .from('coach_pushed_items')
+        .insert({ provider_role: ROLE, provider_id: providerId, client_id: clientId, kind: 'grocery_note', payload: { text } })
+        .select('id')
+        .single();
+      if (error) return dbError(error, 'nutritionist console write', 400);
+      keep = String(data.id);
+    }
+    let older = supabase
+      .from('coach_pushed_items')
+      .update({ removed_at: new Date().toISOString() })
+      .eq('provider_role', ROLE)
+      .eq('provider_id', providerId)
+      .eq('client_id', clientId)
+      .eq('kind', 'grocery_note')
+      .is('removed_at', null);
+    if (keep) older = older.neq('id', keep);
+    const { error: olderErr } = await older;
+    // The new note is saved and is the newest, so it is the one the member reads; an old row left
+    // behind is only an older note, which every reader passes over (latestGroceryNotes).
+    if (olderErr && !keep) return dbError(olderErr, 'nutritionist console write', 400);
+    if (olderErr) console.warn('[shape-app] nutritionist console: older grocery notes not marked removed — the newest still wins:', olderErr.message);
     return NextResponse.json({ ok: true });
   }
 

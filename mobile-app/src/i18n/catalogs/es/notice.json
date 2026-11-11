@@ -170,5 +170,6 @@
   "email.link": "Abrir Shape",
   "email.manage": "Elige qué correos recibes en Ajustes → Notificaciones.",
   "listingJoined.title": "{coach} ya está en Shape",
-  "listingJoined.body": "Pediste una hora a {coach} antes de que se uniera. Escríbele o mira lo que ofrece en su perfil."
+  "listingJoined.body": "Pediste una hora a {coach} antes de que se uniera. Escríbele o mira lo que ofrece en su perfil.",
+  "grocery.note.title": "Nota en tu lista de compras"
 }
