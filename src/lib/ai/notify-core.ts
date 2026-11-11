@@ -247,6 +247,22 @@ export async function loadMemberPaused(client: SupabaseClient, userId: string, n
   }
 }
 
+// ⚠ A MUTED MEMBER ON A BREAK STILL LOSES WHAT WAS HELD FROM BEFORE IT (Codex on #2705). The hourly run
+// stops at master mute before deciding anything, so the break's purge (decideNotifications memberPaused)
+// never ran there, and a notice held before a break that began and ended inside the mute went out once
+// they unmuted. While the break holds, this purges as the live route's muted run does: the decision stops
+// at the mute, so nothing is decided to send and nothing is claimed. Not on a break, nothing held, or a
+// read that fails: the state is left as it is.
+export async function purgeHeldWhileMuted(admin: SupabaseClient, userId: string, role: unknown, prefs: Prefs, now: Date): Promise<void> {
+  if (!(await loadMemberPaused(admin, userId, now, prefs.tz, { asService: true }))) return;
+  const last = await readNotifyState(admin, userId, role);
+  const held = Array.isArray(last.pendingDigest) ? last.pendingDigest.length : 0;
+  if (!held) return;
+  const { nextState } = Notify.decideNotifications({ candidates: [], last, prefs: { ...prefs, muted: true }, now, audience: 'client', memberPaused: true });
+  const kept = Array.isArray(nextState.pendingDigest) ? nextState.pendingDigest.length : held;
+  if (kept !== held) await writeNotifyState(admin, userId, role, nextState);
+}
+
 // A client's break as the engine reads it (dashSignals.js pauseOf): its last day away, who set it, and
 // the instant their return day begins in their own zone (get_client_pause's back_at).
 export type ClientBreak = { until: string; by: string | null; backAt?: string };

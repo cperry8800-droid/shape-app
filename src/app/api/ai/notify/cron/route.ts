@@ -19,7 +19,7 @@
 import { timingSafeEqual } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { candidatesFor, coachRecordId, decideAndClaim, deliver, readUserGoal, readNotifyState, writeNotifyState, writeUserGoal, loadPrefs, loadHabitContext, loadCoachThresholds, loadCoachContext, loadPushedToday, loadMemberPaused, loadClientBreaks, memberCopy, notifyKind, snapshotsToEvaluate, NOTIFY_SNAPSHOT_KINDS, Notify, type Prefs, type Snapshot } from '@/lib/ai/notify-core';
+import { candidatesFor, coachRecordId, decideAndClaim, deliver, readUserGoal, readNotifyState, writeNotifyState, writeUserGoal, loadPrefs, loadHabitContext, loadCoachThresholds, loadCoachContext, loadPushedToday, loadMemberPaused, loadClientBreaks, purgeHeldWhileMuted, memberCopy, notifyKind, snapshotsToEvaluate, NOTIFY_SNAPSHOT_KINDS, Notify, type Snapshot } from '@/lib/ai/notify-core';
 import { releasePushClaim } from '@/lib/push-cap';
 import { isCoachRole } from '@/lib/roles.mjs';
 import { rotated } from '../../../../../lib/run-rotation.mjs';
@@ -102,28 +102,13 @@ async function evaluate(admin: ReturnType<typeof createAdminClient>, userId: str
   return evaluated ? delivered : null;
 }
 
-// A muted member, while their break holds: the notices held from before it are dropped and their stamps
-// released, as the live route's run does (decideNotifications purges, then stops at the mute), and nothing
-// is sent. Not on a break, nothing held, or a read that fails: the state is left as it is.
-async function purgeHeldWhileMuted(admin: ReturnType<typeof createAdminClient>, userId: string, role: unknown, prefs: Prefs): Promise<void> {
-  const now = new Date();
-  if (!(await loadMemberPaused(admin, userId, now, prefs.tz, { asService: true }))) return;
-  const last = await readNotifyState(admin, userId, role);
-  const held = Array.isArray(last.pendingDigest) ? last.pendingDigest.length : 0;
-  if (!held) return;
-  const { nextState } = Notify.decideNotifications({ candidates: [], last, prefs, now, audience: 'client', memberPaused: true });
-  const kept = Array.isArray(nextState.pendingDigest) ? nextState.pendingDigest.length : held;
-  if (kept !== held) await writeNotifyState(admin, userId, role, nextState);
-}
-
 // One snapshot, on its role's own alert memory (readNotifyState).
 async function evaluateSnapshot(admin: ReturnType<typeof createAdminClient>, userId: string, snapshot: Snapshot): Promise<number | null> {
   const prefs = await loadPrefs(admin, userId);      // the preference center
-  // Honor master mute: nothing is sent. ⚠ BUT A MUTED MEMBER ON A BREAK STILL LOSES WHAT WAS HELD FROM
-  // BEFORE IT (Codex on #2705). Returning here skipped the purge (decideNotifications memberPaused), so a
-  // notice held before a break that began and ended inside the mute went out once they unmuted.
+  // Honor master mute: nothing is sent. A muted member on a break still loses what was held from before
+  // it (purgeHeldWhileMuted, Codex on #2705).
   if (prefs.muted) {
-    if (!isCoachRole(snapshot.role)) await purgeHeldWhileMuted(admin, userId, snapshot.role, prefs);
+    if (!isCoachRole(snapshot.role)) await purgeHeldWhileMuted(admin, userId, snapshot.role, prefs, new Date());
     return null;
   }
   // ⚠ Read alongside `notify_state` rather than in a second round trip: this runs for every active
