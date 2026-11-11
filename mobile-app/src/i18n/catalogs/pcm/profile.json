@@ -1288,6 +1288,7 @@
   "climb.ratingAria": "Dem rate am {rating} out of 10 from {count, plural, one {# review} other {# reviews}}",
   "climb.reviewCount": "{count, plural, one {# review} other {# reviews}}",
   "climb.seeClimb": "See the climb",
+  "climb.seePlan": "See di plan",
   "climb.selfConsole": "Members dey book you from here.",
   "climb.sessions": "Sessions",
   "climb.spreadAria": "How {name} clients dey rate am",

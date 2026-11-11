@@ -11,9 +11,10 @@ const STUDIO = 'mobile-app/src/broadsheet/BSCoachStudio.jsx';
 const CLIENT = 'mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx';
 const WORK = 'public/newdesign/coachWork.mjs';
 const WEB = 'public/newdesign/coachProfileWeb.jsx';
+const PREVIEW = 'mobile-app/src/broadsheet/BSPlanPreviewSheet.jsx';
 
 export default {
-  test: 'node --test tests/coach-climb.test.mjs tests/nutritionist-profile.test.mjs tests/coach-work-sheet.test.mjs tests/coach-work.test.mjs tests/web-coach-profile.test.mjs',
+  test: 'node --test tests/coach-climb.test.mjs tests/nutritionist-profile.test.mjs tests/coach-work-sheet.test.mjs tests/coach-work.test.mjs tests/web-coach-profile.test.mjs tests/shape-video.test.mjs',
   timeoutMs: 300_000,
   mutations: [
     // ── money: a meal plan's Start ──
@@ -28,6 +29,37 @@ export default {
       replace: '    } catch (e) {}' },
     { name: 'climb: Start on the coach\'s own card', file: CLIMB,
       find: '        const start = !isSelf && !!onStart && !!p.paid;', replace: '        const start = !!onStart && !!p.paid;' },
+    // ── money: a program sells only on a live listing (card and sheet) ──
+    { name: 'page: a program card sold without a live listing', file: PAGE,
+      find: "paid: p.paid && !(p.pr && p.pr.sample) && listed, weeks", replace: "paid: p.paid && !(p.pr && p.pr.sample), weeks" },
+    { name: 'page: the program sheet told every listing sells', file: PAGE,
+      find: '            sells={listed} onClose={() => setSheet(null)}', replace: '            sells onClose={() => setSheet(null)}' },
+    { name: 'climb: the program sheet\'s Start ignores sells', file: CLIMB,
+      find: '            {pr.sample || !pr.paid || !sells\n', replace: '            {pr.sample || !pr.paid\n' },
+    // ── money: a meal plan's preview ──
+    { name: 'page: a meal plan\'s preview sells what its card doesn\'t', file: PAGE,
+      find: 'canBuy={!!(card && card.paid) && !isSelf}', replace: 'canBuy={!isSelf}' },
+    { name: 'page: a meal plan\'s preview sells on the coach\'s own page', file: PAGE,
+      find: 'canBuy={!!(card && card.paid) && !isSelf}', replace: 'canBuy={!!(card && card.paid)}' },
+    { name: 'page: a meal plan\'s preview Buy buys nothing', file: PAGE,
+      find: 'onBuy={() => { setSheet(null); buyPlan(pl); }}', replace: 'onBuy={() => { setSheet(null); }}' },
+    { name: 'page: a meal plan\'s preview Buy leaves the sheet open', file: PAGE,
+      find: 'onBuy={() => { setSheet(null); buyPlan(pl); }}', replace: 'onBuy={() => { buyPlan(pl); }}' },
+    { name: 'page: a meal plan\'s card has no Open', file: PAGE,
+      find: "onOpen={(pl) => { if (pl) setSheet({ kind: 'mealPlan', pl }); }}", replace: 'onOpen={null}' },
+    { name: 'preview: canBuy ignored', file: PREVIEW,
+      find: '  const buys = !!plan.price && (canBuy === undefined ? true : !!canBuy);', replace: '  const buys = !!plan.price;' },
+    { name: 'preview: an unset canBuy sells nothing in the marketplace', file: PREVIEW,
+      find: '  const buys = !!plan.price && (canBuy === undefined ? true : !!canBuy);', replace: '  const buys = !!plan.price && !!canBuy;' },
+    // ── the head counts every program on sale ──
+    { name: 'page: the stat counts the Studio\'s twelve', file: PAGE,
+      find: 'programs: salePrograms.length, workouts:', replace: 'programs: studioModel ? studioModel.programs.length : 0, workouts:' },
+    { name: 'page: the milestone counts the Studio\'s twelve', file: PAGE,
+      find: "count: salePrograms.length }) } : null,", replace: "count: studioModel.programs.length }) } : null," },
+    { name: 'web: the stat counts the Studio\'s twelve', file: WEB,
+      find: 'programs: salePrograms.length, workouts:', replace: 'programs: studioModel ? studioModel.programs.length : 0, workouts:' },
+    { name: 'web: the milestone counts the Studio\'s twelve', file: WEB,
+      find: '(salePrograms.length ? `${salePrograms.length} ${salePrograms.length === 1', replace: '(studioModel && studioModel.programs.length ? `${studioModel.programs.length} ${studioModel.programs.length === 1' },
     // ── money: every program the coach sells has its card (the price list sold them all) ──
     { name: 'work: the sale stops at the Studio\'s twelve', file: WORK,
       find: "    rows.push(studioProgramRow(pr, '', null));\n", replace: '' },

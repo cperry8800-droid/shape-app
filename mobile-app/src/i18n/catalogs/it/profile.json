@@ -1288,6 +1288,7 @@
   "climb.ratingAria": "Valutato {rating} su 10 da {count, plural, one {# recensione} other {# recensioni}}",
   "climb.reviewCount": "{count, plural, one {# recensione} other {# recensioni}}",
   "climb.seeClimb": "Vedi la salita",
+  "climb.seePlan": "Vedi il piano",
   "climb.selfConsole": "I membri ti prenotano da qui.",
   "climb.sessions": "Sessioni",
   "climb.spreadAria": "Come valutano {name} i suoi clienti",

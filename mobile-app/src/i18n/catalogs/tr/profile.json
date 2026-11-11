@@ -1288,6 +1288,7 @@
   "climb.ratingAria": "{count, plural, other {# yorumdan}} 10 üzerinden {rating}",
   "climb.reviewCount": "{count, plural, other {# yorum}}",
   "climb.seeClimb": "Tırmanışı gör",
+  "climb.seePlan": "Planı gör",
   "climb.selfConsole": "Üyeler seni buradan ayırtır.",
   "climb.sessions": "Seans",
   "climb.spreadAria": "Danışanların {name} için puanı",

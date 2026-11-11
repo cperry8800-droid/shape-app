@@ -574,10 +574,11 @@ function Console({ dock, ACC, nutri, tr }) {
 
 // ── The range: a program a card, its photo or a band in its colour ─────────────────────────────
 // programs [{ key, id, name, price, paid, weeks, perWeek, forSaid, poster, pr }]; onOpen(pr): the card's
-// preview (a program's sheet; a meal plan has none, so no Open); onStart(pr) (only where Start buys: a
-// paid program or meal plan on a visitor's page, never a sample's). The Summit draws them (owner,
-// 2026-11-11: "each program as its card with preview and Buy").
-export function BSClimbRange({ programs, nutri = false, onOpen = null, onStart = null, isSelf = false }) {
+// preview (a program's sheet, a meal plan's preview sheet); openLabel: Open's words (See the climb, or a
+// meal plan's See the plan); onStart(pr) (only where Start buys: a paid program or meal plan on a
+// visitor's page and a live listing, never a sample's). The Summit draws them (owner, 2026-11-11: "each
+// program as its card with preview and Buy").
+export function BSClimbRange({ programs, nutri = false, onOpen = null, openLabel = null, onStart = null, isSelf = false }) {
   const CLIMB = useClimb();
   const { numFace, mono, plateBox } = climbType(CLIMB);
   const tr = useShapeTr();
@@ -610,7 +611,7 @@ export function BSClimbRange({ programs, nutri = false, onOpen = null, onStart =
             {/* The card opens the program; Start sits beside it, never inside the same button. */}
             {onOpen || start ? (
               <div style={{ display: 'flex', gap: 8, padding: '0 14px 14px' }}>
-                {onOpen ? <button type="button" data-program-open="" onClick={() => onOpen(p.pr)} style={{ flex: 1, minHeight: 44, borderRadius: 9, border: `1px solid ${CLIMB.LINE2}`, background: 'transparent', color: CLIMB.INK, fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>{tr('profile:climb.seeClimb', { defaultValue: 'See the climb' })}</button> : null}
+                {onOpen ? <button type="button" data-program-open="" onClick={() => onOpen(p.pr)} style={{ flex: 1, minHeight: 44, borderRadius: 9, border: `1px solid ${CLIMB.LINE2}`, background: 'transparent', color: CLIMB.INK, fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>{openLabel || tr('profile:climb.seeClimb', { defaultValue: 'See the climb' })}</button> : null}
                 {start ? <button type="button" data-climb-start="" onClick={() => onStart(p.pr)} style={{ flex: onOpen ? 'none' : 1, minHeight: 44, padding: '0 16px', borderRadius: 9, border: 0, background: CLIMB.ctaFor(nutri), color: CLIMB.onCtaFor(nutri), fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>{tr('profile:climb.start', { defaultValue: 'Start' })}</button> : null}
               </div>
             ) : null}
@@ -624,9 +625,10 @@ export function BSClimbRange({ programs, nutri = false, onOpen = null, onStart =
 // ── The program sheet: dark, its peaks, its plates, the climb by block, then Ask and Start ─────────
 // pr: the program (bsCoachPrograms); item: its studio row (the coach's line, who it is for); days: the
 // first week's days with their moves. onAsk: the profile's Message (or Work with when it has none);
-// onBuy: the profile's own checkout (ShapeCoachPlans.buy), only for a paid program; onWork: Work with,
-// which closes the sheet at the Summit.
-export function BSClimbProgramSheet({ pr, nutri = false, item = null, days = [], first, isSelf = false, color = null, onClose, onBuy, onWork, onAsk = null }) {
+// onBuy: the profile's own checkout (ShapeCoachPlans.buy), only for a paid program on a listing that
+// sells (sells: a live listing; an unfinished or suspended one offers Work with, as the website's
+// CpwProgramSheet does); onWork: Work with, which closes the sheet at the Summit.
+export function BSClimbProgramSheet({ pr, nutri = false, item = null, days = [], first, isSelf = false, sells = false, color = null, onClose, onBuy, onWork, onAsk = null }) {
   const CLIMB = useClimb();
   const { numFace, mono, plateBox } = climbType(CLIMB);
   const tr = useShapeTr();
@@ -735,7 +737,7 @@ export function BSClimbProgramSheet({ pr, nutri = false, item = null, days = [],
       {p.namesOnly ? <p style={{ margin: '12px 18px 0', fontSize: 13, lineHeight: 1.45, color: CLIMB.MUTED }}>{tr('marketplace:preview.namesOnly', { defaultValue: 'Sets, loads, cues and exercise videos unlock when you buy' })}</p> : null}
 
       <div style={{ position: 'sticky', bottom: 0, marginTop: 20, padding: '12px 18px calc(16px + env(safe-area-inset-bottom))', background: `linear-gradient(180deg, ${hexA(CLIMB.BG, 0)}, ${CLIMB.BG} 22%)` }}>
-        {pr.price && pr.paid && !isSelf ? (
+        {pr.price && pr.paid && sells && !isSelf ? (
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
             <span style={{ padding: '7px 9px', background: CLIMB.PANEL, border: `1px solid ${CLIMB.LINE}`, ...numFace(20) }}>{pr.price}</span>
             <span style={{ fontSize: 12.5, lineHeight: 1.35, color: CLIMB.MUTED }}>{tr('profile:climb.oneOff', { defaultValue: 'One-off · runs in the Shape app' })}</span>
@@ -744,7 +746,7 @@ export function BSClimbProgramSheet({ pr, nutri = false, item = null, days = [],
         {isSelf ? <p style={{ margin: 0, fontSize: 13.5, lineHeight: 1.45, color: CLIMB.MUTED }}>{tr('profile:trainer.programSelf', { defaultValue: 'This is what members see before they buy.' })}</p> : (
           <div style={{ display: 'grid', gridTemplateColumns: onAsk ? '1fr 1.3fr' : '1fr', gap: 8 }}>
             {onAsk ? <button type="button" data-climb-ask="" onClick={onAsk} style={{ minHeight: 50, borderRadius: 11, border: `1px solid ${CLIMB.LINE2}`, background: CLIMB.PANEL, color: CLIMB.INK, fontSize: 15, fontWeight: 700, cursor: 'pointer' }}>{tr('profile:climb.ask', { defaultValue: 'Ask {name}', name: first })}</button> : null}
-            {pr.sample || !pr.paid
+            {pr.sample || !pr.paid || !sells
               ? <button type="button" onClick={onWork} style={{ minHeight: 50, borderRadius: 11, border: 0, background: cta, color: CLIMB.onCtaFor(nutri), fontSize: 15, fontWeight: 700, cursor: 'pointer' }}>{tr('profile:trainer.workTitle', { defaultValue: 'Work with {name}', name: first })}</button>
               : <button type="button" data-program-buy="" onClick={onBuy} style={{ minHeight: 50, borderRadius: 11, border: 0, background: cta, color: CLIMB.onCtaFor(nutri), fontSize: 15, fontWeight: 700, cursor: 'pointer' }}>{tr('profile:climb.startPrice', { defaultValue: 'Start · {price}', price: pr.price })}</button>}
           </div>

@@ -295,6 +295,25 @@ test('Start on a program card and in the program sheet buys through ShapeCoachPl
   await m.unmount();
 });
 
+test('a program sells only on a live listing: without one, no Start on its card, and its sheet offers Work with', async () => {
+  // An unfinished or suspended listing reads as none (the meal plans' and the storefront's rule; Codex P1 on 196314b).
+  reset({ salePlans: [PLAN], provider: null });
+  const m = await mount(page());
+  const programs = camp('summit').querySelector('[data-summit-part="programs"]');
+  assert.ok(programs.querySelector('[data-climb-program="p1"]'), 'the program is still shown');
+  assert.ok(!programs.querySelector('[data-climb-start]'), 'no Start without a listing');
+  await click(programs.querySelector('[data-program-open]'));
+  assert.ok($('[data-program-sheet]'));
+  assert.ok(!$('[data-program-buy]'), 'no Start · price in the sheet');
+  assert.doesNotMatch($('[data-program-sheet]').textContent, /One-off · runs in the Shape app/, 'nor its price');
+  const climbed = watchClimb();
+  await click(button(/^Work with Maya$/));
+  assert.ok(!$('[data-program-sheet]'));
+  assert.deepEqual(climbed, ['summit']);
+  assert.equal(world.bought, undefined, 'nothing bought');
+  await m.unmount();
+});
+
 test('a sample coach is a sample, under its note: times asked for, never booked, and nothing sold', async () => {
   const leah = { who: 'Leah Kim', kind: 'TRAINER', providerId: 41, city: 'Remote', specialty: 'HIIT & Conditioning HIIT', rating10: 9.6 };
   reset({ byId: { id: 41, owner_id: null, name: 'Leah Kim', price: 120, specialty: 'HIIT', verified: false, listing_media: { cover: null, gallery: [] } }, slots: [] });
@@ -571,10 +590,36 @@ test('the Summit: coaching, then the programs or meal plans as cards, then the w
   assert.match(plans.querySelector('[data-climb-summit-head]').textContent, /^Meal plans$/);
   assert.deepEqual([...plans.querySelectorAll('[data-climb-program]')].map((c) => c.getAttribute('data-climb-program')), ['m1', 'm2']);
   assert.ok(!plans.querySelector('[data-climb-program="m2"] [data-climb-start]'), 'nothing to pay for a free plan');
-  assert.ok(!plans.querySelector('[data-program-open]'), 'no preview to open on a meal plan');
-  await click(plans.querySelector('[data-climb-program="m1"] [data-climb-start]'));
+  await click(plans.querySelector('[data-climb-start]'));
   assert.deepEqual(world.bought, { plan: { id: 'm1', name: 'Lean cut', price: '60' }, providerRole: 'nutritionist', providerId: 9 }, 'the plan\'s own listing and role');
   assert.equal(world.checkout, 'https://checkout.stripe.test/c/1');
+  // See the plan opens its preview (the marketplace's sheet), whose Buy is the card's Start.
+  world.bought = undefined; world.checkout = undefined;
+  const open1 = plans.querySelector('[data-climb-program="m1"] [data-program-open]');
+  assert.equal(open1.textContent, 'See the plan', 'a meal plan is no climb');
+  await click(open1);
+  assert.ok($('[role="dialog"][aria-label="What\'s inside Lean cut"]'), 'the preview sheet');
+  assert.match($('[role="dialog"]').textContent, /Meal plan · \$60/);
+  assert.ok(!$('[data-preview-work]'));
+  await click($('[data-preview-buy]'));
+  assert.ok(!$('[role="dialog"]'), 'Buy closes the sheet for the checkout');
+  assert.deepEqual(world.bought, { plan: { id: 'm1', name: 'Lean cut', price: '60' }, providerRole: 'nutritionist', providerId: 9 });
+  assert.equal(world.checkout, 'https://checkout.stripe.test/c/1');
+  // A free plan's preview has nothing to buy, and offers Work with: it climbs to the Summit.
+  world.bought = undefined;
+  await click(plans.querySelector('[data-climb-program="m2"] [data-program-open]'));
+  assert.ok(!$('[data-preview-buy]'), 'no Buy on a free plan');
+  await click($('[data-preview-work]'));
+  assert.ok(!$('[role="dialog"]'));
+  assert.equal(world.bought, undefined);
+  await m.unmount();
+  // No live listing: the plan opens, and neither its card nor its preview sells it.
+  reset({ me: 'u-me', provider: null, salePlans: [MEAL] });
+  m = await mount(page({ person: nadia }));
+  const plans2 = camp('summit').querySelector('[data-summit-part="meal-plans"]');
+  assert.ok(plans2.querySelector('[data-climb-program="m1"]') && !plans2.querySelector('[data-climb-start]'), 'no Start without a listing');
+  await click(plans2.querySelector('[data-program-open]'));
+  assert.ok($('[role="dialog"]') && !$('[data-preview-buy]') && $('[data-preview-work]'), 'Work with, not Buy');
   await m.unmount();
   // A checkout that fails says so.
   reset({ me: 'u-me', provider: NADIA_LISTING, salePlans: [MEAL] });
@@ -593,6 +638,10 @@ test('the Summit: coaching, then the programs or meal plans as cards, then the w
   reset({ me: 'u-nadia', provider: NADIA_LISTING, salePlans: [MEAL] });
   m = await mount(page({ person: nadia, isSelf: true }));
   assert.ok(camp('summit').querySelector('[data-climb-program="m1"]') && !$('[data-climb-start]'), 'no Start on her own page');
+  await click(camp('summit').querySelector('[data-program-open]'));
+  assert.ok($('[role="dialog"]') && !$('[data-preview-buy]') && !$('[data-preview-work]'), 'her own plan\'s preview sells nothing');
+  assert.match($('[data-preview-self]').textContent, /what members see before they buy/);
+  await click(button(/^Close$/));
   assert.ok(!camp('summit').querySelector('[data-coaching-block]'), 'the storefront is a member\'s; she reads what members do here');
   assert.match(camp('summit').textContent, /Members start working with you from here/);
   await m.unmount();
@@ -614,6 +663,7 @@ test('the Summit sells every program the coach publishes, past the Studio\'s twe
   // The price list sold every plan the read returned; its cards must too (coachWork.mjs's BS_WORK_SALE_MAX).
   const many = Array.from({ length: 15 }, (_, i) => ({ ...PLAN, id: `p${i + 1}`, name: `Block ${i + 1}` }));
   fullCoach({ salePlans: many });
+  world.custom = { ...(world.custom || {}), heroStats: ['programs'] };
   let m = await mount(page());
   const programs = camp('summit').querySelector('[data-summit-part="programs"]');
   assert.deepEqual([...programs.querySelectorAll('[data-climb-program]')].map((c) => c.getAttribute('data-climb-program')), many.map((p) => p.id), 'all fifteen, in their order');
@@ -621,6 +671,10 @@ test('the Summit sells every program the coach publishes, past the Studio\'s twe
   assert.equal(world.bought && world.bought.plan.id, 'p15', 'the fifteenth buys');
   await click(programs.querySelector('[data-climb-program="p14"] [data-program-open]'));
   assert.match($('[data-program-sheet]').textContent, /Block 14/, 'and opens its sheet');
+  // The head counts them all too, not the Studio's twelve.
+  assert.match($('[data-climb]').textContent, /15 programs/, 'the milestone');
+  assert.doesNotMatch($('[data-climb]').textContent, /12 programs/);
+  assert.match($('[data-climb-plates]').textContent, /15\s*Programs/, 'and the head\'s stat');
   await m.unmount();
   // Their own page: the storefront draws nothing for the coach, so their coaching card (its price) stays,
   // under the workouts; with no monthly price the Summit's line says so, and there is no card.
