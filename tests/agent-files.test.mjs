@@ -14,7 +14,7 @@ const read = (rel) => fs.readFileSync(path.join(root, rel), 'utf8');
 const worklog = read('docs/WORKLOG.md');
 const oneLine = (s) => s.replace(/\s+/g, ' ').trim();
 // What a session can be sent to in the worklog: its headings and its bold labels
-// ("**Waiting on the owner**", "- **Branch and merge.**"). Plain text doesn't count: the
+// ("**Planned next**", "- **Branch and merge.**"). Plain text doesn't count: the
 // worklog still says "Known gaps live in the War Room" long after that section went.
 const worklogSections = new Set([
   ...[...worklog.matchAll(/^#{1,6} (.+)$/gm)].map((m) => m[1]),
