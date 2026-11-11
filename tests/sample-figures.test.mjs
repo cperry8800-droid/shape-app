@@ -68,6 +68,11 @@ test("a signed-in member's strip is their own Shape Score, redemptions and tier,
 
   const fifty = storeHeroFigures({ signedIn: true, score: STANDING, redemptions: Array(50).fill({ created_at: '2026-01-01T00:00:00Z' }), now: NOW });
   assert.equal(fifty.redeemed, '50+', 'the locker reads only the newest 50');
+  // The newest 50 all inside the quarter may not be all of it (Codex on #2701); one outside it means they are.
+  const fullQ = storeHeroFigures({ signedIn: true, score: STANDING, redemptions: Array(50).fill({ created_at: '2026-10-20T00:00:00Z' }), now: NOW });
+  assert.equal(fullQ.redeemedSub, '50+ this quarter');
+  const someQ = storeHeroFigures({ signedIn: true, score: STANDING, redemptions: [...Array(49).fill({ created_at: '2026-10-20T00:00:00Z' }), { created_at: '2026-09-01T00:00:00Z' }], now: NOW });
+  assert.equal(someQ.redeemedSub, '49 this quarter');
 });
 
 test('a member whose reads are out sees dashes, not the example', () => {
@@ -98,6 +103,53 @@ test("a signed-in member's feed section is the Wall itself, and a visitor's samp
   assert.match(COMMUNITY, /window\.CommunityFeed/, 'the Community page no longer reaches for the Wall');
   assert.match(COMMUNITY, /\{Wall \? \(\s*<div data-cm-wall=""[^]*?React\.createElement\(Wall, \{ place: "wall" \}\)/, "a member's feed section is not the Wall");
   assert.match(COMMUNITY, /\{Wall \? null : <CmExample[^>]*>Example posts/, "the visitor's sample feed is unlabelled");
+});
+
+test("a member signed in by cookie only gets the Wall, and a visitor's page never loads the client to find out (Codex P1 on #2701)", async () => {
+  const { createRequire } = await import('node:module');
+  const require = createRequire(import.meta.url);
+  const React = require('react');
+  const { JSDOM } = require('jsdom');
+  const dom = new JSDOM('<div id="root"></div>', { url: 'https://shape.test/newdesign/Community.html' });
+  const prev = { window: globalThis.window, document: globalThis.document, act: globalThis.IS_REACT_ACT_ENVIRONMENT };
+  globalThis.window = dom.window; globalThis.document = dom.window.document; globalThis.IS_REACT_ACT_ENVIRONMENT = true;
+  const { createRoot } = require('react-dom/client');
+  // The session check and the hook, one block (cmResolveSession is async, which fnSource does not cut).
+  const from = COMMUNITY.indexOf('function cmHasSession(');
+  const src = COMMUNITY.slice(from, COMMUNITY.indexOf('function CmReveal(', from));
+  assert.ok(from >= 0 && /async function cmResolveSession\(/.test(src) && /function useCmWall\(/.test(src), 'the session block moved');
+  const load = (store, fetchImpl) => new Function('React', 'useSC', 'window', 'localStorage', 'fetch', `${src}\nreturn { cmResolveSession, useCmWall };`)(
+    React, React.useState, dom.window, { getItem: (k) => store[k] ?? null, get length() { return Object.keys(store).length; }, key: (i) => Object.keys(store)[i] }, fetchImpl);
+  const Wall = () => React.createElement('b', null, 'the Wall');
+  dom.window.CommunityFeed = Wall;
+  async function page(store, fetchImpl) {
+    const { useCmWall } = load(store, fetchImpl);
+    const Probe = () => { const W = useCmWall(); return W ? React.createElement(W) : React.createElement('i', null, 'the sample'); };
+    document.body.innerHTML = '<div id="root"></div>';
+    const root = createRoot(document.getElementById('root'));
+    await React.act(async () => root.render(React.createElement(Probe)));
+    await React.act(async () => { await new Promise((r) => setTimeout(r, 0)); });
+    const text = document.body.textContent;
+    await React.act(async () => root.unmount());
+    return text;
+  }
+  try {
+    const calls = [];
+    const bridge = (body, ok = true) => async (url, opts) => { calls.push([url, opts && opts.credentials]); return { ok, json: async () => body }; };
+    assert.equal(await page({}, bridge({ access_token: 'a', refresh_token: 'r' })), 'the Wall', 'a cookie-only member is left on the sample');
+    assert.deepEqual(calls[0], ['/api/auth/session', 'include'], 'the page did not ask the session bridge, with its cookies');
+    assert.equal(await page({}, bridge({ session: null })), 'the sample', 'a visitor got the Wall');
+    assert.equal(await page({}, bridge({}, false)), 'the sample', 'a failed bridge read took the reader for a member');
+    assert.equal(await page({}, async () => { throw new Error('offline'); }), 'the sample');
+    calls.length = 0;
+    assert.equal(await page({ 'shape.auth': '{}' }, bridge({ session: null })), 'the Wall', 'a stored session is not a member');
+    assert.equal(calls.length, 0, 'a member with a stored session waited on the bridge');
+  } finally {
+    Object.assign(globalThis, { window: prev.window, document: prev.document, IS_REACT_ACT_ENVIRONMENT: prev.act });
+  }
+  // The page never loads the Supabase client just to decide.
+  const resolver = COMMUNITY.slice(COMMUNITY.indexOf('async function cmResolveSession('), COMMUNITY.indexOf('function useCmWall('));
+  assert.doesNotMatch(resolver, /shapeEnsureDb|supabase/);
 });
 
 test('the sweep: Pricing labels its example coaches, the FAQs drop their unsourced revenue shares, the hero mock-ups say Example', () => {

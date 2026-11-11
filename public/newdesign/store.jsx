@@ -150,7 +150,8 @@ function storeHeroFigures({ signedIn, score, redemptions, now = new Date() }) {
     lifetime: total == null ? "—" : Math.max(0, total).toLocaleString(), lifetimeSub: "your Shape Score",
     // The locker reads the newest 50, so 50 is "50+".
     redeemed: rows == null ? "—" : (rows.length >= 50 ? "50+" : String(rows.length)),
-    redeemedSub: thisQuarter == null ? "" : `${thisQuarter} this quarter`,
+    // The newest 50 all inside the quarter may not be all of the quarter's (Codex on #2701): "50+".
+    redeemedSub: thisQuarter == null ? "" : `${thisQuarter}${rows.length >= 50 && thisQuarter === rows.length ? "+" : ""} this quarter`,
     tier: tierName || "—",
     tierSub: !tierName ? "" : next && toNext != null ? `${Math.max(0, toNext).toLocaleString()} to ${next.name}` : "the top tier",
   };

@@ -24,18 +24,41 @@ function cmHasSession() {
   } catch (e) {}
   return false;
 }
+// A member signed in through the Next.js login has their session in cookies only, and this page does
+// not load /supabase.js, so no token is in localStorage (Codex P1 on #2701). Ask the session bridge
+// (/api/auth/session, the one shapeDb.getSession falls back to) before taking the reader for a visitor:
+// a small read, and a visitor never loads the Supabase client for it.
+async function cmResolveSession() {
+  if (cmHasSession()) return true;
+  try {
+    const r = await fetch("/api/auth/session", { credentials: "include", cache: "no-store" });
+    if (!r.ok) return false;
+    const j = await r.json();
+    return !!(j && j.access_token);
+  } catch (e) { return false; }
+}
 // communityFeed.jsx loads after this file, so the Wall's component may not be on window at the
 // first render; look again for a few seconds rather than leave a member on the sample.
+// `member`: true (a stored token, or the bridge says so), false (measured a visitor), null (asking).
 function useCmWall() {
-  const pick = () => (cmHasSession() && typeof window !== "undefined" && typeof window.CommunityFeed === "function" ? window.CommunityFeed : null);
-  const [Feed, setFeed] = useSC(() => pick());
+  const find = () => (typeof window !== "undefined" && typeof window.CommunityFeed === "function" ? window.CommunityFeed : null);
+  const [member, setMember] = useSC(() => (cmHasSession() ? true : null));
+  const [Feed, setFeed] = useSC(() => (cmHasSession() ? find() : null));
   React.useEffect(() => {
-    if (Feed || !cmHasSession()) return undefined;
-    const t = setInterval(() => { const f = pick(); if (f) { setFeed(() => f); clearInterval(t); } }, 120);
+    if (member !== null) return undefined;
+    let alive = true;
+    cmResolveSession().then((on) => { if (alive) setMember(on); });
+    return () => { alive = false; };
+  }, [member]);
+  React.useEffect(() => {
+    if (member !== true || Feed) return undefined;
+    const now = find();
+    if (now) { setFeed(() => now); return undefined; }
+    const t = setInterval(() => { const f = find(); if (f) { setFeed(() => f); clearInterval(t); } }, 120);
     const stop = setTimeout(() => clearInterval(t), 6000);
     return () => { clearInterval(t); clearTimeout(stop); };
-  }, [Feed]);
-  return Feed;
+  }, [member, Feed]);
+  return member === true ? Feed : null;
 }
 
 function CmReveal({ children, delay = 0, style = {} }) {
