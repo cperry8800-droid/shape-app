@@ -179,7 +179,13 @@
      "They are smaller compared to the other ones. Not as clear to read on
      website", then "just make each of these screen shots its own section".
      tests/getapp-page.test.mjs holds the page to one capture per beat. */
-  .beat-ph .ph { flex: 0 1 auto; width: 272px; min-width: 0; }
+  /* ⚠ AND THAT WIDTH IS CAPPED BY THE SCREEN'S HEIGHT (owner, 2026-11-11: the
+     screenshots "take up the whole screen on smaller monitors"). 272px is 629px
+     tall, so at 1280x720 each phone filled the screen under the bar. A phone now
+     leaves 240px of the screen free, the homepage's own rule (its --phw): 272px from
+     ~870px tall up, smaller below, never under 200px. Desktop only: at 900px and
+     under the phone is the flat 264px that rule explains (legibility on a phone). */
+  .beat-ph .ph { flex: 0 1 auto; width: clamp(200px, calc((100vh - 240px) * 600 / 1387), 272px); min-width: 0; }
 
   /* ---- the doors ------------------------------------------------------ */
   .doors { border-top: 1px solid var(--line); background: var(--paper2); }
@@ -238,7 +244,7 @@
        max-width can lower a width but not raise it. Since 2026-10-15 there are
        no pairs; each of the eleven screens is a beat of its own. */
     .beat-ph { gap: 12px; flex-wrap: wrap; }
-    .beat-ph .ph { max-width: 264px; }
+    .beat-ph .ph { width: 264px; max-width: 264px; }
     .beat .time { position: static; width: auto; margin-bottom: 8px; display: block; font-size: 22px; }
     .beat p { font-size: 14px; margin-top: 10px; }
     .beat::before { background: radial-gradient(ellipse 80% 40% at 50% 70%, var(--sky), transparent 70%); }

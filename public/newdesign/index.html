@@ -86,6 +86,16 @@
                            856px at 105, 708px here. The reveal still widens — it starts at 62,
                            which stays below this. */
     --maxw:1440px;
+    /* The phone's width, beside the journey and the price. ⚠ SET BY THE SCREEN'S
+       HEIGHT AS WELL AS ITS WIDTH (owner, 2026-11-11: "the screenshots on index for
+       example get huge, take up the whole screen on smaller monitors"). At a flat
+       264px every phone was 610px tall wherever it was drawn, so at 1280x720 the
+       journey's phone ran from the bar to the screen's foot and cut off its own
+       caption, and stacked under 860 the price phone grew to 420px wide and ~970px
+       tall. Now a phone leaves 240px of the screen free (the 72px bar, its caption
+       and the gaps): 264px from ~850px tall up, smaller below, and never under 200px,
+       where the app's own small type stops being legible. 600/1387 is the capture. */
+    --phw:clamp(200px,calc((100vh - 240px) * 600 / 1387),264px);
   }
 
   *{box-sizing:border-box}
@@ -313,11 +323,17 @@
            letter-spacing:.07em;text-transform:uppercase;color:#e6c373;font-variation-settings:'ROND' 30}
 
   /* ── the moments strip (replaces 525vh of pinned scroll) ── */
-  .mo-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:20px}
+  .mo-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:20px}
   .mo{position:relative;border:1px solid var(--line);border-radius:10px;background:var(--card);padding:18px;overflow:hidden;transition:border-color .25s,box-shadow .25s}
   .mo h3{font-size:20px;margin-top:6px}
-  .mo .shot{position:relative;margin-top:16px;border-radius:8px;overflow:hidden;aspect-ratio:3/4;
-            background:var(--ink-3);border:1px solid var(--line-2)}
+  .mo .shot{position:relative;margin:16px auto 0;border-radius:8px;overflow:hidden;aspect-ratio:3/4;
+            background:var(--ink-3);border:1px solid var(--line-2);width:min(100%,max(220px,44vh))}
+  /* ⚠ THE WIDTH CAP IS FOR THE TWO-COLUMN AND STACKED GRIDS (owner, 2026-11-11: the
+     screenshots "take up the whole screen on smaller monitors"). At two across
+     (761-1100) each shot took its card's full width, 470x627 at 1100x800, a whole
+     laptop screen per card. 44vh holds a shot to ~59% of the screen's height and
+     centres it in its card; 220px is the floor for a short landscape window. Four
+     across, a card is ~250-290px wide and the cap binds only under ~660px tall. */
   /* The card shows the TOP THREE-QUARTERS of its screen, zoomed out (owner,
      2026-11-09: "show more zoomed out screenshots here", of the two mock-ups,
      "Top three-quarters"). The screen is 78% of the card's width from 3.6% below
@@ -346,7 +362,13 @@
   .mo.on{border-color:rgba(var(--teal-rgb),.34)}
 
   /* ── coaches ─────────────────────────────────────────────── */
-  .co-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:20px}
+  /* ⚠ minmax(0,1fr), NOT 1fr, HERE AND IN BOTH MEDIA RULES. A bare 1fr track
+     cannot shrink below its content's min-content width, and a card's name, role
+     line and meta rows are nowrap (they ellipsize instead), so the tracks grew past
+     the row: measured 2026-11-11, the grid ran 34px off the screen at 1280 and 13px
+     at 360, cutting off the last card's right edge. With a 0 floor the tracks share
+     the row and the text ellipsizes as it was written to. */
+  .co-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:20px}
   /* The sample coach cards are the Coaches page card (marketplace.jsx CoachCard), built from its
      sample coaches, drawing code and CSS (scoped to .hco) so the two match. No Compare or quick
      view here, so the Example badge takes the corner Compare holds there. */
@@ -430,7 +452,7 @@
   /* ── the journey: five stages on ~300vh, not 1500 ────────── */
   .jtrack{height:320vh;position:relative}
   .jpin{position:sticky;top:72px;height:calc(100vh - 72px);overflow:hidden;display:grid;
-        grid-template-columns:minmax(0,1fr) 264px;gap:40px;align-items:center;
+        grid-template-columns:minmax(0,1fr) var(--phw);gap:40px;align-items:center;
         max-width:var(--maxw);margin:0 auto;padding:0 32px}
   #jcanvas{position:absolute;inset:0;width:100%;height:100%;z-index:0}
   .jroom{position:relative;z-index:2}
@@ -562,7 +584,7 @@
      sat in its ~440px at the far left and the phone at the far right, about 670px of
      nothing between them at 1440. The copy column is now as wide as its own copy, and the
      pair sits together in the middle of an 1100px cap. It stacks at 860 (the media rule below). */
-  .prc2{display:grid;grid-template-columns:minmax(0,520px) 264px;justify-content:center;
+  .prc2{display:grid;grid-template-columns:minmax(0,520px) var(--phw);justify-content:center;
         gap:clamp(52px,7vw,104px);align-items:center;max-width:1100px;margin-inline:auto}
   .big{font-family:var(--num);font-weight:900;font-size:clamp(52px,6.6vw,88px);line-height:1;
        font-variation-settings:'ROND' 100}
@@ -599,7 +621,7 @@
     /* 14px since Rewards became a menu (2026-10-09): its caret ran the row 6px
        past the screen edge at 1021. The shared header trims the same. */
     .nlinks{gap:14px}
-    .mo-grid,.co-grid{grid-template-columns:repeat(2,1fr)}
+    .mo-grid,.co-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
     .rd{grid-template-columns:1fr;gap:34px}
     .rd{padding:36px 28px}
     .rd .air{max-width:420px}
@@ -611,7 +633,7 @@
     /* The price pair stays side by side down to here (its copy column shrinks first),
        so 900-1100 is not one 420px phone at the left of an empty row. */
     .prc2{grid-template-columns:1fr;gap:34px}
-    .prc2 .appph{max-width:420px}
+    .prc2 .appph{max-width:var(--phw)}
   }
   /* ⚠ THE NAV COLLAPSES AT 1020px, AND THAT NUMBER IS MEASURED, NOT PICKED.
      It was 980 for seven links (the bar needed ~975px: 15px over at 960, fit at
@@ -696,7 +718,7 @@
     #terrain,.hero .paint{grid-row:2;grid-column:1;position:relative;inset:auto;width:100%;height:300px}
     .summit{transform:translate(-50%,-100%) scale(.8)}
     .wire{grid-row:3;grid-column:1;position:static;margin-top:22px;height:42px}
-    .mo-grid,.co-grid{grid-template-columns:1fr}
+    .mo-grid,.co-grid{grid-template-columns:minmax(0,1fr)}
     .ftg{grid-template-columns:1fr 1fr}
     .jtrack{height:280vh}
   }
