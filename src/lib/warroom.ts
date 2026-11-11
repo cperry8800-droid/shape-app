@@ -628,13 +628,13 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
 
   return [
     {
-      section: 'Joint attention reads each co-coach\'s own flag settings (#2691). One migration, waiting on the owner',
+      section: 'Joint attention reads each co-coach\'s own flag settings (#2691). One migration, run and checked live',
       items: [
         { label: 'Owner, 2026-11-10, on joint attention reading the co-coach\'s side at Shape\'s house line: "yes fix this please"', status: 'done' },
         { label: '#2691 get_care_team_flag_lines (2026-11-10-care-team-flag-lines.sql): a client\'s other coaches\' flag tuning, to a coach on that client only (is_coach_on_client); the member, a former or unrelated coach and a signed-out caller read nothing, and anon cannot run it. Only the numbers leave: the thresholds object\'s numeric, capitalised policy keys, never the rest of the settings document. Probed on a PostgreSQL 16 copy, and a second run changes nothing', status: 'done' },
         { label: '#2691 The overview (shared-overview.ts) puts each co-coach\'s numbers on their care-team entry as flagLines, never the caller\'s; before the migration runs (PGRST202) or when the read fails, no entry carries any and the team is unaffected', status: 'done' },
         { label: '#2691 dashSignals.js: the record keeps a co-coach\'s numbers (careTeamFrom), and joint attention reads the co-coach\'s side at them, resolved over their role\'s house defaults (jointLeg); a refused or missing number reads at the house line. The website and the app both read joint attention off the overview\'s record', status: 'done' },
-        { label: 'OWNER: run supabase-migrations/2026-11-10-care-team-flag-lines.sql in the Supabase SQL editor; until then joint attention reads the co-coach\'s side at the house line, as before (#2691)', status: 'pending' },
+        { label: 'Migration run by the owner, 2026-11-11, and checked live: a pinned definer, anon cannot execute it and signed-in callers can, the coach gate, the caller left out and numbers only in its body, and no rows signed out. No coach has tuned a flag yet and no client has both a trainer and a nutritionist, so nothing reads differently until both happen', status: 'done' },
       ],
     },
     {
