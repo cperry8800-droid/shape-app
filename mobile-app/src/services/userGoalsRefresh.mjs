@@ -56,3 +56,29 @@ export function bsUserGoalsRevHook(React) {
     return rev;
   };
 }
+
+// ⚠ AND WHEN THE MEMBER COMES BACK TO THE APP. The website edits the same documents: Edit profile writes
+// client_identity (photo, name, handle, location, pronouns) and profile_custom (the Bio, cover, look, climb
+// background and the rest), and a screen already open in the app held the copy it read before (owner,
+// 2026-11-11: "make sure the app parity works with edits to profile as well"). The app, shown again after
+// being away (another app, the browser, a locked phone), re-announces the profile's kinds, and the shell
+// re-reads its identity cache (bsHydrateIdentity), so a website edit shows without reopening the screen.
+export const BS_PROFILE_KINDS = Object.freeze(['client_identity', 'profile_custom']);
+
+/**
+ * Calls `onReturn` when the page is shown again after being hidden for at least `minAwayMs` (a quick
+ * flicker re-reads nothing). Returns the unsubscribe.
+ */
+export function bsOnReturnToApp(onReturn, { doc = (typeof document !== 'undefined' ? document : null), now = () => Date.now(), minAwayMs = 3000 } = {}) {
+  if (!doc || typeof doc.addEventListener !== 'function' || typeof onReturn !== 'function') return () => {};
+  let hiddenAt = null;
+  const onVis = () => {
+    if (doc.visibilityState === 'hidden') { hiddenAt = now(); return; }
+    if (doc.visibilityState !== 'visible' || hiddenAt == null) return;
+    const away = now() - hiddenAt;
+    hiddenAt = null;
+    if (away >= minAwayMs) { try { onReturn(); } catch (e) { /* a reader's failure is its own */ } }
+  };
+  doc.addEventListener('visibilitychange', onVis);
+  return () => doc.removeEventListener('visibilitychange', onVis);
+}

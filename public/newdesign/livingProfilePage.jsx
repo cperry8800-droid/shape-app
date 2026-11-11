@@ -172,6 +172,20 @@ function LiveProfilePage({ extras = null, demoRole = null, shell = null }) {
   // location, pronouns or photo (shape:identity, livingDesktop.jsx's ProfileCustomizer).
   const [setupRev, setSetupRev] = React.useState(0);
   React.useEffect(() => { const again = () => setSetupRev((n) => n + 1); window.addEventListener("shape:accountSetup", again); window.addEventListener("shape:identity", again); return () => { window.removeEventListener("shape:accountSetup", again); window.removeEventListener("shape:identity", again); }; }, []);
+  // And when the tab is shown again after being away: the app edits the same documents (its Settings, Make it
+  // yours and Customize), so a change made there shows here without a reload, as the app reads again on its
+  // return (mobile-app/src/services/userGoalsRefresh.mjs bsOnReturnToApp). A flicker under 3 s reads nothing.
+  React.useEffect(() => {
+    let hiddenAt = null;
+    const onVis = () => {
+      if (document.visibilityState === "hidden") { hiddenAt = Date.now(); return; }
+      if (document.visibilityState !== "visible" || hiddenAt == null) return;
+      const away = Date.now() - hiddenAt; hiddenAt = null;
+      if (away >= 3000) setSetupRev((n) => n + 1);
+    };
+    document.addEventListener("visibilitychange", onVis);
+    return () => document.removeEventListener("visibilitychange", onVis);
+  }, []);
   const applyStats = (d) => { if (d) setFollow({ followers: +d.followers || 0, following: +d.following || 0, isFollowing: !!d.is_following, isPending: !!d.is_pending }); };
   React.useEffect(() => {
     let on = true;

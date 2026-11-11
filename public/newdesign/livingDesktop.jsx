@@ -1156,6 +1156,17 @@ function dkSquarePhoto(file) {
   });
 }
 
+// The website editor's save over the doc as stored: each field whose value differs from the one the
+// editor opened with (`opened`, each a JSON string), over `stored`. A field left as it opened is not
+// written, so a key changed elsewhere since (the app's Make it yours or Customize) is kept.
+function dkMergeProfileFields(stored, fields, opened) {
+  const out = { ...(stored && typeof stored === "object" && !Array.isArray(stored) ? stored : {}) };
+  for (const [k, v] of Object.entries(fields || {})) {
+    if (opened && Object.prototype.hasOwnProperty.call(opened, k) && opened[k] === JSON.stringify(v)) continue;
+    out[k] = v;
+  }
+  return out;
+}
 // The look a save writes: the doc's own, with the paper and accent picked (`pick`, or null) and the
 // cover's dragged spot (`pos`, null to clear it) when `posChanged`. A cover uploaded here (`fresh`)
 // with no spot dragged on it starts centred: the old photo's stop is not the new one's (Codex, #2704).
@@ -1672,43 +1683,45 @@ function ProfileCustomizer({ initial, c, onClose, onSave, coach = false, ownerUi
   const label = { fontFamily: dMono, fontSize: 9, letterSpacing: "0.12em", textTransform: "uppercase", color: dHexA(LV_INK, 0.55), marginBottom: 7, display: "block" };
   const setPrompt = (i, k, v) => setPrompts((prev) => prev.map((p, j) => j === i ? { ...p, [k]: v } : p));
   const embedPreview = dkSpotifyEmbed(songUrl);
+  // What this editor writes, one key each. The save writes only the keys changed here, over the doc
+  // as stored at that moment: a key changed in the app since this opened (its Make it yours, Customize,
+  // Nora's account setup) is kept, as the app's editors merge onto the stored doc before they save.
+  const editorFields = () => ({
+    bio: bio.trim(),
+    song: songUrl.trim() ? { url: songUrl.trim(), label: songLabel.trim() } : null,
+    links: Object.fromEntries(DK_LINKS.map((l) => [l.key, String(links[l.key] || "").trim()]).filter(([, v]) => v)),
+    prompts: prompts.filter((p) => p && p.q && String(p.a).trim()).map((p) => ({ q: dkPromptToken(p.q), a: String(p.a).trim() })).slice(0, 4),
+    cover: coverUrl.trim() ? { image: coverUrl.trim() } : null,
+    climbBg: climbBg || null,
+    pinned: pinTitle.trim() ? { kind: dkPinKindToken(pinKind), title: pinTitle.trim(), note: pinNote.trim(), metric: pinMetric.trim() } : null,
+    heroStats: heroStats.slice(0, 3),
+    // Member profile-wave keys (M1–M4). The normalizer below cleans + caps and
+    // DROPS them when empty; every legacy key passes byte-identical. A member's line is no
+    // longer asked for (owner, 2026-11-04: "Remove the field"), so the doc's own rides through;
+    // a coach's editor still asks.
+    ...(coach ? { line } : {}),
+    wall,
+    shelf,
+    startLine: (startTitle.trim() || startDate.trim()) ? { title: startTitle.trim(), date: startDate.trim() } : null,
+    // This role's intro film → its own key (coach `film`, member `filmMember`). The
+    // other role's film key is not named here, so it rides through untouched and they coexist.
+    [filmKey]: (film && film.url) ? { url: film.url, caption: (film.caption || "").trim() } : null,
+    // Coach-only profile-wave keys (P4 card · P5 pins) — the member path leaves the
+    // stored copies untouched.
+    ...(coach ? {
+      bizCard: biz.name.trim() ? { name: biz.name.trim(), where: biz.where.trim(), hours: biz.hours.trim(), handle: biz.handle.trim() } : null,
+      pinnedReviews: pins,
+    } : {}),
+  });
+  // The fields as this editor opened them: a key whose value still matches is not written.
+  const openedFields = React.useRef(null);
+  if (openedFields.current === null) openedFields.current = Object.fromEntries(Object.entries(editorFields()).map(([k, v]) => [k, JSON.stringify(v)]));
   const save = async () => {
     // A wall/cover upload still in flight would be omitted from the saved doc AND
     // left orphaned in storage (onSave closes the editor before it resolves) — wait.
     if (wallBusy || coverBusy || filmBusy || photoBusy) { setErr("Hang on — an upload is still in progress."); return; }
     setBusy(true); setErr("");
-    const doc = {
-      ...init,
-      bio: bio.trim(),
-      song: songUrl.trim() ? { url: songUrl.trim(), label: songLabel.trim() } : null,
-      links: Object.fromEntries(DK_LINKS.map((l) => [l.key, String(links[l.key] || "").trim()]).filter(([, v]) => v)),
-      prompts: prompts.filter((p) => p && p.q && String(p.a).trim()).map((p) => ({ q: dkPromptToken(p.q), a: String(p.a).trim() })).slice(0, 4),
-      cover: coverUrl.trim() ? { image: coverUrl.trim() } : null,
-      // The look: the paper and accent only when picked here, the cover's spot only when dragged here;
-      // whatever else the doc's look holds stays. The nearest of the app's three stops rides with the spot
-      // (focus), so a build that reads only focus crops near it.
-      ...((pickChanged || posChanged || coverFresh) ? { look: dkNextLook(initLook, pickChanged ? pick : null, posChanged, coverPos, plib, coverFresh) } : {}),
-      climbBg: climbBg || null,
-      pinned: pinTitle.trim() ? { kind: dkPinKindToken(pinKind), title: pinTitle.trim(), note: pinNote.trim(), metric: pinMetric.trim() } : null,
-      heroStats: heroStats.slice(0, 3),
-      // Member profile-wave keys (M1–M4). The normalizer below cleans + caps and
-      // DROPS them when empty; every legacy key passes byte-identical. A member's line is no
-      // longer asked for (owner, 2026-11-04: "Remove the field"), so the doc's own rides through;
-      // a coach's editor still asks.
-      ...(coach ? { line } : {}),
-      wall,
-      shelf,
-      startLine: (startTitle.trim() || startDate.trim()) ? { title: startTitle.trim(), date: startDate.trim() } : null,
-      // This role's intro film → its own key (coach `film`, member `filmMember`). The
-      // other role's film key rides through via ...init untouched, so they can coexist.
-      [filmKey]: (film && film.url) ? { url: film.url, caption: (film.caption || "").trim() } : null,
-      // Coach-only profile-wave keys (P4 card · P5 pins) — the member path leaves init's
-      // copies untouched (spread above).
-      ...(coach ? {
-        bizCard: biz.name.trim() ? { name: biz.name.trim(), where: biz.where.trim(), hours: biz.hours.trim(), handle: biz.handle.trim() } : null,
-        pinnedReviews: pins,
-      } : {}),
-    };
+    const fields = editorFields();
     // Trusted save: a real signed-in owner AND the normalizer are REQUIRED. We
     // never persist OR hand back a raw (un-normalized) doc — the wall's
     // owner-folder binding + the caps are the security contract, not just editor
@@ -1720,6 +1733,11 @@ function ProfileCustomizer({ initial, c, onClose, onSave, coach = false, ownerUi
     if (!cl || !uid) { setBusy(false); setErr("Sign in to save your profile."); return; }
     if (ownerUid && uid !== ownerUid) { setBusy(false); setErr("Your account changed. Close the editor and reopen your profile."); return; }
     if (!plib || !plib.bsNormalizeProfileCustom) { setBusy(false); setErr("Editor is still loading — try again in a moment."); return; }
+    // The doc as stored now, bound to this account: a read that fails (or answers for another account)
+    // stops the save before anything is written (the identity too), since the doc as it was when this opened would undo a change made since.
+    let stored = null;
+    try { stored = window.shapeDb && window.shapeDb.getUserGoals ? await window.shapeDb.getUserGoals("profile_custom", { expectedUserId: uid }) : null; } catch (e) { stored = null; }
+    if (!stored || typeof stored !== "object" || Array.isArray(stored)) { setBusy(false); setErr("Couldn't save — try again."); return; }
     // You first: a name left empty stops the save before anything is written.
     const idPatch = idState === "ready" && idf ? Object.fromEntries([...idTouched.current].map((k) => [k, idf[k]])) : {};
     const idChanged = Object.keys(idPatch).length > 0 || (idState === "ready" && photoTouched);
@@ -1736,6 +1754,15 @@ function ProfileCustomizer({ initial, c, onClose, onSave, coach = false, ownerUi
         if (fresh && typeof fresh === "object") window.ShapeIdentity = fresh;
       } catch (e) {}
       try { window.dispatchEvent(new Event("shape:identity")); } catch (e) {}
+    }
+    const doc = dkMergeProfileFields(stored, fields, openedFields.current);
+    // The look: the paper and accent only when picked here, the cover's spot only when dragged here,
+    // over the stored look; whatever else it holds stays. The nearest of the app's three stops rides
+    // with the spot (focus), so a build that reads only focus crops near it.
+    if (pickChanged || posChanged || coverFresh) {
+      const storedLook = (plib.bsProfileLook ? plib.bsProfileLook(stored.look) : null) || {};
+      const nextLook = dkNextLook(storedLook, pickChanged ? pick : null, posChanged, coverPos, plib, coverFresh);
+      if (nextLook) doc.look = nextLook; else delete doc.look;
     }
     const out = plib.bsNormalizeProfileCustom(doc, uid, { filmBucket: filmRoleBucket, filmKey });
     let error = null;
@@ -2127,6 +2154,16 @@ function DesktopProfile({ direction = "terrain", persona = "client", variant = "
   // prop otherwise freezes d.custom until a full reload (Codex P2).
   const [custom, setCustom] = React.useState(d.custom || null);
   const [editingProfile, setEditingProfile] = React.useState(false);
+  // The page reads the doc again (an edit made in the app, seen on a return to this tab, or Nora's account
+  // setup): the page takes it, unless Edit profile is open over it, which merges its own changes at save. A
+  // read that landed while it was open is older than that save, so a save marks it seen.
+  const customKey = JSON.stringify(d.custom || null);
+  const seenCustom = React.useRef(customKey);
+  React.useEffect(() => {
+    if (seenCustom.current === customKey || editingProfile) return;
+    seenCustom.current = customKey;
+    setCustom(d.custom || null);
+  }, [customKey, editingProfile]);
   const heroPerson = custom ? Object.assign({}, d, { custom }) : d;
   // A member's page in their own look (above: useDkPage), from the doc this page holds, so a save in the
   // editor repaints it at once. A coach's look is their own page's (coachProfileWeb.jsx), not this one's.
@@ -2235,7 +2272,7 @@ function DesktopProfile({ direction = "terrain", persona = "client", variant = "
             {tab === "music" && <MusicBlock d={d} owner={owner} />}
           </React.Fragment>
         )}
-        {owner && editingProfile && <ProfileCustomizer key={d.uid || "self"} initial={custom} c={c} coach={coach} ownerUid={d.uid} ownerName={d.name} onClose={() => setEditingProfile(false)} onSave={(doc) => { setCustom(doc); setEditingProfile(false); }} />}
+        {owner && editingProfile && <ProfileCustomizer key={d.uid || "self"} initial={custom} c={c} coach={coach} ownerUid={d.uid} ownerName={d.name} onClose={() => setEditingProfile(false)} onSave={(doc) => { seenCustom.current = customKey; setCustom(doc); setEditingProfile(false); }} />}
         {belowContent}
         {chrome ? <DesktopFooter /> : <div style={{ height: 34 }} />}
       </div>

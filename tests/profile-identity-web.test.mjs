@@ -62,15 +62,20 @@ window.ShapeSettingsReady = Promise.resolve(settingsSync);
 const { ProfileCustomizer } = await loadRealModule(join(ROOT, 'public/newdesign/livingDesktop.jsx'), { appendExports: 'Object.assign(exports, { ProfileCustomizer });' });
 
 // An account in memory: the identity doc, every write, and the profile doc's upserts.
-function account(identity, { failRead = false } = {}) {
-  const docs = { client_identity: identity == null ? null : { ...identity } };
+// The profile doc starts as the editor opens it (`initial` below), unless a test says the app changed it since.
+function account(identity, { failRead = false, profile = { bio: 'Strong is a skill.' }, failProfileRead = false } = {}) {
+  const docs = { client_identity: identity == null ? null : { ...identity }, profile_custom: profile };
   const writes = [];
   const upserts = [];
   window.shapeDb = {
     getUser: async () => ({ id: 'u1' }),
-    getUserGoals: async (kind) => { if (failRead) return null; return kind in docs ? (docs[kind] ? { ...docs[kind] } : {}) : {}; },
+    getUserGoals: async (kind, opts) => {
+      if (kind === 'client_identity' && failRead) return null;
+      if (kind === 'profile_custom' && (failProfileRead || (opts && opts.expectedUserId && opts.expectedUserId !== 'u1'))) return null;
+      return kind in docs ? (docs[kind] ? JSON.parse(JSON.stringify(docs[kind])) : {}) : {};
+    },
     saveUserGoals: async (kind, next) => { writes.push([kind, next]); docs[kind] = { ...next }; return { ok: true }; },
-    client: { auth: { getUser: async () => ({ data: { user: { id: 'u1' } } }) }, from: () => ({ upsert: async (row) => { upserts.push(row); return {}; } }) },
+    client: { auth: { getUser: async () => ({ data: { user: { id: 'u1' } } }) }, from: () => ({ upsert: async (row) => { upserts.push(row); docs[row.kind] = row.data; return {}; } }) },
   };
   return { docs, writes, upserts };
 }
@@ -241,6 +246,9 @@ test('the profile page reads again when Edit profile saves the identity', () => 
   const src = read('public/newdesign/livingProfilePage.jsx');
   assert.match(src, /window\.addEventListener\("shape:identity", again\)/);
   assert.match(src, /window\.removeEventListener\("shape:identity", again\)/);
+  // And when the tab is shown again after 3 s or more away: an edit made in the app shows without a reload.
+  assert.match(src, /document\.addEventListener\("visibilitychange", onVis\)/);
+  assert.match(src, /if \(away >= 3000\) setSetupRev\(\(n\) => n \+ 1\);/);
   // The owner's row takes the identity doc's name, handle, pronouns and location (unchanged, and what makes the
   // re-read show the edit).
   assert.match(src, /for \(const key of \["handle","pronouns","location","link"\]\)/);
@@ -263,4 +271,61 @@ test('the coach page opens its editor on ?edit=profile, shows the editor\'s Bio,
   assert.match(src, /const bio = isPrivate \? "" : String\(\(live \? \(customBio \|\| \(row && \(row\.goal \|\| row\.bio\)\)\)/);
   assert.match(src, /const avatar = live \? \(row && row\.avatar\) \|\| media\.portrait \|\| null/);
   assert.match(read('mobile-app/src/broadsheet/BSTrainerProfile.jsx'), /const bio = \(!isPrivate && \(customBio \|\| \(live && live\.goal\)/, "the app's coach page ignores the editor's Bio");
+});
+
+// Parity with the app (owner, 2026-11-11: "make sure the app parity works with edits to profile as well"). The
+// app's editors (Make it yours, Customize) merge onto the doc as stored before they save; the website's Edit
+// profile wrote the whole doc it opened with, so an edit made in the app while the page was open was undone by
+// the next website save. It now writes only the fields changed in it, over the doc as stored at save time.
+async function typeArea(el, value) {
+  const setter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value').set;
+  await React.act(async () => { setter.call(el, value); el.dispatchEvent(new window.Event('input', { bubbles: true })); });
+}
+const OPENED = { bio: 'Strong is a skill.', look: { paper: 'dark', accent: 'teal' }, climbBg: 'dusk' };
+
+test('a website save keeps what the app changed since the editor opened, and writes what was changed here', async () => {
+  // Opened with OPENED; then, in the app, the coach changed their Bio, paper and About and added a kitchen.
+  const appSince = { bio: 'Written in the app.', look: { paper: 'bone', accent: 'blue', focus: 'top' }, climbBg: 'dusk',
+    about: { story: 'From the app.' }, headLinks: true };
+  const acct = account(ME, { profile: appSince });
+  let saved = null;
+  await mount(editor({ initial: OPENED, onSave: (d) => { saved = d; } }));
+  // Only the Spotify link is changed on the website.
+  await type(document.querySelector('input[aria-label="Spotify link"]'), 'https://open.spotify.com/track/abc');
+  await click(button('Save profile'));
+  assert.equal(acct.upserts.length, 1);
+  const out = acct.upserts[0].data;
+  assert.equal(out.song && out.song.url, 'https://open.spotify.com/track/abc', 'the website change was not written');
+  assert.equal(out.bio, 'Written in the app.', "the website's stale Bio undid the app's");
+  assert.deepEqual(out.look, { paper: 'bone', accent: 'blue', focus: 'top' }, "the website's stale look undid the app's");
+  assert.deepEqual(out.about, { story: 'From the app.' }, "the app's About was dropped");
+  assert.equal(out.headLinks, true, "the app's head links choice was dropped");
+  assert.equal(saved, out);
+
+  // A field changed on both sides takes the website's, as the last save.
+  const acct2 = account(ME, { profile: appSince });
+  await mount(editor({ initial: OPENED }));
+  await typeArea(document.querySelector('textarea[aria-label="Bio"]'), 'Written on the website.');
+  await click(button('Save profile'));
+  assert.equal(acct2.upserts[0].data.bio, 'Written on the website.');
+  assert.deepEqual(acct2.upserts[0].data.look, appSince.look);
+
+  // A field cleared on the website is cleared, though the app had set it since.
+  const acct3 = account(ME, { profile: appSince });
+  await mount(editor({ initial: OPENED }));
+  await typeArea(document.querySelector('textarea[aria-label="Bio"]'), '');
+  await click(button('Save profile'));
+  assert.equal(acct3.upserts[0].data.bio, '');
+});
+
+test('a website save whose read of the stored doc fails writes nothing, the identity neither, and says so', async () => {
+  const acct = account(ME, { failProfileRead: true });
+  let saved = false;
+  await mount(editor({ onSave: () => { saved = true; } }));
+  await type(input('location'), 'Austin, TX');
+  await click(button('Save profile'));
+  assert.equal(acct.upserts.length, 0, 'the doc as it opened was written over whatever is stored');
+  assert.equal(acct.writes.length, 0, 'the identity was saved and the rest refused: half an edit');
+  assert.equal(saved, false);
+  assert.match(document.body.textContent, /Couldn't save — try again\./);
 });
