@@ -158,7 +158,7 @@ test('a swim posted with only a title still reads in the pool unit', () => {
   assert.equal(cfUnitizePost(swim, U, LB).title, 'Pool · 2,187 yd');
   assert.equal(cfUnitizePost(swim, U, KG).title, 'Pool · 2,000 m');
   // The live mapper sets it, outside the session as well as inside.
-  assert.match(FEED, /\n {8}sport: p\.activity_type \|\| '',\n/, 'a live post no longer carries its sport outside its session');
+  assert.match(FEED, /\n {4}sport: p\.activity_type \|\| '',\n/, 'a live post no longer carries its sport outside its session');
 });
 
 test('a breakdown row is a set, not a stat: "Hill climb" keeps its metres', () => {

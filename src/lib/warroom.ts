@@ -661,12 +661,26 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
       ],
     },
     {
-      section: 'Website Coaches page: the matcher\'s Goal list opens with no scroll bar. No migration',
+      section: 'Coach page Posts: each post is the activity feed\'s card. No migration',
+      items: [
+        { label: 'Owner, 2026-11-11, with a screenshot of the Posts camp: "Posts - need to match current activity feed"', status: 'done' },
+        { label: 'communityFeed.jsx: the feed\'s row mapper (cfMapPost, with cfTagFor, cfActivityAt, cfSince, cfBucketsFor), the meal and milestone blocks (CfMealPlate, CfMilestoneStamp) and the card\'s byline and body (CfPostHead, CfPostBody, cfPostTitle) move to file scope, unchanged; FeedItem draws with them. CfPostCard is that card without likes, replies or sharing, published with cfLoadUnits for another page', status: 'done' },
+        { label: 'coachProfileWeb.jsx CpwActivityTab: each post the feed\'s card over its own row (the coach\'s name and role added, which the page\'s read leaves out), in the reader\'s units; a sample\'s posts written as rows for it, dated by their "1d". The card reads the page\'s ink (--sh-ink) so it shows on a coach\'s own paper, with the app\'s light role colours on a light one. Without the feed module the old rows stand in. TrainerProfile, NutritionistProfile, TrainerApp and NutritionistApp now load communityFeed.jsx before the coach page, as MemberProfile did', status: 'done' },
+        { label: 'The feed card\'s stat grid stood one stat to a row on a phone, in the chat bubble too: pageShell.jsx\'s phone stylesheet collapses any inline "repeat(3" grid. Its three columns are written out now', status: 'done' },
+        { label: 'A link post keeps its link: cfMapPost reads metrics.link (https only) and the card draws it under the media, in the feed too, where a link post had shown no way to open it', status: 'done' },
+        { label: 'Checked in Chromium (Priscilla Adams and James Okafor samples, 1440 and 390): the run\'s plate (Distance · 5.2 mi, the dot figure, the three-column grid, Session details), the note as a titled card, the role colours. tests/web-coach-climb.test.mjs mounts the page with the real feed module; the four feed tests that anchored on the old mapper are re-anchored', status: 'done' },
+        { label: 'Likes, replies and sharing on a coach\'s Posts: the cards draw no action row (the page\'s read carries no likes or comments)', status: 'pending' },
+        { label: 'The app\'s Posts camp draws BSActivityCard as the member profile does (variant magazine, every other card glass); the website\'s is now the Wall\'s plate, as the feed draws it', status: 'pending' },
+      ],
+    },
+    {
+      section: 'Website Coaches page: the matcher\'s Goal list opens with no scroll bar (#2710). No migration',
       items: [
         { label: 'Owner, 2026-11-11, with a screenshot of the matcher\'s Goal (Fat loss): "remove the goals scroll toggle bar that appears when you click on goal on website", then "i didnt say remove the goal dropdown itsself, just the scroll bar"', status: 'done' },
         { label: 'marketplace.jsx: the Goal was the browser\'s select, whose open list of every goal (Any goal, then 21: 12 under Training, 9 under Nutrition) always drew a scroll bar. It is now the page\'s own list, the one the city uses (MkListPick, from MkCityPick): it scrolls with no bar, opens upward in the hero (which clips), keeps a select\'s keys and type-ahead, and keeps Training and Nutrition as listbox groups under their headings. The pick shows its icon, as before; every goal is still listed (owner, 2026-11-09)', status: 'done' },
         { label: 'Checked in Chromium at 1440, 900 and 390: the list opens inside the hero with no scroll bar; a pick sets the goal card and the results; End scrolls to Longevity. tests/marketplace-page.test.mjs: no select in the matcher, every goal listed in its group, a pick narrows the results, Any goal clears it', status: 'done' },
-        { label: 'Owner\'s list, 2026-11-11: the coach page\'s Posts camp drawn as the activity feed draws a post', status: 'pending' },
+        { label: '#2710 review: Codex clean on 487d2ae; CI green on 487d2ae', status: 'done' },
+        { label: 'Owner\'s list, 2026-11-11: the coach page\'s Posts camp drawn as the activity feed draws a post (its own section, above)', status: 'done' },
         { label: 'Owner\'s list, 2026-11-11: review whether the coach page\'s Book, Programs and Summit camps should be one (the Summit lists the programs again, with the free intro and Message)', status: 'pending' },
       ],
     },

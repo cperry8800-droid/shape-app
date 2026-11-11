@@ -253,9 +253,9 @@ test('both workoutStats schemas reach the plate — the app writes two', () => {
   assert.match(backend, /workoutStats\.push\(\{ label: /,
     'shapeBackend no longer writes { label, value } — re-derive this normalisation');
 
-  const mapper = /const mapPost = \(p, uid\) => \{[\s\S]*?\n    \};/.exec(stripComments(FEED));
-  assert.ok(mapper, 'mapPost moved — re-anchor this guard');
-  const ws = /const wstats = [\s\S]*?\n      \}\)\.filter\(Boolean\) : \[\];/.exec(mapper[0]);
+  const mapper = /function cfMapPost\(p, uid\) \{[\s\S]*?\n\}/.exec(stripComments(FEED));
+  assert.ok(mapper, 'cfMapPost moved — re-anchor this guard');
+  const ws = /const wstats = [\s\S]*?\n  \}\)\.filter\(Boolean\) : \[\];/.exec(mapper[0]);
   assert.ok(ws, 'the workoutStats normalisation moved — re-anchor this guard');
   // eslint-disable-next-line no-new-func
   const read = new Function('m', `${ws[0]}\nreturn wstats;`);
@@ -390,9 +390,9 @@ test('every production writer of workoutStats emits a shape the plate can read',
   // THE INVARIANT. Every shape any production writer emits must reach the plate.
   // Driven through the SHIPPED normaliser, not compared against a restated list
   // — so a third producer fails here rather than being silently dropped.
-  const mapper = /const mapPost = \(p, uid\) => \{[\s\S]*?\n    \};/.exec(stripComments(FEED));
-  assert.ok(mapper, 'mapPost moved — re-anchor this guard');
-  const ws = /const wstats = [\s\S]*?\n      \}\)\.filter\(Boolean\) : \[\];/.exec(mapper[0]);
+  const mapper = /function cfMapPost\(p, uid\) \{[\s\S]*?\n\}/.exec(stripComments(FEED));
+  assert.ok(mapper, 'cfMapPost moved — re-anchor this guard');
+  const ws = /const wstats = [\s\S]*?\n  \}\)\.filter\(Boolean\) : \[\];/.exec(mapper[0]);
   assert.ok(ws, 'the workoutStats normalisation moved — re-anchor this guard');
   // eslint-disable-next-line no-new-func
   const read = new Function('m', `${ws[0]}\nreturn wstats;`);
