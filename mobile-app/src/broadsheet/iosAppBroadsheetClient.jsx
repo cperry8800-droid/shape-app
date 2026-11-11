@@ -269,6 +269,10 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined' && !window.
   window.__bsProfileReturnRefresh = bsOnReturnToApp(() => {
     if (!window.ShapeAuth?.getCachedState?.()?.user?.id) return;
     bsHydrateIdentity();
+    // The name lives in profiles.full_name too (the identity trigger copies a website edit there),
+    // which bsMyName() reads from the auth cache: read the row again, as the account setup's refresh
+    // does (Codex on #2707).
+    try { Promise.resolve(window.ShapeAuth?.reloadProfile?.()).catch(() => {}); } catch (e) {}
     bsAnnounceUserGoals(BS_PROFILE_KINDS);
   });
 }

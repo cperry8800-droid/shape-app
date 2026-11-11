@@ -255,9 +255,11 @@ test("the shell re-reads the identity and announces the profile's kinds on a ret
   const src = readFileSync(join(ROOT, 'mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx'), 'utf8');
   const at = src.indexOf('window.__bsProfileReturnRefresh = bsOnReturnToApp(');
   assert.ok(at > 0, 'no return-to-app refresh in the shell');
-  const body = src.slice(at, src.indexOf('});', at));
+  const body = src.slice(at, src.indexOf('\n  });\n}', at));
   assert.match(body, /bsHydrateIdentity\(\);/);
   assert.match(body, /bsAnnounceUserGoals\(BS_PROFILE_KINDS\);/);
+  // The name bsMyName() prints is the auth cache's profiles.full_name: read again too (Codex on #2707).
+  assert.match(body, /window\.ShapeAuth\?\.reloadProfile\?\.\(\)/, 'a website name edit stays stale in the app');
   assert.match(body, /if \(!window\.ShapeAuth\?\.getCachedState\?\.\(\)\?\.user\?\.id\) return;/, 'a signed-out app reads on return');
   // Installed at the module's top, once per window, so the coach shells have it too.
   assert.match(src, /if \(typeof window !== 'undefined' && typeof document !== 'undefined' && !window\.__bsProfileReturnRefresh\) \{/);
