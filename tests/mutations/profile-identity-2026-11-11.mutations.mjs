@@ -12,7 +12,7 @@ const APP = 'mobile-app/src/broadsheet/BSTrainerProfile.jsx';
 const MIY = 'mobile-app/src/broadsheet/BSMakeItYours.jsx';
 
 export default {
-  test: 'node --test tests/identity-name-location-migration.test.mjs tests/cover-position.test.mjs tests/profile-identity-web.test.mjs tests/web-coach-climb.test.mjs tests/screenshot-fit.test.mjs',
+  test: 'node --test tests/identity-name-location-migration.test.mjs tests/cover-position.test.mjs tests/profile-identity-web.test.mjs tests/coach-spotlight.test.mjs tests/web-coach-climb.test.mjs tests/screenshot-fit.test.mjs',
   timeoutMs: 300_000,
   mutations: [
     // The migration.

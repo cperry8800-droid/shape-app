@@ -181,6 +181,27 @@ test('a picked photo is stored as the app stores it, a 256px JPEG; Remove clears
   assert.equal(acct.docs.client_identity.handle, '@cperry');
 });
 
+test('a photo past 400 KB is refused, stored or picked, as the app refuses it', async () => {
+  const BIG = 'data:image/jpeg;base64,' + 'A'.repeat(400001);
+  // Stored oversized: not shown, and an untouched save leaves the account alone.
+  let acct = account({ ...ME, photo: BIG });
+  await mount(editor());
+  assert.equal(document.querySelector('[data-dk-identity]').getAttribute('data-dk-identity'), 'ready');
+  assert.equal(document.querySelector('[data-dk-photo]'), null, 'an oversized stored photo was shown');
+  await click(button('Save profile'));
+  assert.equal(acct.writes.length, 0);
+  // Encoded oversized: refused with its message; the photo stays and nothing is written.
+  acct = account(ME);
+  await mount(editor());
+  const toURL = window.HTMLCanvasElement.prototype.toDataURL;
+  window.HTMLCanvasElement.prototype.toDataURL = () => BIG;
+  try { await pick(new window.File(['x'], 'big.png', { type: 'image/png' })); } finally { window.HTMLCanvasElement.prototype.toDataURL = toURL; }
+  assert.match(document.body.textContent, /Couldn't read that photo — try another\./);
+  assert.equal(document.querySelector('[data-dk-photo]').getAttribute('src'), PHOTO);
+  await click(button('Save profile'));
+  assert.equal(acct.writes.length, 0, 'the refused photo was written');
+});
+
 test('an untouched You writes no identity; a failed read offers Try again and the rest still saves', async () => {
   let acct = account(ME);
   await mount(editor());
