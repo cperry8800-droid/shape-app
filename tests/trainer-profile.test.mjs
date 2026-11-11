@@ -294,6 +294,12 @@ test("the Climb takes the coach's paper, accent and climb background; Book keeps
   assert.equal(root.style.color, (() => { const d = document.createElement('div'); d.style.color = P.INK; return d.style.color; })(), "the paper's ink");
   assert.equal(button(/^Message Maya$/).style.background, cssOf(P.ACCENT), "the coach's rust, at its readable step");
   assert.equal(document.querySelector('[data-climb-book]').style.background, cssOf(P.CTA), "Book in the trainer's rust for a light paper");
+  // The masthead's logo, tools and Back take the paper's ink on a light paper, not white (Codex on #2708).
+  const pill = document.querySelector('[data-bs-mast-pill]');
+  if (pill) assert.doesNotMatch(pill.style.border, /255, 255, 255/, 'white tools on the bone paper');
+  const back = [...document.querySelectorAll('button')].find((b) => /Back/.test(b.textContent || '') || /Back/.test(b.getAttribute('aria-label') || ''));
+  if (back) assert.doesNotMatch(back.style.color || getComputedStyle(back).color, /255, 255, 255/, 'a white Back on the bone paper');
+  assert.match(readFileSync(join(ROOT, 'mobile-app/src/broadsheet/BSTrainerProfile.jsx'), 'utf8'), /const MAST_INK = CLIMB\.isLight \? CLIMB\.INK : '#ffffff';/);
   await m.unmount();
   // The climb background: the kit's wash over the paper.
   reset({ custom: { look: { paper: 'bone', accent: 'rust' }, climbBg: 'dusk' } });

@@ -946,33 +946,34 @@ function TrainerPage({ theme = null, person, role = 'trainer', onBack, onMessage
   });
 
   // The masthead row (logo + the corners), then ← Back on its own row under it, where every page keeps
-  // it (owner, 2026-10-31), white over the terrain.
+  // it (owner, 2026-10-31), white over the terrain; on a light paper, the paper's ink (Codex on #2708).
+  const MAST_INK = CLIMB.isLight ? CLIMB.INK : '#ffffff';
   const mast = (
     <>
       <div style={{ position: 'relative', padding: `${topPad} ${Math.max(4, gutter - 10)}px 0`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', minHeight: W.BS_MAST_ROW_H || 34 }}>
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, paddingLeft: 10, color: '#fff' }}>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, paddingLeft: 10, color: MAST_INK }}>
           {window.BSMastBackSlot ? <window.BSMastBackSlot /> : null}
-          {W.BSLogo ? <W.BSLogo size={window.BS_MAST_LOGO || 26} color="#ffffff" /> : null}
+          {W.BSLogo ? <W.BSLogo size={window.BS_MAST_LOGO || 26} color={MAST_INK} /> : null}
         </span>
         {/* The masthead's slim tool pill, as on every page (iosAppBroadsheet.jsx, BSMastToolPill). */}
         {(() => { const Pill = W.BSMastToolPill; const tools = (
           <div style={{ display: 'flex', alignItems: 'center', gap: W.BS_CORNER_GAP || 8 }}>
-            {W.BSSearchCorner ? <W.BSSearchCorner size={corner} ink="#ffffff" /> : null}
+            {W.BSSearchCorner ? <W.BSSearchCorner size={corner} ink={MAST_INK} /> : null}
             {isSelf ? (
               <button type="button" onClick={() => openEdit('colors')} disabled={!editReady} aria-label={tr('profile:trainer.makeItYours', { defaultValue: 'Make it yours' })}
-                style={{ width: corner, height: corner, padding: 0, border: 0, background: 'transparent', color: '#fff', display: 'grid', placeItems: 'center', cursor: editReady ? 'pointer' : 'default', opacity: editReady ? 1 : 0.5 }}>
-                <span style={{ width: 26, height: 26, boxSizing: 'border-box', display: 'grid', placeItems: 'center', borderRadius: 99, border: '1px solid rgba(255,255,255,0.5)', background: 'rgba(0,0,0,0.25)' }}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg></span>
+                style={{ width: corner, height: corner, padding: 0, border: 0, background: 'transparent', color: MAST_INK, display: 'grid', placeItems: 'center', cursor: editReady ? 'pointer' : 'default', opacity: editReady ? 1 : 0.5 }}>
+                <span style={{ width: 26, height: 26, boxSizing: 'border-box', display: 'grid', placeItems: 'center', borderRadius: 99, border: `1px solid ${CLIMB.isLight ? hexA(CLIMB.INK, 0.4) : 'rgba(255,255,255,0.5)'}`, background: CLIMB.isLight ? hexA(CLIMB.INK, 0.06) : 'rgba(0,0,0,0.25)' }}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg></span>
               </button>
             ) : null}
             {/* A visitor's ⚙ opens their own profile, as BSMeCorner's does; that corner itself draws a
                 second ✦ ⌕ and in the page's ink, not white over the photo. */}
-            {W.BSSettingsCorner ? <W.BSSettingsCorner size={corner} ink="#ffffff" onClick={isSelf ? onOpenSettings : () => { try { window.dispatchEvent(new window.CustomEvent('shape:openProfile')); } catch (e) {} }} /> : null}
+            {W.BSSettingsCorner ? <W.BSSettingsCorner size={corner} ink={MAST_INK} onClick={isSelf ? onOpenSettings : () => { try { window.dispatchEvent(new window.CustomEvent('shape:openProfile')); } catch (e) {} }} /> : null}
           </div>
-        ); return Pill ? <Pill ink="#ffffff">{tools}</Pill> : tools; })()}
+        ); return Pill ? <Pill ink={MAST_INK}>{tools}</Pill> : tools; })()}
       </div>
       {!meMode && W.BSBackRow ? (
         <div style={{ position: 'relative', padding: `0 ${gutter}px` }}>
-          <W.BSBackRow onBack={onBack} ink="#ffffff" label={tr('profile:trainer.back', { defaultValue: 'Back' })} buttonStyle={{ textShadow: '0 1px 6px rgba(0,0,0,0.5)' }} />
+          <W.BSBackRow onBack={onBack} ink={MAST_INK} label={tr('profile:trainer.back', { defaultValue: 'Back' })} buttonStyle={{ textShadow: CLIMB.isLight ? 'none' : '0 1px 6px rgba(0,0,0,0.5)' }} />
         </div>
       ) : null}
     </>
