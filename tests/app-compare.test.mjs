@@ -127,3 +127,72 @@ test('a pick a filter hides stays picked, in the tray and the sheet', () => {
   assert.equal(s.dir().props.list.length, 0);
   assert.deepEqual(s.dir().props.compare.cards.map((c) => c.name), [first.name]);
 });
+
+// ── Codex on #2718 ────────────────────────────────────────────────────────────────────────────────
+// The live listings, read through the effects (the harness of app-coaches-tab.test.mjs): Leah has a Shape account
+// and open times; Rae's listing has no account behind it.
+let EFFECTS = [];
+const SHIM_FX = { ...SHIM, useEffect(fn) { EFFECTS.push(fn); } };
+const { BSMarketplaceScreen: ScreenFx } = await loadRealModule(join(DIR, 'iosAppBroadsheetMarketplace.jsx'), { ...REG(SHIM_FX), appendExports: 'exports.BSMarketplaceScreen = BSMarketplaceScreen;' });
+function liveWorld() {
+  const tomorrow = new Date(Date.now() + 86400000);
+  const rows = {
+    trainers: [{ id: 7, name: 'Leah Kim', owner_id: 'u-leah', specialty: 'Strength training', tags: ['Strength'], session_price: 95, price: 260, rating: 4.8, verified: true, listing_media: null }],
+    nutritionists: [{ id: 52, name: 'Rae Lindqvist', owner_id: null, specialty: 'Sports nutrition', tags: ['Endurance'], price: 140, meal_plan_price: 35, rating: 4.9, featured: true, listing_media: null }],
+  };
+  const from = (table) => { const q = { select: () => q, eq: () => q, order: () => Promise.resolve({ data: rows[table] || [], error: null }) }; return q; };
+  globalThis.ShapeAuth = { client: { from }, getCachedState: () => ({ user: { id: 'member-1' } }) };
+  globalThis.ShapeCoachReviews = { summaries: async () => ({ owners: {} }) };
+  globalThis.ShapeCoachAvailability = { get: async (role, id) => (role === 'trainer' && String(id) === '7' ? { slots: [{ weekday: tomorrow.getUTCDay(), start_minute: 15 * 60, duration_min: 120 }], booked: [], busy: [], rules: null, timezone: 'UTC', atCapacity: false } : null) };
+  globalThis.ShapePlan = { get: async () => ({ ok: true, training: { hasPlan: false, coaching: null }, meals: { hasPlan: false, coaching: null } }) };
+}
+const liveWorldDone = () => { for (const k of ['ShapeAuth', 'ShapeCoachReviews', 'ShapeCoachAvailability', 'ShapePlan']) delete globalThis[k]; };
+const screenFx = () => {
+  EFFECTS = [];
+  const d = drive(ScreenFx, { onProfile() {} });
+  const flush = async () => { for (let i = 0; i < 4; i += 1) { const run = EFFECTS.splice(0); for (const f of run) { try { f(); } catch (e) {} } await new Promise((r) => setTimeout(r, 15)); d.render(); } };
+  return { d, dir: () => d.nodes()[0], flush };
+};
+
+test('a listing with no account behind it has no free intro to book: Free intro No, and View alone (Codex on #2718)', async () => {
+  liveWorld();
+  try {
+    const s = screenFx();
+    await s.flush();
+    const list = () => s.dir().props.list;
+    const leah = list().find((c) => c.name === 'Leah Kim');
+    const rae = list().find((c) => c.name === 'Rae Lindqvist');
+    assert.equal(leah.introOpen, true);
+    assert.equal(rae.introOpen, false, 'a listing with no account reads Free intro Yes');
+    leah.compare.onToggle(); s.d.render();
+    list().find((c) => c.name === 'Rae Lindqvist').compare.onToggle(); s.d.render();
+    s.dir().props.compare.onOpen(); s.d.render();
+    const cmp = s.dir().props.compare;
+    assert.deepEqual(cmp.rows.find((r) => r.key === 'intro').texts, ['Yes', 'No']);
+    const sheet = drawn(ofType(drawn(s.dir()), 'MktDirCompareSheet')[0]);
+    assert.equal(sheet.nodes().filter((n) => n.props && n.props['data-mkt-compare-intro'] != null).length, 1, 'the listing with no account offers Book intro');
+    assert.equal(sheet.nodes().filter((n) => n.props && n.props['data-mkt-compare-view'] != null).length, 2);
+  } finally { liveWorldDone(); }
+});
+
+test('a pick made on the example roster is cleared when the live listings land, never read as another coach (Codex on #2718)', async () => {
+  liveWorld();
+  try {
+    const s = screenFx();
+    // The example roster shows while the directory is read; pick its t7, the id Leah's live listing (trainers
+    // row 7) maps to, and one more.
+    const ex = s.dir().props.list;
+    assert.ok(ex.length >= 2 && ex.every((c) => c.example));
+    const t7 = ex.find((c) => c.key === 't7');
+    assert.ok(t7, 'the example roster has a t7');
+    t7.compare.onToggle(); s.d.render();
+    s.dir().props.list.find((c) => c.key !== 't7').compare.onToggle(); s.d.render();
+    assert.equal(s.dir().props.compare.cards.length, 2);
+    const exName = t7.name;
+    await s.flush();
+    assert.ok(s.dir().props.list.every((c) => !c.example), 'the live listings did not land');
+    assert.ok(exName !== 'Leah Kim');
+    assert.deepEqual(s.dir().props.compare.cards.map((c) => c.name), [], 'an example pick stayed on, or turned into a live coach (Leah)');
+    assert.equal(s.dir().props.compare.open, false);
+  } finally { liveWorldDone(); }
+});

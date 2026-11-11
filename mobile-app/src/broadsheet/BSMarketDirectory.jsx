@@ -620,10 +620,11 @@ function MktDirCompareSheet({ cmp }) {
               const full = !!(c.next && c.next.full);
               return (
                 <div key={c.key} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  <button type="button" data-mkt-compare-intro="" onClick={c.onIntro}
+                  {/* No intro to book (a listing with no account behind it): View alone (Codex on #2718). */}
+                  {c.introOpen || full ? <button type="button" data-mkt-compare-intro="" onClick={c.onIntro}
                     style={{ minHeight: 44, padding: '0 8px', border: 0, borderRadius: 999, background: teal, color: t.isLight ? '#ffffff' : '#06201d', cursor: 'pointer', fontFamily: t.DISPLAY, fontSize: 13, fontWeight: 700 }}>
                     {full ? tr('marketplace:dir.waitingList', { defaultValue: 'Waiting list' }) : tr('marketplace:dir.bookIntro', { defaultValue: 'Book intro' })}
-                  </button>
+                  </button> : null}
                   <button type="button" data-mkt-compare-view="" onClick={c.onOpen}
                     style={{ minHeight: 44, padding: '0 8px', borderRadius: 999, border: `1px solid ${bsDashA(t.INK, 0.2)}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.DISPLAY, fontSize: 13, fontWeight: 650 }}>
                     {tr('marketplace:compare.view', { defaultValue: 'View' })}

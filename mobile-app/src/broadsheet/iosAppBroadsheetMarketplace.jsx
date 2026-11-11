@@ -1295,12 +1295,20 @@ function BSMarketplaceScreen({ onBack = null, onProfile, initialRole, goChat, in
       meet: bsCompareMeets(c.format),
       city: bsmCityOf(c),
       creds: getCoachCertifications(c).join(' · ') || null,
-      introOpen: !(atCapacity && !(times && times.length)),
+      // A free intro is open only where one can be booked: a coach with a Shape account (or an example's
+      // own flow), not full with no times. A listing with no account behind it has no booking (Codex on #2718).
+      introOpen: !!(c.provider_user_id || bsmIsDemoCoach(c)) && !(atCapacity && !(times && times.length)),
       compare: { max: BS_COMPARE_MAX, on: cmpKeys.includes(c.id), can: cmpKeys.includes(c.id) || cmpKeys.length < BS_COMPARE_MAX, onToggle: () => setCmpKeys((k) => bsCompareToggle(k, c.id)) },
     };
   };
+  // The picks are of one roster: the example coaches shown while the live listings are read, or the live
+  // ones. Their ids share a shape (t1, n2…), so a pick made on one roster is cleared when the other lands,
+  // never read as another person there (Codex on #2718).
+  const cmpRoster = remoteCoaches ? 'live' : 'example';
+  const cmpRosterRef = React.useRef(cmpRoster);
+  if (cmpRosterRef.current !== cmpRoster) { cmpRosterRef.current = cmpRoster; if (cmpKeys.length) { setCmpKeys([]); setCmpOpen(false); } }
   // The coaches picked to compare, in the order picked, from everyone (a filter that hides one keeps it).
-  const cmpCoaches = cmpKeys.map((k) => everyone.find((c) => c.id === k)).filter(Boolean);
+  const cmpCoaches = (cmpRosterRef.current === cmpRoster ? cmpKeys : []).map((k) => everyone.find((c) => c.id === k)).filter(Boolean);
   const cmpCards = cmpCoaches.map((c) => { const card = mktDirCard(c); return { ...card, onOpen: () => { setCmpOpen(false); card.onOpen(); }, onIntro: () => { setCmpOpen(false); card.onIntro(); } }; });
   // Compare's rows, read here (coachCompare.mjs): each coach's words, the best where one coach alone tops a
   // row that can be ranked, and whether every coach answers the same. The view only draws them.
