@@ -465,5 +465,18 @@
   "planDay.linkSub": "Bugün ya da yarın, Shape Kitchen’dan",
   "planDay.cta": "Bugün ya da yarın için planla →",
   "planDay.yours": "Senin planın",
-  "planDay.daySwapped": "Bugün için değiştirildi"
+  "planDay.daySwapped": "Bugün için değiştirildi",
+  "eat.coachAdded.unread": "Diyetisyeninin eklediği öğünler yüklenemedi.",
+  "eat.coachAdded.retry": "Tekrar dene",
+  "eat.coachAdded.from": "{name} gönderdi",
+  "eat.coachAdded.fromNutritionist": "Diyetisyeninden",
+  "eat.coachAdded.today": "Bugün eklendi",
+  "eat.coachAdded.onDay": "Eklendi · {day}",
+  "eat.coachAdded.count": "{count, plural, one {# öğün} other {# öğün}}",
+  "eat.coachAdded.kcal": "{kcal} kcal",
+  "eat.coachAdded.protein": "{g} g protein",
+  "eat.coachAdded.swaps": "Alternatifler: {list}",
+  "grocery.coachNote.from": "Alışveriş notu · {name}",
+  "grocery.coachNote.fromAnon": "Alışveriş notu · diyetisyenin",
+  "grocery.coachNote.unread": "Diyetisyeninin alışveriş notu yüklenemedi."
 }

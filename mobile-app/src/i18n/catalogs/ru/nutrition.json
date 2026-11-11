@@ -465,5 +465,18 @@
   "planDay.linkSub": "На сегодня или завтра, из Shape Kitchen",
   "planDay.cta": "Запланировать на сегодня или завтра →",
   "planDay.yours": "Запланировано вами",
-  "planDay.daySwapped": "Заменено на сегодня"
+  "planDay.daySwapped": "Заменено на сегодня",
+  "eat.coachAdded.unread": "Не удалось загрузить блюда от вашего нутрициолога.",
+  "eat.coachAdded.retry": "Повторить",
+  "eat.coachAdded.from": "От {name}",
+  "eat.coachAdded.fromNutritionist": "От вашего нутрициолога",
+  "eat.coachAdded.today": "Добавлено сегодня",
+  "eat.coachAdded.onDay": "Добавлено · {day}",
+  "eat.coachAdded.count": "{count, plural, one {# блюдо} few {# блюда} many {# блюд} other {# блюда}}",
+  "eat.coachAdded.kcal": "{kcal} ккал",
+  "eat.coachAdded.protein": "{g} г белка",
+  "eat.coachAdded.swaps": "Замены: {list}",
+  "grocery.coachNote.from": "Заметка к покупкам · {name}",
+  "grocery.coachNote.fromAnon": "Заметка к покупкам · ваш нутрициолог",
+  "grocery.coachNote.unread": "Не удалось загрузить заметку к покупкам от вашего нутрициолога."
 }

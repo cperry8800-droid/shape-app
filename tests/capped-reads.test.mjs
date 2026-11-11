@@ -149,8 +149,8 @@ test('the exemptions are the eleven that were checked, and each is deliberate', 
   // The marker counts for every read up to 16 lines below it, so in a dashboard route it must sit
   // with the subscriptions walk alone: a session read it reached would be exempt unseen, ascending or not.
   // The usage route's walk too: its plan and workout reads are not covered by it; and the consoles' walks
-  // (the trainer's three: the trajectory, today's logs and today's session; the nutritionist's two).
-  const walks = { 'trainer/dashboard/route.ts': 1, 'nutritionist/dashboard/route.ts': 1, 'coach/plans/usage/route.ts': 1, 'trainer/console/route.ts': 3, 'nutritionist/console/route.ts': 2 };
+  // (the trainer's three: the trajectory, today's logs and today's session; the nutritionist's four: the trajectory, today's logs, today's plan and the grocery notes).
+  const walks = { 'trainer/dashboard/route.ts': 1, 'nutritionist/dashboard/route.ts': 1, 'coach/plans/usage/route.ts': 1, 'trainer/console/route.ts': 3, 'nutritionist/console/route.ts': 4 };
   for (const [f, n] of Object.entries(walks)) {
     assert.deepEqual(capped().filter((r) => r.where.startsWith(f + ':') && r.exempt).map((r) => r.col), Array(n).fill('id'), f);
   }

@@ -163,3 +163,79 @@ test('trainer console: a session list that didn\'t load says so, never "Nothing 
   assert.doesNotMatch(document.body.textContent, /Nothing added today/)
   await React.act(async () => ui.root.unmount())
 })
+
+// ── The nutritionist's plan and grocery note (left by #2686) ────────────────────────────────────────
+const NUTRI_PLAN = { [A]: [{ id: 'm1', name: 'Salmon bowl', time: '12:30 pm', kcal: 540, protein: 42, note: 'After your run', ingredients: [], alternatives: [] }] }
+
+test('nutritionist console: Today\'s plan lists the client\'s meals, and Remove waits for the server', async () => {
+  let answer = { ok: false, json: async () => ({ error: 'Could not reach Shape.' }) }
+  const ui = await mount('Nutritionist', roster('Nutritionist', { itemsByClient: NUTRI_PLAN }), async () => answer)
+  const list = () => document.querySelector('[data-console-plan]')
+  assert.match(list().textContent, /Salmon bowl/)
+  assert.match(list().textContent, /12:30 pm · 540 kcal · 42 g protein/)
+  assert.match(list().textContent, /After your run/)
+  await React.act(async () => button('Remove').click())
+  await React.act(flush)
+  assert.deepEqual(ui.posts[0].body, { clientId: A, action: 'removeItem', itemId: 'm1' })
+  assert.match(list().textContent, /Salmon bowl/, 'a failed remove leaves it listed')
+  assert.match(document.body.textContent, /Could not reach Shape/)
+  answer = { ok: true, json: async () => ({ ok: true }) }
+  await React.act(async () => button('Remove').click())
+  await React.act(flush)
+  assert.equal(list().getAttribute('data-console-plan'), 'empty')
+  assert.match(list().textContent, /Nothing on today's plan/)
+  await React.act(async () => ui.root.unmount())
+})
+
+test('nutritionist console: a meal is listed only once saved, and a failed add keeps the entry', async () => {
+  let answer = { ok: false, json: async () => ({ error: 'You can only push to your own active clients.' }) }
+  const ui = await mount('Nutritionist', roster('Nutritionist'), async () => answer)
+  const name = () => document.querySelector('input[placeholder="e.g. Salmon bowl + greens"]')
+  await React.act(async () => typeInto(name(), 'Oats'))
+  await React.act(async () => button("+ Add to today's plan").click())
+  await React.act(flush)
+  assert.equal(ui.posts[0].body.action, 'addItem')
+  assert.equal(ui.posts[0].body.payload.name, 'Oats')
+  assert.match(document.body.textContent, /only push to your own active clients/)
+  assert.equal(document.querySelector('[data-console-plan]').getAttribute('data-console-plan'), 'empty', 'nothing listed that was not saved')
+  assert.equal(name().value, 'Oats', 'the entry is kept')
+  answer = { ok: true, json: async () => ({ ok: true, id: 'saved-1' }) }
+  await React.act(async () => button("+ Add to today's plan").click())
+  await React.act(flush)
+  assert.match(document.querySelector('[data-console-plan]').textContent, /Oats/)
+  assert.equal(name().value, '', 'cleared once saved')
+  await React.act(async () => ui.root.unmount())
+})
+
+test('nutritionist console: a plan or note that didn\'t load says so, never "Nothing on today\'s plan"', async () => {
+  const ui = await mount('Nutritionist', roster('Nutritionist', { itemsUnread: true, groceryNoteUnread: true }))
+  assert.match(document.querySelector('[data-console-plan-unread]').textContent, /Today's plan didn't load/)
+  assert.ok(!document.querySelector('[data-console-plan]'), 'no plan list is drawn')
+  assert.match(document.querySelector('[data-console-grocery-unread]').textContent, /grocery note didn't load/)
+  // Neither action runs on what didn't load (Codex P2 on #2693): Send would save over or clear an unseen
+  // note, and Add could repeat a meal already on the plan.
+  assert.equal(button('Send').disabled, true)
+  assert.equal(button("+ Add to today's plan").disabled, true)
+  await React.act(async () => typeInto(document.querySelector('input[placeholder="e.g. Salmon bowl + greens"]'), 'Oats'))
+  await React.act(async () => { button("+ Add to today's plan").click(); button('Send').click() })
+  await React.act(flush)
+  assert.deepEqual(ui.posts, [], 'nothing is sent')
+  await React.act(async () => ui.root.unmount())
+})
+
+test('nutritionist console: Send on the grocery note waits for the server and says a refusal', async () => {
+  let answer = { ok: false, json: async () => ({ error: 'This grocery note could not be saved.' }) }
+  const ui = await mount('Nutritionist', roster('Nutritionist', { groceryNoteByClient: { [A]: 'Buy oats' } }), async () => answer)
+  const box = () => [...document.querySelectorAll('textarea')].find((t) => /grocery list/.test(t.placeholder))
+  assert.equal(box().value, 'Buy oats', 'the saved note is in the box')
+  await React.act(async () => button('Send').click())
+  await React.act(flush)
+  assert.deepEqual(ui.posts[0].body, { clientId: A, action: 'groceryNote', text: 'Buy oats' })
+  assert.match(document.body.textContent, /could not be saved/)
+  assert.doesNotMatch(document.body.textContent, /Grocery note sent/)
+  answer = { ok: true, json: async () => ({ ok: true }) }
+  await React.act(async () => button('Send').click())
+  await React.act(flush)
+  assert.match(document.body.textContent, /Grocery note sent to Avery/)
+  await React.act(async () => ui.root.unmount())
+})

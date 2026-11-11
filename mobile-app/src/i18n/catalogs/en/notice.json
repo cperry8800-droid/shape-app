@@ -170,5 +170,6 @@
   "email.link": "Open Shape",
   "email.manage": "Change which emails you get in Settings → Notifications.",
   "listingJoined.title": "{coach} is on Shape now",
-  "listingJoined.body": "You asked {coach} for a time before they joined. Message them or see what they offer on their listing."
+  "listingJoined.body": "You asked {coach} for a time before they joined. Message them or see what they offer on their listing.",
+  "grocery.note.title": "Note on your grocery list"
 }

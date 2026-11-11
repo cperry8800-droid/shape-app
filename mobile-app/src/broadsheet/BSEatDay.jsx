@@ -2,6 +2,7 @@ import React from 'react';
 import { BSFocusLead, BSFocusArrival, BSFocusActions, BSFocusLine } from './BSFocus.jsx';
 import { BSEatFuel } from './BSEatFuel.jsx';
 import { BSWeekDays, bsWeekDaysOf } from './BSWeekDays.jsx';
+import { BSCoachMeals } from './BSCoachMeals.jsx';
 
 // ─── EAT · THE DAY VIEW'S TOP ─────────────────────────────────────────────────────────────────────
 // Eat's Day view under its head and tabs, in the owner's pick for Eat (2026-11-04: "option C for eat but
@@ -15,9 +16,11 @@ import { BSWeekDays, bsWeekDaysOf } from './BSWeekDays.jsx';
 //     BSFocusActions lit), and where now sits between the last meal and it (BSFocusArrival);
 //   · the morning swap, when a made-ahead meal was not prepped last night;
 //   · the menu: the day as a line, each meal at its time, the NOW tick today (BSFocusLine), or, empty,
-//     the page's line offering Nora.
+//     the page's line offering Nora;
+//   · the meals a nutritionist added from the Live console on that day, and today their grocery notes
+//     (BSCoachMeals.jsx, which reads them itself), under the menu.
 // The page (BSClientEat) owns the data and every handler and hands them in; nothing here reads a plan or
-// writes one. Every word is a catalog key the page already had.
+// writes one (the nutritionist's added meals are BSCoachMeals' own read). Every word is a catalog key the page already had.
 //
 // ⚠ WINDOW GLOBALS ARE READ AT CALL TIME, NEVER AT MODULE TOP (see BSLeaderboard.jsx), and this module
 // never imports the client module.
@@ -120,6 +123,10 @@ export function BSEatDay(p) {
           rows={Array.isArray(p.rows) ? p.rows : []} />
         {p.empty || null}
       </div>
+
+      {/* A nutritionist's added meals for the day picked, and today their grocery notes. Mounted, not
+          written here: the section is BSCoachMeals.jsx's. */}
+      <BSCoachMeals dayIdx={day} today={isToday} dayLabel={pick.short} />
     </div>
   );
 }

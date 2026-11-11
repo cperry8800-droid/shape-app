@@ -465,5 +465,18 @@
   "planDay.linkSub": "Hari ini atau besok, dari Shape Kitchen",
   "planDay.cta": "Rencanakan untuk hari ini atau besok →",
   "planDay.yours": "Kamu yang merencanakan",
-  "planDay.daySwapped": "Ditukar untuk hari ini"
+  "planDay.daySwapped": "Ditukar untuk hari ini",
+  "eat.coachAdded.unread": "Makanan dari ahli gizimu tidak termuat.",
+  "eat.coachAdded.retry": "Coba lagi",
+  "eat.coachAdded.from": "Dari {name}",
+  "eat.coachAdded.fromNutritionist": "Dari ahli gizimu",
+  "eat.coachAdded.today": "Ditambahkan hari ini",
+  "eat.coachAdded.onDay": "Ditambahkan · {day}",
+  "eat.coachAdded.count": "{count, plural, other {# makanan}}",
+  "eat.coachAdded.kcal": "{kcal} kkal",
+  "eat.coachAdded.protein": "{g} g protein",
+  "eat.coachAdded.swaps": "Pengganti: {list}",
+  "grocery.coachNote.from": "Catatan belanja · {name}",
+  "grocery.coachNote.fromAnon": "Catatan belanja · ahli gizimu",
+  "grocery.coachNote.unread": "Catatan belanja dari ahli gizimu tidak termuat."
 }

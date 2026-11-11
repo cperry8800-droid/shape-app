@@ -10594,6 +10594,44 @@ function subscribeCoachExercises(onChange) {
   return () => { try { supabase.removeChannel(channel); } catch (e) {} };
 }
 
+// The member's nutritionist meals and grocery notes (/api/client/coach-meals, BSCoachMeals.jsx), read as
+// getCoachExercises reads a trainer's: { status: 'ready', today, days, notes }, 'error' for a failed read
+// (said, never "nothing sent"), 'none' signed out or for an account the route refuses.
+async function getCoachMeals() {
+  const owner = state.user?.id;
+  if (!supabase || !owner) return { status: 'none' };
+  try {
+    const res = await fetch(`${apiBaseUrl || ''}/api/client/coach-meals`, { headers: sessionsAuthHeaders(), credentials: 'same-origin', cache: 'no-store' });
+    if (state.user?.id !== owner) return { status: 'none' };
+    if (res.status === 402 || res.status === 403) return { status: 'none' };
+    const body = await res.json().catch(() => null);
+    if (!res.ok || !body || body.ok !== true || !body.days || typeof body.days !== 'object') return { status: 'error' };
+    return { status: 'ready', today: typeof body.today === 'string' ? body.today : null, days: body.days, notes: Array.isArray(body.notes) ? body.notes : [] };
+  } catch (e) {
+    return { status: 'error' };
+  }
+}
+
+// A change to the member's pushed meals or grocery notes, live, on a channel of its own (see
+// subscribeCoachExercises). Other kinds are ignored.
+let coachMealChannelId = 0;
+function subscribeCoachMeals(onChange) {
+  const userId = state.user?.id;
+  if (!userId || !supabase || typeof onChange !== 'function') return () => {};
+  let channel = null;
+  try {
+    channel = supabase
+      .channel(`coach-meals:${userId}:${++coachMealChannelId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'coach_pushed_items', filter: `client_id=eq.${userId}` }, (change) => {
+        const kind = change && ((change.new && change.new.kind) || (change.old && change.old.kind));
+        if (kind && kind !== 'meal' && kind !== 'grocery_note') return;
+        onChange(change);
+      })
+      .subscribe();
+  } catch (e) { return () => {}; }
+  return () => { try { supabase.removeChannel(channel); } catch (e) {} };
+}
+
 window.ShapeCoachFeed = {
   fetch: fetchCoachConsoleFeed,
   subscribe: subscribeCoachConsoleFeed,
@@ -10601,6 +10639,8 @@ window.ShapeCoachFeed = {
   subscribeWorkoutCues: subscribeWorkoutCoachCues,
   exercises: getCoachExercises,
   subscribeExercises: subscribeCoachExercises,
+  meals: getCoachMeals,
+  subscribeMeals: subscribeCoachMeals,
 };
 
 // ─── Pro Console API (trainer / nutritionist side) ───────────────────────────
