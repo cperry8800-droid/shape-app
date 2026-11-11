@@ -661,6 +661,15 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
       ],
     },
     {
+      section: 'Coach page, app and website: Programs fold into the Summit, the one place to buy; Book stays. No migration',
+      items: [
+        { label: 'Owner, 2026-11-11, on the review of Book, Programs and the Summit (the programs listed twice, the monthly coaching described twice, the free intro three times): "The Summit becomes the one place to buy: monthly coaching first, then each program as its card with preview and Buy, then the workouts, then Message. The separate Programs section and the duplicate price list go away … yes do this"', status: 'done' },
+        { label: 'Website (coachProfileWeb.jsx): no Programs camp (a nutritionist\'s Meal plans likewise). The Summit is the storefront (monthly coaching, the free intro, Message; the coach\'s own coaching line from their descriptions under the price), then the programs as their cards (Open/Start → the sheet, Buy there, with the code typed in the storefront), then a trainer\'s workouts. The storefront\'s price list is gone, and the Studio\'s coaching card with it, except for a sample, whose storefront sells nothing. Camps: Base, Book, Kitchen and Plate notes or Replays, Proof, Words, About, Find me, Posts, Summit', status: 'done' },
+        { label: 'Website: Work with is the Summit on a phone too (it was a sheet there, and the Summit a button to it): the console, a program\'s or a day\'s Work with and a coach\'s referral link open the Summit at its storefront. The storefront no longer repeats the Summit\'s "Start with a free intro call" under it; the coach\'s own line stays', status: 'done' },
+        { label: 'Website checked in Chromium (Priscilla Adams and James Okafor samples, 1440 and 390): the Summit\'s order, the cards, the console\'s Work with landing on it. tests/web-coach-climb and web-coach-profile updated to the new camps and the Summit (a plan read that fails says so in the Summit, a plan\'s Buy keeps the code, no price list, the coach\'s coaching line)', status: 'done' },
+      ],
+    },
+    {
       section: 'Coach page Posts: each post is the activity feed\'s card. No migration',
       items: [
         { label: 'Owner, 2026-11-11, with a screenshot of the Posts camp: "Posts - need to match current activity feed"', status: 'done' },
@@ -681,7 +690,7 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'Checked in Chromium at 1440, 900 and 390: the list opens inside the hero with no scroll bar; a pick sets the goal card and the results; End scrolls to Longevity. tests/marketplace-page.test.mjs: no select in the matcher, every goal listed in its group, a pick narrows the results, Any goal clears it', status: 'done' },
         { label: '#2710 review: Codex clean on 487d2ae; CI green on 487d2ae', status: 'done' },
         { label: 'Owner\'s list, 2026-11-11: the coach page\'s Posts camp drawn as the activity feed draws a post (its own section, above)', status: 'done' },
-        { label: 'Owner\'s list, 2026-11-11: review whether the coach page\'s Book, Programs and Summit camps should be one (the Summit lists the programs again, with the free intro and Message)', status: 'pending' },
+        { label: 'Owner\'s list, 2026-11-11: review whether the coach page\'s Book, Programs and Summit camps should be one. Reviewed; the owner chose to fold Programs into the Summit and keep Book (its own section, above)', status: 'done' },
       ],
     },
     {

@@ -184,14 +184,18 @@ test('a real coach\'s page has the app profile\'s sections, in its order', async
   assert.ok(page, 'the coach page, not the living layout');
   for (const sel of ['[data-terrain]', '[data-who]', '[data-summit]', '[data-chip="verified"]', '[data-dock] [data-message]', '[data-follow]', '[data-day-tab]', '[data-reviews-strip]', '[data-credential]', '[data-work-rail]']) assert.ok(document.querySelector(sel), sel);
   const camps = [...document.querySelectorAll('[data-camp]')].map((c) => c.getAttribute('data-camp'));
-  assert.deepEqual(camps, ['day', 'range', 'words', 'about', 'summit'], 'a visitor sees a camp only with something in it (the program they sell is in the range), the day first, the summit last');
+  assert.deepEqual(camps, ['day', 'words', 'about', 'summit'], 'a visitor sees a camp only with something in it (the program they sell is in the Summit), the day first, the summit last');
   assert.match(document.querySelector('[data-summit]').textContent, /10\.0\/10Rating · 1 review/);
   assert.match(document.querySelector('[data-chips]').textContent, /Verified by Shape.*Elite/);
   assert.match(document.querySelector('[data-credential]').textContent, /NSCA-CSCS · Checked by Shape/);
   assert.equal(document.querySelector('[data-who] h1').textContent, 'Tom Trainer.');
-  // The words come after the range, and the storefront is the summit.
+  // The words come after the day; the Summit is the storefront, then the programs (owner, 2026-11-11: "The
+  // Summit becomes the one place to buy"), then the credential.
   const order = (a, b) => !!(document.querySelector(a).compareDocumentPosition(document.querySelector(b)) & window.Node.DOCUMENT_POSITION_FOLLOWING);
-  assert.ok(order('[data-who]', '[data-camp="day"]') && order('[data-camp="range"]', '[data-reviews-strip]') && order('[data-reviews-strip]', '[data-work-rail]') && order('[data-work-rail]', '[data-credential]'));
+  assert.ok(order('[data-who]', '[data-camp="day"]') && order('[data-camp="day"]', '[data-reviews-strip]') && order('[data-reviews-strip]', '[data-work-rail]')
+    && order('[data-work-rail]', '[data-summit-range]') && order('[data-summit-range]', '[data-credential]'));
+  assert.ok(document.querySelector('[data-camp="summit"] [data-summit-range] [data-program]'), 'the program they sell is in the Summit');
+  assert.ok(!document.querySelector('[data-offer-row]'), 'and listed once: the storefront\'s price list is gone');
   // An open time is taken on the booking page, at that time.
   const open = document.querySelector('a[data-open-time]') || null;
   if (!open) {
@@ -301,8 +305,10 @@ test('Subscribe goes through the one checkout path, with the code typed before t
   assert.equal(post.body.code, 'SHAPE20', 'the code rides the checkout, so the server checks it before the redirect');
   assert.equal(post.body.item.price, '$180');
   assert.equal(navigations.length, before + 1, 'then on to Stripe');
-  // A plan's Buy is the same path, with the same code.
-  const buy = rail.querySelector('[data-plan-buy]');
+  // A plan's Buy is the same path, with the same code: the program's card in the Summit opens its sheet, whose
+  // Start buys it.
+  await React.act(async () => document.querySelector('[data-camp="summit"] [data-program-open]').click());
+  const buy = document.querySelector('[data-program-sheet] [data-program-buy]');
   assert.ok(buy, 'a plan with a price has Buy');
   await React.act(async () => buy.click());
   await settle();
@@ -317,24 +323,27 @@ test('a plan read that fails says so, with Try again, and never reads as "no pla
   let fail = true; let reads = 0;
   backend({ plans: () => { reads++; return fail ? { data: null, error: { message: 'timeout' } } : { data: PLANS, error: null }; } });
   const p = await mount(LIVE);
-  const rail = document.querySelector('[data-work-rail]');
-  const err = rail.querySelector('[data-plans-error]');
+  // The plans are the Summit's, under its storefront: there the failed read says so.
+  const work = document.querySelector('[data-camp="summit"] [data-summit-range]');
+  assert.ok(work, 'the Summit keeps its programs part on a failed read');
+  const err = work.querySelector('[data-work-error]');
   assert.ok(err, 'the failed read is shown');
-  assert.match(err.textContent, /Couldn't read Tom's plans just now/);
-  assert.ok(!rail.querySelector('[data-offer-empty]'), 'no "hasn\'t listed a plan" on a failed read');
-  assert.doesNotMatch(rail.textContent, /hasn't listed a plan/);
-  assert.ok(!rail.querySelector('[data-plan-buy]'));
+  assert.match(err.textContent, /Couldn't read all of Tom's work just now/);
+  assert.doesNotMatch(document.querySelector('[data-camp="summit"]').textContent, /hasn't listed a plan|hasn't listed prices/, 'never "no plans" on a failed read');
+  assert.ok(!work.querySelector('[data-program]'));
   fail = false;
   const before = reads;
-  await React.act(async () => rail.querySelector('[data-plans-retry]').click());
+  await React.act(async () => err.querySelector('[data-read-retry]').click());
   await settle();
   assert.equal(reads, before + 1, 'Try again reads the plans again');
-  assert.ok(!rail.querySelector('[data-plans-error]'));
-  assert.ok(rail.querySelector('[data-plan-buy]'), 'and the plan is back on sale');
+  // (The part is drawn again once the read is in.)
+  const again = document.querySelector('[data-camp="summit"] [data-summit-range]');
+  assert.ok(again && !again.querySelector('[data-work-error]'));
+  assert.ok(again.querySelector('[data-program]'), 'and the plan is back on sale');
   await p.unmount();
   backend({ plans: () => { throw new Error('network'); } });
   const q = await mount(LIVE);
-  assert.ok(document.querySelector('[data-work-rail] [data-plans-error]'), 'a request that throws is a failed read too');
+  assert.ok(document.querySelector('[data-camp="summit"] [data-summit-range] [data-work-error]'), 'a request that throws is a failed read too');
   await q.unmount();
 });
 
@@ -423,11 +432,11 @@ test('a post read that fails keeps the tabs it feeds, each saying so with Try ag
   backend({ fail: (t) => down && t === 'community_posts', reads });
   const p = await mount(LIVE);
   const camps = [...document.querySelectorAll('[data-camp]')].map((b) => b.getAttribute('data-camp'));
-  assert.ok(camps.includes('posts') && camps.includes('replays') && camps.includes('range'), 'the post camps stay: ' + camps.join(','));
+  assert.ok(camps.includes('posts') && camps.includes('replays'), 'the post camps stay: ' + camps.join(','));
   assert.match(document.querySelector('[data-camp="replays"] [data-work-error]').textContent, /Couldn't read Tom's sessions just now/);
-  // The range reads the posts too (the workout videos): it says so, and the programs that did load show.
-  assert.match(document.querySelector('[data-camp="range"] [data-work-error]').textContent, /Couldn't read all of Tom's work just now/);
-  assert.ok(document.querySelector('[data-camp="range"] [data-program]'), 'the programs that did load still show');
+  // The Summit's work reads the posts too (the workout videos): it says so, and the programs that did load show.
+  assert.match(document.querySelector('[data-camp="summit"] [data-work-error]').textContent, /Couldn't read all of Tom's work just now/);
+  assert.ok(document.querySelector('[data-camp="summit"] [data-program]'), 'the programs that did load still show');
   const err = document.querySelector('[data-posts-error]');
   assert.match(err.textContent, /Couldn't read Tom's posts just now/);
   down = false;
@@ -451,16 +460,26 @@ test('at capacity the storefront is the waiting list, never a live Subscribe', a
   await p.unmount();
 });
 
-test('on a phone Work with is a sheet, and a coach\'s referral link opens on it', async () => {
+// Owner, 2026-11-11: the Summit is the one place to buy, on a phone too. Work with was a sheet there, and the
+// Summit a button to it.
+test('on a phone Work with is the Summit, and a coach\'s referral link opens on it', async () => {
   WIDE = false; backend();
+  const shownCamps = () => [...document.querySelectorAll('[data-camp]')].filter((c) => !c.hidden).map((c) => c.getAttribute('data-camp'));
   const plain = await mount(LIVE);
-  assert.ok(!document.querySelector('[data-work-rail]'), 'no side column on a phone');
-  assert.ok(!document.querySelector('[data-work-sheet]'));
-  await React.act(async () => document.querySelector('[data-summit-work]').click());
-  assert.ok(document.querySelector('[data-work-sheet] [data-subscribe]'), 'the summit\'s Work with opens the storefront');
+  assert.ok(!document.querySelector('[data-work-sheet]') && !document.querySelector('[data-summit-work]'), 'no sheet, and no button to one');
+  assert.ok(document.querySelector('[data-camp="summit"] [data-work-rail] [data-subscribe]'), 'the Summit holds the storefront');
+  assert.ok(document.querySelector('[data-camp="summit"] [data-summit-range] [data-program]'), 'and the programs under it');
   await plain.unmount();
+  // The console's Work with (a sample's) opens the Summit, not a sheet.
+  const sample = await mount({ mode: 'sample', role: 'trainer', name: 'Jordan Reyes', sampleKey: 'Jordan Reyes', follow: null });
+  assert.notDeepEqual(shownCamps(), ['summit']);
+  await React.act(async () => document.querySelector('[data-dock] [data-work-with]').click());
+  assert.deepEqual(shownCamps(), ['summit']);
+  assert.ok(!document.querySelector('[data-work-sheet]'));
+  await sample.unmount();
   const ref = await mount(LIVE, '/newdesign/MemberProfile.html?u=coach-1&ref=0b6f3c1e-8a2d-4c5b-9e7f-1a2b3c4d5e6f&role=trainer');
-  assert.ok(document.querySelector('[data-work-sheet] [data-subscribe]'), 'the person a coach brings lands on the storefront');
+  assert.deepEqual(shownCamps(), ['summit'], 'the person a coach brings lands on the Summit');
+  assert.ok(document.querySelector('[data-camp="summit"] [data-subscribe]'));
   await ref.unmount();
   // On a desktop the storefront is the summit: the referral link brings it into view (Codex P2 on #2652).
   WIDE = true; backend();
@@ -479,7 +498,7 @@ test('a coach with no account is the app\'s sample: its studio, replays, reviews
   const p = await mount({ mode: 'sample', role: 'trainer', name: 'Jordan Reyes', sampleKey: 'Jordan Reyes', follow: null });
   assert.match(document.querySelector('[data-sample-note]').textContent, /hasn't set up a Shape account yet/);
   const camps = [...document.querySelectorAll('[data-camp]')].map((b) => b.getAttribute('data-camp'));
-  assert.deepEqual(camps, ['day', 'range', 'replays', 'words', 'find', 'posts', 'summit'], 'Find me holds the listing\'s photos');
+  assert.deepEqual(camps, ['day', 'replays', 'words', 'find', 'posts', 'summit'], 'Find me holds the listing\'s photos');
   assert.ok(!document.querySelector('[data-subscribe]') && !document.querySelector('[data-plan-buy]'), 'a sample sells nothing');
   assert.ok(!document.querySelector('a[data-open-time]'), 'sample times are shown, never taken');
   assert.match(document.querySelector('[data-day-sub]') ? document.querySelector('[data-day-sub]').textContent : 'Sample times', /Sample times/);
@@ -487,8 +506,9 @@ test('a coach with no account is the app\'s sample: its studio, replays, reviews
   assert.ok(!calls.some((c) => c.url.startsWith('/api/availability')), 'nothing is read for a sample\'s times');
   assert.ok(document.querySelector('[data-camp="find"] [data-about-photos] [data-gallery] img'), 'where they coach, in Find me');
   assert.ok(!document.querySelector('[data-studio-plan]') && !document.querySelector('[data-station]'), 'no floor plan');
-  assert.ok(document.querySelectorAll('[data-program]').length > 0 && document.querySelectorAll('[data-workout]').length > 0, 'its programs and workouts');
-  assert.ok(document.querySelector('[data-coaching-card]'), 'and its coaching, at the sample\'s price');
+  assert.ok(document.querySelectorAll('[data-camp="summit"] [data-program]').length > 0 && document.querySelectorAll('[data-camp="summit"] [data-workout]').length > 0, 'its programs and workouts, in the Summit');
+  // Its storefront sells nothing, so its coaching keeps the Studio's card, at the sample's price.
+  assert.ok(document.querySelector('[data-camp="summit"] [data-coaching-card]') && !document.querySelector('[data-storefront]'), 'and its coaching, at the sample\'s price');
   assert.ok(document.querySelectorAll('[data-camp="replays"] [data-replay]').length > 0 && !document.querySelector('[data-camp="replays"] [data-program]'), 'Replays: the sessions alone');
   await React.act(async () => document.querySelector('[data-program-open]').click());
   const sheet = document.querySelector('[data-program-sheet]');
@@ -537,11 +557,13 @@ test('the Studio on the website: the app\'s model, with the coach\'s own words, 
   await React.act(async () => sheet.querySelector('[data-program-day] button').click());
   assert.match(sheet.querySelector('[data-program-moves]').textContent, /Romanian deadlift\s*Hamstrings/);
   assert.ok(sheet.querySelector('[data-program-buy]'), 'a real program still sells');
-  // Coaching: the monthly price and the coach's line.
-  const card = document.querySelector('[data-coaching-card]');
-  assert.match(card.textContent, /\$180/);
-  assert.match(card.textContent, /Your week, rewritten every Sunday\./);
-  assert.ok(card.querySelector('[data-coaching-apply]') && card.querySelector('[data-coaching-message]'));
+  // Coaching: the storefront at the top of the Summit, with the monthly price and the coach's own line; the
+  // Studio's coaching card, which said them again, is gone.
+  const store = document.querySelector('[data-camp="summit"] [data-storefront]');
+  assert.match(store.textContent, /\$180/);
+  assert.match(store.querySelector('[data-coaching-desc]').textContent, /Your week, rewritten every Sunday\./);
+  assert.ok(store.querySelector('[data-subscribe]') && store.querySelector('[data-message-coach]'));
+  assert.ok(!document.querySelector('[data-coaching-card]'), 'coaching said once');
   await p.unmount();
 });
 
@@ -587,22 +609,22 @@ test('a nutritionist\'s page: amber until they pick, the kitchen and plate notes
   WIDE = true; backend();
   const p = await mount({ mode: 'sample', role: 'nutritionist', name: 'Quinn Avery', sampleKey: 'Quinn Avery', follow: null });
   const camps = [...document.querySelectorAll('[data-camp]')].map((b) => b.getAttribute('data-camp'));
-  assert.deepEqual(camps, ['day', 'range', 'kitchen', 'plates', 'words', 'posts', 'summit']);
+  assert.deepEqual(camps, ['day', 'kitchen', 'plates', 'words', 'posts', 'summit']);
   assert.equal(document.querySelector('#camp-h-kitchen').textContent, 'My kitchen.');
-  assert.equal(document.querySelector('#camp-h-range').textContent, 'Meal plans.', 'the meal plans are a camp of their own');
+  assert.equal(document.querySelector('[data-camp="summit"] [data-summit-head] h3').textContent, 'Meal plans.', 'the meal plans are the Summit\'s');
   assert.match(document.querySelector('.cpw-h1').innerHTML, /#d8a23a|rgb\(216, 162, 58\)/, 'the name\'s full stop is the nutritionist gold');
   await React.act(async () => document.querySelector('[data-plate-day] [data-plate-step-through]').click());
   assert.ok(document.querySelector('[data-plate-step]'), 'a day of meals steps meal by meal');
-  // Work with lists the sample's own meal plans, each with its price and length and none to buy, as
-  // the app's sheet does (Codex P2 on #2560: the sheet read only programs, empty for a nutritionist).
-  const rows = [...document.querySelectorAll('[data-work-rail] [data-offer-row]')];
+  // The Summit lists the sample's own meal plans, each with its price and length and none to buy (Codex P2
+  // on #2560: the list read only programs, empty for a nutritionist).
+  const rows = [...document.querySelectorAll('[data-camp="summit"] [data-summit-range] [data-program]')];
   assert.ok(rows.length >= 2, 'the sample meal plans are listed: ' + rows.length);
   for (const r of rows) {
     assert.match(r.textContent, /\$\d+/, 'each with its price: ' + r.textContent);
     assert.match(r.textContent, /\d+ weeks?/, 'and its length: ' + r.textContent);
+    assert.equal(r.querySelector('[data-program-open]').textContent, 'Open', 'a sample sells nothing');
   }
-  assert.ok(!document.querySelector('[data-work-rail] [data-plan-buy]'), 'a sample sells nothing');
-  assert.ok(!document.querySelector('[data-work-rail] [data-offer-empty]'));
+  assert.ok(!document.querySelector('[data-offer-row]'), 'listed once');
   // The Activity tab carries no "{name}'s activity" heading under a tab already named Activity, as
   // the app's (#2562).
   const act = document.querySelector('[data-activity]');

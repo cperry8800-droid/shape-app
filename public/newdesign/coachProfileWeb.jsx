@@ -18,13 +18,14 @@
 //   The wire     a ticker of real events: the next open time, their newest posts, their programs.
 //   The camps    today's tabs on a spine, every one on the page: Base · Start here (the intro film,
 //                the pinned highlight, an answer in their words, the newest posts with a photo),
-//                {Name}'s day (the week's open times), the range (each program a card of peaks, one a
-//                week, then the Studio's workouts and coaching; a nutritionist's meal plans, then
-//                their kitchen and plate notes), Replays, Proof (the reviews the coach pinned, their
-//                Wins wall, in clients' own words: members only, as all review words), Words (the
-//                rating, and the other words for members), About, Find me (the practice, the socials,
-//                where they coach), Posts, and the Summit: the storefront. The app's camps, in its
-//                order. A visitor sees a camp only when there is something in it (or a read failed,
+//                Book ({Name}'s day: the week's open times), a nutritionist's kitchen and plate notes
+//                or a trainer's Replays, Proof (the reviews the coach pinned, their Wins wall, in
+//                clients' own words: members only, as all review words), Words (the rating, and the
+//                other words for members), About, Find me (the practice, the socials, where they
+//                coach), Posts, and the Summit: the one place to buy, the storefront (the monthly
+//                coaching, the free intro, Message), then each program as its card (a nutritionist's
+//                meal plans), then a trainer's workouts (owner, 2026-11-11: Programs folded into it).
+//                The app's camps, in its order. A visitor sees a camp only when there is something in it (or a read failed,
 //                said so with Try again); the coach sees them all, saying what to add. Their names sit
 //                under the wire and pin under the header: tabs on a desktop, a Sections bar on a phone.
 //                Each opens its camp as its own page, as the app's tabs do; one camp shows at a time.
@@ -924,7 +925,6 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
     programFor: isPrivate ? null : K.bsProfileProgramFor(custom && custom.programFor),
     picks: isPrivate ? [] : K.bsProfilePicks(custom && custom.picks),
   });
-  const hasStudioWork = !!(studioModel && (studioModel.programs.length || studioModel.workouts.length || studioModel.coaching));
   // What Work with lists: a coach's published plans, or the sample's own, as the app's sheet does
   // (BSTrainerProfile sheetPlans): a trainer's programs, or a nutritionist's meal plans (#2557).
   // Programs are empty for a nutritionist, so reading only them left the sample's sheet with no
@@ -1025,18 +1025,26 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
   const aboutGallery = nutri || isPrivate ? [] : gallery;
   const hasFind = !!(biz || (aboutLinks && K.BS_PROFILE_LINK_KEYS.some((k) => aboutLinks[k] && K.bsProfileLinkHref(k, aboutLinks[k]))) || aboutGallery.length);
   const mealPlans = nutri ? plansForSale.filter(Boolean) : [];
-  const hasRange = nutri ? mealPlans.length > 0 || (live && salePlans.state === "error") : (hasStudioWork || workFailed);
+  // The Summit's work: the programs and workouts (a nutritionist's meal plans), or a read of them that failed.
+  // The monthly coaching is the storefront's, above it, when the storefront sells it; a sample's storefront
+  // sells nothing, so its coaching (the sample's price and words) keeps the Studio's card, after the workouts.
+  const studioCoaching = !nutri && !sells && !isSelf && !!(studioModel && studioModel.coaching);
+  const hasRange = nutri ? mealPlans.length > 0 || (live && salePlans.state === "error") : (!!(studioModel && (studioModel.programs.length || studioModel.workouts.length)) || workFailed || studioCoaching);
+  // Its Programs (Meal plans) head and cards: only with plans to show, a read of them that failed, or to the coach
+  // saying where they go; a coach with workouts and no programs has no empty "Programs." over the workouts.
+  const summitPlans = nutri || isSelf || workFailed || !!(studioModel && studioModel.programs.length);
   const hasWords = !!(quotes.length || revLocked || reviews.failed || reviews.count > 0);
   // The camps, the app's list in its order (PARITY §1): [key, kind, the name on the tab and the spine].
   const campList = isPrivate ? [["words", "Words", "Reviews"]] : [
     ...(isSelf || hasBase ? [["base", "Base", "Base"]] : []),
     ["day", "Camp", "Book"],
+    // The programs (a nutritionist's meal plans) are in the Summit, with the coaching (owner, 2026-11-11:
+    // "The Summit becomes the one place to buy … The separate Programs section and the duplicate price
+    // list go away", "yes do this"). Book stays its own camp.
     ...(nutri ? [
-      ...(isSelf || hasRange ? [["range", "Camp", "Meal plans"]] : []),
       ...(isSelf || kitchen || gallery.length ? [["kitchen", "Camp", "Kitchen"]] : []),
       ...(isSelf || plateDays.length || postsFailed ? [["plates", "Camp", "Plate notes"]] : []),
     ] : [
-      ...(isSelf || hasRange ? [["range", "Camp", "Programs"]] : []),
       ...(isSelf || replays.length || postsFailed ? [["replays", "Camp", "Replays"]] : []),
     ]),
     ...(isSelf || (proof.length && !reviews.locked) ? [["proof", "Camp", "Proof"]] : []),
@@ -1198,34 +1206,30 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
   const statusSaid = !live || isPrivate ? "" : atCapacity ? "Full · waiting list" : listed && weekReady && wide ? (openThisWeek ? `Taking new clients · ${openThisWeek} open ${openThisWeek === 1 ? "time" : "times"} this week` : "Taking new clients") : listed ? "Taking new clients" : "";
 
   // ── Overlays ──
-  const [sheet, setSheet] = React.useState(null); // { kind: 'work'|'reviews'|'piece'|'program'|'mealPlan'|'replay'|'plateDay'|'recipe', … }
+  const [sheet, setSheet] = React.useState(null); // { kind: 'reviews'|'piece'|'program'|'mealPlan'|'replay'|'plateDay'|'recipe', … }
   const [editing, setEditing] = React.useState(false);
   const [shared, setShared] = React.useState("");
   const railRef = React.useRef(null);
-  // Work with: the sheet on a phone; on a desktop, the storefront at the summit, brought into view.
+  // Work with: the Summit, the one place to buy, its storefront brought into view, on a phone as on a
+  // desktop (it was a sheet on a phone, and the Summit a button to it).
   const openWork = () => {
-    if (wide && railRef.current) {
-      toCamp("summit", () => {
-        const rail = railRef.current;
-        if (!rail) return;
-        try { rail.scrollIntoView({ behavior: cpwReducedMotion() ? "auto" : "smooth", block: "start" }); } catch (e) {}
-        try { const h = rail.querySelector("h2"); if (h && h.focus) h.focus({ preventScroll: true }); } catch (e) {}
-      });
-      return;
-    }
-    setSheet({ kind: "work" });
+    setSheet(null);
+    toCamp("summit", () => {
+      const rail = railRef.current;
+      if (!rail) return;
+      try { rail.scrollIntoView({ behavior: cpwReducedMotion() ? "auto" : "smooth", block: "start" }); } catch (e) {}
+      try { const h = rail.querySelector("h2"); if (h && h.focus) h.focus({ preventScroll: true }); } catch (e) {}
+    });
   };
   // ⚠ A COACH'S REFERRAL LINK OPENS ON THE STOREFRONT (owner, 2026-10-18): the person it brings came
-  // to hire this coach. On a phone that is the Work-with sheet; on a desktop it is the summit.
-  // On a desktop the summit's storefront may draw after the first render, so the scroll waits for it
-  // (Codex P2 on #2652: a referral link left a desktop visitor at the top).
+  // to hire this coach: the Summit. Its storefront may draw after the first render, so the scroll waits for
+  // it (Codex P2 on #2652: a referral link left a desktop visitor at the top).
   const refPending = React.useRef(false);
   React.useEffect(() => {
     let ref = null;
     try { ref = new URLSearchParams(window.location.search).get("ref"); } catch (e) {}
     if (!ref || isSelf || isPrivate) return;
-    if (wide) refPending.current = true;
-    else setSheet({ kind: "work" });
+    refPending.current = true;
   }, []);
   React.useEffect(() => {
     if (!refPending.current || !railRef.current) return;
@@ -1284,8 +1288,9 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
 
   const workWith = (
     <CpwWorkWith T={T} cm={cm} sells={sells} monthly={monthly} listed={listed} sample={!!sample} providerId={providerId}
-      offer={listed ? listing.row.monthly_offer : null} plans={plansForSale} plansPaid={plansPaid} K={K}
-      plansState={sample ? "ready" : salePlans.state} onRetryPlans={salePlans.retry}
+      offer={listed ? listing.row.monthly_offer : null} plansPaid={plansPaid} K={K}
+      coachingDesc={!isPrivate && studioModel && studioModel.coaching ? studioModel.coaching.desc || "" : ""}
+      plansState={sample ? "ready" : salePlans.state}
       listingState={live ? listing.state : "ready"} onRetryListing={() => setListingEpoch((n) => n + 1)}
       onPickIntro={providerId && !avail.sample ? toDay : null} onMessage={message} />
   );
@@ -1298,21 +1303,45 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
       <CpwDayTab T={T} K={K} avail={avail} listingState={live ? listing.state : (sample ? "ready" : "none")} introClosed={introClosed} hoursHref={hoursHref}
         onRetry={() => (listing.state === "error" ? setListingEpoch : setWeekEpoch)((n) => n + 1)} bookHref={providerId ? bookHref : null} onWork={openWork} />
     );
-    if (k === "range" && nutri) return (
-      <CpwRange T={T} items={mealPlans.map((pl, i) => ({ key: "mp:" + (pl.id || i), name: pl.name, tag: String(pl.category || "Meal plan").replace(/_/g, " "), weeks: cpwWeeksOf(pl), perWeek: null, price: K.bsWorkPrice(pl.price) || "", paid: K.bsWorkPaid(pl.price), desc: pl.description || pl.blurb || "", poster: null, pr: pl }))}
-        failed={live && salePlans.state === "error"} onRetry={salePlans.retry} onOpen={(pl) => { if (pl) setSheet({ kind: "mealPlan", pl }); }} sample={!!sample} startLabel="Start" />
-    );
-    if (k === "range") return (
-      <React.Fragment>
-        <CpwRange T={T} items={studioModel ? studioModel.programs.map((p) => ({ ...p, tag: String((p.pr && p.pr.plan && p.pr.plan.category) || "Program").replace(/_/g, " "), poster: p.pr ? p.pr.poster : null })) : []}
-          failed={workFailed} failedWhat={isSelf ? "Couldn't read all of your work just now." : `Couldn't read all of ${first}'s work just now.`} onRetry={retryWork}
-          onOpen={(pr) => { if (pr) setSheet({ kind: "program", pr }); }} sample={!!sample} sells={listed} />
-        {studioModel && (studioModel.workouts.length || studioModel.coaching || isSelf) ? (
-          <CpwStudioTab T={T} model={studioModel} heat={cpwStudioHeat(pal, look.accent, ACC)} stickyTop={headH + pinH} failed={false} onRetry={retryWork} parts={["workouts", "coaching"]}
-            onProgram={(pr) => { if (pr) setSheet({ kind: "program", pr }); }} onVideo={(v) => { if (v) setSheet({ kind: "replay", r: v, i: 0 }); }}
-            onWork={openWork} onMessage={isPrivate || isSelf ? null : message} />
+    // The Summit: the storefront (the monthly coaching, the free intro, Message), then the programs with their
+    // previews and Buy (a nutritionist's meal plans), then a trainer's workouts. The one place to buy.
+    if (k === "summit") return (
+      <div data-summit-camp="">
+        {!isPrivate ? (
+          <div ref={railRef} data-work-rail="" className="cpw-summit-store" style={{ scrollMarginTop: headH + pinH + 16 }}>{workWith}</div>
         ) : null}
-      </React.Fragment>
+        {!isPrivate && (isSelf || hasRange) ? (
+          <div data-summit-range="" style={{ marginTop: 34 }}>
+            {/* Headed as the Studio's Workouts and Coaching under it are: a rule of ink, the name with its stop, how many. */}
+            {summitPlans ? <div data-summit-head="" style={{ paddingTop: 10, borderTop: `2px solid ${INK}`, marginBottom: 16 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12 }}>
+                <h3 style={{ margin: 0, fontFamily: CPW_DISPLAY, fontWeight: 600, fontSize: 25, lineHeight: "28px", letterSpacing: "-0.01em", color: INK }}>{nutri ? "Meal plans" : "Programs"}<span style={{ color: ACC }}>.</span></h3>
+                {(nutri ? mealPlans.length : (studioModel ? studioModel.programs.length : 0)) ? <span style={{ fontFamily: CPW_DISPLAY, fontSize: 25, lineHeight: "28px", color: ink(0.6), fontVariantNumeric: "tabular-nums" }}>{nutri ? mealPlans.length : studioModel.programs.length}</span> : null}
+              </div>
+              <p style={{ margin: "3px 0 0", fontSize: 13.5, lineHeight: "19px", color: ink(0.78) }}>{nutri ? "Open a plan to see a day of its meals." : "Open a program to see its weeks and its first week."}</p>
+            </div> : null}
+            {nutri ? (
+              <CpwRange T={T} items={mealPlans.map((pl, i) => ({ key: "mp:" + (pl.id || i), name: pl.name, tag: String(pl.category || "Meal plan").replace(/_/g, " "), weeks: cpwWeeksOf(pl), perWeek: null, price: K.bsWorkPrice(pl.price) || "", paid: K.bsWorkPaid(pl.price), desc: pl.description || pl.blurb || "", poster: null, pr: pl }))}
+                failed={live && salePlans.state === "error"} onRetry={salePlans.retry} onOpen={(pl) => { if (pl) setSheet({ kind: "mealPlan", pl }); }} sample={!!sample} startLabel="Start" />
+            ) : (
+              <React.Fragment>
+                {summitPlans ? <CpwRange T={T} items={studioModel ? studioModel.programs.map((p) => ({ ...p, tag: String((p.pr && p.pr.plan && p.pr.plan.category) || "Program").replace(/_/g, " "), poster: p.pr ? p.pr.poster : null })) : []}
+                  failed={workFailed} failedWhat={isSelf ? "Couldn't read all of your work just now." : `Couldn't read all of ${first}'s work just now.`} onRetry={retryWork}
+                  onOpen={(pr) => { if (pr) setSheet({ kind: "program", pr }); }} sample={!!sample} sells={listed} /> : null}
+                {/* The workouts; the monthly coaching is the storefront's, above (a sample's, the card after them). */}
+                {studioModel && (studioModel.workouts.length || isSelf || studioCoaching) ? (
+                  <CpwStudioTab T={T} model={studioModel} heat={cpwStudioHeat(pal, look.accent, ACC)} stickyTop={headH + pinH} failed={false} onRetry={retryWork} parts={studioCoaching ? ["workouts", "coaching"] : ["workouts"]}
+                    onProgram={(pr) => { if (pr) setSheet({ kind: "program", pr }); }} onVideo={(v) => { if (v) setSheet({ kind: "replay", r: v, i: 0 }); }}
+                    onWork={openWork} onMessage={isPrivate || isSelf ? null : message} />
+                ) : null}
+              </React.Fragment>
+            )}
+          </div>
+        ) : null}
+        <footer data-credential="" style={{ padding: "22px 0 0", fontFamily: CPW_MONO, fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: ink(0.62) }}>
+          {[L && L.credential, verified ? "Checked by Shape" : null].filter(Boolean).join(" · ")}
+        </footer>
+      </div>
     );
     if (k === "kitchen") return <CpwKitchenTab T={T} K={K} kitchen={kitchen} gallery={gallery} onRecipe={(r) => setSheet({ kind: "recipe", r })} />;
     if (k === "plates") return <CpwPlateNotesTab T={T} K={K} days={plateDays} failed={postsFailed} onRetry={posts.retry} onOpen={(day, i = 0) => setSheet({ kind: "plateDay", day, i })} />;
@@ -1329,24 +1358,11 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
       <CpwAboutTab T={T} K={K} part="find" about={null} prompts={[]} links={aboutLinks} certs={[]} gallery={aboutGallery} onEdit={canEdit ? () => setEditing(true) : null} biz={biz} song={null} />
     );
     if (k === "posts") return <CpwActivityTab T={T} cards={activity} rows={postRows} author={{ name, role, uid: live ? uid : null }} failed={postsFailed} onRetry={posts.retry} />;
-    if (k === "summit") return (
-      <div data-summit-camp="">
-        {wide && !isPrivate ? (
-          <div ref={railRef} data-work-rail="" className="cpw-summit-store" style={{ scrollMarginTop: headH + pinH + 16 }}>{workWith}</div>
-        ) : !isPrivate ? (
-          <button type="button" data-summit-work="" onClick={openWork} className="cpw-cta" style={{ background: CTA, color: ON_CTA, width: "100%", maxWidth: 420 }}>{words.work} →</button>
-        ) : null}
-        <footer data-credential="" style={{ padding: "22px 0 0", fontFamily: CPW_MONO, fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: ink(0.62) }}>
-          {[L && L.credential, verified ? "Checked by Shape" : null].filter(Boolean).join(" · ")}
-        </footer>
-      </div>
-    );
     return null;
   };
   const campLead = {
     base: isSelf && !hasBase ? "Pin a highlight and add your intro film in the Shape app (Make it yours → Spotlight), and they lead your page." : `${[film ? "The intro film" : null, highlight ? `${first}'s pin` : null, tip ? `in ${first}'s words` : null].filter(Boolean).join(", ") || `${first}'s latest`}${shots.length ? ", and the newest posts" : ""}.`,
     day: avail.sample ? "Sample times, shown and never taken." : "The week's open times. Take one for a free intro call.",
-    range: nutri ? "Open a plan to see a day of its meals." : "Open a program to see its weeks and its first week.",
     kitchen: `What ${first} cooks and teaches.`,
     plates: "",
     replays: "",
@@ -1355,9 +1371,9 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
     about: `Who ${first} is and how ${first} coaches.`,
     posts: `What ${first} posted lately.`,
     find: `Where ${first} coaches, and where to follow along.`,
-    summit: sells ? "Monthly coaching, the free intro and the plans, in one place." : "Start with a free intro call. Everything runs in the Shape app.",
+    summit: sells ? `Monthly coaching, the free intro and ${nutri ? "the meal plans" : "the programs"}, in one place.` : `Start with a free intro call, then ${nutri ? "the meal plans" : "the programs"}. Everything runs in the Shape app.`,
   };
-  const campTitle = { base: "Start here", day: words.day, range: nutri ? "Meal plans" : "The range", kitchen: words.kitchen, plates: "Plate notes", replays: "Replays", proof: "Proof", words: "What clients say", about: `About ${first}`, find: "Find me", posts: "Posts", summit: words.work };
+  const campTitle = { base: "Start here", day: words.day, kitchen: words.kitchen, plates: "Plate notes", replays: "Replays", proof: "Proof", words: "What clients say", about: `About ${first}`, find: "Find me", posts: "Posts", summit: words.work };
 
   // Followers and following, on the stage under the name (owner, 2026-11-11: "the followers and following
   // should be somewhere on main profile"). They were in the bar above the stage, and hidden on a phone.
@@ -1854,11 +1870,6 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
       ) : null}
 
       {/* ── Sheets ── */}
-      {sheet && sheet.kind === "work" ? (
-        <CpwSheet pal={pal} label={words.work} onClose={() => setSheet(null)} data={{ "data-work-sheet": "" }}>
-          {workWith}
-        </CpwSheet>
-      ) : null}
       {sheet && sheet.kind === "reviews" ? (
         <CpwReviewsSheet T={T} reviews={reviews} revLocked={revLocked} ratingBit={ratingBit} cm={cm} canReview={live && !isSelf} onClose={() => setSheet(null)} />
       ) : null}
@@ -1894,14 +1905,13 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
 }
 
 // ── Work with: the storefront ────────────────────────────────────────────────────────────────
-// The app's Work-with sheet (BSCoachCoachingBlock): the monthly offer with Subscribe and the free
-// intro, the waiting list when the coach is full, and the plans they sell, each with Buy. Subscribe
-// and Buy go through livingShared.jsx's one path (useLvCoachCommerce's subscribe, lvBuyPlan), each
+// The app's Work-with block (BSCoachCoachingBlock): the monthly offer with Subscribe and the free
+// intro, the waiting list when the coach is full. At the top of the Summit, over the programs (a
+// nutritionist's meal plans), whose cards and sheets sell each one. Subscribe and Buy go through livingShared.jsx's one path (useLvCoachCommerce's subscribe, lvBuyPlan), each
 // sending the code typed in the code box (LvCodeBox) so the server checks it before the redirect to
 // Stripe (coach direct charges, #2403).
-function CpwWorkWith({ T, cm, K, sells, monthly, listed, sample, providerId, offer, plans, plansPaid, plansState = "ready", onRetryPlans, listingState = "ready", onRetryListing, onPickIntro, onMessage }) {
+function CpwWorkWith({ T, cm, K, sells, monthly, listed, sample, providerId, offer, coachingDesc = "", plansPaid, plansState = "ready", listingState = "ready", onRetryListing, onPickIntro, onMessage }) {
   const { pal, ACC, ON_ACC, INK, ink, first, nutri, isSelf } = T;
-  const [cat, setCat] = React.useState("All");
   const perks = offer && Array.isArray(offer.includes) ? offer.includes.filter((x) => typeof x === "string" && x.trim()).slice(0, 3) : [];
   const blurb = offer && typeof offer.blurb === "string" && offer.blurb.trim() ? offer.blurb.trim() : "";
   const cta = { minHeight: 46, border: 0, cursor: "pointer", fontFamily: CPW_MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: "0.12em", textTransform: "uppercase", display: "grid", placeItems: "center", textDecoration: "none", boxSizing: "border-box" };
@@ -1945,59 +1955,19 @@ function CpwWorkWith({ T, cm, K, sells, monthly, listed, sample, providerId, off
       ) : null}
     </React.Fragment>
   );
-  // The plans they sell, sub-tabbed by kind when there are three or more (the app's rule).
-  const bucket = (cat) => {
-    const c = String(cat || "").toLowerCase();
-    if (nutri) return /meal/.test(c) ? "Meals" : /diet|cut|recomp|nutrition/.test(c) ? "Diets" : "Coaching";
-    return /workout|single|session|form/.test(c) ? "Workouts" : /program|block|strength|hypertrophy|peak/.test(c) ? "Programs" : "Coaching";
-  };
-  const rows = (Array.isArray(plans) ? plans : []).filter(Boolean).map((pl) => ({ cat: bucket(pl.category || (pl.kind === "meal_plan" ? "meal" : "program")), kind: String(pl.category || (pl.kind === "meal_plan" ? "meal plan" : "program")).replace(/_/g, " "), pl, price: K.bsWorkPrice(pl.price) || "Listed" }));
-  const cats = ["All", ...(nutri ? ["Meals", "Diets", "Coaching"] : ["Workouts", "Programs", "Coaching"]).filter((c) => rows.some((r) => r.cat === c))];
-  const catNow = cats.length > 2 && cats.includes(cat) ? cat : "All";
-  const shown = catNow === "All" ? rows : rows.filter((r) => r.cat === catNow);
-  const buy = (pl) => lvBuyPlan({ name: pl.name, price: K.bsWorkPrice(pl.price), planId: pl.id, providerId: pl.provider_id || pl.providerId || providerId, providerRole: pl.provider_role || pl.providerRole || (nutri ? "nutritionist" : "trainer") });
-  const canBuy = (r) => !isSelf && !sample && listed && r.pl.id != null && (r.pl.provider_id || r.pl.providerId || providerId) && K.bsWorkPaid(r.pl.price);
+  // The plans are the Summit's own, under this storefront (the range's cards, with their previews and Buy):
+  // the list they had here went with the Programs camp (owner, 2026-11-11). Whether there are any still
+  // decides what the storefront says when the coach has no monthly price.
   const plansFailed = plansState === "error";
-  // While the plans are read nothing is claimed about them; a failed read says so, with Try again.
-  const plansPart = rows.length || plansFailed || (isSelf && plansState !== "loading") ? (
-    <div data-plans="" style={{ marginTop: 26 }}>
-      {/* The app's station head (BSTStationHead): the words in capitals over a rule of ink. */}
-      <div style={{ fontFamily: CPW_DISPLAY, fontSize: 17, fontWeight: 500, letterSpacing: "0.03em", textTransform: "uppercase", paddingBottom: 6, borderBottom: `2px solid ${INK}` }}>{nutri ? `Work with ${first}` : `Train with ${first}`}</div>
-      {cats.length > 2 ? (
-        <div style={{ display: "flex", gap: 16, overflowX: "auto", marginTop: 4, scrollbarWidth: "none" }}>
-          {cats.map((c) => { const on = c === catNow; return (
-            <button key={c} type="button" data-offer-tab={c} aria-pressed={on} onClick={() => setCat(c)} style={{ flex: "none", minHeight: 36, padding: 0, border: 0, background: "transparent", cursor: "pointer" }}>
-              <span style={{ display: "inline-block", padding: "6px 0", boxShadow: on ? `inset 0 -2px 0 ${ACC}` : "none", color: on ? INK : ink(0.5), fontFamily: CPW_MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: "0.14em", textTransform: "uppercase" }}>{c}</span>
-            </button>
-          ); })}
-        </div>
-      ) : null}
-      {shown.length ? shown.map((r, i) => (
-        <div key={r.pl.id || i} data-offer-row="" style={{ borderTop: `1px solid ${ink(0.12)}`, padding: "13px 0", display: "flex", alignItems: "center", gap: 12 }}>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontFamily: CPW_MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: "0.12em", textTransform: "uppercase", color: ink(0.55), marginBottom: 4 }}>{r.kind}</div>
-            <div style={{ fontFamily: CPW_DISPLAY, fontSize: 16.5, fontWeight: 600 }}>{r.pl.name}</div>
-            {r.pl.meta ? <div style={{ fontSize: 12.5, color: ink(0.55), marginTop: 3 }}>{r.pl.meta}</div> : null}
-          </div>
-          {canBuy(r)
-            ? <button type="button" data-plan-buy="" onClick={() => buy(r.pl)} style={{ ...ctaInk, flex: "none", padding: "0 14px", fontSize: 9.5, letterSpacing: "0.08em", whiteSpace: "nowrap" }}>Buy · {r.price}</button>
-            : <div style={{ fontFamily: CPW_DISPLAY, fontSize: 18, fontWeight: 600, fontVariantNumeric: "tabular-nums", flex: "none" }}>{r.price}</div>}
-        </div>
-      )) : plansFailed ? (
-        <div data-plans-error="" role="alert" style={{ padding: "0 0 6px", borderTop: `1px solid ${ink(0.12)}` }}>
-          <CpwHint ink={ink}>{isSelf ? "Couldn't read your plans just now." : `Couldn't read ${first}'s plans just now.`}</CpwHint>
-          {onRetryPlans ? <button type="button" data-plans-retry="" onClick={onRetryPlans} style={cpwLink(ACC)}>Try again</button> : null}
-        </div>
-      ) : (
-        <div data-offer-empty="" style={{ padding: "13px 0", borderTop: `1px solid ${ink(0.12)}`, fontFamily: CPW_MONO, fontSize: 9.5, letterSpacing: "0.12em", textTransform: "uppercase", color: ink(0.5) }}>{isSelf ? "Publish your first plan to list it here" : `${first} hasn't listed a plan yet`}</div>
-      )}
-    </div>
-  ) : null;
-
+  // The coach's own words for their monthly coaching (Make it yours → the descriptions), as the Studio's
+  // coaching card said them; the listing's line is the storefront's subtitle already.
+  const descLine = coachingDesc && coachingDesc !== blurb ? <p data-coaching-desc="" style={{ margin: "8px 0 0", fontSize: 14, lineHeight: 1.5, color: INK, whiteSpace: "pre-line", overflowWrap: "anywhere" }}>{coachingDesc}</p> : null;
   return (
     <div data-work-with-panel="">
       <h2 tabIndex={-1} className="cpw-s22" style={{ margin: 0, fontFamily: CPW_DISPLAY, fontWeight: 500, fontSize: 22, color: INK, outline: "none" }}>Work with {first}<span style={{ color: ACC }}>.</span></h2>
-      <p style={{ margin: "3px 0 0", fontSize: 13.5, lineHeight: 1.45, color: ink(0.64) }}>{blurb || "Start with a free intro call. Everything runs in the Shape app."}</p>
+      {/* The coach's own line. Without one, nothing: the Summit's lead over this panel already says to start
+          with a free intro (it said it twice, the owner's screenshot of 2026-11-11). */}
+      {blurb ? <p style={{ margin: "3px 0 0", fontSize: 13.5, lineHeight: 1.45, color: ink(0.64) }}>{blurb}</p> : null}
 
       {listingState === "error" ? (
         <div style={{ marginTop: 14 }}>
@@ -2012,6 +1982,7 @@ function CpwWorkWith({ T, cm, K, sells, monthly, listed, sample, providerId, off
             <Kick col={ACC}>What members see</Kick>
             <div style={{ fontFamily: CPW_DISPLAY, fontSize: 20, fontWeight: 600, lineHeight: 1.2, marginTop: 8 }}>{pkgName} · <span style={{ color: ACC }}>{price}/mo</span></div>
             {perks.length ? <div style={{ fontSize: 12.5, color: ink(0.6), marginTop: 5 }}>{perks.join(" · ")}</div> : null}
+            {descLine}
           </div>
         ) : <CpwHint ink={ink}>Members see your prices here once your listing has a monthly price.</CpwHint>
       ) : sells ? (
@@ -2022,6 +1993,7 @@ function CpwWorkWith({ T, cm, K, sells, monthly, listed, sample, providerId, off
               <Kick col={ACC}>Work with {first}</Kick>
               <div style={{ fontFamily: CPW_DISPLAY, fontSize: 20, fontWeight: 600, lineHeight: 1.2, marginTop: 8 }}>{pkgName} · <span style={{ color: ACC }}>{price}/mo</span></div>
               {perks.length ? <div style={{ fontSize: 12.5, color: ink(0.6), marginTop: 5 }}>{perks.join(" · ")}</div> : null}
+              {descLine}
               {/* The code goes in before the redirect: the server checks it, then sends the member on to Stripe. */}
               {cm.provId ? <div data-code-box="" style={{ marginTop: 4 }}><LvCodeBox ink={INK} /></div> : null}
               <div className={cm.introHref ? "cpw-pair" : "cpw-one"} style={{ marginTop: 13 }}>
@@ -2045,7 +2017,6 @@ function CpwWorkWith({ T, cm, K, sells, monthly, listed, sample, providerId, off
           <button type="button" onClick={onMessage} style={{ marginTop: 8, width: "100%", minHeight: 50, border: `1px solid ${ink(0.22)}`, background: "transparent", color: INK, fontFamily: CPW_DISPLAY, fontSize: 15, fontWeight: 600, cursor: "pointer" }}>Message {first}</button>
         </div>
       )}
-      {plansPart}
     </div>
   );
 
