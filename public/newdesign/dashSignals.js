@@ -1411,12 +1411,22 @@
   // submitted, else the end of its week), a message to this coach (lastFromClient) and a day that
   // earned Shape Score points (streaks.lastActiveOn). ⚠ ABSENCE IS NEVER A SIGNAL: without the
   // workout, food, check-in and message reads all answered, there is nothing to say (`known` false).
+  // Whether the food-log history was read with its dates (gone quiet, not started). The 7-day count can
+  // come from the stats rollup while the dated snapshot read failed, which leaves lastLoggedOn null.
+  // ⚠ A NULL DATE IS "NONE" ONLY WHEN THE DATED READ ANSWERED (Codex on #2717): the overview carried
+  // `logs` (recordFromOverview's logsRead), and no day counted this week says otherwise.
+  function foodDated(c) {
+    var f = c && c.foodLogs;
+    if (!f) return false;
+    if (f.lastLoggedOn) return true;
+    return c.logsRead === true && !(kpiNum(f.daysLogged7d) > 0);
+  }
   function lastActivity(c, now) {
     var a = c && c.activity && typeof c.activity === "object" ? c.activity : null;
     var f = c && c.foodLogs;
     // ⚠ AND THE SCORE READ (Codex on #2717): a Score day is activity, so a failed read of it is unknown.
     var scoreKnown = !!(c && (c.streaks || c.scoreRead === true));
-    var known = !!a && !!f && !!(c && c.checkIn) && scoreKnown && c && Object.prototype.hasOwnProperty.call(c, "lastFromClient") && c.lastFromClient !== undefined;
+    var known = !!a && foodDated(c) && !!(c && c.checkIn) && scoreKnown && c && Object.prototype.hasOwnProperty.call(c, "lastFromClient") && c.lastFromClient !== undefined;
     var dates = [];
     if (a && a.lastWorkoutOn) dates.push(toDate(a.lastWorkoutOn));
     if (f && f.lastLoggedOn) dates.push(toDate(f.lastLoggedOn));
@@ -1466,12 +1476,10 @@
     var joinDay = clientJoinDay(c);
     if (days == null || !joinDay || days < THRESHOLDS.NOT_STARTED_DAYS || days >= THRESHOLDS.NOT_STARTED_UNTIL) return null;
     var a = c.activity, f = c.foodLogs, ci = c.checkIn;
-    if (!a || typeof a !== "object" || !f || !ci) return null;
+    if (!a || typeof a !== "object" || !foodDated(c) || !ci) return null;
     var after = function (v) { var d = toDate(v); return !!d && d.getTime() >= joinDay.getTime(); };
     if (a.lastWorkoutOn && after(a.lastWorkoutOn)) return null;
     if (f.lastLoggedOn && after(f.lastLoggedOn)) return null;
-    // A last log unknown but a logged day this week is a start.
-    if (!f.lastLoggedOn && kpiNum(f.daysLogged7d) > 0) return null;
     var ciWeek = ci.lastWeekOf ? toDate(ci.lastWeekOf) : null;
     if (ci.latest && ci.latest.submittedAt ? after(ci.latest.submittedAt) : (ciWeek && mondayOf(ciWeek) >= mondayOf(joinDay))) return null;
     return { key: "not_started", label: "Not started", reason: "Joined " + days + " days ago, nothing logged yet", figures: { days: days }, sig: "joined:" + iso(joinDay) };
@@ -2946,6 +2954,8 @@
         periodEndsAt: row.periodEndsAt || null,
       },
     };
+    // Whether the dated food-log read answered (foodDated): the overview carries `logs`, null for none.
+    if (o && Object.prototype.hasOwnProperty.call(o, "logs") && o.logs !== undefined) rec.logsRead = true;
     // Whether the Score read answered (gone quiet): only a true answer is carried.
     if (o && o.scoreRead === true) rec.scoreRead = true;
     // The client's newest message to this coach (gone quiet): left off when unread, null when none.
@@ -3097,7 +3107,7 @@
     // their absence alerts all through it (Codex on #2705).
     "pause",
     // The trainer alerts (PR 1): the push reads them as the website does.
-    "assignedWorkouts", "trainingLoad", "activity", "lastFromClient", "scoreRead"];
+    "assignedWorkouts", "trainingLoad", "activity", "lastFromClient", "scoreRead", "logsRead"];
   function engineSnapshot(rec) {
     if (!rec || typeof rec !== "object") return null;
     var out = {};

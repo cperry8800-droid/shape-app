@@ -696,7 +696,13 @@ export async function buildSharedOverview(supabase: OverviewClient, { clientId, 
     if (runRes.error) console.error('[shared-overview] workout runs read failed:', runRes.error.message);
     const runs = (runRes.data ?? []) as Array<Record<string, unknown>>;
     const doneIds = new Set(runs.map((r) => r.client_workout_id).filter((v) => v != null).map(String));
-    assignedWorkouts = wRes.error || runRes.error ? undefined : bsAssignedWorkoutsLeg(wRes.data ?? [], doneIds, workoutToday);
+    // ⚠ A DUAL-ROLE CALLER WITH ANOTHER TRAINER (Codex on #2717): on their nutrition page joint attention
+    // reads this leg as the co-coach trainer's, so it would name the other trainer for the caller's own
+    // workouts. One record serves both pages, so the leg is left out (unknown) when the caller also
+    // coaches nutrition and the care team holds another trainer, or may (a partial read).
+    const otherTrainer = careTeamPartial || careTeam.some((m) => m.role === 'trainer' && !m.isMe && m.userId !== me.userId);
+    const dualRoleShared = mine.nutritionist != null && otherTrainer;
+    assignedWorkouts = wRes.error || runRes.error || dualRoleShared ? undefined : bsAssignedWorkoutsLeg(wRes.data ?? [], doneIds, workoutToday);
     trainingLoad = runRes.error ? undefined : bsTrainingLoadLeg(runs, Date.now());
   } else if (mine.nutritionist != null) {
     const { data: sharedRows, error: sharedErr } = await supabase.rpc('get_shared_client_workouts', { p_client_id: clientId });

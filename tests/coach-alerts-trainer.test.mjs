@@ -115,6 +115,12 @@ test('gone quiet needs every read: an unread one is never "nothing"', () => {
     delete rec[drop];
     assert.equal(flag(feed('trainer', rec), 'gone_quiet'), null, drop + ' unread');
   }
+  // The food log's dates too (Codex on #2717): a count from the stats rollup with the dated read failed
+  // is not "no log". A logged day counted this week, or no date with the dated read unanswered: unknown.
+  assert.equal(flag(feed('trainer', quiet({ foodLogs: { lastLoggedOn: null, daysLogged7d: 3 } })), 'gone_quiet'), null, 'logged this week, undated');
+  assert.equal(flag(feed('trainer', quiet({ foodLogs: { lastLoggedOn: null, daysLogged7d: 3 }, logsRead: true })), 'gone_quiet'), null, 'a count says they logged');
+  assert.equal(flag(feed('trainer', quiet({ foodLogs: { lastLoggedOn: null, daysLogged7d: 0 } })), 'gone_quiet'), null, 'the dated read unanswered');
+  assert.ok(flag(feed('trainer', quiet({ foodLogs: { lastLoggedOn: null, daysLogged7d: 0 }, logsRead: true })), 'gone_quiet'), 'read, and none');
   // A known "no message" is fine.
   assert.ok(flag(feed('trainer', quiet({ lastFromClient: null })), 'gone_quiet'));
   // A check-in with no time counts to the end of its week.
@@ -123,7 +129,7 @@ test('gone quiet needs every read: an unread one is never "nothing"', () => {
 });
 
 test('gone quiet counts from the join, and from the day they came back from a break', () => {
-  const joined = quiet({ profile: { id: 'c1', name: 'Ada', joinedAt: day(40) }, foodLogs: { lastLoggedOn: null, daysLogged7d: 0 }, activity: { lastWorkoutOn: null, steps: [] }, checkIn: { lastWeekOf: null }, lastFromClient: null, lastContact: null });
+  const joined = quiet({ profile: { id: 'c1', name: 'Ada', joinedAt: day(40) }, foodLogs: { lastLoggedOn: null, daysLogged7d: 0 }, logsRead: true, activity: { lastWorkoutOn: null, steps: [] }, checkIn: { lastWeekOf: null }, lastFromClient: null, lastContact: null });
   assert.equal(flag(feed('trainer', joined), 'gone_quiet').reason, 'Nothing from them in the 40 days since they joined: no workout, food log, check-in or message');
   // Everything from before a break that ended 9 days ago: counted from the day they came back.
   const old = { foodLogs: { lastLoggedOn: day(15), daysLogged7d: 0 }, activity: { lastWorkoutOn: day(15), steps: [] }, checkIn: { lastWeekOf: day(21), latest: { submittedAt: day(15) + 'T09:00:00' } }, lastFromClient: day(15) + 'T10:00:00', lastContact: { trainer: day(15) + 'T10:00:00', nutritionist: null } };
@@ -152,6 +158,11 @@ test('not started: from day 3, no first workout, meal or check-in since joining'
   assert.equal(flag(feed('trainer', newbie(5, { checkIn: { lastWeekOf: day(1), latest: { submittedAt: day(1) + 'T08:00:00' } } })), 'not_started'), null, 'a check-in');
   assert.equal(flag(feed('trainer', newbie(5, { activity: undefined })), 'not_started'), null, 'unread');
   assert.equal(flag(feed('trainer', newbie(31)), 'not_started'), null, 'past the first days');
+  // An undated food log is a start only when the dated read answered (Codex on #2717).
+  const undated = { foodLogs: { lastLoggedOn: null, daysLogged7d: 0 } };
+  assert.equal(flag(feed('trainer', newbie(5, undated)), 'not_started'), null, 'the dated read unanswered');
+  assert.ok(flag(feed('trainer', newbie(5, { ...undated, logsRead: true })), 'not_started'), 'read, and no meal');
+  assert.equal(flag(feed('trainer', newbie(5, { foodLogs: { lastLoggedOn: null, daysLogged7d: 1 }, logsRead: true })), 'not_started'), null, 'a day counted this week');
   // Both coaches; the food-log reads give way to it.
   const n = feed('nutritionist', newbie(9, { pros: { trainer: false, nutritionist: true } }));
   assert.ok(flag(n, 'not_started') && !flag(n, 'food_gap') && !flag(n, 'gone_quiet'));
@@ -297,6 +308,17 @@ test('the overview reads a trainer\'s own assigned workouts and runs, and the ef
   // A failed read is unknown: the legs are left out.
   const failed = await overview({ client_workouts: [] }, { fail: ['workout_sessions'] });
   assert.ok(!('assignedWorkouts' in failed) && !('trainingLoad' in failed));
+  // A caller who also coaches nutrition, with another trainer on the team (Codex on #2717): their nutrition
+  // page's joint attention would name that trainer for these workouts, so the leg is unknown.
+  const both = { trainerId: 7, nutritionistId: 3, userId: COACH };
+  const bothSubs = [{ client_id: A, provider_role: 'trainer', provider_id: 7, status: 'active', current_period_end: null }, { client_id: A, provider_role: 'nutritionist', provider_id: 3, status: 'active', current_period_end: null }];
+  const wk = { client_workouts: [{ id: 'w1', client_id: A, trainer_id: 7, status: 'published', scheduled_date: utcDay(2) }] };
+  const bo = { get_my_shared_clients: () => [{ counterpart_user_id: 'u-bo', counterpart_role: 'trainer', counterpart_provider_id: 9, counterpart_name: 'Bo' }] };
+  const shared = await overview(wk, { me: both, subs: bothSubs, rpcs: bo });
+  assert.ok(!('assignedWorkouts' in shared) && shared.trainingLoad, 'another trainer: unknown; the load stays');
+  assert.ok((await overview(wk, { me: both, subs: bothSubs })).assignedWorkouts, 'the only trainer: read');
+  assert.ok(!('assignedWorkouts' in await overview(wk, { me: both, subs: bothSubs, fail: ['rpc:get_client_coaches'] })), 'a partial team: unknown');
+  assert.ok((await overview(wk, { rpcs: bo })).assignedWorkouts, 'a trainer alone, another trainer on the team: their own');
 });
 
 test('the overview gives a nutritionist the trainers\' workouts through the shared read', async () => {
@@ -363,6 +385,10 @@ test('the record carries the new legs from the overview, and the push snapshot k
   assert.equal(none.activity, null);
   assert.ok(!('lastFromClient' in none), 'unread stays unread');
   assert.equal(DS.recordFromOverview({ id: 'c1' }, { lastFromClient: null }).lastFromClient, null);
+  // The dated food-log read (Codex on #2717): carried when the overview has `logs`, null for none.
+  assert.equal(DS.recordFromOverview({ id: 'c1' }, { logs: null }).logsRead, true);
+  assert.ok(!('logsRead' in none), 'left out, unread');
+  assert.equal(DS.engineSnapshot({ ...rec, logsRead: true }).logsRead, true, 'the push keeps it');
 });
 
 // ── Settings ──────────────────────────────────────────────────────────────────
