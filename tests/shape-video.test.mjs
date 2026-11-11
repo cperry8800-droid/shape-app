@@ -170,7 +170,7 @@ test('a program from the public functions previews names and its one free video,
   // The marketplace hands no canBuy: a priced plan is for sale (the coach page passes its card's rule).
   assert.match(document.querySelector('[data-preview-buy]').textContent,/^Buy/,'Buy');
   await React.act(async()=>root.render(React.createElement(Preview,{plan:{name:'Rack Strength',price:'$40',detail:reduced},canBuy:false,onClose:()=>{},onBuy:()=>{}})));
-  assert.equal(document.querySelector('[data-preview-buy]'),null,'canBuy false: nothing to buy');
+  assert.ok(!document.querySelector('[data-preview-buy]'),'canBuy false: nothing to buy');
   // A builder's program: its first week's days, each with its moves, and Program, not Single session.
   const days={preview:true,weeks:4,media:[],firstWeek:[{week:0,day:0,dayName:'Push',weekday:0,moves:2},{week:0,day:1,dayName:'Pull',weekday:2,moves:3}],blocks:[['Push',0,'Bench press'],['Push',0,'Dip'],['Pull',2,'Row'],['Push',0,'Fly']].map(([dayName,weekday,name],i)=>({week:i===3?1:0,day:weekday?1:0,dayName,weekday,name,text:name}))};
   await React.act(async()=>root.render(React.createElement(Preview,{plan:{name:'Rack Strength',detail:days},onClose:()=>{}})));
