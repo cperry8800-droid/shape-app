@@ -2547,7 +2547,7 @@ function BSMyRecipeSheet({ onClose, onSaved }) {
   // what every sibling sheet in this file already does.
   const sheet = (
     <div onClick={() => !busy && onClose()} style={{ position: 'absolute', inset: 0, zIndex: 80, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end' }}>
-      <div ref={bsDialogRef(() => !busy && onClose())} role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxHeight: '92%', overflowY: 'auto', boxSizing: 'border-box', background: t.PAPER, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderTop: `1px solid ${t.RULE}`, padding: `18px ${t.padX}px calc(18px + env(safe-area-inset-bottom, 0px))`, boxShadow: '0 -20px 50px rgba(0,0,0,0.4)' }}>
+      <div ref={bsDialogRef(busy ? null : onClose)} role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxHeight: '92%', overflowY: 'auto', boxSizing: 'border-box', background: t.PAPER, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderTop: `1px solid ${t.RULE}`, padding: `18px ${t.padX}px calc(18px + env(safe-area-inset-bottom, 0px))`, boxShadow: '0 -20px 50px rgba(0,0,0,0.4)' }}>
         <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.22em', textTransform: 'uppercase', color: teal }}>
           {tr('nutrition:myRecipe.eyebrow', { defaultValue: 'Your recipe' })}
         </div>
@@ -3017,7 +3017,7 @@ function BSLibraryDetail({ item, onBack, myDoc = null }) {
       <BSFooter right="Library" />
       {startSheet && (
         <div onClick={() => !starting && setStartSheet(false)} style={{ position: 'absolute', inset: 0, zIndex: 70, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end' }}>
-          <div ref={bsDialogRef(() => !starting && setStartSheet(false))} role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()} style={{ width: '100%', boxSizing: 'border-box', background: t.PAPER, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderTop: `1px solid ${t.RULE}`, padding: `18px ${t.padX}px calc(18px + env(safe-area-inset-bottom, 0px))`, boxShadow: '0 -20px 50px rgba(0,0,0,0.4)', '--bs-accent': teal }}>
+          <div ref={bsDialogRef(starting ? null : () => setStartSheet(false))} role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()} style={{ width: '100%', boxSizing: 'border-box', background: t.PAPER, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderTop: `1px solid ${t.RULE}`, padding: `18px ${t.padX}px calc(18px + env(safe-area-inset-bottom, 0px))`, boxShadow: '0 -20px 50px rgba(0,0,0,0.4)', '--bs-accent': teal }}>
             <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.22em', textTransform: 'uppercase', color: teal }}>Start plan</div>
             <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 24, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK, lineHeight: 1 }}>{item.title}</div>
             <div aria-hidden style={{ margin: '12px 0 14px', height: 2, borderRadius: 2, background: `linear-gradient(90deg, ${t.INK}, ${teal} 72%, transparent)` }} />
@@ -5137,7 +5137,7 @@ function BSWorkoutBuilder({ seed, onClose, onSaved }) {
           Nothing is saved here; the draft just fills the week-by-week list. */}
       {draft && (
         <div onClick={() => !drafting && setDraft(null)} style={{ position: 'absolute', inset: 0, zIndex: 70, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end' }}>
-          <div ref={bsDialogRef(() => !drafting && setDraft(null))} role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()} style={{ width: '100%', boxSizing: 'border-box', background: t.PAPER, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderTop: `1px solid ${t.RULE}`, padding: `18px ${t.padX}px calc(18px + env(safe-area-inset-bottom, 0px))`, boxShadow: '0 -20px 50px rgba(0,0,0,0.4)', '--bs-accent': teal }}>
+          <div ref={bsDialogRef(drafting ? null : () => setDraft(null))} role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()} style={{ width: '100%', boxSizing: 'border-box', background: t.PAPER, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderTop: `1px solid ${t.RULE}`, padding: `18px ${t.padX}px calc(18px + env(safe-area-inset-bottom, 0px))`, boxShadow: '0 -20px 50px rgba(0,0,0,0.4)', '--bs-accent': teal }}>
             <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.22em', textTransform: 'uppercase', color: teal }}>{tr('session:train.door.draft', { defaultValue: '✦ Draft it for me' })}</div>
             <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 24, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK, lineHeight: 1 }}>{tr('session:build.goalPre', { defaultValue: 'Your' })} <span style={{ fontStyle: 'italic', color: teal }}>{tr('session:build.goalAccent', { defaultValue: 'goal.' })}</span></div>
             <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 13, color: t.INK70, lineHeight: 1.5 }}>{tr('session:build.draftBody', { defaultValue: 'Shape drafts a {weeks}-week plan you can edit before saving.', weeks })}</div>

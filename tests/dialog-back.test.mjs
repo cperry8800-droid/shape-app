@@ -294,6 +294,11 @@ test('a sheet that is saving holds a Back until it is done, as its scrim does', 
   assert.match(read('mobile-app/src/broadsheet/BSWaterLine.jsx'), /ref=\{bsDialogRef\(saving \? null : closePick, sheetRef\)\} role="dialog"/);
   const pros = read('mobile-app/src/broadsheet/iosAppBroadsheetPros.jsx');
   for (const held of ['bsDialogRef(busyId ? null : onClose)', 'bsDialogRef(clipUploading ? null : closeClipSheet)', 'bsDialogRef(busy ? null : onClose)', 'bsDialogRef(busy || uploading ? null : onClose)']) assert.ok(pros.includes(held), held);
+  // A sheet whose scrim is guarded (`!busy && onClose()`) is held while busy, not handed a close that does
+  // nothing: a committed swipe would slide it away and snap it back (Codex P2 on #2696).
+  const client = read('mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx');
+  for (const held of ['bsDialogRef(busy ? null : onClose)', 'bsDialogRef(starting ? null : () => setStartSheet(false))', 'bsDialogRef(drafting ? null : () => setDraft(null))']) assert.ok(client.includes(held), held);
+  for (const f of FILES) assert.doesNotMatch(f.src, /bsDialogRef\(\(\) => !\w+ &&/, `${f.rel}: a guarded close is a closable sheet`);
   // The push ask's Back is its Not now, which snoozes it.
   assert.match(read('mobile-app/src/broadsheet/iosAppBroadsheetMain.jsx'), /<div ref=\{bsDialogRef\(later\)\} role="dialog" aria-modal="true"/);
 });
