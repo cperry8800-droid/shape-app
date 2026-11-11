@@ -458,6 +458,8 @@ function mkCardVars(c) {
       });
     }
   }
+  // A metallic stock's sheen (steel), as on the coach's page (Codex on #2706).
+  if (p && p.PAPER_SHEEN) v["--card-sheen"] = p.PAPER_SHEEN;
   if (c.wash) v["--card-wash"] = c.wash;
   return v;
 }
@@ -1642,7 +1644,7 @@ function Marketplace() {
         .mk-cc{position:relative;color:var(--fg);filter:drop-shadow(0 16px 18px rgba(0,0,0,.5));transition:transform .2s ease}
         .mk-cc:hover{transform:translateY(-4px)}
         .mk-cc .edge{height:100%;clip-path:polygon(0 0,calc(100% - 20px) 0,100% 20px,100% 100%,0 100%);padding:1px;background:linear-gradient(180deg,rgba(255,255,255,.2),rgba(255,255,255,.06) 30%,rgba(255,255,255,.05) 70%,rgba(255,255,255,.1))}
-        .mk-cc .in{position:relative;height:100%;display:flex;flex-direction:column;clip-path:polygon(0 0,calc(100% - 19.6px) 0,100% 19.6px,100% 100%,0 100%);background:var(--card-wash,none),linear-gradient(180deg,var(--card-2) 0%,var(--card) 40%)}
+        .mk-cc .in{position:relative;height:100%;display:flex;flex-direction:column;clip-path:polygon(0 0,calc(100% - 19.6px) 0,100% 19.6px,100% 100%,0 100%);background:var(--card-wash,none),var(--card-sheen,none),linear-gradient(180deg,var(--card-2) 0%,var(--card) 40%)}
         .mk-cc .in::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;z-index:4;background:linear-gradient(180deg,var(--role-hi),var(--role) 40%,rgba(var(--role-rgb),.15))}
         .mk-cc.sel .edge{background:linear-gradient(180deg,rgba(52,214,197,.9),rgba(52,214,197,.45))}
         .mk-cc.peek .edge{background:linear-gradient(180deg,#34d6c5,rgba(52,214,197,.6))}

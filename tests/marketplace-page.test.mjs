@@ -404,6 +404,13 @@ test('the page: an account\'s card takes its coach\'s look: paper, accent, wash,
     assert.match(card().querySelector('.mk-topo').innerHTML, /var\(--draw, #34d6c5\)/, 'the drawing takes the card\'s accent');
     assert.ok(card().querySelector('[data-book-intro]'), 'the booking is still there');
     await m.unmount();
+    // A metallic paper keeps its sheen on the card, as on the coach's page (Codex on #2706).
+    m = await mountPage({ rows: [OWNED], profile: { user_id: OWNED.owner_id, can_view: true, custom: { look: { paper: 'steel' } } } });
+    await settle();
+    assert.equal(card().getAttribute('data-paper'), 'steel');
+    assert.equal(prop('--card-sheen'), K.BS_METAL_SHEEN, 'the steel card lost its sheen');
+    assert.equal(prop('--card'), K.BS_COACH_PAPERS.steel.paper);
+    await m.unmount();
     // A stop with no dragged spot is the stage's stop.
     m = await mountPage({ rows: [OWNED], profile: { user_id: OWNED.owner_id, can_view: true, custom: { look: { focus: 'top' }, cover: { image: OWN } } } });
     await settle();

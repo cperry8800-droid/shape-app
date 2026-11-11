@@ -92,6 +92,16 @@ test('the climb backgrounds are the editor\'s, and a key that is not one is no w
   for (const key of ['', 'Dusk', '__proto__', 'constructor', 'toString', null, undefined, 3, {}]) assert.equal(K.bsClimbWash(key), null, String(key));
 });
 
+test('a metallic paper keeps its sheen apart, for a surface that lays the paper as its own layers (Codex on #2706)', () => {
+  const steel = K.bsCoachPagePalette({ paper: 'steel', accent: 'blue' }, 'trainer');
+  assert.equal(steel.PAPER_SHEEN, K.BS_METAL_SHEEN);
+  assert.equal(steel.PAPER_BG, `${K.BS_METAL_SHEEN}, ${steel.PAPER}`, 'the page\'s ground is the sheen over the paper');
+  for (const paper of PAPERS.filter((p) => !K.BS_COACH_PAPERS[p].metallic && p !== 'dark')) {
+    assert.equal(K.bsCoachPagePalette({ paper }, 'trainer').PAPER_SHEEN, null, paper);
+  }
+  assert.equal(K.bsCoachPagePalette({ accent: 'rose' }, 'trainer').PAPER_SHEEN, null, 'an accent alone has no paper');
+});
+
 test('bsReadableOn steps toward the ink until the colour reads on every ground it is given', () => {
   assert.equal(K.bsReadableOn('#1c4ed8', '#f5f0e6', '#0f0e0c'), '#1c4ed8', 'a colour that reads is kept');
   const stepped = K.bsReadableOn('#34d6c5', '#f5f0e6', '#0f0e0c');

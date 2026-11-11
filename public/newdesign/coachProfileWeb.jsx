@@ -477,8 +477,10 @@ function CpwTerrain({ ACC, seed, sx, sy, pins = [], pal = { DEEP4: "#0b1622", DE
     </div>
   );
 }
+// The tick: dark or white on its fill, whichever reads more (Codex on #2706: a mid-tone such as green or
+// violet takes the dark one).
 function CpwCheck({ color }) {
-  return <svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16"><circle cx="8" cy="8" r="8" fill={color} /><path d="M4.5 8.2l2.3 2.3 4.7-4.9" fill="none" stroke={cpwLum(color) > 0.36 ? "#06090f" : "#ffffff"} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>;
+  return <svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16"><circle cx="8" cy="8" r="8" fill={color} /><path d="M4.5 8.2l2.3 2.3 4.7-4.9" fill="none" stroke={cpwContrast(color, "#06090f") >= cpwContrast(color, "#ffffff") ? "#06090f" : "#ffffff"} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>;
 }
 // The portrait in the prism frame: cut corners, the role's colour along its edge, base camp on it.
 function CpwPrism({ T, src, onError, initials, eyebrow, line }) {

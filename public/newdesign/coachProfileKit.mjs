@@ -80,6 +80,8 @@ const lumOf = (rgb) => {
 };
 const contrastOf = (a, b) => { const x = lumOf(a), y = lumOf(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
 
+// A metallic stock's sheen (steel), laid over its paper.
+export const BS_METAL_SHEEN = 'linear-gradient(180deg, rgba(255,255,255,0.18) 0%, rgba(255,255,255,0) 24%, rgba(0,0,0,0.10) 60%, rgba(0,0,0,0.18) 100%)';
 /**
  * The page's colours from the coach's look (profile_custom.look, already through bsProfileLook):
  * their paper and accent, a nutritionist painted amber and a trainer teal until they pick (the app's
@@ -95,9 +97,7 @@ export function bsCoachPalette(look, role = 'trainer') {
   // flip to the readable side, as the app's do.
   const accRGB = rgbOf(ACCENT), paperRGB = rgbOf(P.paper);
   if (accRGB && paperRGB && contrastOf(accRGB, paperRGB) < 1.6) ACCENT = isLight ? '#000000' : '#ffffff';
-  const PAPER_BG = P.metallic
-    ? `linear-gradient(180deg, rgba(255,255,255,0.18) 0%, rgba(255,255,255,0) 24%, rgba(0,0,0,0.10) 60%, rgba(0,0,0,0.18) 100%), ${P.paper}`
-    : P.paper;
+  const PAPER_BG = P.metallic ? `${BS_METAL_SHEEN}, ${P.paper}` : P.paper;
   return {
     isLight, PAPER: P.paper, PAPER2: P.paper2, PAPER3: P.paper3, PAPER_BG, INK: P.ink, inkRGB: P.inkRGB,
     ACCENT, ON_ACCENT: bsOnColor(ACCENT),
@@ -207,6 +207,8 @@ export function bsCoachPagePalette(look, role = 'trainer') {
   const CTA = nutri ? (isLight ? '#8a6420' : '#d8a23a') : (isLight ? '#a8331b' : '#c0533b');
   return {
     isLight, PAPER, PAPER2: base.PAPER2, PAPER3: base.PAPER3, PAPER_BG: paper ? kit.PAPER_BG : G.PAPER_BG, INK, inkRGB: base.inkRGB,
+    // The sheen alone (PAPER_BG is it over the paper), for a surface that lays the paper as its own layers.
+    PAPER_SHEEN: paper && BS_COACH_PAPERS[paper].metallic ? BS_METAL_SHEEN : null,
     ACCENT, ACCENT_RGB: rgbText(ACCENT), ON_ACCENT: onBest(ACCENT), DRAW, DRAW_RGB: rgbText(DRAW),
     ACCENT_DARK, ACCENT_DARK_RGB: rgbText(ACCENT_DARK),
     CTA, CTA_RGB: rgbText(CTA), ON_CTA: nutri && !isLight ? '#16110a' : '#ffffff',

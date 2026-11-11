@@ -673,6 +673,15 @@ test('a picked paper paints the whole page, ground, text and stylesheet; the cli
   assert.equal(root().getAttribute('data-paper'), 'climb');
   assert.equal(vars('--cpw-bg'), '#06090f');
   await p.unmount();
+  // The Verified tick is dark or white on the accent, whichever reads more (Codex on #2706): a
+  // mid-tone green takes the dark one, a deep blue the white.
+  const tick = () => $('[data-chip="verified"] svg path').getAttribute('stroke');
+  p = await mount({ ...LIVE, row: { ...ROW, custom: { ...ROW.custom, look: { accent: 'green' } } } });
+  assert.equal(tick(), '#06090f', 'white on the green tick');
+  await p.unmount();
+  p = await mount({ ...LIVE, row: { ...ROW, custom: { ...ROW.custom, look: { paper: 'light', accent: 'blue' } } } });
+  assert.equal(tick(), '#ffffff', 'dark on the deep blue tick');
+  await p.unmount();
 });
 
 test('under 375px the dock drops the avatar and lets the booking action shrink and wrap (Codex P2 on #2652)', () => {
