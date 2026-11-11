@@ -657,6 +657,17 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'A native speaker reads the PAR-Q, Nora hint, sample coach and Friends translations (Hausa and Pidgin first).', status: 'pending' },
         { label: 'To rebuild a coach\'s clients on the server each hour (#2703 reads the stored roster as of its save): the Supabase project\'s JWT signing secret in Vercel, so the run can read as each coach and every sharing check holds.', status: 'pending' },
         { label: 'Decide, from the 2026-11-11 coach-alerts review: a disordered-eating screen (SCOFF) and who sees a positive; consent before a second coach sees a client\'s data; check-in red after one missed week or two; low hydration as a coach flag with a target, or removed; automatic messages after a miss, or drafts only.', status: 'pending' },
+        { label: 'Decide what the coach page\'s Find me camp becomes (the practice card, the socials, a trainer\'s listing photos; on the website and in the app): removed, shown only when the coach turns it on, or as it is. On hold, owner 2026-11-11: "let me think about that more".', status: 'pending' },
+      ],
+    },
+    {
+      section: 'Website Coaches page: the matcher\'s Goal list opens with no scroll bar. No migration',
+      items: [
+        { label: 'Owner, 2026-11-11, with a screenshot of the matcher\'s Goal (Fat loss): "remove the goals scroll toggle bar that appears when you click on goal on website", then "i didnt say remove the goal dropdown itsself, just the scroll bar"', status: 'done' },
+        { label: 'marketplace.jsx: the Goal was the browser\'s select, whose open list of every goal (Any goal, then 21: 12 under Training, 9 under Nutrition) always drew a scroll bar. It is now the page\'s own list, the one the city uses (MkListPick, from MkCityPick): it scrolls with no bar, opens upward in the hero (which clips), keeps a select\'s keys and type-ahead, and keeps Training and Nutrition as listbox groups under their headings. The pick shows its icon, as before; every goal is still listed (owner, 2026-11-09)', status: 'done' },
+        { label: 'Checked in Chromium at 1440, 900 and 390: the list opens inside the hero with no scroll bar; a pick sets the goal card and the results; End scrolls to Longevity. tests/marketplace-page.test.mjs: no select in the matcher, every goal listed in its group, a pick narrows the results, Any goal clears it', status: 'done' },
+        { label: 'Owner\'s list, 2026-11-11: the coach page\'s Posts camp drawn as the activity feed draws a post', status: 'pending' },
+        { label: 'Owner\'s list, 2026-11-11: review whether the coach page\'s Book, Programs and Summit camps should be one (the Summit lists the programs again, with the free intro and Message)', status: 'pending' },
       ],
     },
     {

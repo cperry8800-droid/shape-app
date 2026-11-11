@@ -202,12 +202,35 @@ test('every coach category in the app has a goal of its own, and the matcher lis
   // The fold keeps its six cards; the matcher's Goal list carries every goal.
   const m = await mountPage({ rows: [SEEDED, SEEDED_2, NUTRI] });
   assert.equal(document.querySelectorAll('.mk-goal').length, 6, 'the fold should keep its six goal cards');
-  const opts = [...document.querySelectorAll('.mk-matcher select option')].map((o) => o.value).filter(Boolean);
-  assert.deepEqual(opts.sort(), mk.MK_GOALS.map((g) => g.id).sort(), 'the matcher does not list every goal');
+  // Owner, 2026-11-11: the Goal dropdown stays, "just the scroll bar" goes. The browser's select can't hide the
+  // bar its open list draws, so the Goal is the page's own list, as the city's is: no select in the matcher.
+  assert.ok(!document.querySelector('.mk-matcher select'), 'the matcher still uses the browser select for the goal');
+  const box = document.querySelector('.mk-matcher [role="combobox"][aria-label="Goal"]');
+  assert.ok(box, 'the Goal list');
+  assert.equal(box.querySelector('.v').textContent, 'Any goal');
+  await click(box);
+  const list = document.getElementById(box.getAttribute('aria-controls'));
+  assert.ok(list && list.getAttribute('role') === 'listbox', 'the Goal list opens');
+  assert.ok(list.closest('.mk-city.hero'), 'it is the city\'s list, opening upward in the hero, scrolling with no bar');
+  const opts = [...list.querySelectorAll('[role="option"]')];
+  assert.equal(opts[0].textContent, 'Any goal✓');
+  const label = (id) => mk.MK_GOALS.find((g) => g.id === id).label;
+  assert.deepEqual(opts.slice(1).map((o) => o.textContent).sort(), mk.MK_GOALS.map((g) => g.label).sort(), 'the matcher does not list every goal');
+  // Training and nutrition apart, under their headings, as the select's optgroups were.
+  const groups = [...list.querySelectorAll('[role="group"]')];
+  assert.deepEqual(groups.map((g) => document.getElementById(g.getAttribute('aria-labelledby')).textContent), ['Training', 'Nutrition']);
+  assert.deepEqual([...groups[1].querySelectorAll('[role="option"]')].map((o) => o.textContent).sort(), mk.MK_GOALS.filter((g) => g.nu).map((g) => g.label).sort());
   // And picking one from the list narrows the results: of the three rows, only James Okafor is weight management.
-  const sel = document.querySelector('.mk-matcher select');
-  await React.act(async () => { sel.value = 'weight'; sel.dispatchEvent(new window.Event('change', { bubbles: true })); });
+  await click(opts.find((o) => o.textContent === label('weight')));
+  assert.ok(!document.getElementById(box.getAttribute('aria-controls')), 'a pick closes it');
+  assert.equal(box.querySelector('.v').textContent, label('weight'), 'the pick shows');
+  assert.ok(box.querySelector('svg'), 'with the goal\'s icon');
   assert.match(text(), /and 1 listing not bookable yet\./, 'Weight management kept listings that are not weight-management coaches');
+  // Any goal clears it.
+  await click(box);
+  await click(document.getElementById(box.getAttribute('aria-controls')).querySelector('[role="option"]'));
+  assert.equal(box.querySelector('.v').textContent, 'Any goal');
+  assert.ok(!box.querySelector('svg'), 'Any goal has no icon');
   await m.unmount();
 });
 
