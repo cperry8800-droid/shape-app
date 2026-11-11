@@ -371,5 +371,14 @@
   "burn.page.toCome": "Sırada",
   "burn.page.notTracked": "Kayıt yok",
   "burn.page.today": "Bugün",
-  "burn.page.rule": "Bir gün bir kez sayılır: saatin tüm gün için okuması ya da o gün kaydedilen antrenmanlar."
+  "burn.page.rule": "Bir gün bir kez sayılır: saatin tüm gün için okuması ya da o gün kaydedilen antrenmanlar.",
+  "train.coachAdded.unread": "Antrenörünün eklediği egzersizler yüklenemedi.",
+  "train.coachAdded.retry": "Tekrar dene",
+  "train.coachAdded.from": "{name} gönderdi",
+  "train.coachAdded.fromTrainer": "Antrenöründen",
+  "train.coachAdded.today": "Bugün eklendi",
+  "train.coachAdded.onDay": "Eklendi · {day}",
+  "train.coachAdded.count": "{count, plural, one {# egzersiz} other {# egzersiz}}",
+  "train.coachAdded.tempo": "Tempo {tempo}",
+  "train.coachAdded.start": "Bunları başlat"
 }

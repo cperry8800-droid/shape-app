@@ -111,7 +111,6 @@ const CONSOLE_CLIENTS = [
   },
 ];
 
-function newId() { return "e" + Math.random().toString(36).slice(2, 9); }
 function firstName(name) { return (name || "").split(" ")[0]; }
 
 // Trajectory series — per-client params drive a deterministic 26-week series
@@ -204,6 +203,13 @@ function TrainerLiveConsolePage() {
   const [loadAttempt, setLoadAttempt] = React.useState(0);
   const [focusSending, setFocusSending] = React.useState(false);
   const focusRequest = React.useRef(false);
+  // An add waits for the server (the exercise is on the client's phone only once it is saved), and a
+  // remove does too; each says when it failed instead of showing a change that never reached them.
+  const [adding, setAdding] = React.useState(false);
+  const addRequest = React.useRef(false);
+  const [removing, setRemoving] = React.useState({});
+  // The route could not read today's sessions (itemsUnread): said so, never "Nothing added today".
+  const [itemsUnread, setItemsUnread] = React.useState(false);
   // Per-client editable state (focus banner + today's session list)
   const [focusById, setFocusById] = React.useState({});
   const [sessionsById, setSessionsById] = React.useState({});
@@ -235,8 +241,13 @@ function TrainerLiveConsolePage() {
           const snapByClient = d.snapshotByClient || {};
           const profByClient = d.profileByClient || {};
           const seriesByClient = d.seriesByClient || {};
+          // What each client logged on THEIR today (the route's todayByClient), never the newest row of the
+          // last 90 days, which "Logged today" used to show. A failed read is said, not shown as nothing.
+          const todayByClient = d.todayByClient || {};
+          const todayUnread = d.todayUnread === true;
           const mapped = d.clients.map(c => {
             const s = snapByClient[c.id] || {};
+            const today = todayByClient[c.id] || null;
             const p = profByClient[c.id] || {};
             const series = seriesByClient[c.id] || null;
             const fmt1 = (v) => (v == null ? '—' : Number(v).toFixed(1));
@@ -245,15 +256,22 @@ function TrainerLiveConsolePage() {
               isReal: true,
               status: c.status || 'current',
               lastAt: c.lastAt || null,
+              // The route sends a name only when one is on file (the client's profile, else a session's), and
+              // says when the read failed. `name` keeps "Client" for the sentences that use a first name;
+              // `label` is what the picker and the heading show.
               name: c.name || 'Client',
+              label: c.name || (c.nameUnread ? "Name didn't load" : 'No name on file'),
+              named: !!c.name,
               age: p.age != null ? p.age : '—',
               weight: s.weight_lb != null ? Number(s.weight_lb).toFixed(1) + ' lbs' : '—',
               height: '—',
               focus: p.focus || '—',
               workout: { done: 0, total: 0, note: s.snapshot_date ? 'Last log ' + s.snapshot_date : '—' },
               nutrition: {
-                kcal: s.calories != null ? Number(s.calories) : 0,
-                protein: s.protein_g != null ? Number(s.protein_g) : 0,
+                unread: todayUnread,
+                logged: !!(today && (today.calories != null || today.protein_g != null)),
+                kcal: today && today.calories != null ? Number(today.calories) : null,
+                protein: today && today.protein_g != null ? Number(today.protein_g) : null,
               },
               recovery: {
                 restingHR: s.resting_hr != null ? Math.round(Number(s.resting_hr)) : '—',
@@ -273,6 +291,7 @@ function TrainerLiveConsolePage() {
             setClientId(mapped[0].id);
           }
         }
+        setItemsUnread(d.itemsUnread === true);
         if (d.focusByClient && Object.keys(d.focusByClient).length) {
           setFocusById(prev => ({ ...prev, ...d.focusByClient }));
         }
@@ -315,8 +334,9 @@ function TrainerLiveConsolePage() {
     } catch (error) { flash(error.message || "Could not save focus. Your draft is still here."); }
     finally { focusRequest.current = false; setFocusSending(false); }
   };
-  const addExercise = () => {
+  const addExercise = async () => {
     if (!ex.name.trim()) { flash("Add an exercise name first"); return; }
+    if (addRequest.current) return;
     const payload = {
       name: ex.name.trim(),
       sets: ex.sets.trim() || "—",
@@ -324,38 +344,42 @@ function TrainerLiveConsolePage() {
       tempo: ex.tempo.trim() || "—",
       cue: ex.cue.trim(),
     };
-    const tempId = newId();
-    setSessionsById({ ...sessionsById, [clientId]: [...session, { id: tempId, ...payload }] });
-    setEx({ name: "", sets: "", reps: "", tempo: "", cue: "" });
-    flash("Added to " + firstName(client.name) + "'s session");
-    if (live) {
-      fetch('/api/trainer/console', {
+    const forClient = clientId;
+    const who = firstName(client.name);
+    addRequest.current = true; setAdding(true);
+    try {
+      const res = await fetch('/api/trainer/console', {
         method: 'POST',
         credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ clientId, action: 'addItem', payload }),
-      })
-        .then(r => (r.ok ? r.json() : null))
-        .then(d => {
-          if (!d || !d.id) return;
-          setSessionsById(prev => ({
-            ...prev,
-            [clientId]: (prev[clientId] || []).map(it => it.id === tempId ? { ...it, id: d.id } : it),
-          }));
-        })
-        .catch(() => {});
-    }
+        body: JSON.stringify({ clientId: forClient, action: 'addItem', payload }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.ok !== true || !data.id) throw new Error(data.error || "Could not add the exercise. Try again.");
+      setSessionsById(prev => ({ ...prev, [forClient]: [...(prev[forClient] || []), { id: data.id, ...payload }] }));
+      setEx({ name: "", sets: "", reps: "", tempo: "", cue: "" });
+      flash("Added to " + who + "'s session");
+    } catch (error) { flash(error.message || "Could not add the exercise. Your entry is still here."); }
+    finally { addRequest.current = false; setAdding(false); }
   };
-  const removeExercise = (id) => {
-    setSessionsById({ ...sessionsById, [clientId]: session.filter(e => e.id !== id) });
-    if (live) {
-      fetch('/api/trainer/console', {
+  const removeExercise = async (id) => {
+    if (!id || removing[id]) return;
+    const forClient = clientId;
+    const who = firstName(client.name);
+    setRemoving(prev => ({ ...prev, [id]: true }));
+    try {
+      const res = await fetch('/api/trainer/console', {
         method: 'POST',
         credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ clientId, action: 'removeItem', itemId: id }),
-      }).catch(() => {});
-    }
+        body: JSON.stringify({ clientId: forClient, action: 'removeItem', itemId: id }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.ok !== true) throw new Error(data.error || "Could not remove the exercise. Try again.");
+      setSessionsById(prev => ({ ...prev, [forClient]: (prev[forClient] || []).filter(e => e.id !== id) }));
+      flash("Removed from " + who + "'s session");
+    } catch (error) { flash(error.message || "Could not remove the exercise. Try again."); }
+    finally { setRemoving(prev => { const next = { ...prev }; delete next[id]; return next; }); }
   };
 
   const progressPct = client.workout.total ? Math.round((client.workout.done / client.workout.total) * 100) : 0;
@@ -433,7 +457,7 @@ function TrainerLiveConsolePage() {
             width: "100%", minHeight: 44,
           }}
         >
-          <span style={{ flex: 1, textAlign: "left" }}>{client.name}</span>
+          <span style={{ flex: 1, textAlign: "left", color: client.named === false ? "var(--sh-ink2, #a09b94)" : undefined }}>{client.label || client.name}</span>
           {(client.status || "current") === "past" && (
             <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.12em", color: "var(--sh-ink2, #a09b94)", padding: "2px 6px", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.18)", borderRadius: 4 }}>PAST</span>
           )}
@@ -472,7 +496,7 @@ function TrainerLiveConsolePage() {
                             border: 0, padding: "10px 18px", cursor: "pointer",
                             fontFamily: sans, fontSize: 13.5, fontWeight: on ? 500 : 400,
                           }}
-                        >{c.name}</button>
+                        >{c.label || c.name}</button>
                       );
                     })}
                   </div>
@@ -489,7 +513,7 @@ function TrainerLiveConsolePage() {
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
           <Card>
             <SectionTitle>Latest available metrics</SectionTitle>
-            <div style={{ fontFamily: serif, fontSize: 30, letterSpacing: "-0.02em", lineHeight: 1, marginTop: 4 }}>{client.name}</div>
+            <div style={{ fontFamily: serif, fontSize: 30, letterSpacing: "-0.02em", lineHeight: 1, marginTop: 4, color: client.named === false ? "var(--sh-ink2, #a09b94)" : undefined }}>{client.label || client.name}</div>
             <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.08em", color: "var(--sh-ink2, #a09b94)", marginTop: 8 }}>
               {client.age} YRS · {client.weight} · {client.height}
             </div>
@@ -500,8 +524,14 @@ function TrainerLiveConsolePage() {
             <div style={{ marginTop: 22, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
               <InsetBox label="Workout progress"><div style={{ fontSize: 14, lineHeight: 1.6 }}>See the workout monitor above for current exercises and logged sets.</div></InsetBox>
               <InsetBox label="Logged today">
-                <div style={{ fontFamily: serif, fontSize: 26, lineHeight: 1 }}>{client.nutrition.kcal.toLocaleString()} <span style={{ fontSize: 13, color: "var(--sh-ink2, #a09b94)", fontFamily: sans }}>kcal</span></div>
-                <div style={{ fontSize: 12, color: "var(--sh-ink2, #a09b94)", marginTop: 10 }}>Protein logged: <span style={{ color: INK, fontWeight: 500 }}>{client.nutrition.protein}g</span></div>
+                {client.nutrition.unread ? (
+                  <div role="status" style={{ fontSize: 13.5, lineHeight: 1.5 }}>Today's log didn't load. Reload the page to try again.</div>
+                ) : !client.nutrition.logged ? (
+                  <div style={{ fontSize: 13.5, lineHeight: 1.5, color: "var(--sh-ink2, #a09b94)" }}>Nothing logged yet today.</div>
+                ) : (<>
+                  <div style={{ fontFamily: serif, fontSize: 26, lineHeight: 1 }}>{client.nutrition.kcal != null ? client.nutrition.kcal.toLocaleString() : "—"} <span style={{ fontSize: 13, color: "var(--sh-ink2, #a09b94)", fontFamily: sans }}>kcal</span></div>
+                  <div style={{ fontSize: 12, color: "var(--sh-ink2, #a09b94)", marginTop: 10 }}>Protein logged: <span style={{ color: INK, fontWeight: 500 }}>{client.nutrition.protein != null ? client.nutrition.protein + "g" : "—"}</span></div>
+                </>)}
               </InsetBox>
             </div>
           </Card>
@@ -566,14 +596,42 @@ function TrainerLiveConsolePage() {
               <FieldLabel>Coaching cue</FieldLabel>
               <ConsoleInput value={ex.cue} onChange={(v) => setEx({ ...ex, cue: v })} placeholder="e.g. Keep spine neutral, push feet down" />
             </div>
-            <button onClick={addExercise} style={{
-              marginTop: 16, width: "100%",
+            <button onClick={addExercise} disabled={adding} style={{
+              marginTop: 16, width: "100%", minHeight: 44,
               background: TEAL,
               color: PAPER,
               border: 0, padding: "12px 18px", borderRadius: 10,
               fontFamily: sans, fontSize: 13.5, fontWeight: 500,
-              cursor: "pointer",
-            }}>+ Add to today's session</button>
+              cursor: adding ? "default" : "pointer", opacity: adding ? 0.7 : 1,
+            }}>{adding ? "Adding…" : "+ Add to today's session"}</button>
+
+            {/* Today's session: what this client's Train screen shows for today, each with Remove. Another
+                day's exercises stay on that day in their Train week and are not listed here. */}
+            <div style={{ height: 1, background: "rgba(var(--sh-ink-rgb, 242,237,228),0.08)", margin: "22px 0" }} />
+            <SectionTitle right={session.length ? (session.length === 1 ? "1 EXERCISE" : session.length + " EXERCISES") : null}>Today's session</SectionTitle>
+            {itemsUnread ? (
+              <div role="status" data-console-session-unread="" style={{ fontSize: 13, lineHeight: 1.5, marginBottom: session.length ? 10 : 0 }}>Today's session didn't load, so exercises already added aren't listed. Reload the page before adding more.</div>
+            ) : null}
+            {session.length === 0 ? (itemsUnread ? null :
+              <div data-console-session="empty" style={{ fontSize: 13, color: "var(--sh-ink2, #a09b94)", lineHeight: 1.5 }}>Nothing added today. What you add shows on {firstName(client.name)}'s Train screen for today.</div>
+            ) : (
+              <ul data-console-session="" style={{ listStyle: "none", margin: 0, padding: 0 }}>
+                {session.map((e, i) => {
+                  const scheme = [e.sets, e.reps, e.tempo && e.tempo !== "—" ? "Tempo " + e.tempo : null].filter(v => v && v !== "—").join(" · ");
+                  return (
+                    <li key={e.id || i} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 0", borderTop: i === 0 ? 0 : "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)" }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 14, fontWeight: 500, overflowWrap: "anywhere" }}>{e.name}</div>
+                        {scheme ? <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "var(--sh-ink2, #a09b94)", marginTop: 3 }}>{scheme}</div> : null}
+                        {e.cue ? <div style={{ fontSize: 12.5, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.78)", marginTop: 3, overflowWrap: "anywhere" }}>{e.cue}</div> : null}
+                      </div>
+                      <button type="button" onClick={() => removeExercise(e.id)} disabled={!!removing[e.id]} aria-label={"Remove " + e.name}
+                        style={{ flex: "none", minHeight: 44, padding: "8px 14px", borderRadius: 999, background: "transparent", color: "var(--sh-ink2, #a09b94)", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.16)", fontFamily: sans, fontSize: 12.5, cursor: removing[e.id] ? "default" : "pointer" }}>{removing[e.id] ? "Removing…" : "Remove"}</button>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
           </Card>
         </div>
       </div>

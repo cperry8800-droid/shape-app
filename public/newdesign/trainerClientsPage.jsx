@@ -25,6 +25,13 @@ function TrainerClientsPage() {
   React.useEffect(() => {
     if (["red", "amber", "green", "unknown"].includes(requestedStatus)) { setTab("all"); setFlt(requestedStatus); }
   }, [requestedStatus]);
+  // A link that names the tab opens on it (the Console's "Shared clients" sends ?tab=shared), as a tap
+  // on the switch would. A status asked for above wins: it only exists on All.
+  const requestedTab = dashRouteParam("tab");
+  React.useEffect(() => {
+    if (["red", "amber", "green", "unknown"].includes(requestedStatus)) return;
+    if (requestedTab === "shared" || requestedTab === "all") setTab(requestedTab);
+  }, [requestedTab]);
   // The sort R16's memory was waiting on. `triage` — the engine's severity order — is
   // the default and is what the roster has always shown, so a coach who never touches a
   // header sees no change at all.

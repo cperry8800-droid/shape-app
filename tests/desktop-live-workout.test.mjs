@@ -1,4 +1,4 @@
-import test from 'node:test';
+import test, { afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
@@ -24,6 +24,11 @@ const clientB = '22222222-2222-4222-8222-222222222222';
 const payload = () => ({ v: 1, curIdx: 0, resting: false, setsDone: 1, setsTotal: 2, loadUnit: 'kg', exercises: [{ n: 'Barbell row', done: 1, total: 2, sets: [{ load: '70', reps: '8', rpe: '8.5', done: true }, { load: '999', reps: '99', rpe: '9', done: false }] }] });
 const row = () => ({ payload: payload(), started_at: new Date(Date.now() - 65000).toISOString(), updated_at: new Date().toISOString(), expires_at: new Date(Date.now() + 60000).toISOString() });
 const button = label => [...document.querySelectorAll('button')].find(node => node.textContent === label);
+// ⚠ EVERY MOUNTED PANEL IS UNMOUNTED AFTER ITS TEST, PASS OR FAIL. A test that failed before its own
+// ui.close() left the panel mounted with its timers running, and the file never exited: a mutation the
+// suite caught read as a hang (the 2026-11-10 mutation round, the cue's action).
+const mounted = new Set();
+afterEach(async () => { for (const ui of [...mounted]) await ui.close(); });
 async function setup(initial = {}, { initialOwner = 'coach', bridgeOwner = null } = {}) {
   const observers = [];
   const authObservers = new Set();
@@ -35,7 +40,11 @@ async function setup(initial = {}, { initialOwner = 'coach', bridgeOwner = null 
   const root = createRoot(document.getElementById('root'));
   const render = async props => React.act(async () => root.render(React.createElement(Panel, { clientId: clientA, clientName: 'Avery', role: 'trainer', loadRuntime, ...props })));
   await render();
-  return { root, render, observers, auth: async (eventName, owner) => React.act(async () => { for (const callback of authObservers) callback(eventName, owner ? { user: { id: owner } } : null); }), emit: async state => React.act(async () => observers.at(-1).onChange({ publicRow: null, coachRow: null, ...state })), close: async () => React.act(async () => root.unmount()) };
+  let closed = false;
+  const ui = { root, render, observers, auth: async (eventName, owner) => React.act(async () => { for (const callback of authObservers) callback(eventName, owner ? { user: { id: owner } } : null); }), emit: async state => React.act(async () => observers.at(-1).onChange({ publicRow: null, coachRow: null, ...state })),
+    close: async () => { if (closed) return; closed = true; mounted.delete(ui); await React.act(async () => root.unmount()); } };
+  mounted.add(ui);
+  return ui;
 }
 
 test('desktop monitor distinguishes loading, empty, stale and recovered live snapshots', async () => {
@@ -83,7 +92,8 @@ test('cue send checks server acceptance, retains failed drafts, and prevents dup
   assert.match(document.querySelector('[role=alert]').textContent, /Client access changed/);
   await React.act(async () => button('Send cue').click());
   await React.act(async () => resolve({ ok: true, json: async () => ({ ok: true }) }));
-  assert.deepEqual(JSON.parse(writes[1].body), { clientId: clientA, action: 'focus', text: 'Hold this weight' });
+  // A cue is its own row ('cue'), never the focus banner ('focus'), which it used to replace.
+  assert.deepEqual(JSON.parse(writes[1].body), { clientId: clientA, action: 'cue', text: 'Hold this weight' });
   assert.equal(writes[1].credentials, 'same-origin');
   assert.equal(writes[1].url, '/api/trainer/console');
   assert.equal(document.querySelector('input').value, '');
