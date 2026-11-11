@@ -247,11 +247,13 @@ async function handle(request: Request) {
   const since = new Date(now - REMINDED_DAYS * 86400000).toISOString();
   // Only members with a plan have a payload to read; one who only planned meals themselves has none.
   const planIds = due.flatMap((id) => { const p = newest.get(id); return p ? [p.id] : []; });
-  const [planRows, goals, earlier] = await Promise.all([
+  const [planRows, goals, earlier, pauses] = await Promise.all([
     // A plan archived since the scan is not read: that member is reminded of their own meals only.
     readIn(planIds, (c) => admin.from('client_meal_plans').select('id, payload').in('id', c).eq('status', 'published')),
     readIn(due, (c) => admin.from('user_goals').select('user_id, kind, data').in('user_id', c).in('kind', ['client_meal_swaps', 'meal_prep', BS_MEAL_DAYS_KIND])),
     readIn(due, (c) => admin.from('notifications').select('user_id, data').in('user_id', c).eq('type', 'meal_prep').gte('created_at', since)),
+    // Members on a break ("away until", 2026-11-11-client-pause.sql) are not reminded to prep.
+    readIn(due, (c) => admin.from('client_pauses').select('client_id, until_on').in('client_id', c)),
   ]);
   if (!planRows || !goals || !earlier) {
     console.error('[shape] prep reminders: could not read plans, swaps, prep records or earlier reminders');
@@ -259,6 +261,11 @@ async function handle(request: Request) {
   }
   const payloadOf = new Map<string, unknown>();
   for (const r of planRows) payloadOf.set(String(r.id), r.payload);
+  // An unread pause (before the migration runs, or a failed read) is no pause: the reminder is the
+  // one it always was, never a whole evening's silence on one bad read.
+  if (!pauses) console.error('[shape] prep reminders: could not read pauses; reminding as before');
+  const pausedUntil = new Map<string, string>();
+  for (const r of pauses || []) if (typeof r.client_id === 'string' && typeof r.until_on === 'string') pausedUntil.set(r.client_id, r.until_on);
 
   // `owed`: members a reminder was owed to. `sent`: those whose notification was stored, so a
   // muted member, Prep reminders off, unreadable preferences or a duplicate are owed, not sent.
@@ -270,6 +277,9 @@ async function handle(request: Request) {
       const today = bsYmdIn(now, tz);
       // Already reminded tonight: one reminder an evening, so a later run says nothing more.
       const tonight = `prep:${today}`;
+      // Away tonight (their pause runs through today): no prep reminder.
+      const away = pausedUntil.get(userId);
+      if (away && away >= today) continue;
       if (earlier.some((r) => r.user_id === userId && r.data && typeof r.data === 'object' && (r.data as Row).dedupe === tonight)) continue;
       const goal = (kind: string) => {
         const row = goals.find((g) => g.user_id === userId && g.kind === kind);

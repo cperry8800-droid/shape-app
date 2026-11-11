@@ -227,6 +227,24 @@ export function liveDismissals(records: unknown[], now: Date): unknown[] {
   });
 }
 
+// ⚠ A MEMBER ON A BREAK GETS NONE OF THIS ENGINE'S NOTICES (a pause, 2026-11-11-client-pause.sql:
+// "away until <date>", set by them or a coach). Read fresh on every run, never from the stored
+// record, so a pause set or ended since the app last posted holds. `asService`: the hourly run reads
+// the table with the service role; the live route asks get_client_pause as the member. A read that
+// fails, or a table not there yet, is no pause: the notices go on as before.
+export async function loadMemberPaused(client: SupabaseClient, userId: string, now: Date, tz: string, opts: { asService?: boolean } = {}): Promise<boolean> {
+  try {
+    const r = opts.asService
+      ? await client.from('client_pauses').select('until_on').eq('client_id', userId).maybeSingle()
+      : await client.rpc('get_client_pause', { p_client_id: userId });
+    if (r.error) return false;
+    const row = (Array.isArray(r.data) ? r.data[0] : r.data) as { until_on?: unknown } | null | undefined;
+    return !!row && typeof row.until_on === 'string' && ymdInTz(now, tz) <= row.until_on;
+  } catch {
+    return false;
+  }
+}
+
 // Snapshot → candidates + audience. `lastSeverity` (coach) suppresses re-nags.
 export function candidatesFor(
   snapshot: Snapshot,
@@ -256,6 +274,9 @@ export function candidatesFor(
     // The person's own zone (loadPrefs' `tz`), so the engine counts their days, not the server's UTC
     // ones (F2). Omitted: the zone the snapshot was posted with.
     zone?: string | null;
+    // A member on a break (loadMemberPaused): none of their own notices. A coach's roster reads each
+    // client's pause from the roster itself.
+    memberPaused?: boolean;
   },
 ): { audience: 'client' | 'coach'; candidates: Candidate[]; coachSeen?: Record<string, string> } {
   const role = snapshot.role || '';
@@ -283,6 +304,7 @@ export function candidatesFor(
     };
   }
   const candidates: Candidate[] = [];
+  if (opts.memberPaused) return { audience: 'client', candidates };
   const record = snapshot.record;
   if (record && typeof record === 'object') {
     // On the member's own day (F2), as their Home reads it on the phone.

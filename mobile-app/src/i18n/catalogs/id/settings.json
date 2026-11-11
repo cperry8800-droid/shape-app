@@ -643,5 +643,21 @@
   "plan.renewsYearly": "Diperpanjang tiap tahun",
   "plan.includedCoach": "Termasuk dalam coaching-mu",
   "plan.includedCoachBody": "Nora, Shape Radio, dan asisten AI termasuk dalam coaching-mu.",
-  "plan.includedCoachOwn": "Coaching-mu sudah termasuk keanggotaan; kamu bisa membatalkan paketmu sendiri."
+  "plan.includedCoachOwn": "Coaching-mu sudah termasuk keanggotaan; kamu bisa membatalkan paketmu sendiri.",
+  "pause.group": "Rehat sejenak",
+  "pause.row": "Sedang pergi",
+  "pause.preview": "Masuk untuk mengatur waktu rehat.",
+  "pause.unavailable": "Tidak bisa memuat waktu rehatmu.",
+  "pause.retry": "Coba lagi",
+  "pause.byYou": "Kamu yang mengatur ini.",
+  "pause.byCoach": "Pelatihmu yang mengatur ini.",
+  "pause.range": "Pilih hari dari hari ini sampai 90 hari ke depan.",
+  "pause.failed": "Tidak tersimpan. Coba lagi.",
+  "pause.until": "Pergi sampai {date}",
+  "pause.change": "Ubah tanggal",
+  "pause.end": "Akhiri rehat",
+  "pause.desc": "Mau pergi? Pilih hari terakhirmu pergi: pengingat dan ajakan check-in diam sampai saat itu, dan pelatihmu melihat kamu sedang pergi. Keanggotaanmu tetap berjalan seperti biasa.",
+  "pause.dateLabel": "Pergi sampai",
+  "pause.save": "Simpan waktu rehat",
+  "pause.cancel": "Pertahankan tanggal"
 }

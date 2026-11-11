@@ -643,5 +643,21 @@
   "plan.renewsYearly": "Her yıl yenilenir",
   "plan.includedCoach": "Koçluğuna dahil",
   "plan.includedCoachBody": "Nora, Shape Radio ve yapay zekâ yardımcıları koçluğuna dahil.",
-  "plan.includedCoachOwn": "Koçluğun üyeliği içeriyor; kendi planını iptal edebilirsin."
+  "plan.includedCoachOwn": "Koçluğun üyeliği içeriyor; kendi planını iptal edebilirsin.",
+  "pause.group": "Bir ara",
+  "pause.row": "Uzakta",
+  "pause.preview": "Bir ara belirlemek için giriş yap.",
+  "pause.unavailable": "Aran yüklenemedi.",
+  "pause.retry": "Tekrar dene",
+  "pause.byYou": "Bunu sen belirledin.",
+  "pause.byCoach": "Bunu koçun belirledi.",
+  "pause.range": "Bugünden 90 gün sonrasına kadar bir gün seç.",
+  "pause.failed": "Kaydedilmedi. Tekrar dene.",
+  "pause.until": "{date} tarihine kadar uzakta",
+  "pause.change": "Tarihi değiştir",
+  "pause.end": "Arayı bitir",
+  "pause.desc": "Uzağa mı gidiyorsun? Uzakta olacağın son günü seç: hatırlatmalar ve check-in dürtmeleri o güne kadar sessiz kalır, koçların da uzakta olduğunu görür. Üyeliğin her zamanki gibi devam eder.",
+  "pause.dateLabel": "Şu tarihe kadar uzakta",
+  "pause.save": "Arayı kaydet",
+  "pause.cancel": "Tarihi koru"
 }

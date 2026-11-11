@@ -150,8 +150,10 @@ async function run(request: Request) {
     let wosBy: Map<string, WoRow[]>;
     let habitsBy: Map<string, HabitRow[]>;
     let checkinOff: Set<string>;
+    // Each member's pause, "away until" (2026-11-11-client-pause.sql): no penalty for a day it covers.
+    let pausedUntil: Map<string, string>;
     try {
-      const [sessRes, wosRes, habitsRes, settingsRes] = await Promise.all([
+      const [sessRes, wosRes, habitsRes, settingsRes, pausesRes] = await Promise.all([
         // (1) Kept sessions → +12. There is NO session PENALTY: a session's only
         // "kept" signal is the coach marking it 'completed', so a lingering
         // 'confirmed' is coach bookkeeping, not a client miss — penalizing it
@@ -193,7 +195,25 @@ async function run(request: Request) {
           .in('user_id', ids)
           .eq('kind', 'client_settings')
           .limit(ROWS_MAX),
+        // (5) Their pauses, set by the member or a coach. The member's own `paused_until` in Settings
+        // is still honoured inside apply_obligation_penalty.
+        admin
+          .from('client_pauses')
+          .select('client_id, until_on')
+          .in('client_id', ids)
+          .limit(ROWS_MAX),
       ]);
+      // ⚠ BEFORE THE MIGRATION RUNS THE TABLE IS NOT THERE, and that is no pause, not a failed read.
+      // Any other failure skips the chunk, as the reads above do: a member who is away is never charged
+      // on a read that could not say so.
+      const pausesMissing = ['42P01', 'PGRST205'].includes(String((pausesRes.error as { code?: string } | null)?.code || ''));
+      if (pausesRes.error && !pausesMissing) {
+        console.error('[score-accountability] pauses read failed — skipping chunk:', pausesRes.error);
+        continue;
+      }
+      pausedUntil = new Map(((pausesMissing ? [] : pausesRes.data) || [])
+        .filter((r: { client_id?: unknown; until_on?: unknown }) => typeof r.client_id === 'string' && typeof r.until_on === 'string')
+        .map((r: { client_id: string; until_on: string }) => [r.client_id, r.until_on] as [string, string]));
       // Supabase queries RESOLVE with `.error` set rather than throwing — an
       // unchecked failure would group `data || []` and silently part-score the
       // chunk (rewards/penalties missing while check-ins still apply). A read
@@ -256,6 +276,10 @@ async function run(request: Request) {
         let dipTotal = 0;
 
         const penalize = async (kind: string, refId: string | null, day: string, label: string) => {
+          // A day their pause covers is no obligation (the week's Monday, for a check-in), as the
+          // Settings `paused_until` is inside the RPC.
+          const until = pausedUntil.get(uid);
+          if (until && until >= day) return;
           const { data } = await admin.rpc('apply_obligation_penalty', {
             p_uid: uid,
             p_kind: kind,

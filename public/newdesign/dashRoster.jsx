@@ -435,6 +435,82 @@ function DashSecNotes({ rec }) {
     </div>
   );
 }
+// A client's break, "away until <date>" (2026-11-11-client-pause.sql; the app's BSClientPause.jsx): set
+// by the member or any of their coaches. While it holds, their missed-day alerts and reminders stay
+// quiet, and the engine says "Back from a break" for three days after. Read fresh here (shapeDb's
+// getClientPause), so the section can tell "no break" from "couldn't read" and hides before the
+// migration runs. Not the membership's pause, which this never touches.
+function dashPauseDay(day) {
+  const [y, m, d] = String(day).split("-").map(Number);
+  try { return new Date(y, m - 1, d, 12).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" }); } catch (e) { return day; }
+}
+function dashPauseBounds() {
+  const iso = (x) => x.getFullYear() + "-" + String(x.getMonth() + 1).padStart(2, "0") + "-" + String(x.getDate()).padStart(2, "0");
+  const n = new Date();
+  return { min: iso(n), max: iso(new Date(n.getFullYear(), n.getMonth(), n.getDate() + 90)) };
+}
+function DashSecPause({ rec }) {
+  const id = rec && rec.profile && rec.profile.id;
+  const live = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(id || ""));
+  const [read, setRead] = React.useState({ kind: "loading" });
+  const [day, setDay] = React.useState("");
+  const [editing, setEditing] = React.useState(false);
+  const [save, setSave] = React.useState({ kind: "idle" });
+  const [attempt, setAttempt] = React.useState(0);
+  React.useEffect(() => {
+    const db = window.shapeDb;
+    if (!live || !db || typeof db.getClientPause !== "function") { setRead({ kind: live ? "hidden" : "demo" }); return undefined; }
+    let on = true;
+    db.getClientPause(id).then((r) => {
+      if (!on) return;
+      setRead(!r || !r.ok ? { kind: "failed" } : !r.ready ? { kind: "hidden" } : { kind: "ready", pause: r.pause });
+    }, () => { if (on) setRead({ kind: "failed" }); });
+    return () => { on = false; };
+  }, [id, live, attempt]);
+  if (read.kind === "hidden") return <DashDrawerEmpty>Breaks aren't available yet.</DashDrawerEmpty>;
+  if (read.kind === "demo") return <DashDrawerEmpty>Sample client: open a real client to set a break.</DashDrawerEmpty>;
+  if (read.kind === "loading") return <DashDrawerEmpty>Loading…</DashDrawerEmpty>;
+  if (read.kind === "failed") return <DashDrawerEmpty>Couldn't read their break just now. <button type="button" onClick={() => setAttempt((n) => n + 1)} style={{ background: "transparent", border: 0, color: "var(--sh-accent-ink, #2ee0c4)", cursor: "pointer", font: "inherit", padding: 0, minHeight: 36 }}>Try again</button></DashDrawerEmpty>;
+  const bounds = dashPauseBounds();
+  const p = read.pause;
+  const holds = !!p && p.until >= bounds.min;
+  const write = async (until) => {
+    setSave({ kind: "saving" });
+    const r = await window.shapeDb.setClientPause(id, until);
+    if (!r || !r.ok) { setSave({ kind: "failed", error: r && r.error }); return; }
+    setSave({ kind: "idle" }); setEditing(false); setAttempt((n) => n + 1);
+    // The roster reads the break from the client's overview: read it again so the row says so.
+    try { window.dispatchEvent(new CustomEvent("shape:coach-progress-refresh", { detail: { clientId: id } })); } catch (e) {}
+  };
+  const btn = { border: "1px solid " + DASH_ROSTER_HAIR, background: "transparent", color: "var(--sh-ink, #f2ede4)", borderRadius: 5, padding: "7px 10px", minHeight: 36, cursor: "pointer", font: "inherit", fontSize: 12.5 };
+  const text = { fontSize: 12.5, lineHeight: 1.5, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.85)" };
+  const failed = save.kind === "failed"
+    ? <div role="alert" style={{ ...text, color: "var(--sh-rust, #e0644b)" }}>{save.error === "range" ? "Pick a day from today to 90 days from now." : "Couldn't save. Try again."}</div> : null;
+  if (holds && !editing) {
+    return <div data-pause-state="away">
+      <div style={{ ...text, fontWeight: 600 }}>Away until {dashPauseDay(p.until)}</div>
+      <div style={{ ...text, color: DASH_ROSTER_INK50 }}>{p.mine ? "You set this." : p.by === "member" ? "They set this." : "Their other coach set this."} Their missed-day alerts and reminders are quiet until then.</div>
+      {failed}
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
+        <button type="button" style={btn} disabled={save.kind === "saving"} onClick={() => { setDay(p.until); setEditing(true); }}>Change the date</button>
+        <button type="button" style={btn} disabled={save.kind === "saving"} onClick={() => write(null)}>{save.kind === "saving" ? "Saving…" : "End the break"}</button>
+      </div>
+    </div>;
+  }
+  const ok = /^\d{4}-\d{2}-\d{2}$/.test(day) && day >= bounds.min && day <= bounds.max;
+  return <div data-pause-state="set">
+    <div style={{ ...text, color: DASH_ROSTER_INK50 }}>Going away, injured, or taking time off? Pick their last day away: their missed-day alerts and reminders stay quiet until then, and you see them back when it ends. Their membership carries on as usual.</div>
+    <label style={{ ...text, display: "block", marginTop: 8 }}>Away until
+      <input type="date" value={day} min={bounds.min} max={bounds.max} onChange={(e) => setDay(e.target.value)} style={{ display: "block", marginTop: 4, minHeight: 36, padding: "0 8px", border: "1px solid " + DASH_ROSTER_HAIR, borderRadius: 5, background: "transparent", color: "var(--sh-ink, #f2ede4)", font: "inherit" }} />
+    </label>
+    {failed}
+    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
+      <button type="button" style={{ ...btn, opacity: ok ? 1 : 0.5 }} disabled={!ok || save.kind === "saving"} onClick={() => write(day)}>{save.kind === "saving" ? "Saving…" : "Save the break"}</button>
+      {editing && <button type="button" style={btn} onClick={() => setEditing(false)}>Keep the date</button>}
+    </div>
+  </div>;
+}
+
 function DashSecMilestones({ rec }) {
   const units = useDashUnits();
   const ms = dashMilestonesIn(DashSignals.buildMilestones(rec), units);
@@ -865,6 +941,7 @@ const DASH_DRAWER_VIEWS = {
       ["goals", "Goals · projections", DashSecGoals],
       ["notes", "Coach notes", DashSecNotes],
       ["milestones", "Milestones", DashSecMilestones],
+      ["pause", "Away · a break from alerts", DashSecPause],
     ],
   },
   nutritionist: {
@@ -879,6 +956,7 @@ const DASH_DRAWER_VIEWS = {
       ["weighins", "Weigh-in trend", DashSecWeighIns],
       ["goals", "Goals · projections", DashSecGoals],
       ["training", "From the trainer side · read-only", DashSecTrainingContext],
+      ["pause", "Away · a break from alerts", DashSecPause],
     ],
   },
 };
@@ -1060,8 +1138,10 @@ function DashClientPanel({ row, role, onClose, prefs, dismiss, docked = false, j
   const sevColor = row.severity === "green" ? (rec.profile.isNew ? DASH_SEV_COLORS.new : DASH_SEV_COLORS.green) : DASH_SEV_COLORS[row.severity] || DASH_SEV_COLORS.unknown;
   // ⚠ THE STATUS IS A LABELLED CHIP, NEVER A BARE COLOUR (owner, #2630): the group's word, then what
   // put them there in the page's ink. The square before the name is their tier, as on the roster.
-  const status = row.severity === "red" ? "Needs you" : row.severity === "amber" ? "Watch" : row.severity === "green" ? (rec.profile.isNew ? "New" : "On track") : "Progress unknown";
-  const why = row.flags.length ? row.flags.map((f) => f.label).join(" · ") : row.severity === "unknown" ? (row.progress || DashSignals.progressStatus(rec)).label : null;
+  // Away (the engine's pauseOf): a client on a break says so, until their last day away.
+  const away = row.pause && row.pause.state === "paused" && row.severity === "green" ? row.pause : null;
+  const status = row.severity === "red" ? "Needs you" : row.severity === "amber" ? "Watch" : row.severity === "green" ? (away ? "Away" : rec.profile.isNew ? "New" : "On track") : "Progress unknown";
+  const why = row.flags.length ? row.flags.map((f) => f.label).join(" · ") : away ? "Until " + dashPauseDay(away.until) : row.severity === "unknown" ? (row.progress || DashSignals.progressStatus(rec)).label : null;
   const tier = dashClientTierMark(rec.rankPoints);
   const ground = docked ? "var(--sh-card, #25211d)" : "var(--sh-ground2, #14110e)";
   const pad = docked ? 22 : 26;

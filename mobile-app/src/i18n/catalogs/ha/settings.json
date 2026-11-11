@@ -643,5 +643,21 @@
   "plan.renewsYearly": "Ana sabuntawa kowace shekara",
   "plan.includedCoach": "An haɗa da koyarwarka",
   "plan.includedCoachBody": "Nora, Shape Radio da mataimakan AI suna zuwa tare da koyarwarka.",
-  "plan.includedCoachOwn": "Koyarwarka ta ƙunshi zama memba; za ka iya soke naka shirin."
+  "plan.includedCoachOwn": "Koyarwarka ta ƙunshi zama memba; za ka iya soke naka shirin.",
+  "pause.group": "Hutu na ɗan lokaci",
+  "pause.row": "Ba ya nan",
+  "pause.preview": "Shiga don saita hutu.",
+  "pause.unavailable": "Ba a iya loda hutun ka ba.",
+  "pause.retry": "Sake gwadawa",
+  "pause.byYou": "Kai ne ka saita wannan.",
+  "pause.byCoach": "Kocin ka ne ya saita wannan.",
+  "pause.range": "Zaɓi rana daga yau zuwa kwanaki 90 masu zuwa.",
+  "pause.failed": "Ba a ajiye ba. Sake gwadawa.",
+  "pause.until": "Ba ya nan har zuwa {date}",
+  "pause.change": "Canza ranar",
+  "pause.end": "Kammala hutun",
+  "pause.desc": "Za ka yi tafiya? Zaɓi ranar ka ta ƙarshe a waje: tunatarwa da saƙonnin check-in za su yi shiru har zuwa lokacin, kuma kocinka za su ga ba ka nan. Membobinka zai ci gaba kamar yadda aka saba.",
+  "pause.dateLabel": "Ba ya nan har zuwa",
+  "pause.save": "Ajiye hutun",
+  "pause.cancel": "Riƙe ranar"
 }

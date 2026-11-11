@@ -17,6 +17,7 @@ import { takeCoachPlan } from '../services/coachPlanRoute.mjs';
 import { mayLeave, holdLeave } from '../services/leaveGuard.mjs';
 import { nutritionNotAMenu } from '../services/nutritionAssign.mjs';
 import BSCoachNote from './BSCoachNote.jsx';
+import { BSClientPauseCard } from './BSClientPause.jsx';
 import BSLiveWorkoutWatch from './BSLiveWorkoutWatch.jsx';
 import BSWorkoutReviewPage from './BSWorkoutReview.jsx';
 import BSProAdjustProgram from './BSProAdjust.jsx';
@@ -1951,9 +1952,13 @@ function bsRowFromTriage(row, role, t) {
   const obNext = sev === 'new' ? bsOnboardingNext(bsOnboardingFor(rec, role), role) : null;
   // 'unknown': the overview answered with nothing dated in the last two weeks (the engine's
   // progressStatus), which the website reads "Insufficient recent data": never "On plan".
+  // Away (the engine's pauseOf, BSClientPause.jsx): a client on a break says so, until their last day.
+  const away = row.pause && row.pause.state === 'paused' && typeof row.pause.until === 'string' ? row.pause : null;
+  const awayDate = away ? (() => { const [y, m, d] = away.until.split('-').map(Number); try { return new Intl.DateTimeFormat(window.ShapeI18n?.locale || undefined, { month: 'short', day: 'numeric' }).format(new Date(y, m - 1, d, 12)); } catch { return away.until; } })() : '';
   const directive = sev === 'new'
     ? (obNext ? coachTr('coach:onboard.dirNext', { defaultValue: 'New · {step}', step: obNext }) : coachTr('coach:onboard.dirNew', { defaultValue: 'New client — open their first 30 days.' }))
-    : reason || (sev === 'green' ? (nut ? coachTr('coach:roster.dirOnTrackNutri', { defaultValue: 'Logging on plan — nothing needed.' }) : coachTr('coach:roster.dirOnTrack', { defaultValue: 'On plan — nothing needed.' }))
+    : reason || (away ? coachTr('coach:roster.dirAway', { defaultValue: 'Away until {date}: their missed-day alerts are quiet.', date: awayDate })
+      : sev === 'green' ? (nut ? coachTr('coach:roster.dirOnTrackNutri', { defaultValue: 'Logging on plan — nothing needed.' }) : coachTr('coach:roster.dirOnTrack', { defaultValue: 'On plan — nothing needed.' }))
       : sev === 'unknown' ? coachTr('coach:roster.dirNoRecent', { defaultValue: 'Nothing logged in two weeks — check in with them.' })
       : coachTr('coach:roster.dirNeedsAttention', { defaultValue: 'Needs your attention this week.' }));
   // The week's figure is the coach's own measure: training adherence for a trainer, days logged for a
@@ -1991,7 +1996,7 @@ function bsRowFromTriage(row, role, t) {
     active: true,
     // `lead` (P2): the flag behind the line, its episode and the coach action for it (COACH_ACTIONS),
     // which the case file's YOUR MOVE reads instead of searching the line's words.
-    _sig: { sev, rank, label: sev === 'green' ? coachTr('coach:roster.labelOnTrack', { defaultValue: 'ON TRACK' }) : sev === 'new' ? coachTr('coach:sev.new', { defaultValue: 'NEW' }) : sev === 'unknown' ? coachTr('coach:roster.labelNoRecent', { defaultValue: 'NO RECENT DATA' }) : coachTr('coach:roster.labelNeedsYou', { defaultValue: 'NEEDS YOU' }), directive, routed, lead },
+    _sig: { sev, rank, label: away && sev === 'green' ? coachTr('coach:roster.labelAway', { defaultValue: 'AWAY' }) : sev === 'green' ? coachTr('coach:roster.labelOnTrack', { defaultValue: 'ON TRACK' }) : sev === 'new' ? coachTr('coach:sev.new', { defaultValue: 'NEW' }) : sev === 'unknown' ? coachTr('coach:roster.labelNoRecent', { defaultValue: 'NO RECENT DATA' }) : coachTr('coach:roster.labelNeedsYou', { defaultValue: 'NEEDS YOU' }), directive, routed, lead },
   };
 }
 // Severity for a roster row — prefers the live engine `_sig` when present, else
@@ -5410,6 +5415,7 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
         {headerBlock}
         <BSProCleanType t={t}>
         <BSCoachNote key={clientUid || client.n} clientId={clientUid} sample={note} t={t} tr={tr} />
+        {clientUid && <BSClientPauseCard key={'pause:' + clientUid} clientId={clientUid} t={t} />}
         {view === 'manage' ? manageView : profileView}
         </BSProCleanType>
       </div>

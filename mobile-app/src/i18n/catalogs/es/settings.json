@@ -643,5 +643,21 @@
   "plan.renewsYearly": "Se renueva cada año",
   "plan.includedCoach": "Incluida con tu coaching",
   "plan.includedCoachBody": "Nora, Shape Radio y los asistentes de IA vienen con tu coaching.",
-  "plan.includedCoachOwn": "Tu coaching incluye la membresía; puedes cancelar tu propio plan."
+  "plan.includedCoachOwn": "Tu coaching incluye la membresía; puedes cancelar tu propio plan.",
+  "pause.group": "Un tiempo fuera",
+  "pause.row": "Ausente",
+  "pause.preview": "Inicia sesión para marcar un tiempo fuera.",
+  "pause.unavailable": "No se pudo cargar tu tiempo fuera.",
+  "pause.retry": "Intentar de nuevo",
+  "pause.byYou": "Lo marcaste tú.",
+  "pause.byCoach": "Lo marcó tu coach.",
+  "pause.range": "Elige un día entre hoy y dentro de 90 días.",
+  "pause.failed": "No se guardó. Inténtalo de nuevo.",
+  "pause.until": "Ausente hasta el {date}",
+  "pause.change": "Cambiar la fecha",
+  "pause.end": "Terminar el tiempo fuera",
+  "pause.desc": "¿Te vas de viaje? Elige tu último día fuera: los recordatorios y avisos de check-in quedan en silencio hasta entonces, y tus coaches ven que estás fuera. Tu membresía sigue como siempre.",
+  "pause.dateLabel": "Ausente hasta",
+  "pause.save": "Guardar el tiempo fuera",
+  "pause.cancel": "Mantener la fecha"
 }

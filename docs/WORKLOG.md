@@ -110,7 +110,8 @@ The rules and the code map. Every session loads it: when a rule changes, replace
   (`tests/i18n-surface-inventory.test.mjs` counts the untranslated).
 - **Backend:** a new notification kind needs a switch in `PREFERENCE_OF`
   (`notificationSurfaces.mjs`) and on both settings screens; quiet hours hold a notice for
-  `/api/cron/push-held`; a writer stores `data.copy` for `noticeCopy.mjs`. Reviews' words
+  `/api/cron/push-held`; a writer stores `data.copy` for `noticeCopy.mjs`; a member's reminder skips
+  one on a break (`client_pauses`, `loadMemberPaused`). Reviews' words
   go to signed-in accounts (`/api/coaches/reviews`). Also: `src/lib/calendar-activities.ts`,
   `api/nutrition/meal-note` (private `meal-notes` bucket), `api/nutrition/voice` (Whisper),
   and the War Room board (`/warroom`). Nora's account setup: `src/lib/ai/accountSetup.mjs`.
