@@ -17,9 +17,9 @@ export default {
   mutations: [
     // ── F2: the zone scope ─────────────────────────────────────────────────────
     { name: 'the scope never moves the clock', file: ENG,
-      find: '    try { return fn(wallClock(at, zone)); } finally { _zone = null; }', replace: '    try { return fn(at); } finally { _zone = null; }' },
+      find: '    try { return fn(wallClock(at, zone)); } finally { _zone = null; _zoneAt = null; }', replace: '    try { return fn(at); } finally { _zone = null; _zoneAt = null; }' },
     { name: 'the scope is never released', file: ENG,
-      find: '    try { return fn(wallClock(at, zone)); } finally { _zone = null; }', replace: '    return fn(wallClock(at, zone));' },
+      find: '    try { return fn(wallClock(at, zone)); } finally { _zone = null; _zoneAt = null; }', replace: '    return fn(wallClock(at, zone));' },
     { name: 'a nested scope re-scopes in its own zone', file: ENG,
       find: '    if (_zone || !zoneFormatter(zone)) return fn(at);', replace: '    if (!zoneFormatter(zone)) return fn(at);' },
     { name: 'an instant is never moved inside a scope', file: ENG,
