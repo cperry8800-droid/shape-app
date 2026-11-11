@@ -315,9 +315,12 @@ function _dashRecordFromSelf(dash, kit) {
 // build client_red / client_amber — so a mutable effective set would be one Node
 // process shared by every coach. `resolveThresholds` returns a new object and the
 // three entry points take it per call.
-function dashResolveCoachThresholds(doc) {
+// ⚠ PER ROLE: the house values under a coach's tuning are that role's (DashSignals ROLE_DEFAULTS:
+// a trainer's food-log gap is 5 days), so a coach with both listings resolves the one document
+// twice, once for each page.
+function dashResolveCoachThresholds(doc, role) {
   const t = (doc && doc.thresholds && typeof doc.thresholds === "object") ? doc.thresholds : null;
-  try { return t ? DashSignals.resolveThresholds(t) : null; } catch (e) { return null; }
+  try { return t ? DashSignals.resolveThresholds(t, role) : null; } catch (e) { return null; }
 }
 const DASH_THRESHOLDS_EVENT = "shape:coach-thresholds";
 
@@ -458,7 +461,7 @@ function useCoachThresholds(role) {
     if (role === "client") { setResolved(null); return; }
     const doc = await dashReadCoachSettings();
     if (gen !== genRef.current) return;   // a newer load started — this answer is stale
-    setResolved(dashResolveCoachThresholds(doc));
+    setResolved(dashResolveCoachThresholds(doc, role));
   }, [role]);
   React.useEffect(() => { let on = true; load().catch(() => { if (on) setResolved(null); }); return () => { on = false; }; }, [load]);
   React.useEffect(() => {

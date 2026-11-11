@@ -239,12 +239,14 @@ test('narrower, the same panel is the modal slide-over: the page inert, scroll l
 // ── 2. The roster-health bar ──────────────────────────────────────────────────
 const partText = (root, k) => { const b = root.querySelector('[data-health="' + k + '"]'); return b ? b.textContent.replace(/\s+/g, ' ').trim() : null; };
 const groupsOf = (root) => [...root.querySelectorAll('[data-roster-group]')].map((g) => g.getAttribute('data-roster-group'));
-test('the bar is "3 need you · 4 watch · 3 on track", each part a filter, the remembered one included', async () => {
+test('the bar is "3 need you · 1 watch · 6 on track", each part a filter, the remembered one included', async () => {
   const { m, feed } = await page({});
   try {
     const n = (s) => feed.filter((r) => r.severity === s).length;
-    assert.deepEqual([n('red'), n('amber'), n('green')], [3, 4, 3], 'the preview cast moved — re-derive this guard');
-    assert.deepEqual(['red', 'amber', 'green', 'new'].map((k) => partText(m.div, k)), ['3 need you', '4 watch', '3 on track', '1 new']);
+    // The cast as each coach reads it since 2026-11-10: red is two areas, a broken streak is no coach's
+    // flag, a score drop is context.
+    assert.deepEqual([n('red'), n('amber'), n('green')], [3, 1, 6], 'the preview cast moved — re-derive this guard');
+    assert.deepEqual(['red', 'amber', 'green', 'new'].map((k) => partText(m.div, k)), ['3 need you', '1 watch', '6 on track', '1 new']);
     assert.equal(partText(m.div, 'unknown'), null, 'an empty "progress unknown" part is drawn');
     assert.equal(/Reading/.test(m.div.querySelector('[data-roster-health]').textContent), false);
     // A part filters the list to its group, and says it is on.
@@ -335,7 +337,7 @@ test('Needs you, Watch, Progress unknown and On track are labelled headings; eac
   const { m, feed } = await page({});
   try {
     const heads = [...m.div.querySelectorAll('[data-roster-group] > [role="heading"]')].map((h) => [...h.children].map((c) => c.textContent).join('|'));
-    assert.deepEqual(heads, ['Needs you|3', 'Watch|4', 'On track|3'], 'the group headings moved');
+    assert.deepEqual(heads, ['Needs you|3', 'Watch|1', 'On track|6'], 'the group headings moved');
     assert.equal([...m.div.querySelectorAll('[data-roster-group] > [role="heading"]')].every((h) => h.getAttribute('aria-level') === '3'), true);
     // Every row sits under its own severity's heading.
     for (const g of m.div.querySelectorAll('[data-roster-group]')) {
@@ -568,7 +570,7 @@ test('the nutritionist\'s Clients docks the same panel, with its own lens', asyn
   await setWide(true);
   const { m } = await page({ role: 'nutritionist' });
   try {
-    assert.deepEqual(['red', 'amber', 'green'].map((k) => partText(m.div, k)), ['4 need you', '5 watch', '1 on track']);
+    assert.deepEqual(['red', 'amber', 'green'].map((k) => partText(m.div, k)), ['2 need you', '5 watch', '3 on track']);
     await click(rowNamed(m.div, 'Priya S.'));
     const panel = document.querySelector('[data-peek]');
     assert.equal(panel.getAttribute('data-peek'), 'docked');

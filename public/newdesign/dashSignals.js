@@ -57,9 +57,13 @@
   // exported reference and every rule's closure keep seeing the same object, and
   // `DashSignals.THRESHOLDS` always reads as what the engine is actually applying.
   var THRESHOLDS = {
-    SCORE_DROP_PTS: 5,        // wk/wk Shape Score drop that flags
-    FOOD_GAP_DAYS: 3,         // days without a food log
-    CONTACT_GAP_DAYS: 5,      // days without coach↔client contact
+    SCORE_DROP_PTS: 5,        // wk/wk Shape Score drop that flags on the MEMBER's own view (not a coach tunable)
+    SCORE_DROP_PCT: 20,       // a coach's: wk/wk fall as a share of the week before, shown as context only
+    SCORE_DROP_MIN_PREV: 30,  // points the week before needs before a relative drop may speak (evidence floor)
+    FOOD_GAP_DAYS: 3,         // days without a food log (a trainer's house default is ROLE_DEFAULTS')
+    FOOD_LOG_DAYS: 3,         // a nutritionist's: food logged on fewer of the last 7 days than this flags
+    NUTRITION_MIN_DAYS: 4,    // logged days in the last 7 the calorie and protein averages need (evidence floor)
+    CONTACT_GAP_DAYS: 7,      // days without coach↔client contact
     STREAK_MIN_BEST: 3,       // only call a streak "broken" if one existed
     CHECKIN_RED_WEEKS: 2,     // missed weeks that escalate to red on their own
     CHECKIN_GRACE_DAYS: 3,    // don't nag "due this week" before Thu
@@ -95,56 +99,99 @@
   var DEFAULT_THRESHOLDS = {};
   for (var _tk in THRESHOLDS) if (Object.prototype.hasOwnProperty.call(THRESHOLDS, _tk)) DEFAULT_THRESHOLDS[_tk] = THRESHOLDS[_tk];
 
+  // ⚠ A ROLE'S OWN HOUSE DEFAULTS, OVER THE HOUSE POLICY (owner, 2026-11-10: "make sure these are
+  // relevant to each coach. Trainer vs nutritionist", with the coach-alerts research). A food-log gap
+  // is the nutritionist's question at 3 days; a trainer owns it only as the client's one coach, and
+  // then at 5, which still leaves under 3 logged days in the week. Keyed by DISCIPLINE, so a dietitian
+  // reads the nutritionist's. A coach's own tuning still wins over both (resolveThresholds).
+  var ROLE_DEFAULTS = {
+    training: { FOOD_GAP_DAYS: 5 },
+  };
+  // The house defaults a role's evaluation starts from: a NEW object, never the shared set.
+  function defaultsForRole(role) {
+    var out = {};
+    for (var k in DEFAULT_THRESHOLDS) if (Object.prototype.hasOwnProperty.call(DEFAULT_THRESHOLDS, k)) out[k] = DEFAULT_THRESHOLDS[k];
+    var over = ROLE_DEFAULTS[disciplineForRole(role)];
+    if (over) for (var r in over) if (Object.prototype.hasOwnProperty.call(over, r)) out[r] = over[r];
+    return out;
+  }
+
   // ⚠ ONLY THE POLICY THRESHOLDS ARE TUNABLE, AND THE LINE IS PRINCIPLED RATHER THAN
   // ARBITRARY. These are questions a coach's practice can legitimately answer
   // differently — "how many days without a food log is a gap in MY practice". The ones
   // deliberately NOT here are the engine's own statistical machinery: the `*_MIN_DAYS`
-  // evidence floors, `GOAL_RECENT_DAYS`, `GOAL_MIN_SPAN_DAYS`, `GOAL_FAR_DAYS`.
+  // evidence floors (NUTRITION_MIN_DAYS and SCORE_DROP_MIN_PREV among them), `GOAL_RECENT_DAYS`,
+  // `GOAL_MIN_SPAN_DAYS`, `GOAL_FAR_DAYS`.
   // The floors in particular guarantee "absence is never a signal" — a member who skips
   // the daily check-in is never flagged for skipping it — and a coach who could lower
   // them to 0 would be manufacturing flags out of no data. A tuning knob that lets you
-  // fabricate evidence is not a preference.
+  // fabricate evidence is not a preference. SCORE_DROP_PTS is the member's own view's and no
+  // coach's: a coach's score drop is SCORE_DROP_PCT, so a stored SCORE_DROP_PTS is refused.
   //
-  // ⚠ EVERY TUNABLE IS SHOWN TO EVERY ROLE, AND THE `role` FIELD THAT USED TO SCOPE
-  // THEM IS GONE BECAUSE IT WAS A FICTION. The engine does not evaluate different rules
-  // per role so much as ROUTE their flags: `ruleSleepRecovery` fires outside every
-  // `disciplineForRole` branch, and `readOnlyFlags` deliberately runs `ruleLedgerBlown`,
-  // `ruleProteinUnder` and `ruleHungerHigh` for the NON-nutrition role so a trainer
-  // keeps full visibility of the under-fuelling read as routed context (dashToday
-  // renders it). So all three "role-scoped" thresholds were read by both roles, and
-  // hiding a row from one of them meant that role ran on a setting its panel could
-  // neither display nor reset — twice, found one at a time. A threshold a role's
-  // evaluation can move must be visible to that role.
+  // ⚠ A THRESHOLD A ROLE'S EVALUATION CAN MOVE IS SHOWN TO THAT ROLE. The engine does not
+  // evaluate different rules per role so much as ROUTE their flags: `ruleSleepRecovery` fires
+  // outside every `disciplineForRole` branch, and `readOnlyFlags` deliberately runs
+  // `ruleLedgerBlown`, `ruleProteinUnder` and `ruleHungerHigh` for the NON-nutrition role so a
+  // trainer keeps full visibility of the under-fuelling read as routed context. A `role` field
+  // that hid those rows was a fiction, and was removed: a role ran on a setting its panel could
+  // neither display nor reset. `roles` names the disciplines that read a threshold, only where
+  // that is true: FOOD_LOG_DAYS is read by the nutrition evaluation alone
+  // (tests/coach-flags-by-role.test.mjs holds a trainer's feed still while it moves).
+  // `byRole` words a row for one discipline: a nutritionist's program is a plan.
   var TUNABLES = [
     { key: "FOOD_GAP_DAYS",      label: "Food-log gap",        unit: "days",  min: 1,  max: 14, step: 1,
-      help: "Flag a client after this many days with no food log." },
+      help: "Days with no food log before it flags.",
+      byRole: { training: { help: "Days with no food log before it flags. Yours when you're their only coach; with a nutritionist on, you see it as theirs." } } },
+    { key: "FOOD_LOG_DAYS",      label: "Logging days",        unit: "days",  min: 2,  max: 7,  step: 1, roles: ["nutrition"],
+      help: "Flag a client who logged food on fewer than this many of the last 7 days." },
     { key: "CONTACT_GAP_DAYS",   label: "Contact gap",         unit: "days",  min: 1,  max: 30, step: 1,
       help: "Flag when neither of you has written for this long." },
     { key: "CHECKIN_GRACE_DAYS", label: "Check-in grace",      unit: "days",  min: 0,  max: 6,  step: 1,
       help: "Days into the week before an unfiled check-in is called due." },
     { key: "CHECKIN_RED_WEEKS",  label: "Check-ins missed",    unit: "weeks", min: 1,  max: 8,  step: 1,
       help: "Consecutive missed check-ins that go red on their own." },
-    { key: "SCORE_DROP_PTS",     label: "Score drop",          unit: "pts",   min: 1,  max: 50, step: 1,
-      help: "Week-over-week Shape Score fall that flags." },
+    { key: "SCORE_DROP_PCT",     label: "Score drop",          unit: "%",     min: 5,  max: 60, step: 1,
+      help: "A week's Shape Score this far under the week before shows on the client. It never colours the row or sends an alert." },
     { key: "GOAL_SLIP_DAYS",     label: "Goal slip",           unit: "days",  min: 1,  max: 60, step: 1,
-      help: "How far a projected goal date may move later before it flags." },
+      help: "How far a projected goal date may move later before it flags. A weight goal is the nutritionist's; a strength or endurance goal is the trainer's." },
     { key: "SLEEP_DEFICIT_H",    label: "Sleep deficit",       unit: "hours", min: 0.5, max: 4, step: 0.5,
-      help: "7-day average sleep this far under target reads as a severe deficit." },
+      help: "7-day average sleep this far under target reads as a severe deficit.",
+      byRole: { nutrition: { help: "7-day average sleep this far under target reads as a severe deficit. The trainer's when one is on; yours when you're their only coach." } } },
     { key: "LEDGER_OVER_PCT",    label: "Calories over",       unit: "%",     min: 1,  max: 50, step: 1,
-      help: "Average intake this far above target counts the ledger blown. A trainer sees this as routed context." },
+      help: "Average intake this far above target flags, once at least 4 days of the week are logged.",
+      byRole: { training: { help: "Average intake this far above target. Yours only when you're their only coach, and then it never turns a row red: share general guidance or suggest a dietitian." } } },
     { key: "PROTEIN_UNDER_PCT",  label: "Protein under",       unit: "%",     min: 1,  max: 50, step: 1,
-      help: "Average protein this far below target flags. A trainer sees this as routed context." },
+      help: "Average protein this far below target flags, once at least 4 days of the week are logged.",
+      byRole: { training: { help: "Average protein this far below target. Yours only when you're their only coach, and then it never turns a row red: share general guidance or suggest a dietitian." } } },
     { key: "MISSED_SESSIONS",    label: "Missed sessions",     unit: "sessions", min: 1, max: 10, step: 1,
-      help: "Booked sessions in the last six weeks not marked completed before it flags. A trainer's, or a nutritionist's when no trainer is on the client." },
+      help: "Your booked sessions with them in the last six weeks not marked completed before it flags." },
     { key: "REPLY_WAIT_HOURS",   label: "Reply wait",          unit: "hours", min: 2,  max: 72, step: 1,
       help: "How long a client's message may wait for your reply before it flags." },
     { key: "PROGRAM_END_DAYS",   label: "Program ending",      unit: "days",  min: 1,  max: 21, step: 1,
-      help: "Flag a program this many days before it ends when nothing is lined up next." },
+      help: "Flag a program this many days before it ends when nothing is lined up next.",
+      byRole: { nutrition: { label: "Plan ending", help: "Flag a plan this many days before it ends when nothing is lined up next." } } },
     { key: "RECOVERY_LOW",       label: "Low recovery",        unit: "/100",  min: 10, max: 70, step: 1,
-      help: "A wearable's recovery or readiness averaging at or under this over the week flags." },
+      help: "A wearable's recovery or readiness averaging at or under this over the week flags.",
+      byRole: { nutrition: { help: "A wearable's recovery or readiness averaging at or under this over the week flags. The trainer's when one is on; yours when you're their only coach." } } },
   ];
   var TUNABLE_BY_KEY = {};
   for (var _i = 0; _i < TUNABLES.length; _i++) TUNABLE_BY_KEY[TUNABLES[_i].key] = TUNABLES[_i];
+
+  // The rows one role's Settings shows: the tunables that role's evaluation reads (`roles`), in its
+  // own words (`byRole`), each with that role's house value (`house`, from defaultsForRole).
+  // Without a role, every row in the shared words with the house policy's values.
+  function tunablesFor(role) {
+    var disc = role ? disciplineForRole(role) : null;
+    var house = role ? defaultsForRole(role) : DEFAULT_THRESHOLDS;
+    var out = [];
+    for (var i = 0; i < TUNABLES.length; i++) {
+      var t = TUNABLES[i];
+      if (disc && Array.isArray(t.roles) && t.roles.indexOf(disc) < 0) continue;
+      var words = disc && t.byRole && t.byRole[disc] ? t.byRole[disc] : {};
+      out.push({ key: t.key, label: words.label || t.label, unit: t.unit, min: t.min, max: t.max, step: t.step, help: words.help || t.help, house: house[t.key] });
+    }
+    return out;
+  }
 
   // Resolve a coach's overrides over the house defaults into a NEW object.
   // Returns what it applied and what it refused, so a caller can say so rather
@@ -162,7 +209,10 @@
   // `Number(true)` is 1 and `Number("")` is 0 — all finite — so a stored document
   // holding `CHECKIN_GRACE_DAYS: null` would have been applied as 0, nagging a whole
   // roster from Monday morning. A stored document is untrusted input like any other.
-  function resolveThresholds(overrides) {
+  // ⚠ AND THE HOUSE VALUES ARE THE ROLE'S (ROLE_DEFAULTS): pass the role the set is for. A caller
+  // without one gets the house policy, as before; every coach caller passes it (the website's
+  // useCoachThresholds, notify-core's loadCoachThresholds, coachToday, the app's shapeSignals).
+  function resolveThresholds(overrides, role) {
     var applied = {}, refused = [];
     var src = (overrides && typeof overrides === "object") ? overrides : {};
     for (var k in src) {
@@ -176,10 +226,11 @@
       if (v < spec.min || v > spec.max) { refused.push({ key: k, why: "out of range" }); continue; }
       applied[k] = v;
     }
+    var house = role ? defaultsForRole(role) : DEFAULT_THRESHOLDS;
     var out = {};
-    for (var d in DEFAULT_THRESHOLDS) {
-      if (!Object.prototype.hasOwnProperty.call(DEFAULT_THRESHOLDS, d)) continue;
-      out[d] = Object.prototype.hasOwnProperty.call(applied, d) ? applied[d] : DEFAULT_THRESHOLDS[d];
+    for (var d in house) {
+      if (!Object.prototype.hasOwnProperty.call(house, d)) continue;
+      out[d] = Object.prototype.hasOwnProperty.call(applied, d) ? applied[d] : house[d];
     }
     return { thresholds: out, applied: applied, refused: refused };
   }
@@ -190,6 +241,13 @@
   // a lot of places to get one wrong. This scopes it at the three entry points
   // instead — and because `fn` is synchronous, nothing can interleave between the
   // swap and the restore, so a server handling two coaches cannot mix them.
+  // ⚠ A CALL WITH NO SET RUNS ON ITS ROLE'S HOUSE DEFAULTS, ONCE. An entry point handed no
+  // thresholds (nothing tuned, or a caller that never reads them) scopes `defaultsForRole(role)`
+  // itself (inScope), so a trainer's food-log gap is 5 days with or without a coach document. Inside
+  // a scope, a nested entry point (getTriageFeed's evaluateClient, buildDirective's) keeps the set it
+  // is in: re-scoping there would put the house value back over a coach's own tuning.
+  var _scopes = 0;
+  function inScope() { return _scopes > 0; }
   function withThresholds(t, fn) {
     if (!t || typeof t !== "object") return fn();
     var prev = {};
@@ -198,7 +256,9 @@
       prev[k] = THRESHOLDS[k];
       if (Object.prototype.hasOwnProperty.call(t, k)) THRESHOLDS[k] = t[k];
     }
+    _scopes++;
     try { return fn(); } finally {
+      _scopes--;
       for (var r in prev) if (Object.prototype.hasOwnProperty.call(prev, r)) THRESHOLDS[r] = prev[r];
     }
   }
@@ -564,17 +624,35 @@
       delta: delta,
       // The newest COMPLETE week the delta reads — the score_drop episode a dismissal keys on.
       completeWeekOf: complete.length ? complete[complete.length - 1].weekOf || null : null,
+      // The complete week before it: what a coach's relative drop is a share of.
+      prevComplete: complete.length >= 2 ? Number(complete[complete.length - 2].points) : null,
       // The series a sparkline should draw — the partial week is a real point.
       series: weeks.map(function (w) { return Number(w.points); }),
     };
   }
 
-  function ruleScoreDrop(c) {
+  // ⚠ A COACH'S SCORE DROP IS RELATIVE, AND CONTEXT (the coach-alerts research, 2026-11-10). The
+  // Score pays 5 for a community post or a good night's sleep, so a 5-point fall is one quiet evening:
+  // a coach's flag is the newest complete week SCORE_DROP_PCT under the one before (TrueCoach's
+  // compliance drop is relative too), once that week held SCORE_DROP_MIN_PREV points, and it never
+  // counts toward a coach's severity (CONTEXT_FLAGS). The member's own view keeps the absolute
+  // SCORE_DROP_PTS and its notice, unchanged.
+  function ruleScoreDrop(c, role) {
     var r = scoreWeekReading(c.shapeScoreHistory);
     if (!r || r.delta == null) return null;
     var drop = -r.delta;
+    var sig = "wk:" + (r.completeWeekOf || "");
+    if (disciplineForRole(role) !== "general") {
+      var prev = r.prevComplete;
+      if (!(drop > 0) || prev == null || !(prev >= THRESHOLDS.SCORE_DROP_MIN_PREV)) return null;
+      // The line is the exact share, never the rounded one (Codex): 41 to 33 is 19.5%, under 20, though
+      // it prints as 20. Points are whole, so the cross-multiplied test has no float in it.
+      if (drop * 100 < THRESHOLDS.SCORE_DROP_PCT * prev) return null;
+      var pct = Math.round((drop / prev) * 100);
+      return { key: "score_drop", label: "Score \u2193" + pct + "%", reason: "Shape Score down " + drop + " pts (" + pct + "%) week-over-week", figures: { drop: drop, pct: pct }, sig: sig };
+    }
     if (drop >= THRESHOLDS.SCORE_DROP_PTS) {
-      return { key: "score_drop", label: "Score \u2193" + drop, reason: "Shape Score down " + drop + " pts week-over-week", figures: { drop: drop }, sig: "wk:" + (r.completeWeekOf || "") };
+      return { key: "score_drop", label: "Score \u2193" + drop, reason: "Shape Score down " + drop + " pts week-over-week", figures: { drop: drop }, sig: sig };
     }
     return null;
   }
@@ -619,6 +697,21 @@
       return { key: "food_gap", label: "No logs 7d+", reason: "No food logs in the last week", figures: { lastWeek: true }, sig: "week:none" };
     }
     return null;
+  }
+
+  // Logging consistency (a nutritionist's; the coach-alerts research): food logged on fewer than
+  // FOOD_LOG_DAYS of the last 7 days. At least 3 logged days a week goes with keeping weight off and 5
+  // with losing more (Arroyo 2024), so a gap rule alone misses the client who logs one day in three.
+  // Read from the 7-day count every surface quotes; nothing when the gap rule already speaks (the
+  // stronger statement of the same week), when no day is logged at all (the gap's own "No logs 7d+",
+  // or a gap the coach set longer than a week), or in a client's first week.
+  function ruleFoodLogging(c, now) {
+    var f = c.foodLogs;
+    var n = f ? kpiNum(f.daysLogged7d) : null;
+    if (n == null || n < 1 || n >= THRESHOLDS.FOOD_LOG_DAYS) return null;
+    var days = clientDays(c, now);
+    if (days != null ? days < 7 : !!(c.profile && c.profile.isNew)) return null;
+    return { key: "food_logging", label: "Logged " + n + " of 7 days", reason: "Food logged on " + n + " of the last 7 days", figures: { days: n }, sig: "wk:" + weekKey(now) };
   }
 
   // Returns { flag, missedWeeks } so severity can escalate on missedWeeks.
@@ -686,9 +779,18 @@
   // Nutritionist-feed rules: intake quality vs the plan's targets. Both need
   // value AND target — live data carries averages today but no targets, so
   // these skip on live until targets reach the overview (no false alarms).
+  // ⚠ AND AN AVERAGE NEEDS ITS DAYS (the coach-alerts research). Two logged days averaging 20% over
+  // is one dinner out, not a plan running hot: both rules need NUTRITION_MIN_DAYS logged days in the
+  // last seven, from the count the roster quotes. An unknown count is no evidence either. The floor is
+  // the engine's, not a coach tunable (see TUNABLES).
+  function nutritionLogged(c) {
+    var n = c && c.foodLogs ? kpiNum(c.foodLogs.daysLogged7d) : null;
+    return n != null && n >= THRESHOLDS.NUTRITION_MIN_DAYS;
+  }
   function ruleLedgerBlown(c, now) {
     var n = c.nutrition;
     if (!n || n.avgCalories == null || n.targetCalories == null || !n.targetCalories) return null;
+    if (!nutritionLogged(c)) return null;
     var overPct = Math.round(((n.avgCalories - n.targetCalories) / n.targetCalories) * 100);
     if (overPct >= THRESHOLDS.LEDGER_OVER_PCT) {
       return { key: "ledger_blown", label: "Ledger +" + overPct + "%", reason: "Averaging " + n.avgCalories + " kcal vs a " + n.targetCalories + " kcal target", sig: "target:" + n.targetCalories + "|wk:" + weekKey(now) };
@@ -699,6 +801,7 @@
   function ruleProteinUnder(c, now) {
     var n = c.nutrition;
     if (!n || n.avgProtein == null || n.targetProtein == null || !n.targetProtein) return null;
+    if (!nutritionLogged(c)) return null;
     var underPct = Math.round(((n.targetProtein - n.avgProtein) / n.targetProtein) * 100);
     if (underPct >= THRESHOLDS.PROTEIN_UNDER_PCT) {
       return { key: "protein_under", label: "Protein low", reason: "Averaging " + n.avgProtein + "g protein vs a " + n.targetProtein + "g target", sig: "target:" + n.targetProtein + "|wk:" + weekKey(now) };
@@ -707,16 +810,24 @@
   }
 
   // Goals-page rule: a projection slipping ≥ GOAL_SLIP_DAYS week-over-week
-  // emits one amber-weight flag naming the worst goal. Both pro feeds see it
+  // emits one amber-weight flag naming one goal (which, below). Both pro feeds see it
   // (either pro may have set the goal); skips cleanly when goals/history are
   // missing, and a goal that was ALWAYS stalled never had an ETA to slip.
-  function ruleGoalSlip(c, now) {
+  // A coach's flag names the worst slipped goal THEY own (goalOwned): a slipping weight goal that is
+  // the nutritionist's never hides a trainer's slipping squat. Only when none of theirs is past the
+  // line does it name the worst of all, which then reads as routed context. The member, who owns all
+  // their goals, gets the worst of all.
+  function ruleGoalSlip(c, now, role) {
     var gs = visibleGoals(c.goals);
-    var worst = null, worstGoal = null;
+    var coach = disciplineForRole(role) !== "general";
+    var worst = null, worstGoal = null, mine = null, mineGoal = null;
     for (var i = 0; i < gs.length; i++) {
       var s = goalSlipDays(gs[i], now);
-      if (s != null && s > 0 && (worst == null || s > worst)) { worst = s; worstGoal = gs[i]; }
+      if (s == null || !(s > 0)) continue;
+      if (worst == null || s > worst) { worst = s; worstGoal = gs[i]; }
+      if (coach && goalOwned(gs[i], role, c) && (mine == null || s > mine)) { mine = s; mineGoal = gs[i]; }
     }
+    if (mine != null && mine >= THRESHOLDS.GOAL_SLIP_DAYS) { worst = mine; worstGoal = mineGoal; }
     if (worst == null || worst < THRESHOLDS.GOAL_SLIP_DAYS) return null;
     // The goal's own name, or none when it is the untitled weight goal's English stand-in. A lost
     // date is `lost`, never an Infinity `days`, so the figures survive JSON.
@@ -724,10 +835,33 @@
     // as the untitled weight goal. The reason text, which coaches read, is left as it was.
     var untitled = worstGoal.id === "overall" && (worstGoal.label === UNTITLED_WEIGHT_GOAL || !String(worstGoal.label || "").trim());
     var goalName = untitled ? null : worstGoal.label;
+    // The goal's own discipline rides on the flag (tagFlag reads it before FLAG_DISCIPLINE), so a weight
+    // goal's slip is the nutritionist's and a squat's the trainer's; a habit or custom goal stays both.
+    var disc = goalDiscipline(worstGoal);
+    var flag;
     if (!isFinite(worst)) {
-      return { key: "goal_slip", label: "Goal ETA lost", reason: "“" + worstGoal.label + "” lost its projected date — the pace flattened this week", figures: { goal: goalName, untitled: untitled, lost: true }, sig: "goal:" + (worstGoal.id || worstGoal.label) + "|wk:" + weekKey(now) };
+      flag = { key: "goal_slip", label: "Goal ETA lost", reason: "“" + worstGoal.label + "” lost its projected date — the pace flattened this week", figures: { goal: goalName, untitled: untitled, lost: true }, sig: "goal:" + (worstGoal.id || worstGoal.label) + "|wk:" + weekKey(now) };
+    } else {
+      flag = { key: "goal_slip", label: "Goal ETA +" + worst + "d", reason: "“" + worstGoal.label + "” slipped — the projected finish moved " + worst + " days later this week", figures: { goal: goalName, untitled: untitled, days: worst }, sig: "goal:" + (worstGoal.id || worstGoal.label) + "|wk:" + weekKey(now) };
     }
-    return { key: "goal_slip", label: "Goal ETA +" + worst + "d", reason: "“" + worstGoal.label + "” slipped — the projected finish moved " + worst + " days later this week", figures: { goal: goalName, untitled: untitled, days: worst }, sig: "goal:" + (worstGoal.id || worstGoal.label) + "|wk:" + weekKey(now) };
+    if (disc) flag.discipline = disc;
+    return flag;
+  }
+  // A goal's discipline by what it measures (the Goals editor's metrics: weight, strength, endurance,
+  // habit, custom): the body is the nutritionist's, performance the trainer's, anything else both
+  // coaches'. Null for "both", so the flag keeps FLAG_DISCIPLINE's general.
+  var GOAL_METRIC_DISCIPLINE = {
+    weight: "nutrition", bodyfat: "nutrition", body_fat: "nutrition", bodyFat: "nutrition", waist: "nutrition",
+    strength: "training", endurance: "training", steps: "training",
+  };
+  function goalDiscipline(g) {
+    var m = g && typeof g.metric === "string" ? g.metric : "";
+    return Object.prototype.hasOwnProperty.call(GOAL_METRIC_DISCIPLINE, m) ? GOAL_METRIC_DISCIPLINE[m] : null;
+  }
+  // Would this goal's slip be the viewing coach's own? tagFlag's test, on the goal before a flag exists.
+  function goalOwned(g, role, c) {
+    var owner = disciplineOwner(goalDiscipline(g) || "general");
+    return owner === null || disciplineForRole(owner) === disciplineForRole(role) || !hasPro(c, owner);
   }
 
   // Recovery rule: a 7-day average sleep MORE than SLEEP_DEFICIT_H hours under
@@ -1007,31 +1141,37 @@
   // ── Evaluation + triage ───────────────────────────────────────────────────
 
   // evaluateClient(record, now, role) -> { flags, severity }
-  // severity: red = 2+ flags, or a check-in missed ≥ CHECKIN_RED_WEEKS weeks;
-  //           amber = exactly 1 flag; green = clean.
+  // severity, for a coach: red = counted hard flags in 2+ AREAS (FLAG_AREA), a safety flag
+  //           (SAFETY_FLAGS), or a check-in missed ≥ CHECKIN_RED_WEEKS weeks; amber = 1+ counted
+  //           flag; green = clean. The member's own view: red = 2+ flags, as before.
   function evaluateClient(c, now, role, thresholds) {
     if (thresholds) return withThresholds(thresholds, function () { return evaluateClient(c, now, role); });
+    if (!inScope()) return withThresholds(defaultsForRole(role), function () { return evaluateClient(c, now, role); });
     now = now || new Date();
     var flags = [];
     var f;
-    if ((f = ruleStreakBroken(c))) flags.push(f);
-    if ((f = ruleScoreDrop(c))) flags.push(f);
-    if ((f = ruleFoodGap(c, now))) flags.push(f);
+    var coachView = disciplineForRole(role) !== "general";
+    // ⚠ A BROKEN STREAK IS THE MEMBER'S, NOT A COACH'S (owner, 2026-11-10, with the coach-alerts
+    // research). The streak is consecutive days with a completed workout, so a planned rest day broke
+    // it and a client on a three-day split went amber every week; habit research counts four sessions
+    // a week, not seven (Kaushal & Rhodes 2015), and one missed day doesn't undo a habit (Lally 2010).
+    // The member's own screens keep it, and its gentle "streak restarts" notice.
+    if (!coachView && (f = ruleStreakBroken(c))) flags.push(f);
+    if ((f = ruleScoreDrop(c, role))) flags.push(f);
+    var gapFlag = ruleFoodGap(c, now);
+    if (gapFlag) flags.push(gapFlag);
     var ciFlag = ruleCheckinOverdue(c, now);
     if (ciFlag) flags.push(ciFlag);
     if ((f = ruleContactGap(c, now, role))) flags.push(f);
-    if ((f = ruleGoalSlip(c, now))) flags.push(f);
+    if ((f = ruleGoalSlip(c, now, role))) flags.push(f);
     if ((f = ruleSleepRecovery(c, now))) flags.push(f);
     // energy_low is the RECOVERY discipline, and follows sleep_low's established
     // pattern exactly: pushed for every viewer.
     if ((f = ruleEnergyLow(c, now))) flags.push(f);
     // hunger_high is the NUTRITION discipline (FLAG_DISCIPLINE), so it must not
-    // escalate a TRAINER's severity — severity is `flags.length >= 2 -> red`, and
-    // it is computed BEFORE readOnlyFlags/tagFlag mark a non-owner's flag
-    // read-only, so leaving it unconditional turned a trainer red on a
-    // nutritionist's flag. Gated like its nutrition siblings ledger_blown /
-    // protein_under, EXCEPT that the member's own view keeps it: 'general' is the
-    // client/unknown viewer, and hunger_high has a client-facing lever + move
+    // escalate a TRAINER's severity — it is gated like its nutrition siblings
+    // ledger_blown / protein_under, EXCEPT that the member's own view keeps it: 'general'
+    // is the client/unknown viewer, and hunger_high has a client-facing lever + move
     // (DIRECTIVE_VERDICTS.hunger / DIRECTIVE_MOVES.hunger) that would otherwise be
     // unreachable. So: everyone except the trainer, whose severity it is not.
     // The trainer still SEES it — readOnlyFlags surfaces it as routed context.
@@ -1053,13 +1193,15 @@
       if ((f = ruleLedgerBlown(c, now))) flags.push(f);
       if ((f = ruleProteinUnder(c, now))) flags.push(f);
     }
-    var coachView = disciplineForRole(role) !== "general";
+    // The nutritionist's logging-consistency read, when the gap rule has not already spoken.
+    if (disciplineForRole(role) === "nutrition" && !gapFlag && (f = ruleFoodLogging(c, now))) flags.push(f);
     if (coachView) {
       if ((f = ruleScreening(c))) flags.push(f);
       if ((f = rulePlanDue(c, now, role))) flags.push(f);
-      // The P2 coach signals (missed sessions is the trainer's: the calendar is theirs to rebook).
-      // A nutritionist who is the client's only coach takes it too (their consults are on that calendar).
-      if ((disciplineForRole(role) === "training" || !hasPro(c, "trainer")) && (f = ruleMissedSessions(c, role))) flags.push(f);
+      // ⚠ MISSED SESSIONS ARE EACH COACH'S OWN (the coach-alerts research). The rule reads only the
+      // caller's own sessions (#2621), yet a nutritionist saw their missed consults only when no
+      // trainer was on the client. Every coach view runs it, on its own leg.
+      if ((f = ruleMissedSessions(c, role))) flags.push(f);
       if ((f = ruleCheckinWaiting(c, now))) flags.push(f);
       if ((f = ruleReplyWaiting(c, now, role))) flags.push(f);
       if ((f = ruleProgramEnding(c, now, role))) flags.push(f);
@@ -1083,17 +1225,30 @@
     // on the trainer's broken streak while a trainer's never counted the dietitian's hunger read; with
     // the care team now on the record (`pros`), a flag routed to a co-coach who is really there is
     // context, and one with nobody else to take it is the viewer's own. The member's view counts all.
-    // The money and calendar flags (SOFT_FLAGS) make a row amber on their own and never tip it red.
-    var counted = (coachView ? flags.filter(function (fl) { return tagFlag(fl, role, c).owned; }) : flags)
+    // The money and calendar flags (SOFT_FLAGS) make a row amber on their own and never tip it red;
+    // a coach's context flags (CONTEXT_FLAGS) and the quiet ones (QUIET_FLAGS) never colour it.
+    var counted = (coachView ? flags.filter(function (fl) { return tagFlag(fl, role, c).owned && !CONTEXT_FLAGS[fl.key]; }) : flags)
       .filter(function (fl) { return !QUIET_FLAGS[fl.key]; });
-    var hard = counted.filter(function (fl) { return !SOFT_FLAGS[fl.key]; });
+    // A trainer who is the client's only coach owns the intake reads, and they still never tip the row
+    // red: a trainer shares general guidance or suggests a dietitian, never a target (ACE's scope).
+    var hard = counted.filter(function (fl) { return !SOFT_FLAGS[fl.key] && !(soleTrainer && SOLE_TRAINER_SOFT[fl.key]); });
 
     // ⚠ A NEW CLIENT HAS NO RECENT DATA YET, AND THAT IS NOT "UNKNOWN" (client-onboarding review,
     // M13). Their progress read answers, with nothing in it, so they sat in "Progress unknown"
     // instead of reading "New". A read that failed or is still loading stays unknown.
     var progress = progressStatus(c, now);
     var severity = progress.state === "ready" || (progress.state === "insufficient" && c.profile && c.profile.isNew) ? "green" : "unknown";
-    if (hard.length >= 2) severity = "red";
+    // ⚠ A COACH'S RED IS TWO DIFFERENT AREAS, OR A SAFETY FLAG (owner, 2026-11-10). Two flags used to
+    // be red, and two flags are often one thing seen twice: a food-log gap and calories nobody logged,
+    // or a quiet thread and the reply waiting in it. Red now needs the client slipping in two areas
+    // (flagArea: training, nutrition, recovery, contact, onboarding, progress), or a flag that is red
+    // on its own (SAFETY_FLAGS: a yes on the health screening), or the check-ins missed for
+    // CHECKIN_RED_WEEKS. The member's own view keeps two flags.
+    var areas = {};
+    hard.forEach(function (fl) { areas[flagArea(fl)] = true; });
+    var redByCount = coachView ? Object.keys(areas).length >= 2 : hard.length >= 2;
+    var safety = coachView && hard.some(function (fl) { return SAFETY_FLAGS[fl.key]; });
+    if (redByCount || safety) severity = "red";
     else if (ciFlag && counted.indexOf(ciFlag) >= 0 && ciFlag.missedWeeks >= THRESHOLDS.CHECKIN_RED_WEEKS) severity = "red";
     else if (counted.length >= 1) severity = "amber";
     return { flags: flags, severity: severity, dismissed: dismissed };
@@ -1102,10 +1257,33 @@
   // The flags that colour a row amber but never tip it red: a practice's calendar, not the client's
   // progress.
   var SOFT_FLAGS = { program_ending: true, plan_ending: true };
+  // …and, for a trainer who is the client's only coach, the intake reads they own (evaluateClient).
+  var SOLE_TRAINER_SOFT = { ledger_blown: true, protein_under: true };
   // ⚠ AND ONE THAT NEVER COLOURS A ROW: a renewal Stripe is retrying is "a quiet mark only" (owner,
   // 2026-10-18: "They stay normal clients until Stripe gives up"). It is on the row with its reason and
   // its move, it can lead a row nothing else does, and it never makes anyone red, amber or a push.
   var QUIET_FLAGS = { payment_retrying: true };
+  // A coach's context: on the row with its reason, never counted toward a coach's severity, never a
+  // lead while anything counted is on the row (coachLead), never an alert. The Score moves on posts
+  // and sleep as much as on training or food, so its fall is a question to ask, not a slip to chase.
+  var CONTEXT_FLAGS = { score_drop: true };
+  // Red on its own for a coach: a yes on the health screening is read before anything is programmed.
+  var SAFETY_FLAGS = { screening_flagged: true };
+  // The area a flag speaks to, for the two-areas red. A goal's slip takes its goal's discipline.
+  var FLAG_AREA = {
+    missed_sessions: "training", streak_broken: "training",
+    food_gap: "nutrition", food_logging: "nutrition", ledger_blown: "nutrition", protein_under: "nutrition",
+    hunger_high: "nutrition", hydration_low: "nutrition",
+    sleep_low: "recovery", energy_low: "recovery", recovery_low: "recovery",
+    checkin_overdue: "contact", contact_gap: "contact", reply_waiting: "contact", checkin_waiting: "contact",
+    plan_due: "onboarding", screening_missing: "onboarding", screening_flagged: "safety",
+    score_drop: "progress", goal_slip: "progress",
+    program_ending: "calendar", plan_ending: "calendar", payment_retrying: "billing",
+  };
+  function flagArea(f) {
+    if (f && f.key === "goal_slip" && f.discipline) return f.discipline;
+    return (f && FLAG_AREA[f.key]) || (f && f.key) || "other";
+  }
 
   // ── Dismiss and snooze (P2) ────────────────────────────────────────────────
   // record.dismissals: [{ key, sig, until }] — the coach's own rows from coach_signal_dismissals
@@ -1149,8 +1327,8 @@
 
   // ── Discipline classification + routing (coach triage) ──────────────────────
   // Each signal belongs to a DISCIPLINE; the owning pro acts on it, the OTHER pro
-  // sees it READ-ONLY. General signals (check-in / score / contact / goal / basic
-  // food-logging) are owned by whoever is viewing. A client with a single pro →
+  // sees it READ-ONLY. General signals (check-in / score / contact / sessions / a habit or
+  // custom goal) are owned by whoever is viewing. A client with a single pro →
   // that pro owns everything (nothing read-only). This is purely a routing layer:
   // severity is still exactly what evaluateClient computes — read-only context
   // flags never escalate the viewer.
@@ -1162,7 +1340,10 @@
     hydration_low: "nutrition",// client-only directive (role-gated in evaluateClient — never reaches coach triage)
     ledger_blown: "nutrition",
     protein_under: "nutrition",
-    food_gap: "general",       // basic logging adherence — either pro nudges it
+    // ⚠ LOGGING IS THE NUTRITIONIST'S (the coach-alerts research): reviewing intake is their role, so a
+    // trainer sees a food-log gap as context while a nutritionist is on, and owns it as the only coach.
+    food_gap: "nutrition",
+    food_logging: "nutrition",
     score_drop: "general",
     checkin_overdue: "general",
     contact_gap: "general",
@@ -1170,7 +1351,7 @@
     screening_flagged: "general", // both pros program around it
     screening_missing: "general",
     plan_due: "general",          // each coach reads their own board's plan step
-    missed_sessions: "training",  // the trainer rebooks; a nutritionist-only client's coach owns it
+    missed_sessions: "general",   // each coach's own booked sessions (ruleMissedSessions reads the caller's leg)
     recovery_low: "recovery",     // a wearable's recovery → ease the load, like sleep
     checkin_waiting: "general",   // each coach reviews the check-in
     reply_waiting: "general",     // each coach's own thread
@@ -1199,7 +1380,8 @@
     return true; // server populates c.pros; absent → assume present
   }
   function tagFlag(f, role, c) {
-    var d = flagDiscipline(f.key);
+    // A flag that carries its own discipline (a goal's slip, by what the goal measures) keeps it.
+    var d = f.discipline || flagDiscipline(f.key);
     var owner = disciplineOwner(d);
     // Owned if general, the viewer's own discipline, or the owning pro isn't on
     // this client (single pro → everything routes to them). Compared by
@@ -1238,6 +1420,7 @@
   // other discipline's context flags (not counted in severity).
   function getTriageFeed(role, clients, now, thresholds) {
     if (thresholds) return withThresholds(thresholds, function () { return getTriageFeed(role, clients, now); });
+    if (!inScope()) return withThresholds(defaultsForRole(role), function () { return getTriageFeed(role, clients, now); });
     now = now || new Date();
     var rank = { red: 3, amber: 2, unknown: 1, green: 0 };
     return (clients || [])
@@ -1272,12 +1455,15 @@
 
   // ── Mock personas (roadmap Phase 2.2 fallback) ────────────────────────────
   // Dates are generated relative to `now` so the demo never goes stale, and
-  // each persona deterministically exercises specific rules:
-  //   red:   Marcus T. (streak broken + score drop), Sam R. (food gap +
-  //          contact gap), Jonah W. (3 weeks no check-in — red on its own)
-  //   amber: Aisha K. (contact gap), Elena R. (score drop), Deandre K. (food
-  //          gap), Nadia P. (goal ETA slipped +15d week-over-week)
-  //   green: Jordan M., Priya S.
+  // each persona deterministically exercises specific rules (trainer · nutritionist):
+  //   red:   Marcus T. (missed sessions + sleep low, the food gap and a 23% score drop as
+  //          context · amber: the food gap; the joint-attention case), Sam R. (missed
+  //          sessions + quiet 7d · food gap + quiet 7d), Jonah W. (3 weeks no check-in — red
+  //          on its own)
+  //   amber: Aisha K. (quiet 8d), Priya S. (green · protein under),
+  //          Deandre K. (green · food gap + calories over: one area), Nadia P. (green ·
+  //          her weight goal's ETA slipped +15d: the nutritionist's)
+  //   green: Jordan M., Elena R. (a 23% score drop, shown and never counted), Tess B. (new)
   // Goals coverage: Jordan = on-pace (down + up) + one achieved; Marcus =
   // stalled-from-the-start (no ETA, never flags); Nadia = the slip case;
   // Tess = none set yet; everyone else = no goals (the honest empty state).
@@ -1372,9 +1558,13 @@
             history: gh([[36, 26.4], [22, 25.8], [8, 25.2], [1, 24.8]]) },
         ],
       }),
-      // red — streak broken AND a 8-pt wk/wk score drop. His weight goal has
-      // been flat for weeks: stalled BOTH weeks, so there was never an ETA to
-      // slip — the card shows the honest "no ETA" state without a flag.
+      // red for the trainer — 4 of 9 booked sessions missed and a week of short sleep (two areas);
+      // amber for the nutritionist — no food log in 5 days (the sleep is the trainer's). A 23% score
+      // drop is context for both. The joint-attention case: each coach's lead is their side of the
+      // slip, so each is offered the joint note. His weight
+      // goal has been flat for weeks: stalled BOTH weeks, so there was never an ETA to slip —
+      // the card shows the honest "no ETA" state without a flag. The streak broke too, which
+      // is his own screens' and no coach's.
       person(2, "Marcus T.", {
         payments: pay(18000, 6, 96, "marketplace"),
         // The joint-attention case: a trainer AND a nutritionist on his care team (P2: joint attention
@@ -1382,8 +1572,10 @@
         pros: { trainer: true, nutritionist: true },
         coCoaches: [{ role: "trainer", userId: "demo-coach-trainer", name: "Alex" }, { role: "nutritionist", userId: "demo-coach-nutritionist", name: "Rae" }],
         streaks: { current: 0, best: 12, lastActiveOn: ago(4) },
-        foodLogs: { lastLoggedOn: ago(3), daysLogged7d: 3 },
-        shapeScoreHistory: history([62, 65, 60, 68, 64, 70, 71, 63]),
+        foodLogs: { lastLoggedOn: ago(5), daysLogged7d: 2 },
+        recovery: { sleepHours: { avg7: 5.6, lastNight: 5.4, target: 7.5, n: 6 } },
+        shapeScoreHistory: history([62, 65, 60, 68, 64, 70, 71, 55]),
+        trainingAdherence: { pct: 56, done: 5, planned: 9 }, bookedSessions: { trainer: { done: 5, planned: 9 }, nutritionist: null },
         goalPhase: "Cut",
         program: { name: "Hypertrophy Reset", week: 2, weeks: 8 },
         coachNotes: [
@@ -1401,12 +1593,13 @@
             history: gh([[35, 181.4], [28, 181.2], [21, 181.5], [14, 181.3], [7, 181.4], [1, 181.4]]) },
         ],
       }),
-      // amber — gone quiet: no coach contact in 6 days
+      // amber — gone quiet: no coach contact in 8 days
       person(3, "Aisha K.", {
-        lastContact: { trainer: ago(6), nutritionist: ago(6) },
+        lastContact: { trainer: ago(8), nutritionist: ago(8) },
         goalPhase: "Cut",
       }),
-      // red — no food logs in 4 days + no contact in 7
+      // red — no contact in 7 days, and 5 of 14 sessions missed (the trainer's) or no food logs
+      // in 4 days (the nutritionist's): two areas for each coach
       person(4, "Sam R.", {
         payments: pay(18000, 9, 730, "coach_invite"),
         recentLogs: [],
@@ -1433,12 +1626,14 @@
           { on: ago(2), kcal: 1790, protein: 95 },
         ],
       }),
-      // amber — score slid 7 pts wk/wk, everything else fine
+      // green — her score fell 23% wk/wk, everything else fine: a coach sees the drop as
+      // context and it never colours the row (her own view still says it)
       person(6, "Elena R.", {
-        shapeScoreHistory: history([48, 52, 55, 58, 61, 64, 66, 59]),
+        shapeScoreHistory: history([48, 52, 55, 58, 61, 64, 66, 51]),
       }),
-      // amber for the trainer (food gap); RED on the nutritionist feed — the
-      // logs that do exist average 21% over the calorie target
+      // green for the trainer (the food gap is the nutritionist's, and 3 days is under a
+      // trainer's 5); amber on the nutritionist feed — no log in 3 days, and the four days
+      // logged average 21% over the calorie target: one area
       person(7, "Deandre K.", {
         payments: pay(18000, 4, 45, "marketplace"),
         foodLogs: { lastLoggedOn: ago(3), daysLogged7d: 4 },
@@ -1475,10 +1670,10 @@
         totals: { workouts: 2 },
         goals: [],
       }),
-      // amber — the goal-slip case: a clean month of −1 lb/wk flattened over
-      // the last two, so this week's projection lands 15 days later than last
-      // week's. Everything else about her week is clean — the slip alone
-      // turns the row amber.
+      // amber for the nutritionist — the goal-slip case: a clean month of −1 lb/wk flattened
+      // over the last two, so this week's projection lands 15 days later than last week's.
+      // Everything else about her week is clean — the slip alone turns the row amber. A weight
+      // goal is the nutritionist's, so the trainer sees it as context.
       person(10, "Nadia P.", {
         goalPhase: "Cut",
         program: { name: "Cut · Block 2", week: 5, weeks: 10 },
@@ -1590,11 +1785,20 @@
   }
 
   // ── Joint attention (step 9.2) ────────────────────────────────────────────
-  // A client slipping in BOTH domains — training (streak) AND nutrition
-  // (logs/ledger/protein) — should get ONE coordinated message, not two
-  // separate nudges. Evaluated with the nutritionist rule set (superset).
-  var TRAINING_KEYS = { streak_broken: true };
-  var NUTRITION_KEYS = { food_gap: true, ledger_blown: true, protein_under: true };
+  // A client slipping in BOTH domains — training (missed sessions, a training goal's slip) AND
+  // nutrition (logs/ledger/protein) — should get ONE coordinated message, not two separate nudges.
+  // Each side is read by its own coach's rules (the training flags as a trainer's evaluation has
+  // them, the nutrition flags as a nutritionist's), on the viewer's own thresholds: a trainer's joint
+  // note waits for the food-log gap their own Settings names.
+  // ⚠ THE TRAINING SIDE WAS THE BROKEN STREAK, WHICH IS NO COACH'S FLAG NOW (evaluateClient). Missed
+  // sessions read the trainer's own booked sessions, which only the trainer's record carries
+  // (bsBookedSessionsLeg), so from the nutritionist's side the training half is a training goal's
+  // slip until a workout-adherence read gives both coaches one (War Room).
+  var TRAINING_KEYS = { missed_sessions: true };
+  var NUTRITION_KEYS = { food_gap: true, food_logging: true, ledger_blown: true, protein_under: true };
+  function isTrainingSlip(f) {
+    return !!f && (TRAINING_KEYS[f.key] || (f.key === "goal_slip" && f.discipline === "training"));
+  }
   // ⚠ ONLY FOR A CLIENT WHO REALLY HAS A CO-COACH OF THE OTHER DISCIPLINE (P2). It ran over every
   // client and said "with their nutritionist" about people who had none, and its action wrote to the
   // CLIENT. The record's `coCoaches` (recordFromOverview, from the overview's care team) names who is
@@ -1612,17 +1816,25 @@
     }
     return null;
   }
+  // One side of joint attention, read at its own coach's line. The viewer's side keeps the set this
+  // runs in (their own tuning); the co-coach's side reads at that role's house defaults, since their
+  // tuning is theirs. Read inside the viewer's set, a trainer judged the nutrition side by their own
+  // 5-day food-log gap, and the two coaches disagreed on who needed a joint note.
+  function jointLeg(c, now, legRole, viewer) {
+    var run = function () { return evaluateClient(c, now, legRole).flags; };
+    return disciplineForRole(legRole) === disciplineForRole(viewer) ? run() : withThresholds(defaultsForRole(legRole), run);
+  }
   function findJointAttention(clients, now, thresholds, role) {
     if (thresholds) return withThresholds(thresholds, function () { return findJointAttention(clients, now, null, role); });
+    if (!inScope()) return withThresholds(defaultsForRole(role), function () { return findJointAttention(clients, now, null, role); });
     now = now || new Date();
     var out = [];
     for (var i = 0; i < (clients || []).length; i++) {
       var c = clients[i];
       var coCoach = coCoachFor(c, role);
       if (!coCoach) continue;
-      var r = evaluateClient(c, now, "nutritionist");
-      var training = r.flags.filter(function (f) { return TRAINING_KEYS[f.key]; });
-      var nutrition = r.flags.filter(function (f) { return NUTRITION_KEYS[f.key]; });
+      var training = jointLeg(c, now, "trainer", role).filter(isTrainingSlip);
+      var nutrition = jointLeg(c, now, "nutritionist", role).filter(function (f) { return NUTRITION_KEYS[f.key]; });
       if (training.length && nutrition.length) {
         out.push({ client: c, trainingFlags: training, nutritionFlags: nutrition, coCoach: coCoach,
           action: { kind: "care_team", label: "Start joint note" } });
@@ -1670,7 +1882,7 @@
   };
   function directiveKeyToLever(key) {
     return ({
-      checkin_overdue: "checkin", streak_broken: "training", food_gap: "nutrition",
+      checkin_overdue: "checkin", streak_broken: "training", food_gap: "nutrition", food_logging: "nutrition",
       ledger_blown: "nutrition", protein_under: "nutrition", goal_slip: "goal",
       score_drop: "score", contact_gap: "contact", sleep_low: "sleep",
       energy_low: "energy", hunger_high: "hunger", hydration_low: "hydration",
@@ -1689,7 +1901,7 @@
     checkin_overdue: 100,
     // A yes on the health screening is read before anything is programmed; a missing one is asked
     // for before the next session.
-    screening_flagged: 90, plan_due: 85, contact_gap: 80, screening_missing: 70, goal_slip: 60, food_gap: 55,
+    screening_flagged: 90, plan_due: 85, contact_gap: 80, screening_missing: 70, goal_slip: 60, food_gap: 55, food_logging: 54,
     ledger_blown: 50, protein_under: 45, streak_broken: 40, sleep_low: 35,
     // The vitals flags rank BELOW sleep_low (a chronic sleep deficit outranks a
     // soft-gauge read) and above score_drop, in energy → hunger → hydration order.
@@ -1972,8 +2184,12 @@
     goal_slip:         { kind: "message", label: "Ask for a weigh-in", draft: true, nora: true },
     plan_ending:       { kind: "message", label: "Message", draft: true },
     food_gap:          { kind: "message", label: "Nudge to log", draft: true, nora: true },
-    ledger_blown:      { kind: "adjust_plan", label: "Adjust plan", training: { kind: "message", label: "Message", draft: true } },
-    protein_under:     { kind: "adjust_plan", label: "Adjust plan", training: { kind: "message", label: "Message", draft: true } },
+    food_logging:      { kind: "message", label: "Nudge to log", draft: true, nora: true },
+    // ⚠ A TRAINER SHARES GUIDANCE, NEVER A TARGET (ACE's scope of practice: no specific intake
+    // recommendations, no individualised meal plans). A trainer reaches these only as the client's
+    // only coach; the draft points to the general guidance and offers a dietitian (memberDraft).
+    ledger_blown:      { kind: "adjust_plan", label: "Adjust plan", training: { kind: "message", label: "Share guidance", draft: true } },
+    protein_under:     { kind: "adjust_plan", label: "Adjust plan", training: { kind: "message", label: "Share guidance", draft: true } },
     hunger_high:       { kind: "adjust_plan", label: "Adjust plan", training: { kind: "message", label: "Message", draft: true } },
     streak_broken:     { kind: "message", label: "Message", draft: true, nora: true },
     recovery_low:      { kind: "adjust_program", label: "Ease the load", nutrition: { kind: "message", label: "Message", draft: true } },
@@ -2024,9 +2240,13 @@
         return hi + "how has training felt this week? If something's getting in the way, let's adjust the plan so it fits.";
       case "score_drop":
         return hi + "how did this week feel? Tell me what got in the way and we'll pick one easy win for the next few days.";
+      case "food_logging":
+        return hi + "your food log has been patchy this week. No judgement — a quick entry or a photo on most days helps me see how it's going.";
       case "ledger_blown":
+        if (disciplineForRole(role) === "training") return hi + "how's food going this week? Your log has been running over your calorie target. The general healthy-eating guidelines are a good place to start, and if you'd like a plan built around you, a registered dietitian can help — I'm happy to suggest one.";
         return hi + "how's food going this week? Let's look at your meals together and find an easy swap or two.";
       case "protein_under":
+        if (disciplineForRole(role) === "training") return hi + "how's food going? Protein has been coming in under your target. A source of protein at each meal is the general guidance, and if you'd like a plan built around you, a registered dietitian can help — I'm happy to suggest one.";
         return hi + "how's food going? Protein has been coming in under where we want it — an extra serving at breakfast or lunch closes most of the gap.";
       case "hunger_high":
         return hi + "you've been hungry between meals this week. Let's look at your meals — the plan may need a bit more fuel.";
@@ -2060,8 +2280,11 @@
     var owned = (row && Array.isArray(row.flags) ? row.flags : []).filter(function (f) { return f && f.owned !== false; });
     if (!owned.length) return null;
     // A quiet flag leads only a row nothing louder is on: payment_retrying has the lowest priority of
-    // every coach flag (DIRECTIVE_PRIORITY; tests/coach-actions.test.mjs holds it there).
-    var top = topFlag(owned);
+    // every coach flag (DIRECTIVE_PRIORITY; tests/coach-actions.test.mjs holds it there). A context
+    // flag (CONTEXT_FLAGS: a score drop) leads only a row with nothing counted on it, so an amber row's
+    // push and Today name what made it amber.
+    var counted = owned.filter(function (f) { return !CONTEXT_FLAGS[f.key] && !QUIET_FLAGS[f.key]; });
+    var top = topFlag(counted.length ? counted : owned);
     return { key: top.key, label: top.label, reason: top.reason, sig: top.sig || null, action: coachActionFor(top.key, role, row.client, top) };
   }
 
@@ -3221,6 +3444,9 @@
     THRESHOLDS: THRESHOLDS,
     DEFAULT_THRESHOLDS: DEFAULT_THRESHOLDS,
     TUNABLES: TUNABLES,
+    ROLE_DEFAULTS: ROLE_DEFAULTS,
+    defaultsForRole: defaultsForRole,
+    tunablesFor: tunablesFor,
     resolveThresholds: resolveThresholds,
     MAX_GOALS: MAX_GOALS,
     evaluateClient: evaluateClient,
@@ -3272,6 +3498,11 @@
     COACH_ACTION_KINDS: COACH_ACTION_KINDS,
     DIRECTIVE_PRIORITY: DIRECTIVE_PRIORITY,
     FLAG_DISCIPLINE: FLAG_DISCIPLINE,
+    FLAG_AREA: FLAG_AREA,
+    flagArea: flagArea,
+    CONTEXT_FLAGS: CONTEXT_FLAGS,
+    SAFETY_FLAGS: SAFETY_FLAGS,
+    goalDiscipline: goalDiscipline,
     coachActionFor: coachActionFor,
     coachLead: coachLead,
     coachBrief: coachBrief,

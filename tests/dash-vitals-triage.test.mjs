@@ -125,35 +125,43 @@ test('the trainer still SEES hunger_high — as routed read-only context, not se
 });
 
 // ── pre-existing flag combinations are unchanged ────────────────────────────
-test('no pre-existing flag changed severity: two general flags still read red', () => {
+test('no pre-existing flag changed severity: two flags still read red for the member, two areas for a coach', () => {
   const r = {
     profile: { name: 'Q' },
     streaks: { current: 0, best: 9 },
     shapeScoreHistory: [{ points: 400 }, { points: 300 }],
   };
-  const before = evaluateClient(r, NOW, 'trainer');
+  const before = evaluateClient(r, NOW, 'client');
   assert.deepEqual(before.flags.map((f) => f.key).sort(), ['score_drop', 'streak_broken']);
   assert.equal(before.severity, 'red');
+  // A coach (2026-11-10): no broken streak, and a score drop is context, so the same week is green.
+  assert.equal(evaluateClient(r, NOW, 'trainer').severity, 'green');
+  // Red for a coach is two areas: a quiet thread and a wearable's low recovery…
+  const nine = new Date(NOW.getTime() - 9 * 864e5).toISOString();
+  const c = { profile: { name: 'Q' }, lastContact: { trainer: nine, nutritionist: nine }, recovery: { recoveryScore: { avg7: 20, n: 5 } } };
+  assert.equal(evaluateClient(c, NOW, 'trainer').severity, 'red');
   // …and for a nutritionist who is their only coach, identically. (P2: with a trainer on the client,
-  // the broken streak is the trainer's to act on — routed context, not counted — so one general flag
+  // recovery is the trainer's to act on — routed context, not counted — so the contact gap alone
   // reads amber; the trainer's own view is unchanged.)
-  assert.equal(evaluateClient({ ...r, pros: { trainer: false, nutritionist: true } }, NOW, 'nutritionist').severity, 'red');
-  assert.equal(evaluateClient({ ...r, pros: { trainer: true, nutritionist: true } }, NOW, 'nutritionist').severity, 'amber');
+  assert.equal(evaluateClient({ ...c, pros: { trainer: false, nutritionist: true } }, NOW, 'nutritionist').severity, 'red');
+  assert.equal(evaluateClient({ ...c, pros: { trainer: true, nutritionist: true } }, NOW, 'nutritionist').severity, 'amber');
 });
 
 test('sleep_low keeps escalating the coach who owns it (P2: owned flags count)', () => {
-  const r = { profile: { name: 'Q' }, recovery: { sleepHours: { avg7: 5.5, lastNight: 5.5, target: 7.5, n: 7 } }, streaks: { current: 0, best: 9 } };
+  const nine = new Date(NOW.getTime() - 9 * 864e5).toISOString();
+  const r = { profile: { name: 'Q' }, recovery: { sleepHours: { avg7: 5.5, lastNight: 5.5, target: 7.5, n: 7 } }, lastContact: { trainer: nine, nutritionist: nine } };
+  // Sleep (recovery) and the quiet thread (contact): two areas.
   assert.equal(evaluateClient(r, NOW, 'trainer').severity, 'red');
-  // A nutritionist-only client: nobody else to take sleep or the streak, so both are theirs.
+  // A nutritionist-only client: nobody else to take sleep, so it is theirs.
   assert.equal(evaluateClient({ ...r, pros: { trainer: false, nutritionist: true } }, NOW, 'nutritionist').severity, 'red');
-  // With a trainer there, both are the trainer's: still on the nutritionist's row, never counted.
+  // With a trainer there, sleep is the trainer's: still on the nutritionist's row, never counted.
   const shared = evaluateClient({ ...r, pros: { trainer: true, nutritionist: true } }, NOW, 'nutritionist');
-  assert.deepEqual(shared.flags.map((f) => f.key).sort(), ['sleep_low', 'streak_broken']);
-  assert.equal(shared.severity, 'green');
+  assert.deepEqual(shared.flags.map((f) => f.key).sort(), ['contact_gap', 'sleep_low']);
+  assert.equal(shared.severity, 'amber');
 });
 
 test('the nutrition siblings still gate exactly as they did', () => {
-  const r = { profile: { name: 'Q' }, nutrition: { avgCalories: 3200, targetCalories: 2000, daysLogged: 7, avgProtein: 40, targetProtein: 160 } };
+  const r = { profile: { name: 'Q' }, nutrition: { avgCalories: 3200, targetCalories: 2000, daysLogged: 7, avgProtein: 40, targetProtein: 160 }, foodLogs: { lastLoggedOn: null, daysLogged7d: 7 } };
   assert.equal(evaluateClient(r, NOW, 'trainer').flags.some((f) => f.key === 'ledger_blown'), false);
   assert.ok(evaluateClient(r, NOW, 'nutritionist').flags.some((f) => f.key === 'ledger_blown'));
 });
@@ -302,7 +310,9 @@ test("an engine directive carries what its reason was built from; a coach's own 
   // built from (a coach role's evidence stays { key, avg, n }: the member-reasons test file).
   const streak = buildDirective({ profile: { name: 'Q' }, streaks: { current: 0, best: 9 } }, NOW, 'client');
   assert.deepEqual(streak.evidence, { key: 'streak_broken', avg: null, n: null, best: 9 });
-  assert.deepEqual(buildDirective({ profile: { name: 'Q' }, streaks: { current: 0, best: 9 } }, NOW, 'trainer').evidence, { key: 'streak_broken', avg: null, n: null });
+  // A coach role's evidence keeps no figures (a broken streak is no coach's flag since 2026-11-10;
+  // a contact gap here).
+  assert.deepEqual(buildDirective({ profile: { name: 'Q' }, lastContact: { trainer: new Date(NOW.getTime() - 9 * 864e5).toISOString() } }, NOW, 'trainer').evidence, { key: 'contact_gap', avg: null, n: null });
   // The coach's override wins and is passed through as they wrote it (ruling 13), low week or not.
   const low = { energy: { avg7: 3, n: 5 } };
   const coach = buildDirective({ ...rec(low), coachDirective: { lever: 'energy', reason: 'Energy has been 3/10, so we deload this week' } }, NOW, 'client');

@@ -23,7 +23,7 @@ import { bsChatStamp, bsChatDayLabel, bsChatClock, bsChatDividerIndexes } from '
 import { bsReplyFor, bsReplyFromMetadata, bsReplySnippet, bsReplySwipeDecide, bsReplySwipeOffset, bsReplySwipeCommits, BS_REPLY_SWIPE } from '../services/chatReply.mjs';
 import { bsTypingSend, bsTypingWho, bsReceiptFor, bsMergeThreadHistory, BS_SIGNALS_EMPTY } from '../services/chatSignals.mjs';
 import { bsThreadNavKey, bsThreadViaNav } from '../services/chatThreadBack.mjs';
-import { bsGoalsSub, bsGoalsView, bsChatPlaceLoc, bsChatPlaceOf, bsProfileLoc } from '../services/navPlaces.mjs';
+import { bsGoalsSub, bsGoalsView, bsChatPlaceLoc, bsChatPlaceOf, bsProfileLoc, bsSettingsSub, bsSettingsStart, bsEatSub, bsEatStart } from '../services/navPlaces.mjs';
 import { bsScoreRecord, RANGE_KEYS } from '../services/scoreHistory.mjs';
 // The ONE ceiling. The prompt must ask at exactly the load the core refuses to
 // admit unconsidered — a local copy of 150 that drifted would leave the screen
@@ -82,6 +82,7 @@ import { BSTimezoneSetting } from './BSTimezone.jsx';
 import { BSScoreFixNote } from './BSScoreFixNote.jsx';
 import { BSWorkoutDetail } from './BSWorkoutDetail.jsx';
 import { BSWorkoutSession } from './BSWorkoutSession.jsx';
+import { BSWorkoutCoachCue } from './BSWorkoutCoachCue.jsx';
 import { BSSessionFinish } from './BSSessionFinish.jsx';
 import { BSGroceryLibrary, bsLibraryPreviewItems } from './BSGroceryLibrary.jsx';
 import { BSCheckinCard, BSMorningPanel, bsCiLeadReason, bsCiIso, bsCiShift, BS_CI_SAVED } from './BSCheckinCard.jsx';
@@ -11020,7 +11021,10 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
   const tr = useShapeTr();   // cook:prep.* chrome (PR C) — never shadows the theme t
   const prepEntries = useBSPrepEntries();   // PREPPED stamps on the day's courses
   const bsEatProgram = useBSProgram();
-  const [view, setView] = useStateBSC(initialView || 'eat'); // 'eat' | 'grocery' | 'library'
+  // Where a Back to Eat opens it: a view, or the meal preview it showed (the day and the meal, so the same
+  // meal is found again; services/navPlaces.mjs).
+  const eatAt = bsEatStart(initialView);
+  const [view, setView] = useStateBSC(eatAt.view); // 'eat' | 'grocery' | 'library'
   const [prepOpen, setPrepOpen] = useStateBSC(false);   // the Prep Session takeover (PR C)
   // The dish a "＋ Cook with something else" door arrived with, or null for the
   // "Prep the week" doors on the menu and the shop list. It decides BOTH the
@@ -11048,7 +11052,10 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
     setCookViaNav(true);
     onPrepTonightConsumed();
   }, [prepTonight && prepTonight.nonce]);
-  React.useEffect(() => { if (initialView) onStartConsumed(); }, []);
+  // Spent whenever it changes, not only on mount (as Home's is): a Back that replays onto Eat while it is
+  // open (Search closing over a meal) sets it again, and one left unspent opened that meal the next time
+  // Eat mounted, from the tab bar or any door. The open Eat is already where the Back recorded it.
+  React.useEffect(() => { if (initialView) onStartConsumed(); }, [initialView]); // eslint-disable-line react-hooks/exhaustive-deps
   // Keyed on the nonce rather than on the cookable: tapping the same dish's door
   // twice is two requests, and an identity comparison would swallow the second.
   React.useEffect(() => {
@@ -11057,12 +11064,8 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
     setPrepViaNav(true);
     onCookWithConsumed();
   }, [cookWith && cookWith.nonce]);
-  React.useEffect(() => {
-    window.ShapeNav?.announce?.({ sub: view }, 'eat');
-    return () => window.ShapeNav?.announce?.(null, 'eat');
-  }, [view]);
   const [skRecipe, setSkRecipe] = useStateBSC(null); // selected Shape Kitchen recipe
-  const [previewMealId, setPreviewMealId] = useStateBSC(null);
+  const [previewMealId, setPreviewMealId] = useStateBSC(eatAt.mealId);
   const [previewRecipe, setPreviewRecipe] = useStateBSC(false);
   const [previewRecipeReturnView, setPreviewRecipeReturnView] = useStateBSC('eat');
   const [previewDayBrief, setPreviewDayBrief] = useStateBSC(false);
@@ -11090,7 +11093,17 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
   const [newListName, setNewListName] = useStateBSC(null); // null = sheet closed
   const [saveTarget, setSaveTarget] = useStateBSC(null); // grocery list pending "save to library"
   const [saveName, setSaveName] = useStateBSC('');
-  const [day, setDay] = useStateBSC(bsWeekdayIdx()); // default to today (0=Mon..6=Sun)
+  const [day, setDay] = useStateBSC(eatAt.day != null ? eatAt.day : bsWeekdayIdx()); // default to today (0=Mon..6=Sun)
+  // A day a Back restored stays when the plan arrives after it, or the meal recorded on it is looked up on
+  // today and the member lands on Eat, not the meal they left (Codex P2 on #2689).
+  const eatDayRestored = React.useRef(eatAt.day != null);
+  // Eat's view, or the meal preview open on it (2026-11-10, "complete war room items": a jump from the
+  // meal, its cook-with door or Search, comes back to that meal on that day).
+  const eatNavSub = bsEatSub(view, day, previewMealId);
+  React.useEffect(() => {
+    window.ShapeNav?.announce?.({ sub: eatNavSub }, 'eat');
+    return () => window.ShapeNav?.announce?.(null, 'eat');
+  }, [eatNavSub]);
   const [liveMealDays, setLiveMealDays] = useStateBSC(null);
   const [liveMealCoach, setLiveMealCoach] = useStateBSC(null); // real assigning nutritionist
   const [liveMealTitle, setLiveMealTitle] = useStateBSC(null); // real plan title
@@ -11268,7 +11281,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
         setLiveMealDays(p.meals.days);
         setLiveMealCoach(p.meals.coach || null);
         setLiveMealTitle(p.meals.title || null);
-        setDay(bsWeekdayIdx());
+        if (!eatDayRestored.current) setDay(bsWeekdayIdx());
       } catch (e) { /* keep demo menu */ } finally {
         if (!cancelled) { setEatPlanRead(read); setEatPlanFailed(!read); setEatPlanRetrying(false); }
       }
@@ -29326,7 +29339,9 @@ function BSClientMe(props) {
   // replayable sub-page so a cross-jump push carries it: the Score, its Record (the Score page reports it
   // through onRecord, since the page has other parents) and the Store. Reconcile lives under Settings →
   // Integrations, which Settings announces.
-  React.useEffect(() => { if (initialPage) onStartConsumed(); }, []);
+  // Spent whenever it changes, as Eat's is: a Back replayed onto an open Me left it unspent, and the next
+  // Me from the tab bar opened the Record again.
+  React.useEffect(() => { if (initialPage) onStartConsumed(); }, [initialPage]); // eslint-disable-line react-hooks/exhaustive-deps
   const meNavSub = showScore ? (scoreRecord ? 'record' : 'score') : showStore ? 'store' : '';
   React.useEffect(() => {
     window.ShapeNav?.announce?.({ sub: meNavSub }, 'me');
@@ -31539,28 +31554,6 @@ function bsPlates(total) {
   return out;
 }
 
-function BSWorkoutCoachCue({ identity }) {
-  const t = useBS();
-  const tr = useShapeTr();
-  const [cue, setCue] = useStateBSC(null);
-  React.useEffect(() => {
-    setCue(null);
-    return window.ShapeCoachFeed?.subscribeWorkoutCues?.({
-      userId: identity.userId, startedAt: identity.startedAt, onCue: setCue,
-    });
-  }, [identity.userId, identity.sessionId, identity.startedAt]);
-  if (!cue) return null;
-  return (
-    <div style={{ position: 'relative', marginTop: 14, border: '1px solid #26d8c4', borderRadius: 5, padding: '10px 12px', background: '#082b29', color: '#f6f0e4', display: 'flex', gap: 8, alignItems: 'flex-start' }}>
-      <div role="status" aria-live="polite" aria-atomic="true" style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#26d8c4' }}>{tr('session:player.coachCue')}</div>
-        <div style={{ marginTop: 5, fontSize: 16, lineHeight: 1.4, overflowWrap: 'anywhere', whiteSpace: 'pre-wrap' }}>{cue.text}</div>
-      </div>
-      <button type="button" onClick={() => setCue(null)} aria-label={tr('session:player.dismissCoachCue')} style={{ flexShrink: 0, minWidth: 44, minHeight: 44, border: 0, background: 'transparent', color: '#f6f0e4', fontSize: 22, cursor: 'pointer' }}>×</button>
-    </div>
-  );
-}
-
 function BSSession({ moves: movesProp, onBack, title: requestedTitle = '', clientWorkoutId: requestedWorkoutId = null, prescriptionMeta = {}, draft = null }) {
   const t = useBS();
   // ⚠ NEVER NAME THIS `t` — that is the theme token above. And no parameter
@@ -32511,26 +32504,29 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   // member was, through Settings' own Back (owner, 2026-11-10: "Make sure back buttons are going back to
   // previous page and location user was on"); it used to land on Settings' own page, a second ← away.
   // Reached from Settings' own page, it goes back there, as before.
-  const landedOn = landed ? initialPage : '';
+  // What it opens on: a page, and the pane that page sits over ('<page>@<pane>', services/navPlaces.mjs), which
+  // a Back to Settings replays; a notification or a jump names the page alone.
+  const { page: startPage, pane: startPane, under: startUnder } = bsSettingsStart(initialPage);
+  const landedOn = landed ? startPage : '';
   const backFrom = (page, close) => () => { if (landedOn && landedOn === page) onBack(); else close(); };
   const tr = useShapeTr();
   const r = useBSRadio();
-  const [showContact, setShowContact] = useStateBSC(false);
-  const [showTerms, setShowTerms] = useStateBSC(false);
-  const [showHelp, setShowHelp] = useStateBSC(false);
-  const [showPrivacy, setShowPrivacy] = useStateBSC(false);
-  const [showDataCompliance, setShowDataCompliance] = useStateBSC(false);
-  const [showCodeOfConduct, setShowCodeOfConduct] = useStateBSC(false);
-  const [showConsumerHealth, setShowConsumerHealth] = useStateBSC(false);
-  const [showSubprocessors, setShowSubprocessors] = useStateBSC(false);
-  const [showPricing, setShowPricing] = useStateBSC(initialPage === 'pricing');
+  const [showContact, setShowContact] = useStateBSC(startPage === 'contact');
+  const [showTerms, setShowTerms] = useStateBSC(startPage === 'terms');
+  const [showHelp, setShowHelp] = useStateBSC(startPage === 'help');
+  const [showPrivacy, setShowPrivacy] = useStateBSC(startPage === 'privacy-policy');
+  const [showDataCompliance, setShowDataCompliance] = useStateBSC(startPage === 'data');
+  const [showCodeOfConduct, setShowCodeOfConduct] = useStateBSC(startPage === 'conduct');
+  const [showConsumerHealth, setShowConsumerHealth] = useStateBSC(startPage === 'consumer-health');
+  const [showSubprocessors, setShowSubprocessors] = useStateBSC(startPage === 'subprocessors');
+  const [showPricing, setShowPricing] = useStateBSC(startPage === 'pricing');
   // A notification can open Settings on a page (initialPage; the notification audit, 2026-10-15):
   // the member's sessions, the notification list, habits, or a coach's practice pane.
-  const [showSessions, setShowSessions] = useStateBSC(initialPage === 'sessions');
-  const [showNotifications, setShowNotifications] = useStateBSC(initialPage === 'notifications');
-  const [showNotifyPrefs, setShowNotifyPrefs] = useStateBSC(false);
-  const [showNoraMemory, setShowNoraMemory] = useStateBSC(false);
-  const [showIntegrations, setShowIntegrations] = useStateBSC(initialPage === 'integrations');
+  const [showSessions, setShowSessions] = useStateBSC(startPage === 'sessions');
+  const [showNotifications, setShowNotifications] = useStateBSC(startPage === 'notifications');
+  const [showNotifyPrefs, setShowNotifyPrefs] = useStateBSC(startPage === 'notify-prefs');
+  const [showNoraMemory, setShowNoraMemory] = useStateBSC(startPage === 'nora-memory');
+  const [showIntegrations, setShowIntegrations] = useStateBSC(startPage === 'integrations');
   // ⚠ THIS SECTION USED TO FABRICATE ITS OWN STATE. The meta read a hardcoded
   // '2 connected' and each provider row a hardcoded status — WHOOP always
   // 'Connected', Garmin/Strava/Spotify always 'Connect' — so a member with
@@ -32565,7 +32561,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     return () => clearTimeout(tm);
   }, [fxPreview]);
   // Library sits in More and Your hours in Your practice, so a Back to either reopens it over its own pane.
-  const [detail, setDetail] = useStateBSC(initialPage === 'practice' || initialPage === 'hours' ? 'practice' : initialPage === 'library' || bsGoalsView(initialPage) != null ? 'more' : ''); // '' = settings page; else a drill-in card pane
+  const [detail, setDetail] = useStateBSC(startPane || (startPage === 'practice' || startPage === 'hours' ? 'practice' : startPage === 'library' || bsGoalsView(startPage) != null ? 'more' : '')); // '' = settings page; else a drill-in card pane
   // ⚠ A READ NEVER OVERWRITES A SAVE (Codex, #2371). The rows can be picked while the pane's read
   // is still out, and a save's answer is the newer document. So the read is dropped if a save was
   // in flight when it started, or one started before it answered.
@@ -32630,39 +32626,43 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   const [showCycleOptIn, setShowCycleOptIn] = useStateBSC(false);
   const [cycleBusy, setCycleBusy] = useStateBSC('');
   const [cycleErr, setCycleErr] = useStateBSC('');
-  const [showScore, setShowScore] = useStateBSC(false);
-  const [showStore, setShowStore] = useStateBSC(false);
-  const [showRadio, setShowRadio] = useStateBSC(false);
-  const [showProgress, setShowProgress] = useStateBSC(false);
-  const [showPublicProfile, setShowPublicProfile] = useStateBSC(false);
+  const [showScore, setShowScore] = useStateBSC(startPage === 'score' || startPage === 'record');
+  // The Score page's Record, open over it (the Score page reports it: onRecord).
+  const [scoreRecord, setScoreRecord] = useStateBSC(startPage === 'record');
+  React.useEffect(() => { if (!showScore) setScoreRecord(false); }, [showScore]);
+  const [showStore, setShowStore] = useStateBSC(startPage === 'store');
+  const [showRadio, setShowRadio] = useStateBSC(startPage === 'radio');
+  const [showProgress, setShowProgress] = useStateBSC(startPage === 'progress');
+  // Also when it was open under the page a Back reopens (the Score it opened, or the Store the Score opened).
+  const [showPublicProfile, setShowPublicProfile] = useStateBSC(startPage === 'public-profile' || startUnder === 'public-profile');
   // Your practice → Payouts opens Business on Money (null, or the tab it opens on).
   // A sale or a renewal notice opens Business on its money (initialPage 'business').
-  const [showBusiness, setShowBusiness] = useStateBSC(initialPage === 'business' ? 'money' : null);
+  const [showBusiness, setShowBusiness] = useStateBSC(startPage === 'business' ? 'money' : null);
   // Your practice → Rates (a takeover) and the listing's photo and monthly-offer sheets
   // ('photos' | 'offer' | null). They lived on the old coach Me page, which nothing rendered
   // (owner, 2026-10-17: "Move to Your practice"); the components are the pros module's, read
   // from window at call time.
-  const [showRates, setShowRates] = useStateBSC(false);
+  const [showRates, setShowRates] = useStateBSC(startPage === 'rates');
   // Your hours (Availability): the coach's weekly hours, booking rules and time off (BSCoachHours.jsx).
-  const [showHours, setShowHours] = useStateBSC(initialPage === 'hours');
+  const [showHours, setShowHours] = useStateBSC(startPage === 'hours');
   const [listingSheet, setListingSheet] = useStateBSC(null);
   // More → Goals, and the station open on it ('goals' or 'goals:<station>', as Home records it).
-  const [showGoals, setShowGoals] = useStateBSC(bsGoalsView(initialPage) != null);
-  const [goalsView, setGoalsView] = useStateBSC(bsGoalsView(initialPage) || 'cover');
+  const [showGoals, setShowGoals] = useStateBSC(bsGoalsView(startPage) != null);
+  const [goalsView, setGoalsView] = useStateBSC(bsGoalsView(startPage) || 'cover');
   React.useEffect(() => { if (!showGoals) setGoalsView('cover'); }, [showGoals]);
   // Also → Coach on Shape: the application screen, full screen over Settings (and so over the nav).
-  const [showApply, setShowApply] = useStateBSC(false);
-  const [showLibrary, setShowLibrary] = useStateBSC(initialPage === 'library');
-  const [showHabits, setShowHabits] = useStateBSC(initialPage === 'habits');
-  const [showCheckin, setShowCheckin] = useStateBSC(false);
-  const [showHealth, setShowHealth] = useStateBSC(false);
+  const [showApply, setShowApply] = useStateBSC(startPage === 'apply');
+  const [showLibrary, setShowLibrary] = useStateBSC(startPage === 'library');
+  const [showHabits, setShowHabits] = useStateBSC(startPage === 'habits');
+  const [showCheckin, setShowCheckin] = useStateBSC(startPage === 'checkin');
+  const [showHealth, setShowHealth] = useStateBSC(startPage === 'health');
   const [healthDoc, setHealthDoc] = useStateBSC(null);
   React.useEffect(() => {
     let on = true;
     window.ShapeHealthProfile?.get?.().then((d) => { if (on && d) setHealthDoc(d); }).catch(() => {});
     return () => { on = false; };
   }, []);
-  const [showLeaderboard, setShowLeaderboard] = useStateBSC(false);
+  const [showLeaderboard, setShowLeaderboard] = useStateBSC(startPage === 'leaderboard');
   // The two leaderboard switches (/api/me/leaderboard-privacy), read when Privacy & data opens.
   // null = not read (or the read failed): neither option shows as chosen, and picking one writes
   // that explicit choice, never a flip of a value nobody read.
@@ -33439,7 +33439,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   const [bioKnown, setBioKnown] = useStateBSC(false);
   // Deep-link: open straight into the edit-profile pane (e.g. the Goal page's
   // "Primary goal · Edit" card) instead of the Settings landing.
-  const [editing, setEditing] = useStateBSC(initialPage === 'edit-profile');
+  const [editing, setEditing] = useStateBSC(startPage === 'edit-profile');
   // ⚠ THE EDIT PAGE OPENS AT ITS TOP TOO — the same Codex P2 the tile panes paid for,
   // keyed on `editing` because it is NOT a `detail` value: toRoot clears every
   // `detail` on shape:openProfile and this page holds an unsaved draft it must not
@@ -33467,20 +33467,31 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   // writes only those, and when the read lands the untouched keys refresh from it.
   const touchedRef = React.useRef(new Set());
   const edit = (k, v) => { touchedRef.current.add(k); setDraft(prev => ({ ...prev, [k]: v })); };
-  // Nav announce (spec §2): the shell only sees settingsStart at OPEN time;
-  // this keeps the register current as the user moves within Settings. Only
-  // the replayable keys (initialPage-supported) are announced.
-  // Every page Settings can be opened on (initialPage) is announced, so a jump from it comes back to it, and
-  // whether it was landed on, so its ← still leaves Settings after that Back (2026-11-10).
-  const navSub = editing ? 'edit-profile' : showIntegrations ? 'integrations' : showPricing ? 'pricing'
-    : showNotifications ? 'notifications' : showSessions ? 'sessions' : showHabits ? 'habits'
-    // Library (Browse coaches) and Your hours (Open calendar) jump out too, and come back to themselves. A
-    // page is named before the pane it sits in: Your hours is open over Your practice (Codex P2 on #2683).
-    : showBusiness ? 'business' : showLibrary ? 'library' : showHours ? 'hours'
-    // Goals (More → Goals) and its open station, which reopen over More (2026-11-10).
-    : showGoals ? bsGoalsSub(goalsView)
-    : detail === 'practice' ? 'practice' : '';
-  const navLanded = !!navSub && navSub === landedOn;
+  // Nav announce (spec §2): the shell only sees settingsStart at OPEN time; this keeps the register
+  // current as the member moves within Settings, with whether the page was landed on, so its ← still
+  // leaves Settings after a Back to it (2026-11-10). The page Settings draws, named in the order it draws them (its early returns below), and the pane it
+  // sits over: a jump from any of them comes back to it, and its ← then closes onto that pane. A pane on
+  // its own is recorded too ('@more'). Your practice keeps its own name (a notification opens it), and
+  // Goals carries its station ('goals:<station>', always over More). Owner, 2026-11-10: "complete war room
+  // items" (#2687 left these pages unrecorded).
+  const navPage = showContact ? 'contact' : showTerms ? 'terms' : showHelp ? 'help' : showPrivacy ? 'privacy-policy'
+    : showDataCompliance ? 'data' : showCodeOfConduct ? 'conduct' : showConsumerHealth ? 'consumer-health' : showSubprocessors ? 'subprocessors'
+    : showPricing ? 'pricing' : showSessions ? 'sessions' : showNotifications ? 'notifications' : showNotifyPrefs ? 'notify-prefs'
+    : showNoraMemory ? 'nora-memory' : showIntegrations ? 'integrations' : showScore ? (scoreRecord ? 'record' : 'score')
+    : showStore ? 'store' : showRadio ? 'radio' : showProgress ? 'progress' : showGoals ? bsGoalsSub(goalsView)
+    : showLibrary ? 'library' : showHabits ? 'habits' : showCheckin ? 'checkin' : showHealth ? 'health'
+    : showLeaderboard ? 'leaderboard' : showBusiness ? 'business' : showHours ? 'hours'
+    : showRates ? 'rates' : showApply ? 'apply' : showPublicProfile ? 'public-profile' : '';
+  // The one page that stays open under the page it opens: Your public profile, under its Score (and the Store
+  // the Score opens). Every other door closes its page first (tests/nav-places.test.mjs holds it to that).
+  const navUnder = showPublicProfile && navPage && navPage !== 'public-profile' ? 'public-profile' : '';
+  const navSub = editing ? 'edit-profile'
+    : showGoals && navPage.startsWith('goals') ? navPage
+    : navPage ? bsSettingsSub(navPage, detail, navUnder)
+    : detail === 'practice' ? 'practice' : bsSettingsSub('', detail);
+  // Landed: the page it was opened straight onto, whatever pane is recorded under it. Your practice is a
+  // pane a coach app lands on by name (a sale's notice), so it counts as that page here.
+  const navLanded = !!landedOn && (editing ? 'edit-profile' : navPage || (detail === 'practice' ? 'practice' : '')) === landedOn;
   React.useEffect(() => {
     window.ShapeNav?.announce?.(navLanded ? { sub: navSub, landed: true } : { sub: navSub }, 'settings');
     return () => window.ShapeNav?.announce?.(null, 'settings');
@@ -33834,7 +33845,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     return <BSIntegrationsPage onBack={backFrom('integrations', () => setShowIntegrations(false))} />;
   }
   if (showScore) {
-    return <BSShapeScorePage profile={scoreProfile} onBack={() => setShowScore(false)} onOpenStore={() => { setShowScore(false); setShowStore(true); }} />;
+    return <BSShapeScorePage profile={scoreProfile} initialRecord={scoreRecord} onRecord={setScoreRecord} onBack={() => setShowScore(false)} onOpenStore={() => { setShowScore(false); setShowStore(true); }} />;
   }
   if (showStore) {
     return <BSShapeStorePage profile={scoreProfile} onBack={() => setShowStore(false)} onOpenScore={() => { setShowStore(false); setShowScore(true); }} />;

@@ -339,13 +339,19 @@ test('a new client reads New, not "No logs 7d+" or "Progress unknown"; the board
   // Through JSON: the engine runs in its own realm, whose arrays never deep-equal this one's.
   const ev = (r) => { const e = D.evaluateClient(r, now, 'trainer'); return JSON.parse(JSON.stringify([e.severity, e.flags.map((f) => f.label)])); };
   assert.deepEqual(ev(rec({})), ['green', []], 'day one: nothing logged is not a lapse');
-  assert.deepEqual(ev(rec({ profile: { id: 'u', name: 'J', isNew: true, joinedAt: dayAgo(9) } })), ['amber', ['No logs 7d+']]);
+  // Past their first week, an empty week is a gap: theirs as the client's only coach (a food-log gap is
+  // the nutritionist's, 2026-11-10), routed context while one may be on the client.
+  assert.deepEqual(ev(rec({ profile: { id: 'u', name: 'J', isNew: true, joinedAt: dayAgo(9) }, pros: { trainer: true, nutritionist: false } })), ['amber', ['No logs 7d+']]);
+  assert.deepEqual(ev(rec({ profile: { id: 'u', name: 'J', isNew: true, joinedAt: dayAgo(9) } })), ['green', ['No logs 7d+']]);
   assert.deepEqual(ev(rec({ profile: { id: 'u', name: 'J', isNew: true } })), ['green', []], 'no join date: the 14-day "new" decides');
   assert.deepEqual(ev(rec({ onboarding: { trainer: { day: 3, steps: [{ key: 'hello', done: false }] } } })), ['amber', ['Say hello']]);
   assert.deepEqual(ev(rec({ onboarding: { trainer: { day: 2, steps: [{ key: 'hello', done: false }] } } })), ['green', []]);
   assert.deepEqual(ev(rec({ onboarding: { trainer: { day: 3, steps: [{ key: 'hello', done: null }] } } })), ['green', []], 'an unread step flags nothing');
-  assert.deepEqual(ev(rec({ profile: { id: 'u', name: 'J', isNew: true, joinedAt: dayAgo(6) }, lastContact: { trainer: null, nutritionist: null } })), ['amber', ['Never messaged']]);
-  assert.deepEqual(ev(rec({ profile: { id: 'u', name: 'J', isNew: true, joinedAt: dayAgo(6) }, lastContact: { nutritionist: null } })), ['green', []], 'a leg without the coach\'s role is not shared, not never');
+  // A week a client (the contact gap's 7 days since 2026-11-10), logging, and never written to.
+  const logging = { foodLogs: { lastLoggedOn: dayAgo(1).slice(0, 10), daysLogged7d: 4 } };
+  assert.deepEqual(ev(rec({ profile: { id: 'u', name: 'J', isNew: true, joinedAt: dayAgo(8) }, ...logging, lastContact: { trainer: null, nutritionist: null } })), ['amber', ['Never messaged']]);
+  assert.deepEqual(ev(rec({ profile: { id: 'u', name: 'J', isNew: true, joinedAt: dayAgo(6) }, ...logging, lastContact: { trainer: null, nutritionist: null } })), ['green', []], 'under the week');
+  assert.deepEqual(ev(rec({ profile: { id: 'u', name: 'J', isNew: true, joinedAt: dayAgo(8) }, ...logging, lastContact: { nutritionist: null } })), ['green', []], 'a leg without the coach\'s role is not shared, not never');
   assert.deepEqual(ev(rec({ onboarding: { trainer: { day: 4, steps: [{ key: 'hello', done: true }, { key: 'plan', done: false, due: '2026-10-14' }] } } })), ['amber', ['Week 1 not live']]);
   assert.deepEqual(ev(rec({ onboarding: { trainer: { day: 4, steps: [{ key: 'hello', done: true }, { key: 'plan', done: false, due: '2026-10-16' }] } } })), ['green', []]);
   assert.deepEqual(ev(rec({ progressRead: { state: 'unavailable' } })), ['unknown', []], 'a failed read stays unknown');
@@ -1189,17 +1195,19 @@ test('a food gap from before the client joined does not flag, and an unreadable 
   const localDay = (d) => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
   const rec = (joinedDays, lastLog, isNew = true, joinedAt) => ({
     progressRead: { state: 'ready' }, profile: { id: 'u', name: 'Jordan', isNew, ...(joinedAt ? { joinedAt } : joinedDays == null ? {} : { joinedAt: dayAgo(joinedDays) }) },
-    foodLogs: { lastLoggedOn: localDay(new Date(now.getTime() - lastLog * DAY)), daysLogged7d: 0 }, checkIn: { lastWeekOf: localDay(new Date(now.getTime() - DAY)) }, lastContact: { trainer: dayAgo(1), nutritionist: null }, screening: 'clear',
+    foodLogs: { lastLoggedOn: localDay(new Date(now.getTime() - lastLog * DAY)), daysLogged7d: 0 }, checkIn: { lastWeekOf: localDay(new Date(now.getTime() - DAY)) }, lastContact: { trainer: dayAgo(1), nutritionist: dayAgo(1) }, screening: 'clear',
   });
-  const labels = (r) => JSON.parse(JSON.stringify(D.evaluateClient(r, now, 'trainer').flags.map((f) => f.label)));
+  // The nutritionist's gap, at the house 3 days (a trainer's is 5 since 2026-11-10); the joining rule is
+  // the same for both.
+  const labels = (r) => JSON.parse(JSON.stringify(D.evaluateClient(r, now, 'nutritionist').flags.map((f) => f.label)));
   assert.deepEqual(labels(rec(0, 10)), [], 'joined today, last logged ten days ago: no gap yet');
   assert.deepEqual(labels(rec(2, 10)), [], 'two days a client: under the three-day gap');
   assert.deepEqual(labels(rec(6, 10)), ['No logs 6d'], 'six days a client: the gap is theirs, counted from joining');
-  assert.match(D.evaluateClient(rec(6, 10), now, 'trainer').flags[0].reason, /in the 6 days since they joined/);
+  assert.match(D.evaluateClient(rec(6, 10), now, 'nutritionist').flags[0].reason, /in the 6 days since they joined/);
   assert.deepEqual(labels(rec(20, 10, false)), ['No logs 10d'], 'a gap that began as a client is the real gap');
   // Joined at 8 pm four days ago and logged dinner that evening: a log since joining, so the real gap.
   const evening = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 4, 20).toISOString();
-  const sameDay = D.evaluateClient(rec(null, 4, false, evening), now, 'trainer').flags;
+  const sameDay = D.evaluateClient(rec(null, 4, false, evening), now, 'nutritionist').flags;
   assert.deepEqual(JSON.parse(JSON.stringify(sameDay.map((f) => f.label))), ['No logs 4d']);
   assert.doesNotMatch(sameDay[0].reason, /since they joined/);
   assert.deepEqual(labels(rec(null, 10, true)), [], 'no joining date: the roster\'s "new" decides');

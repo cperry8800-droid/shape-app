@@ -39,8 +39,9 @@ test('no recovery data → no sleep flag', () => {
 test('sleep_low (35) is outranked by a higher-priority flag (streak_broken, 40)', () => {
   const r = rec(5.5, 5.5);
   r.streaks = { current: 0, best: 6 }; // broken training streak — higher priority
-  const d = buildDirective(r, NOW, 'trainer');
-  assert.equal(d.lever, 'training');
+  // The member's own directive: a broken streak is theirs, and no coach's flag (2026-11-10).
+  assert.equal(buildDirective(r, NOW, 'client').lever, 'training');
+  assert.equal(buildDirective(r, NOW, 'trainer').lever, 'sleep', 'a coach is told about the sleep');
 });
 
 // ⚠ THE FLOOR (owner, 2026-10-18). One logged night under 6h used to be its own "7-day
