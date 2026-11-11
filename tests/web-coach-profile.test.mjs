@@ -577,8 +577,10 @@ test('the page pins its rows: the root clips sideways without becoming a scrolle
   assert.doesNotMatch(src, /if \(!chrome\) \{ setH\(0\)/, 'a dashboard no longer reads as no header');
   assert.doesNotMatch(src, /data-coach-profile=""[^\n]*overflowX: "hidden"/, 'no inline hidden on the root');
   assert.match(src, /data-studio-filter=""[^\n]*\n[^\n]*position: "sticky", top: stickyTop/, 'the focus filter pins');
-  assert.match(src, /stickyTop=\{headH \+ \(wide \? 0 : 51\)\}/, 'under the header, and on a phone under the camp row too');
-  assert.match(src, /\.cpw-camp-mark\{position:sticky;top:\$\{headH \+ 28\}px/, 'a camp\'s mark on the spine pins under the header');
+  // Under the header and the camps' names: the desktop's tabs at their measured height, the phone's bar.
+  assert.match(src, /const pinH = wide \? \(showTabs \? campTabsH : 0\) : 51;/);
+  assert.match(src, /stickyTop=\{headH \+ pinH\}/, 'the focus filter pins under the header and the camp tabs or bar');
+  assert.match(src, /\.cpw-camp-mark\{position:sticky;top:\$\{headH \+ pinH \+ 28\}px/, 'a camp\'s mark on the spine pins under the header and the tabs');
 });
 
 test('a nutritionist\'s page: amber until they pick, the kitchen and plate notes in place of the studio and replays', async () => {

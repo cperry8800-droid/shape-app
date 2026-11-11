@@ -674,6 +674,17 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
       ],
     },
     {
+      section: 'Coach profile on the website: the camps as tabs at the top on a desktop, and the phone\'s Sections bar in the same place (#2698). No migration',
+      items: [
+        { label: 'Owner, 2026-11-11, with a screenshot of the spine (Camp 1 Book, Camp 2 Programs): "on the webiste public profiles, can we make each of these sections appear as tabs towards the top so users dont have to scroll so far down to get to certain sections of trainer profile", then "make sure the mobile website formatting and everything has been updated"', status: 'done' },
+        { label: '#2698 coachProfileWeb.jsx, 1000px and wider: every camp is a tab (Base, Book, Programs or Meal plans … Summit) in a row under the ← Coaches bar, above the stage, so it shows on landing; it pins under the site header (or the dashboard\'s bars), lights the camp in view, and a click scrolls to that camp. The row wraps on a narrow dashboard and never scrolls sideways; what pins under it (the spine\'s marks, the studio\'s filter row, a camp or the storefront brought into view) sits below its measured height. A private profile (one camp) has no tabs', status: 'done' },
+        { label: '#2698 On a phone the camp bar moved to the same place, under the bar and above the stage, and reads "Sections" until a camp comes up under it (it named Base or Book while the stage was in view); its grid is unchanged. Nothing is lit on either while the stage is in view', status: 'done' },
+        { label: 'Checked in Chromium on the sample trainer and nutritionist at 1440, 1280, 1024 (dashboard), 768, 390 and 375: tabs or bar under the bar on landing, pinned at the header once scrolled, a picked camp landing just under them, no sideways scroll, no page errors', status: 'done' },
+        { label: 'The homepage\'s and Get App\'s app captures still show the five-tab bar (Coaches is a tab since 2026-11-09), and the Match stage shows the foot of Eat, not the Coaches tab: re-shot in the next PR', status: 'pending' },
+        { label: 'OWNER: open a coach\'s public page on the live site, on a computer (the tabs under ← Coaches, a click lands on its section) and on a phone (Sections, then a camp)', status: 'manual' },
+      ],
+    },
+    {
       section: 'Joint attention reads each co-coach\'s own flag settings (#2691). One migration, run and checked live',
       items: [
         { label: 'Owner, 2026-11-10, on joint attention reading the co-coach\'s side at Shape\'s house line: "yes fix this please"', status: 'done' },
