@@ -30,7 +30,10 @@ const row = (role, rec, now = NOW) => E.getTriageFeed(role, [rec], now)[0];
 // ── the migration ────────────────────────────────────────────────────────────
 const SQL = read('supabase-migrations/2026-11-11-client-pause.sql');
 test('the break is its own table, reached only through two definer functions', () => {
-  assert.match(SQL, /create table if not exists public\.client_pauses \(\n  client_id   uuid primary key references auth\.users \(id\) on delete cascade,/);
+  // One row a break, from its first day to its last (Codex on #2705); tests/client-pause-sql.test.mjs runs it.
+  assert.match(SQL, /create table if not exists public\.client_pauses \(\n  id          bigint generated always as identity primary key,\n  client_id   uuid not null references auth\.users \(id\) on delete cascade,\n  from_on     date not null default current_date,\n  until_on    date not null,/);
+  assert.match(SQL, /constraint client_pauses_days check \(from_on <= until_on\)/);
+  assert.match(SQL, /alter table public\.client_pauses drop constraint if exists client_pauses_pkey;/, 'the first run\'s table is turned in place');
   assert.match(SQL, /set_by_role text not null check \(set_by_role in \('member', 'trainer', 'nutritionist'\)\)/);
   assert.match(SQL, /alter table public\.client_pauses enable row level security;/);
   assert.match(SQL, /revoke all on table public\.client_pauses from public, anon, authenticated;/);
@@ -42,18 +45,22 @@ test('the break is its own table, reached only through two definer functions', (
   assert.match(SQL, /^begin;$/m);
   assert.match(SQL, /^commit;$/m);
 });
-test('set_client_pause: the member or a coach on the client, a day from yesterday to 90 on, null ends it', () => {
+test('set_client_pause: the member or a coach on the client, today to 90 on in their calendar; ending early keeps the days', () => {
   assert.match(SQL, /if v_uid is null or p_client_id is null then\n    raise exception 'not signed in' using errcode = '42501';/);
   assert.match(SQL, /if v_uid = p_client_id then\n    v_role := 'member';\n  elsif public\.is_coach_on_client\(p_client_id\) then/);
   assert.match(SQL, /  else\n    raise exception 'not this client''s member or coach' using errcode = '42501';/);
-  assert.match(SQL, /if p_until is null then\n    delete from public\.client_pauses where client_id = p_client_id;/);
-  assert.match(SQL, /if p_until < current_date - 1 or p_until > current_date \+ 90 then/);
-  assert.match(SQL, /on conflict \(client_id\) do update\n    set until_on = excluded\.until_on, set_by = excluded\.set_by,/);
+  assert.match(SQL, /select p\.timezone into v_tz from public\.profiles p where p\.id = p_client_id;/);
+  assert.match(SQL, /    if v_cur\.from_on >= v_today then\n      delete from public\.client_pauses where id = v_cur\.id;\n    else\n      update public\.client_pauses set until_on = v_today - 1 where id = v_cur\.id;/);
+  assert.match(SQL, /if p_until < v_today - 1 or p_until > v_today \+ 91 then/);
+  assert.match(SQL, /v_until := greatest\(p_until, v_today\);/);
+  assert.match(SQL, /values \(p_client_id, v_today, v_until, v_uid, v_role, now\(\)\);/);
+  assert.match(SQL, /perform pg_advisory_xact_lock\(/);
+  assert.doesNotMatch(SQL, /on conflict \(client_id\)/, 'a new break after one has ended is a new row');
 });
 test('get_client_pause: the same people, while it holds and for 15 days after, and never the setter\'s id', () => {
   assert.match(SQL, /returns table \(until_on date, set_by_role text, set_at timestamptz, set_by_me boolean\)/);
   assert.match(SQL, /select p\.until_on, p\.set_by_role, p\.set_at, p\.set_by is not distinct from auth\.uid\(\)/);
-  assert.match(SQL, /and \(auth\.uid\(\) = p_client_id or public\.is_coach_on_client\(p_client_id\)\)\n    and p\.until_on >= current_date - 15;/);
+  assert.match(SQL, /and \(auth\.uid\(\) = p_client_id or public\.is_coach_on_client\(p_client_id\)\)\n    and p\.until_on >= current_date - 15\n  order by p\.from_on desc, p\.id desc\n  limit 1;/);
   assert.match(SQL, /where auth\.uid\(\) is not null\n    and p_client_id is not null/);
 });
 
@@ -176,6 +183,9 @@ test('a member on a break is read fresh, in their own day, and gets none of thei
   assert.equal(await core.loadMemberPaused(table('2026-11-20'), 'm1', at, 'America/Los_Angeles', { asService: true }), true);
   assert.equal(await core.loadMemberPaused(table('2026-11-20'), 'm1', at, 'UTC', { asService: true }), false, 'the 21st in UTC');
   assert.equal(await core.loadMemberPaused(table(null), 'm1', at, 'UTC', { asService: true }), false);
+  // One row a break, kept after it ends: the latest end is read, whichever row comes first.
+  const two = fakeSupabase({ tables: { client_pauses: [{ client_id: 'm1', until_on: '2026-11-08' }, { client_id: 'm1', until_on: '2026-11-25' }] } });
+  assert.equal(await core.loadMemberPaused(two, 'm1', at, 'UTC', { asService: true }), true);
   const rpc = (res) => ({ rpc: async (name, args) => { assert.equal(name, 'get_client_pause'); assert.deepEqual(args, { p_client_id: 'm1' }); return res; } });
   assert.equal(await core.loadMemberPaused(rpc({ data: [{ until_on: '2026-11-30' }], error: null }), 'm1', at, 'UTC'), true);
   assert.equal(await core.loadMemberPaused(rpc({ data: null, error: { message: 'down' } }), 'm1', at, 'UTC'), false, 'a failed read is no break');
@@ -198,14 +208,41 @@ test('a coach is not pushed about a client away, and is pushed "Back from a brea
 });
 
 // ── the Score and prep-reminder crons ───────────────────────────────────────
+const PAUSE = await import(pathToFileURL(join(ROOT, 'src/lib/client-pause.mjs')).href);
+test('a break covers its own days only: not the days before it began, and still the ones it covered once ended (Codex on #2705)', () => {
+  const by = PAUSE.pausesByClient([
+    { client_id: 'a', from_on: '2026-11-11', until_on: '2026-11-20' },
+    { client_id: 'b', from_on: '2026-11-03', until_on: '2026-11-07' },
+    { client_id: 'b', from_on: '2026-11-10', until_on: '2026-11-12' },
+    { client_id: 'c', until_on: '2026-11-20' }, { client_id: 'c', from_on: 'soon', until_on: '2026-11-20' }, null, { from_on: '2026-11-01', until_on: '2026-11-02' },
+  ]);
+  assert.deepEqual([...by.keys()], ['a', 'b'], 'a row without both days, or a client, is dropped');
+  // Begun today: yesterday's missed workout and last week's check-in are still owed.
+  assert.equal(PAUSE.pauseCovers(by.get('a'), '2026-11-10'), false);
+  assert.equal(PAUSE.pauseCovers(by.get('a'), '2026-11-02', '2026-11-08'), false);
+  assert.equal(PAUSE.pauseCovers(by.get('a'), '2026-11-11'), true, 'its first day');
+  assert.equal(PAUSE.pauseCovers(by.get('a'), '2026-11-20'), true, 'its last day');
+  assert.equal(PAUSE.pauseCovers(by.get('a'), '2026-11-21'), false);
+  // Ended early, the days it covered stay covered; the gap between two breaks is owed.
+  assert.equal(PAUSE.pauseCovers(by.get('b'), '2026-11-05'), true);
+  assert.equal(PAUSE.pauseCovers(by.get('b'), '2026-11-08'), false);
+  assert.equal(PAUSE.pauseCovers(by.get('b'), '2026-11-11'), true);
+  // A week's check-in is none when a break covers any day of the week.
+  assert.equal(PAUSE.pauseCovers(by.get('b'), '2026-11-08', '2026-11-09'), false);
+  assert.equal(PAUSE.pauseCovers(by.get('b'), '2026-11-08', '2026-11-14'), true);
+  assert.equal(PAUSE.pauseCovers(undefined, '2026-11-11'), false);
+});
 test('the Score takes no penalty for a day a break covers, and a member away is not reminded to prep', () => {
   const score = read('src/app/api/cron/score-accountability/route.ts');
-  assert.match(score, /\.from\('client_pauses'\)\n          \.select\('client_id, until_on'\)\n          \.in\('client_id', ids\)/);
-  assert.match(score, /const until = pausedUntil\.get\(uid\);\n          if \(until && until >= day\) return;/);
+  assert.match(score, /\.from\('client_pauses'\)\n          \.select\('client_id, from_on, until_on'\)\n          \.in\('client_id', ids\)\n          \.gte\('until_on', lastMonday\)/);
+  assert.match(score, /breaksBy = pausesByClient\(pausesMissing \? \[\] : pausesRes\.data\);/);
+  assert.match(score, /if \(pauseCovers\(breaksBy\.get\(uid\), day, to\)\) return;/);
+  assert.match(score, /await penalize\('checkin', null, lastMonday, "last week's check-in", lastSunday\);/, 'the check-in\'s whole week');
+  assert.match(score, /\[sessRes, wosRes, habitsRes, settingsRes, pausesRes\]\.some\(\(r\) => \(r\.data \|\| \[\]\)\.length >= ROWS_MAX\)/, 'a full page of breaks skips the chunk');
   assert.match(score, /if \(pausesRes\.error && !pausesMissing\) \{\n        console\.error\('\[score-accountability\] pauses read failed — skipping chunk:'/);
   const prep = read('src/app/api/cron/prep-reminders/route.ts');
-  assert.match(prep, /readIn\(due, \(c\) => admin\.from\('client_pauses'\)\.select\('client_id, until_on'\)\.in\('client_id', c\)\),/);
-  assert.match(prep, /const away = pausedUntil\.get\(userId\);\n      if \(away && away >= today\) continue;/);
+  assert.match(prep, /readIn\(due, \(c\) => admin\.from\('client_pauses'\)\.select\('client_id, from_on, until_on'\)\.in\('client_id', c\)\.gte\('until_on', pauseFloor\)\),/);
+  assert.match(prep, /if \(pauseCovers\(breaksBy\.get\(userId\), today\)\) continue;/);
 });
 
 // ── the app's reads, writes and screens ─────────────────────────────────────

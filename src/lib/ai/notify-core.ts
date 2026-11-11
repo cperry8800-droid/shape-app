@@ -235,7 +235,8 @@ export function liveDismissals(records: unknown[], now: Date): unknown[] {
 export async function loadMemberPaused(client: SupabaseClient, userId: string, now: Date, tz: string, opts: { asService?: boolean } = {}): Promise<boolean> {
   try {
     const r = opts.asService
-      ? await client.from('client_pauses').select('until_on').eq('client_id', userId).maybeSingle()
+      // One row a break, kept after it ends: the latest end is the one that may hold today.
+      ? await client.from('client_pauses').select('until_on').eq('client_id', userId).order('until_on', { ascending: false }).limit(1).maybeSingle()
       : await client.rpc('get_client_pause', { p_client_id: userId });
     if (r.error) return false;
     const row = (Array.isArray(r.data) ? r.data[0] : r.data) as { until_on?: unknown } | null | undefined;

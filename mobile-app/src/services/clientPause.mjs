@@ -15,8 +15,8 @@ const pad = (n) => String(n).padStart(2, '0');
 export function localDay(d = new Date()) {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
-// The days a break may end on: today to PAUSE_MAX_DAYS on (the database allows a day either side, for
-// a member a day off UTC).
+// The days a break may end on: today to PAUSE_MAX_DAYS on (the database counts them in the member's
+// own calendar and allows a day either side, for a device on another calendar).
 export function pauseBounds(now = new Date()) {
   const max = new Date(now.getFullYear(), now.getMonth(), now.getDate() + PAUSE_MAX_DAYS);
   return { min: localDay(now), max: localDay(max) };
