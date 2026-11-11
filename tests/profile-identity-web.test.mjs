@@ -187,7 +187,8 @@ test('a photo past 400 KB is refused, stored or picked, as the app refuses it', 
   let acct = account({ ...ME, photo: BIG });
   await mount(editor());
   assert.equal(document.querySelector('[data-dk-identity]').getAttribute('data-dk-identity'), 'ready');
-  assert.equal(document.querySelector('[data-dk-photo]'), null, 'an oversized stored photo was shown');
+  // Booleans and short strings only: a failure message that prints a jsdom node or a 400 KB string runs out of memory.
+  assert.ok(!document.querySelector('[data-dk-photo]'), 'an oversized stored photo was shown');
   await click(button('Save profile'));
   assert.equal(acct.writes.length, 0);
   // Encoded oversized: refused with its message; the photo stays and nothing is written.
@@ -196,8 +197,8 @@ test('a photo past 400 KB is refused, stored or picked, as the app refuses it', 
   const toURL = window.HTMLCanvasElement.prototype.toDataURL;
   window.HTMLCanvasElement.prototype.toDataURL = () => BIG;
   try { await pick(new window.File(['x'], 'big.png', { type: 'image/png' })); } finally { window.HTMLCanvasElement.prototype.toDataURL = toURL; }
-  assert.match(document.body.textContent, /Couldn't read that photo — try another\./);
-  assert.equal(document.querySelector('[data-dk-photo]').getAttribute('src'), PHOTO);
+  assert.ok(/Couldn't read that photo — try another\./.test(document.body.textContent), 'an oversized photo was taken without a word');
+  assert.ok(document.querySelector('[data-dk-photo]').getAttribute('src') === PHOTO, 'the refused photo replaced the one held');
   await click(button('Save profile'));
   assert.equal(acct.writes.length, 0, 'the refused photo was written');
 });
