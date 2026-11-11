@@ -223,6 +223,7 @@
   "habit.markDone": "Marcar {name} como hecho",
   "habit.pts": "+{pts} pts",
   "habit.rowAria": "{kind}: {name}, vale {pts, plural, one {# punto} other {# puntos}}, {state}",
+  "lead.checkin.head": "Envía tu check-in semanal.",
   "lead.training.head": "Mantén viva la racha.",
   "lead.training.cta": "Mantendré mi racha →",
   "lead.training.stakes": "conserva tu racha + impulso",

@@ -223,6 +223,7 @@
   "habit.markDone": "Đánh dấu {name} xong",
   "habit.pts": "+{pts} điểm",
   "habit.rowAria": "{kind}: {name}, đáng {pts, plural, other {# điểm}}, {state}",
+  "lead.checkin.head": "Gửi check-in tuần của bạn.",
   "lead.training.head": "Giữ chuỗi ngày sống.",
   "lead.training.cta": "Tôi sẽ giữ chuỗi →",
   "lead.training.stakes": "giữ chuỗi + đà",

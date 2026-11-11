@@ -223,6 +223,7 @@
   "habit.markDone": "Позначити «{name}» виконаною",
   "habit.pts": "+{pts} б.",
   "habit.rowAria": "{kind}: {name}, вартує {pts, plural, one {# бал} few {# бали} many {# балів} other {# бала}}, {state}",
+  "lead.checkin.head": "Надішліть тижневий чек-ін.",
   "lead.training.head": "Не переривайте серію.",
   "lead.training.cta": "Збережу серію →",
   "lead.training.stakes": "збережіть серію + темп",

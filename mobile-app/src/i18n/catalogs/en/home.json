@@ -223,6 +223,7 @@
   "habit.markDone": "Mark {name} done",
   "habit.pts": "+{pts} pts",
   "habit.rowAria": "{kind}: {name}, worth {pts, plural, one {# point} other {# points}}, {state}",
+  "lead.checkin.head": "Send your weekly check-in.",
   "lead.training.head": "Keep the streak alive.",
   "lead.training.cta": "I'll keep my streak →",
   "lead.training.stakes": "hold your streak + momentum",

@@ -223,6 +223,7 @@
   "habit.markDone": "{name} yapıldı olarak işaretle",
   "habit.pts": "+{pts} puan",
   "habit.rowAria": "{kind}: {name}, {pts, plural, other {# puan}} değerinde, {state}",
+  "lead.checkin.head": "Haftalık check-in’ini gönder.",
   "lead.training.head": "Seriyi canlı tut.",
   "lead.training.cta": "Serimi koruyacağım →",
   "lead.training.stakes": "seriyi + ivmeyi koru",

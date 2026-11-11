@@ -223,6 +223,7 @@
   "habit.markDone": "Alamta {name} an gama",
   "habit.pts": "+{pts} maki",
   "habit.rowAria": "{kind}: {name}, yana da darajar {pts, plural, one {maki #} other {maki #}}, {state}",
+  "lead.checkin.head": "Aika check-in na mako.",
   "lead.training.head": "Kiyaye jerin da rai.",
   "lead.training.cta": "Zan riƙe jerina →",
   "lead.training.stakes": "riƙe jeri + ƙarfi",

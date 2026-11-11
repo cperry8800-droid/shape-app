@@ -223,6 +223,7 @@
   "habit.markDone": "Tandai {name} selesai",
   "habit.pts": "+{pts} poin",
   "habit.rowAria": "{kind}: {name}, bernilai {pts, plural, one {# poin} other {# poin}}, {state}",
+  "lead.checkin.head": "Kirim check-in mingguanmu.",
   "lead.training.head": "Jaga rentetan tetap hidup.",
   "lead.training.cta": "Aku akan jaga rentetan →",
   "lead.training.stakes": "pertahankan rentetan + momentum",
