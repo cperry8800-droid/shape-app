@@ -233,6 +233,8 @@
   "case.evQuiet": "CALME {n} JOURS",
   "case.evQuietAll": "CALME 7 JOURS",
   "case.evSessions": "{done}/{planned} SÉANCES",
+  "case.evWorkouts": "SÉANCES PRESCRITES",
+  "case.evWorkoutsDone": "{done}/{due} FAITES · 4 SEMAINES",
   "case.evWeekend": "WEEK-END {dim}",
   "case.evWkOf": "SEM. DU {date}",
   "case.flagged": "SIGNALÉ",

@@ -233,6 +233,8 @@
   "case.evQuiet": "STILL {n} TAGE",
   "case.evQuietAll": "STILL 7 TAGE",
   "case.evSessions": "{done}/{planned} EINHEITEN",
+  "case.evWorkouts": "ZUGEWIESENE WORKOUTS",
+  "case.evWorkoutsDone": "{done}/{due} ERLEDIGT · 4 WOCHEN",
   "case.evWeekend": "WOCHENENDE {dim}",
   "case.evWkOf": "WOCHE VOM {date}",
   "case.flagged": "MARKIERT",

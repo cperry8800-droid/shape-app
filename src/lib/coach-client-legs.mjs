@@ -349,6 +349,9 @@ export function bsReplyWaitLeg(messages, clientId, threads) {
 // planned = completed + confirmed + requested, the same statuses get_client_stats counted. A role the
 // caller doesn't hold reads null. ⚠ The caller OMITS the leg when the read failed.
 export const BOOKED_SESSION_DAYS = 42;
+// How far back the read looks for the last session kept, and forward for the next one booked.
+export const BOOKED_LAST_KEPT_DAYS = 120;
+export const BOOKED_AHEAD_DAYS = 120;
 /** @param {unknown[]} rows @param {unknown} mine @param {number} [now] */
 export function bsBookedSessionsLeg(rows, mine, now = Date.now()) {
   const list = Array.isArray(rows) ? rows : [];
@@ -358,18 +361,140 @@ export function bsBookedSessionsLeg(rows, mine, now = Date.now()) {
     const id = myId(mine, role);
     if (id == null) return null;
     let planned = 0, done = 0;
+    /** @type {number | null} */ let lastKept = null;
+    /** @type {number | null} */ let next = null;
     for (const r of list) {
       if (!r || typeof r !== 'object') continue;
       const row = /** @type {{ provider_role?: unknown, provider_id?: unknown, status?: unknown, scheduled_at?: unknown }} */ (r);
       if (row.provider_role !== role || String(row.provider_id) !== id) continue;
       const at = ms(row.scheduled_at);
-      if (at == null || at < from || at >= now) continue;
+      if (at == null) continue;
+      // The last session kept and the next one booked (no session booked, the coach-alerts plan): the
+      // read reaches back BOOKED_LAST_KEPT_DAYS and forward, so "booked before" outlives the 42 days.
+      if (row.status === 'completed' && at < now && (lastKept == null || at > lastKept)) lastKept = at;
+      if ((row.status === 'confirmed' || row.status === 'requested') && at >= now && (next == null || at < next)) next = at;
+      if (at < from || at >= now) continue;
       if (row.status === 'completed') { done++; planned++; }
       else if (row.status === 'confirmed' || row.status === 'requested') planned++;
     }
-    return { done, planned };
+    return { done, planned, lastKeptAt: lastKept == null ? null : new Date(lastKept).toISOString(), nextAt: next == null ? null : new Date(next).toISOString() };
   };
   return { trainer: count('trainer'), nutritionist: count('nutritionist') };
+}
+
+// ── The assigned workouts the client was due to do (workouts missed, the coach-alerts plan) ──
+// A trainer reads their OWN published workouts on the client's calendar (client_workouts, their
+// trainer_id) and which of them has a finished run (workout_sessions: save_workout_session stamps a
+// run of a trainer's workout with that trainer, so the trainer reads it under the participants
+// policy). A nutritionist reads the trainers' through get_shared_client_workouts, which carries each
+// workout's newest finished runs. A workout the member wrote for themselves has no trainer, so it is
+// never here. Out: { days: [{ on, done }] } oldest first, the workouts dated in the last
+// ASSIGNED_WORKOUT_DAYS up to today; the engine decides which days are past on its own clock.
+// ⚠ The caller OMITS the leg when a read failed: an empty list is the claim "nothing was assigned".
+export const ASSIGNED_WORKOUT_DAYS = 30;
+/** @param {unknown[]} workouts @param {Set<string> | null} doneIds @param {string | null} today */
+export function bsAssignedWorkoutsLeg(workouts, doneIds, today) {
+  const list = Array.isArray(workouts) ? workouts : [];
+  const end = typeof today === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(today) ? today : isoDayUTC(Date.now());
+  const start = isoDayUTC(Date.parse(end + 'T00:00:00Z') - ASSIGNED_WORKOUT_DAYS * DAY_MS);
+  const days = [];
+  for (const w of list) {
+    if (!w || typeof w !== 'object') continue;
+    const row = /** @type {{ id?: unknown, scheduled_date?: unknown, runs?: unknown }} */ (w);
+    const on = typeof row.scheduled_date === 'string' ? row.scheduled_date.slice(0, 10) : null;
+    if (!on || !/^\d{4}-\d{2}-\d{2}$/.test(on) || on < start || on > end) continue;
+    const done = Array.isArray(row.runs) ? row.runs.length > 0 : !!(doneIds && row.id != null && doneIds.has(String(row.id)));
+    days.push({ on, done });
+  }
+  days.sort((a, b) => (a.on < b.on ? -1 : a.on > b.on ? 1 : 0));
+  return { days };
+}
+
+// ── The trainer's own sessions' effort (training load, context only) ─────────
+// session_rpe × minutes per finished run of the trainer's own workouts, by the member's local day
+// (summary.snapshotDate, else the run's UTC day), over the last TRAINING_LOAD_DAYS. A run with no
+// rating or no duration carries no load and is left out. Out: { days: [{ on, load, runs }] } oldest first.
+export const TRAINING_LOAD_DAYS = 36;
+/** @param {unknown[]} runs @param {number} [now] */
+export function bsTrainingLoadLeg(runs, now = Date.now()) {
+  const since = isoDayUTC(now - TRAINING_LOAD_DAYS * DAY_MS);
+  /** @type {Map<string, { load: number, runs: number }>} */
+  const byDay = new Map();
+  for (const r of Array.isArray(runs) ? runs : []) {
+    if (!r || typeof r !== 'object') continue;
+    const row = /** @type {{ session_rpe?: unknown, duration_seconds?: unknown, local_day?: unknown, ended_at?: unknown, created_at?: unknown }} */ (r);
+    const rpe = num(row.session_rpe), secs = num(row.duration_seconds);
+    if (rpe == null || rpe <= 0 || secs == null || secs <= 0) continue;
+    const local = typeof row.local_day === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(row.local_day) ? row.local_day : null;
+    const at = ms(row.ended_at) ?? ms(row.created_at);
+    const on = local || (at != null ? isoDayUTC(at) : null);
+    if (!on || on < since) continue;
+    const cur = byDay.get(on) || { load: 0, runs: 0 };
+    byDay.set(on, { load: cur.load + rpe * (secs / 60), runs: cur.runs + 1 });
+  }
+  // `runs`: the rated runs that day, so the baseline's evidence floor counts runs, not days (Codex on #2717).
+  const days = [...byDay.entries()].sort((a, b) => (a[0] < b[0] ? -1 : 1)).map(([on, v]) => ({ on, load: Math.round(v.load), runs: v.runs }));
+  return { days };
+}
+
+// ── The newest day of the caller's own finished runs (gone quiet, not started) ──
+// ⚠ A RUN WITH NO MINUTES IS STILL A WORKOUT (Codex on #2717): save_workout_session adds nothing to the
+// day's snapshot when a run rounds to 0 minutes, so the snapshot alone misses a quick-logged one. The
+// member's local day (summary.snapshotDate), else the run's UTC day; null when none. A day after `maxDay`
+// (YYYY-MM-DD) is left out: the member's summary date is taken as sent, and a future one would hide a real day.
+/** @param {unknown[]} runs @param {string | null} [maxDay] */
+export function bsLastRunDay(runs, maxDay = null) {
+  let last = null;
+  for (const r of Array.isArray(runs) ? runs : []) {
+    if (!r || typeof r !== 'object') continue;
+    const row = /** @type {{ local_day?: unknown, ended_at?: unknown, created_at?: unknown }} */ (r);
+    const local = typeof row.local_day === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(row.local_day) ? row.local_day : null;
+    const at = ms(row.ended_at) ?? ms(row.created_at);
+    const on = local || (at != null ? isoDayUTC(at) : null);
+    if (on && (maxDay == null || on <= maxDay) && (last == null || on > last)) last = on;
+  }
+  return last;
+}
+
+// ── What the member did, from the snapshot window (gone quiet, not started, steps) ──
+// The last day with workout minutes (save_workout_session adds a finished run's minutes to the day,
+// a member's own workouts included) and each day's steps. Out: { lastWorkoutOn, steps: [{ on, steps }] }
+// oldest first. ⚠ The caller OMITS the leg when the snapshot read failed.
+/** @param {unknown[]} snapRows */
+export function bsActivityLeg(snapRows) {
+  if (!Array.isArray(snapRows)) return null;
+  let lastWorkoutOn = null;
+  const steps = [];
+  for (const r of snapRows) {
+    const day = dayOf(r);
+    if (!day) continue;
+    const row = /** @type {Record<string, unknown>} */ (r);
+    const mins = num(row.workout_minutes);
+    if (mins != null && mins > 0 && (lastWorkoutOn == null || day > lastWorkoutOn)) lastWorkoutOn = day;
+    const st = num(row.steps);
+    if (st != null && st > 0) steps.push({ on: day, steps: Math.round(st) });
+  }
+  steps.sort((a, b) => (a.on < b.on ? -1 : a.on > b.on ? 1 : 0));
+  return { lastWorkoutOn, steps };
+}
+
+// ── The client's newest message to the caller (gone quiet) ───────────────────
+// From the same newest messages the reply wait reads, in the caller's own threads. null when none of
+// them is the client's; undefined (unknown) when the read came back full without one, since the
+// client's last message may be just before it.
+/** @param {unknown[]} messages @param {string} clientId @param {number} limit */
+export function bsLastFromClient(messages, clientId, limit) {
+  const rows = Array.isArray(messages) ? messages : [];
+  let newest = null;
+  for (const m of rows) {
+    if (!m || typeof m !== 'object') continue;
+    const row = /** @type {{ sender_id?: unknown, created_at?: unknown }} */ (m);
+    if (row.sender_id == null || String(row.sender_id) !== String(clientId)) continue;
+    const at = ms(row.created_at);
+    if (at != null && (newest == null || at > newest)) newest = at;
+  }
+  if (newest != null) return new Date(newest).toISOString();
+  return rows.length >= limit ? undefined : null;
 }
 
 // ── The onboarding board, per role (client-onboarding review, fix 4) ─────────

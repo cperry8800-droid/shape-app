@@ -233,6 +233,8 @@
   "case.evQuiet": "ТИША {n} ДН",
   "case.evQuietAll": "ТИША 7 ДНІВ",
   "case.evSessions": "{done}/{planned} СЕСІЙ",
+  "case.evWorkouts": "ПРИЗНАЧЕНІ ТРЕНУВАННЯ",
+  "case.evWorkoutsDone": "{done}/{due} ВИКОНАНО · 4 ТИЖНІ",
   "case.evWeekend": "ВИХІДНІ {dim}",
   "case.evWkOf": "ТИЖДЕНЬ ВІД {date}",
   "case.flagged": "ПОЗНАЧЕНО",

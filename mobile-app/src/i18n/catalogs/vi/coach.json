@@ -233,6 +233,8 @@
   "case.evQuiet": "IM ẮNG {n} NGÀY",
   "case.evQuietAll": "IM ẮNG 7 NGÀY",
   "case.evSessions": "{done}/{planned} BUỔI",
+  "case.evWorkouts": "BÀI TẬP ĐƯỢC GIAO",
+  "case.evWorkoutsDone": "{done}/{due} ĐÃ TẬP · 4 TUẦN",
   "case.evWeekend": "CUỐI TUẦN {dim}",
   "case.evWkOf": "TUẦN {date}",
   "case.flagged": "ĐÁNH DẤU",

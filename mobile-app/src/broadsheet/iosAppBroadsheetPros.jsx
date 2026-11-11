@@ -1991,6 +1991,9 @@ function bsRowFromTriage(row, role, t) {
     // What the live reads hold for the row's facts line: workouts logged in the last six weeks
     // (get_client_lifts) and the average calories eaten on logged days (get_client_stats).
     workouts6w: (rec.totals && Number.isFinite(rec.totals.workouts)) ? rec.totals.workouts : null,
+    // The assigned workouts due in the last 4 weeks and how many were done (the engine's), for the case
+    // file's evidence when workouts missed leads; null without a read of them.
+    workouts4w: (() => { try { const e = window.DashSignals; return e && typeof e.workoutCompletion === 'function' ? e.workoutCompletion(rec, new Date()) : null; } catch (e) { return null; } })(),
     avgKcal: (rec.nutrition && Number.isFinite(rec.nutrition.avgCalories)) ? Math.round(rec.nutrition.avgCalories) : null,
     s: sev === 'red' ? 'missed' : sev === 'amber' ? 'review form' : sev === 'new' ? 'onboard' : 'on track',
     active: true,
@@ -4602,7 +4605,7 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
   const _allClear = _sig.sev === 'green' || _sig.sev === 'past';
   const _lead = _sig && _sig.lead ? _sig.lead : null;
   const _act = _lead && _lead.action ? _lead.action : null;
-  const _LEAD_GROUP = { checkin_overdue: 'check-in-due', checkin_waiting: 'check-in-due', missed_sessions: 'missed-sessions', food_gap: 'nutrition-slip', food_logging: 'nutrition-slip', ledger_blown: 'nutrition-slip', protein_under: 'nutrition-slip', hunger_high: 'nutrition-slip', plan_due: 'program-stall', program_ending: 'program-stall' };
+  const _LEAD_GROUP = { checkin_overdue: 'check-in-due', checkin_waiting: 'check-in-due', missed_sessions: 'missed-sessions', no_booking: 'missed-sessions', workouts_missed: 'workouts-missed', completion_drop: 'workouts-missed', not_started: 'new-intake', food_gap: 'nutrition-slip', food_logging: 'nutrition-slip', ledger_blown: 'nutrition-slip', protein_under: 'nutrition-slip', hunger_high: 'nutrition-slip', plan_due: 'program-stall', program_ending: 'program-stall' };
   const _DEMO_GROUP = { missed: role === 'nutritionist' ? 'nutrition-slip' : 'check-in-due', 'review form': 'check-in-due', 'deload soon': 'program-stall' };
   const _dirKind = _allClear ? 'all-clear'
     : _sig.sev === 'new' ? 'new-intake' // a fresh client → reach out with the intake (no program exists yet)
@@ -4665,6 +4668,7 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
     }
     if (_dirKind === 'nutrition-slip' && days7 != null && days7 < 7) rows.push([tr('coach:case.evLogs', { defaultValue: 'LOGS' }), days7 === 0 ? tr('coach:case.evQuietAll', { defaultValue: 'QUIET 7 DAYS' }) : tr('coach:case.evQuiet', { defaultValue: 'QUIET {n} DAYS', n: 7 - days7 })]);
     if (_dirKind === 'missed-sessions' && sDone != null && sPlan != null) rows.push([tr('coach:case.evAttendance', { defaultValue: 'ATTENDANCE' }), tr('coach:case.evSessions', { defaultValue: '{done}/{planned} SESSIONS', done: sDone, planned: sPlan })]);
+    if (_dirKind === 'workouts-missed' && client.workouts4w && client.workouts4w.due > 0) rows.push([tr('coach:case.evWorkouts', { defaultValue: 'ASSIGNED WORKOUTS' }), tr('coach:case.evWorkoutsDone', { defaultValue: '{done}/{due} DONE · 4 WEEKS', done: client.workouts4w.done, due: client.workouts4w.due })]);
     if (_dirKind === 'check-in-due' && cKit.checkins.length) rows.push([tr('coach:case.evLastCheckin', { defaultValue: 'LAST CHECK-IN' }), tr('coach:case.evWkOf', { defaultValue: 'WK OF {date}', date: String(cKit.checkins[0].week_of).slice(5) })]);
     if (avgKcal != null && _dirKind === 'nutrition-slip') rows.push([tr('coach:case.evAvgIntake', { defaultValue: 'AVG INTAKE' }), tr('coach:case.evKcal', { defaultValue: '{kcal} KCAL', kcal: avgKcal.toLocaleString(coachLocale()) })]);
     // ≤3 evidence lines. When there are fewer than 3 real cited rows (i.e. no

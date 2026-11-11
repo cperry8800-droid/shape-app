@@ -97,6 +97,22 @@
     RECOVERY_LOW: 33,         // a wearable's 7-day recovery / readiness average at or under this flags (0-100)
     RECOVERY_MIN_DAYS: 3,     // device readings the recovery average needs (evidence floor)
     PLAN_END_DAYS: 14,        // a cancelled plan ending within this many days flags (the field arrives with P3)
+    // ── The trainer alerts (the 2026-11-11 coach-alerts plan, PR 1) ──
+    WORKOUT_DONE_PCT: 50,     // under this share of the assigned workouts due in the window done flags (workouts_missed)
+    WORKOUT_MISSED_ROW: 2,    // …or the last this many due in a row missed
+    WORKOUT_MIN_DUE: 4,       // assigned workouts due in the window before either may speak
+    WORKOUT_WINDOW_DAYS: 28,  // the window: past days only, today never counts (engine policy)
+    COMPLETION_DROP_PCT: 20,  // the last 2 weeks' completion this many points under the 2 weeks before flags (completion_drop)
+    COMPLETION_HALF_MIN: 3,   // assigned workouts due in each 2-week half before the drop may speak (evidence floor)
+    QUIET_DAYS: 7,            // days with nothing from the client (workout, food log, check-in, message, a Score day): gone_quiet
+    NOT_STARTED_DAYS: 3,      // days after joining with no first workout, meal or check-in: not_started
+    NOT_STARTED_UNTIL: 30,    // …read only in the client's first days (after them, gone quiet speaks): engine policy
+    NO_BOOKING_DAYS: 14,      // days since the last session kept with this coach, none booked: no_booking
+    LOAD_SPIKE_X: 1.5,        // this week's training load (RPE × minutes) over this multiple of the 4-week weekly average (context)
+    LOAD_MIN_SESSIONS: 4,     // rated runs the 4-week baseline needs (evidence floor)
+    STEPS_DROP_PCT: 30,       // this week's average steps this far under the 4-week average (context; an estimate)
+    STEPS_MIN_DAYS: 4,        // days with steps this week needs (evidence floor)
+    STEPS_BASE_MIN_DAYS: 14,  // days with steps the 4-week baseline needs (evidence floor)
   };
 
   var DEFAULT_THRESHOLDS = {};
@@ -176,6 +192,26 @@
       // leg reads coach_program_assignments, which no page writes (coach-client-legs.mjs), so the flag
       // never fires on a live client. Reading published meal plans' end dates is a War Room item.
       byRole: { nutrition: { label: "Plan ending", help: "Not live yet: Shape can't read when a meal plan ends, so this doesn't flag for now. Once it can, it flags a plan this many days before it ends when nothing is lined up next." } } },
+    // ── The trainer alerts (the 2026-11-11 coach-alerts plan, PR 1). Workout completion is read by the
+    // trainer's evaluation alone (a nutritionist sees it in joint attention, at the trainer's line). ──
+    { key: "WORKOUT_DONE_PCT",   label: "Workout completion",  unit: "%",     min: 10, max: 90, step: 5, roles: ["training"],
+      help: "Flag when fewer than this share of the workouts you assigned, due in the last 4 weeks, were done." },
+    { key: "WORKOUT_MISSED_ROW", label: "Workouts missed in a row", unit: "workouts", min: 1, max: 6, step: 1, roles: ["training"],
+      help: "Flag when this many of your assigned workouts in a row were missed." },
+    { key: "WORKOUT_MIN_DUE",    label: "Workouts due first",  unit: "workouts", min: 2, max: 12, step: 1, roles: ["training"],
+      help: "Assigned workouts due in the last 4 weeks before completion may flag. Workouts they added themselves never count." },
+    { key: "COMPLETION_DROP_PCT", label: "Completion drop",    unit: "points", min: 5, max: 60, step: 5, roles: ["training"],
+      help: "Flag when the last 2 weeks' workout completion falls this many points under the 2 weeks before, so a slide from 95% to 70% is caught." },
+    { key: "QUIET_DAYS",         label: "Quiet after",         unit: "days",  min: 3,  max: 30, step: 1,
+      help: "Days with nothing from them (no workout, food log, check-in, message or Shape Score day) before it flags. It takes the place of the food-log and contact gaps." },
+    { key: "NOT_STARTED_DAYS",   label: "Not started by",      unit: "days",  min: 1,  max: 14, step: 1,
+      help: "Days after joining with no first workout, meal or check-in before it flags." },
+    { key: "NO_BOOKING_DAYS",    label: "No booking after",    unit: "days",  min: 5,  max: 60, step: 1,
+      help: "Days since your last session with them, with nothing booked, before it flags. Clients who only follow a program never get it." },
+    { key: "LOAD_SPIKE_X",       label: "Training load spike", unit: "×",     min: 1.1, max: 3, step: 0.1, roles: ["training"],
+      help: "This week's effort (rating × minutes) over this multiple of their 4-week weekly average shows on the client. It never colours the row or sends an alert." },
+    { key: "STEPS_DROP_PCT",     label: "Steps falling",       unit: "%",     min: 10, max: 70, step: 5, roles: ["training"],
+      help: "This week's average steps this far under their own 4-week average shows on the client. It never colours the row or sends an alert. 30% is an estimate." },
     { key: "RECOVERY_LOW",       label: "Low recovery",        unit: "/100",  min: 10, max: 70, step: 1,
       help: "A wearable's recovery or readiness averaging at or under this over the week flags.",
       byRole: { nutrition: { help: "A wearable's recovery or readiness averaging at or under this over the week flags. The trainer's when one is on; yours when you're their only coach." } } },
@@ -382,7 +418,9 @@
   // back, never from before the break. Engine policy, not a coach tunable.
   var PAUSE_BACK_DAYS = 3;
   var PAUSE_BOUND_DAYS = 14;
-  var PAUSE_SILENCED = { food_gap: true, food_logging: true, checkin_overdue: true, contact_gap: true, missed_sessions: true, goal_slip: true, streak_broken: true, score_drop: true };
+  var PAUSE_SILENCED = { food_gap: true, food_logging: true, checkin_overdue: true, contact_gap: true, missed_sessions: true, goal_slip: true, streak_broken: true, score_drop: true,
+    // The trainer alerts (PR 1): every one that reads their absence (owner: anyone on a break stays quiet).
+    workouts_missed: true, completion_drop: true, gone_quiet: true, not_started: true, no_booking: true, load_spike: true, steps_falling: true };
   var ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
   // null | { state: "paused", until, by } | { state: "back", until, since, day, fresh, by }: `since` is
   // the return day, `day` the days since it (0 on it), `fresh` within PAUSE_BACK_DAYS.
@@ -1306,6 +1344,201 @@
     return { key: "recovery_low", label: "Recovery low", reason: "Their wearable's recovery has averaged " + Math.round(avg) + "/100 this week — ease the load", avg: avg, n: n, sig: "wk:" + weekKey(now) };
   }
 
+  // ── The trainer alerts (the 2026-11-11 coach-alerts plan, PR 1) ───────────
+  // The local calendar day `n` days before `now`, as "YYYY-MM-DD".
+  function dayBefore(now, n) { var d = new Date(now.getTime()); d.setHours(12, 0, 0, 0); d.setDate(d.getDate() - n); return iso(d); }
+  // The assigned workouts due: past days only (today never counts), in the last WORKOUT_WINDOW_DAYS,
+  // never before they joined, and after a break only from the day they came back. Oldest first.
+  function dueWorkouts(c, now) {
+    var w = c && c.assignedWorkouts;
+    if (!w || typeof w !== "object" || !Array.isArray(w.days)) return null;
+    var today = iso(now), from = dayBefore(now, THRESHOLDS.WORKOUT_WINDOW_DAYS);
+    var joinDay = clientJoinDay(c);
+    var join = joinDay ? iso(joinDay) : null;
+    var back = pauseOf(c, now);
+    var since = back && back.state === "back" ? back.since : null;
+    var out = [];
+    for (var i = 0; i < w.days.length; i++) {
+      var d = w.days[i];
+      if (!d || typeof d.on !== "string" || !ISO_DAY.test(d.on)) continue;
+      if (d.on >= today || d.on < from || (join && d.on < join) || (since && d.on < since)) continue;
+      out.push({ on: d.on, done: d.done === true });
+    }
+    out.sort(function (a, b) { return a.on < b.on ? -1 : a.on > b.on ? 1 : 0; });
+    return out;
+  }
+  // The assigned workouts due in the window and how many were done, for a surface's figure (the app's
+  // case file); null when the record has no read of them.
+  function workoutCompletion(c, now) {
+    var due = dueWorkouts(c, now || new Date());
+    return due ? { done: due.filter(function (d) { return d.done; }).length, due: due.length } : null;
+  }
+  // Workouts missed (a trainer's; amber, training): under WORKOUT_DONE_PCT of the assigned workouts due
+  // in the window done, or the last WORKOUT_MISSED_ROW due all missed, once WORKOUT_MIN_DUE were due.
+  function ruleWorkoutsMissed(c, now) {
+    var due = dueWorkouts(c, now);
+    if (!due || due.length < THRESHOLDS.WORKOUT_MIN_DUE) return null;
+    var done = due.filter(function (d) { return d.done; }).length;
+    var weeks = Math.round(THRESHOLDS.WORKOUT_WINDOW_DAYS / 7);
+    if (done * 100 < THRESHOLDS.WORKOUT_DONE_PCT * due.length) {
+      return { key: "workouts_missed", label: done + " of " + due.length + " done", reason: done + " of " + due.length + " assigned workouts done in the last " + weeks + " weeks", figures: { done: done, due: due.length }, sig: "wk:" + weekKey(now) };
+    }
+    var row = THRESHOLDS.WORKOUT_MISSED_ROW;
+    var tail = due.slice(-row);
+    if (row >= 1 && tail.length === row && tail.every(function (d) { return !d.done; })) {
+      return { key: "workouts_missed", label: "Missed " + row + " in a row", reason: row === 1 ? "Missed the last assigned workout" : "Missed the last " + row + " assigned workouts", figures: { inARow: row, done: done, due: due.length }, sig: "last:" + tail[tail.length - 1].on };
+    }
+    return null;
+  }
+  // A sudden drop in completion (TrueCoach flags a 20% fall; CoachRx calls two falling weeks an early
+  // warning): the last 14 days' completion COMPLETION_DROP_PCT points or more under the 14 before, each
+  // half with COMPLETION_HALF_MIN due. Catches 95% → 70%, which the 50% line misses. Quiet when
+  // workouts_missed speaks (evaluateClient).
+  function ruleCompletionDrop(c, now) {
+    var due = dueWorkouts(c, now);
+    if (!due) return null;
+    var mid = dayBefore(now, 14);
+    var recent = due.filter(function (d) { return d.on >= mid; }), prior = due.filter(function (d) { return d.on < mid; });
+    if (recent.length < THRESHOLDS.COMPLETION_HALF_MIN || prior.length < THRESHOLDS.COMPLETION_HALF_MIN) return null;
+    var pct = function (list) { return list.filter(function (d) { return d.done; }).length * 100 / list.length; };
+    var now2 = pct(recent), before = pct(prior);
+    if (!(before - now2 >= THRESHOLDS.COMPLETION_DROP_PCT)) return null;
+    return { key: "completion_drop", label: "Completion down", reason: "Did " + Math.round(now2) + "% of assigned workouts in the last 2 weeks, down from " + Math.round(before) + "%", figures: { recentPct: Math.round(now2), priorPct: Math.round(before) }, sig: "wk:" + weekKey(now) };
+  }
+
+  // The newest thing the client did that a coach can read, or null with what was read. Each source
+  // the record carries: a finished workout (activity.lastWorkoutOn), a food log, a check-in (when it was
+  // submitted, else the end of its week), a message to this coach (lastFromClient) and a day that
+  // earned Shape Score points (streaks.lastActiveOn). ⚠ ABSENCE IS NEVER A SIGNAL: without the
+  // workout, food, check-in and message reads all answered, there is nothing to say (`known` false).
+  // Whether the food-log history was read with its dates (gone quiet, not started). The 7-day count can
+  // come from the stats rollup while the dated snapshot read failed, which leaves lastLoggedOn null.
+  // ⚠ A NULL DATE IS "NONE" ONLY WHEN THE DATED READ ANSWERED (Codex on #2717): the overview carried
+  // `logs` (recordFromOverview's logsRead), and no day counted this week says otherwise.
+  function foodDated(c) {
+    var f = c && c.foodLogs;
+    if (!f) return false;
+    if (f.lastLoggedOn) return true;
+    return c.logsRead === true && !(kpiNum(f.daysLogged7d) > 0);
+  }
+  function lastActivity(c, now) {
+    var a = c && c.activity && typeof c.activity === "object" ? c.activity : null;
+    var f = c && c.foodLogs;
+    // ⚠ AND THE SCORE READ (Codex on #2717): a Score day is activity, so a failed read of it is unknown.
+    var scoreKnown = !!(c && (c.streaks || c.scoreRead === true));
+    var known = !!a && foodDated(c) && !!(c && c.checkIn) && scoreKnown && c && Object.prototype.hasOwnProperty.call(c, "lastFromClient") && c.lastFromClient !== undefined;
+    var dates = [];
+    if (a && a.lastWorkoutOn) dates.push(toDate(a.lastWorkoutOn));
+    if (f && f.lastLoggedOn) dates.push(toDate(f.lastLoggedOn));
+    var ci = c && c.checkIn;
+    if (ci) {
+      var sub = ci.latest && ci.latest.submittedAt ? toDate(ci.latest.submittedAt) : null;
+      if (sub) dates.push(sub);
+      else if (ci.lastWeekOf) { var wk = toDate(ci.lastWeekOf); if (wk) { wk.setDate(wk.getDate() + 6); dates.push(wk); } }
+    }
+    if (c && typeof c.lastFromClient === "string") dates.push(toDate(c.lastFromClient));
+    if (c && c.streaks && c.streaks.lastActiveOn) dates.push(toDate(c.streaks.lastActiveOn));
+    var last = null;
+    for (var i = 0; i < dates.length; i++) {
+      var d = dates[i];
+      if (d && !isNaN(d.getTime()) && d.getTime() <= now.getTime() + DAY && (!last || d > last)) last = d;
+    }
+    // A last log with no date and an empty week is "nothing in the snapshot window", not unknown.
+    return { known: known, last: last };
+  }
+  // Gone quiet (both coaches; amber, contact): nothing from them in QUIET_DAYS. It takes the place of
+  // the food-log gap and the contact gap for the client (evaluateClient), so the coach reads one line.
+  // Counted from when they joined, and from the day they came back from a break, never from before.
+  function ruleGoneQuiet(c, now) {
+    var r = lastActivity(c, now);
+    if (!r.known) return null;
+    var joinDay = clientJoinDay(c);
+    var start = r.last ? new Date(r.last.getTime()) : null;
+    if (start) start.setHours(0, 0, 0, 0);
+    var since = "last";
+    if (joinDay && (!start || start < joinDay)) { start = joinDay; since = "joined"; }
+    var p = pauseOf(c, now);
+    if (p && p.state === "back") { var bd = toDate(p.since); if (!start || start < bd) { start = bd; since = "break"; } }
+    if (!start) return null;
+    var gap = since === "break" ? resumeDays(c, now) : daysBetween(start, now);
+    if (gap == null || gap < THRESHOLDS.QUIET_DAYS) return null;
+    var what = "no workout, food log, check-in or message";
+    var reason = since === "joined" ? "Nothing from them in the " + gap + " days since they joined: " + what
+      : since === "break" ? "Nothing from them in the " + gap + " days since their break: " + what
+      : "Nothing from them in " + gap + " days: " + what;
+    return { key: "gone_quiet", label: "Quiet " + gap + "d", reason: reason, figures: { days: gap }, sig: since + ":" + iso(start) };
+  }
+  // Not started (both coaches; amber, onboarding): from NOT_STARTED_DAYS after joining, no first
+  // workout, meal or check-in. Shape has no sign-in date, so it reads what they did. It sits beside the
+  // board's "Say hello", which is the coach writing first; this is the client starting.
+  function ruleNotStarted(c, now) {
+    var days = clientDays(c, now);
+    var joinDay = clientJoinDay(c);
+    if (days == null || !joinDay || days < THRESHOLDS.NOT_STARTED_DAYS || days >= THRESHOLDS.NOT_STARTED_UNTIL) return null;
+    var a = c.activity, f = c.foodLogs, ci = c.checkIn;
+    if (!a || typeof a !== "object" || !foodDated(c) || !ci) return null;
+    var after = function (v) { var d = toDate(v); return !!d && d.getTime() >= joinDay.getTime(); };
+    if (a.lastWorkoutOn && after(a.lastWorkoutOn)) return null;
+    if (f.lastLoggedOn && after(f.lastLoggedOn)) return null;
+    var ciWeek = ci.lastWeekOf ? toDate(ci.lastWeekOf) : null;
+    if (ci.latest && ci.latest.submittedAt ? after(ci.latest.submittedAt) : (ciWeek && mondayOf(ciWeek) >= mondayOf(joinDay))) return null;
+    return { key: "not_started", label: "Not started", reason: "Joined " + days + " days ago, nothing logged yet", figures: { days: days }, sig: "joined:" + iso(joinDay) };
+  }
+  // No session booked (each coach's own; amber, never red): a client who has kept a session with this
+  // coach, none in NO_BOOKING_DAYS and none coming up. One who only follows a program never gets it.
+  function ruleNoBooking(c, now, role) {
+    var bs = c.bookedSessions;
+    var own = disciplineForRole(role) === "training" ? "trainer" : disciplineForRole(role) === "nutrition" ? "nutritionist" : null;
+    var leg = bs && typeof bs === "object" && own ? bs[own] : null;
+    if (!leg || typeof leg !== "object" || !Object.prototype.hasOwnProperty.call(leg, "nextAt")) return null;
+    if (leg.nextAt != null || !leg.lastKeptAt) return null;
+    var last = toDate(leg.lastKeptAt);
+    if (!last) return null;
+    var lastDay = new Date(last.getTime()); lastDay.setHours(0, 0, 0, 0);
+    var gap = daysBetween(lastDay, now);
+    if (gap < THRESHOLDS.NO_BOOKING_DAYS) return null;
+    return { key: "no_booking", label: "Nothing booked", reason: "Last session with you " + gap + " days ago, nothing booked", figures: { days: gap }, sig: "last:" + instantKey(leg.lastKeptAt) };
+  }
+  // Context only (a trainer's): this week's training load over LOAD_SPIKE_X times the 4-week weekly
+  // average. Load is the trainer's own runs' effort rating × minutes (bsTrainingLoadLeg).
+  function ruleLoadSpike(c, now) {
+    var tl = c.trainingLoad;
+    if (!tl || !Array.isArray(tl.days)) return null;
+    var today = iso(now), wkFrom = dayBefore(now, 6), baseFrom = dayBefore(now, 34);
+    var week = 0, base = 0, baseN = 0;
+    for (var i = 0; i < tl.days.length; i++) {
+      var d = tl.days[i], v = d ? kpiNum(d.load) : null;
+      if (!d || typeof d.on !== "string" || v == null || v <= 0 || d.on > today) continue;
+      if (d.on >= wkFrom) week += v;
+      // The rated runs that day (bsTrainingLoadLeg's `runs`), one when a record predates it (Codex on #2717).
+      else if (d.on >= baseFrom) { base += v; var rn = kpiNum(d.runs); baseN += rn != null && rn >= 1 ? rn : 1; }
+    }
+    if (baseN < THRESHOLDS.LOAD_MIN_SESSIONS || !(base > 0)) return null;
+    var avg = base / 4;
+    if (!(week > THRESHOLDS.LOAD_SPIKE_X * avg)) return null;
+    var x = Math.round((week / avg) * 10) / 10;
+    return { key: "load_spike", label: "Load " + x + "×", reason: "This week's training load is " + x + "× their 4-week average", figures: { ratio: x }, sig: "wk:" + weekKey(now) };
+  }
+  // Context only (a trainer's): this week's average steps STEPS_DROP_PCT or more under their own 4-week
+  // average before it.
+  function ruleStepsFalling(c, now) {
+    var a = c.activity;
+    if (!a || !Array.isArray(a.steps)) return null;
+    var today = iso(now), wkFrom = dayBefore(now, 6), baseFrom = dayBefore(now, 34);
+    var w = [], b = [];
+    for (var i = 0; i < a.steps.length; i++) {
+      var d = a.steps[i], v = d ? kpiNum(d.steps) : null;
+      if (!d || typeof d.on !== "string" || v == null || v <= 0 || d.on > today) continue;
+      if (d.on >= wkFrom) w.push(v); else if (d.on >= baseFrom) b.push(v);
+    }
+    if (w.length < THRESHOLDS.STEPS_MIN_DAYS || b.length < THRESHOLDS.STEPS_BASE_MIN_DAYS) return null;
+    var mean = function (l) { return l.reduce(function (x, y) { return x + y; }, 0) / l.length; };
+    var wa = mean(w), ba = mean(b);
+    if (!((ba - wa) * 100 >= THRESHOLDS.STEPS_DROP_PCT * ba)) return null;
+    var pct = Math.round((1 - wa / ba) * 100);
+    return { key: "steps_falling", label: "Steps −" + pct + "%", reason: "Steps averaging " + Math.round(wa).toLocaleString("en-US") + " a day this week, " + pct + "% under their 4-week average", figures: { pct: pct, avg: Math.round(wa), baseline: Math.round(ba) }, sig: "wk:" + weekKey(now) };
+  }
+
   // ── Evaluation + triage ───────────────────────────────────────────────────
 
   // evaluateClient(record, now, role) -> { flags, severity }
@@ -1376,6 +1609,27 @@
       if ((f = rulePaymentRetrying(c, now))) flags.push(f);
       if ((f = rulePlanEnding(c, now))) flags.push(f);
       if ((f = ruleRecoveryLow(c, now))) flags.push(f);
+      // The trainer alerts (PR 1). Workout completion and the context reads are the trainer's own
+      // evaluation; a nutritionist sees completion in joint attention, read at the trainer's line.
+      if (disciplineForRole(role) === "training") {
+        var wm = ruleWorkoutsMissed(c, now);
+        if (wm) flags.push(wm);
+        else if ((f = ruleCompletionDrop(c, now))) flags.push(f);
+        if ((f = ruleLoadSpike(c, now))) flags.push(f);
+        if ((f = ruleStepsFalling(c, now))) flags.push(f);
+      }
+      if ((f = ruleNoBooking(c, now, role))) flags.push(f);
+      // Not started speaks for a new client; gone quiet for the rest. Either takes the place of the
+      // food-log gap and the contact gap (not started: the food-log reads only), so the coach reads one
+      // line, not two. Each gap still shows alone when only that one is quiet.
+      var ns = ruleNotStarted(c, now);
+      var gq = ns ? null : ruleGoneQuiet(c, now);
+      if (ns || gq) {
+        var replaced = ns ? { food_gap: true, food_logging: true } : { food_gap: true, food_logging: true, contact_gap: true };
+        flags = flags.filter(function (fl) { return !replaced[fl.key] || (fl.key === "contact_gap" && fl.figures && fl.figures.hello); });
+        flags.push(ns || gq);
+        if (gapFlag && replaced[gapFlag.key]) gapFlag = null;
+      }
     }
 
     // ⚠ AWAY IS NOT ABSENT (a pause, 2026-11-11). While the client is paused, and for the first days
@@ -1433,7 +1687,7 @@
 
   // The flags that colour a row amber but never tip it red: a practice's calendar, not the client's
   // progress.
-  var SOFT_FLAGS = { program_ending: true, plan_ending: true };
+  var SOFT_FLAGS = { program_ending: true, plan_ending: true, no_booking: true };
   // …and, for a trainer who is the client's only coach, the intake reads they own (evaluateClient).
   var SOLE_TRAINER_SOFT = { ledger_blown: true, protein_under: true };
   // ⚠ AND ONE THAT NEVER COLOURS A ROW: a renewal Stripe is retrying is "a quiet mark only" (owner,
@@ -1443,12 +1697,13 @@
   // A coach's context: on the row with its reason, never counted toward a coach's severity, never a
   // lead while anything counted is on the row (coachLead), never an alert. The Score moves on posts
   // and sleep as much as on training or food, so its fall is a question to ask, not a slip to chase.
-  var CONTEXT_FLAGS = { score_drop: true };
+  var CONTEXT_FLAGS = { score_drop: true, load_spike: true, steps_falling: true };
   // Red on its own for a coach: a yes on the health screening is read before anything is programmed.
   var SAFETY_FLAGS = { screening_flagged: true };
   // The area a flag speaks to, for the two-areas red. A goal's slip takes its goal's discipline.
   var FLAG_AREA = {
-    missed_sessions: "training", streak_broken: "training",
+    missed_sessions: "training", streak_broken: "training", workouts_missed: "training", completion_drop: "training",
+    no_booking: "training", load_spike: "training", steps_falling: "training", gone_quiet: "contact", not_started: "onboarding",
     food_gap: "nutrition", food_logging: "nutrition", ledger_blown: "nutrition", protein_under: "nutrition",
     hunger_high: "nutrition", hydration_low: "nutrition",
     sleep_low: "recovery", energy_low: "recovery", recovery_low: "recovery",
@@ -1536,6 +1791,14 @@
     payment_retrying: "general",  // each coach's own subscription
     plan_ending: "general",
     pause_ended: "general",       // back from a break: every coach on the client says welcome back
+    // The trainer alerts (PR 1).
+    workouts_missed: "training",  // the trainer's program: a nutritionist sees it in joint attention
+    completion_drop: "training",
+    load_spike: "training",       // context, the trainer's evaluation only
+    steps_falling: "training",
+    gone_quiet: "general",        // both coaches
+    not_started: "general",
+    no_booking: "general",        // each coach's own bookings
   };
   function flagDiscipline(key) { return FLAG_DISCIPLINE[key] || "general"; }
   function disciplineOwner(discipline) {
@@ -1682,6 +1945,8 @@
     // this coach: Tess's is her two weeks exactly, Sam's his two years with the coach. No persona has
     // been on Shape the four-plus years Legend takes at that pace, so the preview shows four tiers.
     var STANDING = { 1: 5180, 2: 2240, 3: 1460, 4: 6890, 5: 2980, 6: 3350, 7: 1240, 8: 610, 9: 39, 10: 3720 };
+    // Assigned workouts from [daysAgo, done] pairs (the trainer alerts, PR 1).
+    var wk = function (pairs) { return { days: pairs.map(function (p) { return { on: ago(p[0]), done: !!p[1] }; }).reverse() }; };
     var person = function (id, name, over) {
       var base = {
         profile: { id: "demo-" + id, name: name, isNew: false, status: "ontrack" },
@@ -1756,6 +2021,9 @@
         recovery: { sleepHours: { avg7: 5.6, lastNight: 5.4, target: 7.5, n: 6 } },
         shapeScoreHistory: history([62, 65, 60, 68, 64, 70, 71, 55]),
         trainingAdherence: { pct: 56, done: 5, planned: 9 }, bookedSessions: { trainer: { done: 5, planned: 9 }, nutritionist: null },
+        // 3 of 8 assigned workouts done in 4 weeks, the last two missed (workouts_missed): the training
+        // side of his joint attention from the nutritionist's view too.
+        assignedWorkouts: wk([[2, 0], [5, 0], [9, 1], [12, 0], [16, 1], [19, 0], [23, 1], [26, 0]]),
         goalPhase: "Cut",
         program: { name: "Hypertrophy Reset", week: 2, weeks: 8 },
         coachNotes: [
@@ -1773,9 +2041,15 @@
             history: gh([[35, 181.4], [28, 181.2], [21, 181.5], [14, 181.3], [7, 181.4], [1, 181.4]]) },
         ],
       }),
-      // amber — gone quiet: no coach contact in 8 days
+      // amber — gone quiet: nothing from her in 8 days (no workout, food log, check-in or message),
+      // one line in place of the food-log and contact gaps
       person(3, "Aisha K.", {
         lastContact: { trainer: ago(8), nutritionist: ago(8) },
+        lastFromClient: ago(9) + "T18:00:00Z",
+        foodLogs: { lastLoggedOn: ago(8), daysLogged7d: 0 },
+        activity: { lastWorkoutOn: ago(10), steps: [] },
+        streaks: { current: 0, best: 9, lastActiveOn: ago(8) },
+        checkIn: { lastWeekOf: mondaysAgo(0), latest: { weekOf: mondaysAgo(0), submittedAt: ago(8) + "T09:00:00Z" } },
         goalPhase: "Cut",
       }),
       // red — no contact in 7 days, and 5 of 14 sessions missed (the trainer's) or no food logs
@@ -1786,7 +2060,8 @@
         program: { name: "Foundations", week: 4, weeks: 8 },
         foodLogs: { lastLoggedOn: ago(4), daysLogged7d: 2 },
         lastContact: { trainer: ago(7), nutritionist: ago(7) },
-        trainingAdherence: { pct: 64, done: 9, planned: 14 }, bookedSessions: { trainer: { done: 9, planned: 14 }, nutritionist: null },
+        // His last session kept 16 days ago and nothing booked since (no_booking, the trainer's).
+        trainingAdherence: { pct: 64, done: 9, planned: 14 }, bookedSessions: { trainer: { done: 9, planned: 14, lastKeptAt: ago(16) + "T17:00:00Z", nextAt: null }, nutritionist: null },
       }),
       // green for the trainer; amber on the nutritionist feed — protein is
       // running 36% under her cut target
@@ -1810,6 +2085,9 @@
       // context and it never colours the row (her own view still says it)
       person(6, "Elena R.", {
         shapeScoreHistory: history([48, 52, 55, 58, 61, 64, 66, 51]),
+        // Context too, on the trainer's side (never counted): a training-load spike and falling steps.
+        trainingLoad: { days: [[30, 280], [27, 300], [23, 290], [20, 310], [16, 300], [13, 290], [9, 300], [5, 520], [3, 540], [1, 500]].map(function (p) { return { on: ago(p[0]), load: p[1] }; }) },
+        activity: { lastWorkoutOn: ago(1), steps: (function () { var out = []; for (var d = 34; d >= 0; d--) out.push({ on: ago(d), steps: d <= 6 ? 5200 : 9100 }); return out; })() },
       }),
       // green for the trainer (the food gap is the nutritionist's, and 3 days is under a
       // trainer's 5); amber on the nutritionist feed — no log in 3 days, and the four days
@@ -1830,6 +2108,8 @@
         payments: pay(18000, 13, 18, "marketplace"),
         checkIn: { lastWeekOf: mondaysAgo(2) },
         trainingAdherence: { pct: 71, done: 10, planned: 14 }, bookedSessions: { trainer: { done: 10, planned: 14 }, nutritionist: null },
+        // Every workout done in his first fortnight, 3 of 5 in the last two weeks: the drop the 50% line misses.
+        assignedWorkouts: wk([[1, 1], [4, 0], [6, 1], [9, 0], [11, 1], [15, 1], [17, 1], [12 + 4, 1]]),
       }),
       // green + NEW — joined this week; no first check-in yet (new-client
       // pass). No goals set yet either — the pro sees the "set the first
@@ -1975,7 +2255,7 @@
   // sessions read the trainer's own booked sessions, which only the trainer's record carries
   // (bsBookedSessionsLeg), so from the nutritionist's side the training half is a training goal's
   // slip until a workout-adherence read gives both coaches one (War Room).
-  var TRAINING_KEYS = { missed_sessions: true };
+  var TRAINING_KEYS = { missed_sessions: true, workouts_missed: true, completion_drop: true };
   var NUTRITION_KEYS = { food_gap: true, food_logging: true, ledger_blown: true, protein_under: true };
   function isTrainingSlip(f) {
     return !!f && (TRAINING_KEYS[f.key] || (f.key === "goal_slip" && f.discipline === "training"));
@@ -2087,6 +2367,7 @@
     // entry, so their directive has no member action — the coach's is COACH_ACTIONS.
     plan: "Week 1 not live", reply: "Reply waiting", review: "Check-in to review", sessions: "Sessions slipping",
     program: "Program ending", billing: "Payment retrying", renewal: "Plan ending", recovery: "Recovery is low",
+    workouts: "Workouts slipping", start: "Not started yet", load: "Training load is up", steps: "Steps are down",
   };
   function directiveKeyToLever(key) {
     return ({
@@ -2098,6 +2379,8 @@
       screening_flagged: "contact", screening_missing: "contact",
       plan_due: "plan", reply_waiting: "reply", checkin_waiting: "review", missed_sessions: "sessions", pause_ended: "contact",
       program_ending: "program", payment_retrying: "billing", plan_ending: "renewal", recovery_low: "recovery",
+      workouts_missed: "workouts", completion_drop: "workouts", gone_quiet: "contact", not_started: "start",
+      no_booking: "sessions", load_spike: "load", steps_falling: "steps",
     })[key] || null;
   }
 
@@ -2130,6 +2413,11 @@
     // money reminders last.
     reply_waiting: 110, pause_ended: 78, checkin_waiting: 75, missed_sessions: 65, plan_ending: 58, recovery_low: 36,
     program_ending: 25, payment_retrying: 20,
+    // The trainer alerts (PR 1): gone quiet stands where the contact gap did, not started just above
+    // it (a new client who hasn't begun), workouts missed beside missed sessions and the drop just
+    // under, no booking with the calendar reminders; the context reads under the Score.
+    not_started: 82, gone_quiet: 80, workouts_missed: 64, completion_drop: 62, no_booking: 28,
+    load_spike: 29, steps_falling: 29,
   };
   function flagPriority(f) {
     if (!f) return 0;
@@ -2415,6 +2703,14 @@
     score_drop:        { kind: "message", label: "Message", draft: true, nora: true },
     program_ending:    { kind: "adjust_program", label: "Write the next block", nutrition: { kind: "adjust_plan", label: "Write the next plan" } },
     payment_retrying:  { kind: "message", label: "Message", draft: true },
+    // The trainer alerts (PR 1).
+    workouts_missed:   { kind: "message", label: "Check in about the program", draft: true, nora: true },
+    completion_drop:   { kind: "message", label: "Check in about the program", draft: true, nora: true },
+    gone_quiet:        { kind: "message", label: "Message", draft: true, nora: true },
+    not_started:       { kind: "message", label: "Help them start", draft: true, nora: true },
+    no_booking:        { kind: "schedule", label: "Offer a session" },
+    load_spike:        { kind: "message", label: "Message", draft: true },
+    steps_falling:     { kind: "message", label: "Message", draft: true },
   };
   var COACH_ACTION_KINDS = ["message", "reply", "review_checkin", "read_screening", "adjust_program", "adjust_plan", "schedule", "care_team"];
 
@@ -2471,6 +2767,16 @@
         return hi + "you've been hungry between meals this week. Let's look at your meals — the plan may need a bit more fuel.";
       case "sleep_low": case "energy_low": case "recovery_low":
         return hi + "how are you feeling this week? Recovery looks like it's running low, so let's keep things a little lighter for a few days.";
+      case "workouts_missed": case "completion_drop":
+        return hi + "how's the program feeling? A few of this block's workouts have slipped. No judgement — tell me what's getting in the way and I'll adjust it so it fits your week.";
+      case "gone_quiet":
+        return hi + "haven't heard from you in a bit, so just checking in. How are things going? Even a quick reply helps.";
+      case "not_started":
+        return "Hi " + firstName(rec) + " — welcome aboard! When you're ready, a good first step is logging one meal or opening your first workout. Want me to walk you through it?";
+      case "load_spike":
+        return hi + "you've put in a big week of training. How's your body feeling? If anything's sore or tired, tell me and we'll balance the next few days.";
+      case "steps_falling":
+        return hi + "how has your week been outside the gym? Your daily movement has dipped a little. Anything going on?";
       case "payment_retrying":
         return "Hi " + firstName(rec) + " — quick heads-up: your latest payment for our plan didn't go through. Stripe will try again, and you can update your card in your membership settings.";
       case "plan_ending": {
@@ -2633,6 +2939,12 @@
       vitals: vitalsFromOverview(o && o.vitals),
       replyWait: o && o.replyWait && typeof o.replyWait === "object" ? o.replyWait : null,
       bookedSessions: o && o.bookedSessions && typeof o.bookedSessions === "object" ? o.bookedSessions : null,
+      // The trainer alerts (PR 1): each null when the overview could not read it (unknown, never "none").
+      assignedWorkouts: o && o.assignedWorkouts && typeof o.assignedWorkouts === "object" && Array.isArray(o.assignedWorkouts.days) ? { days: o.assignedWorkouts.days } : null,
+      trainingLoad: o && o.trainingLoad && typeof o.trainingLoad === "object" && Array.isArray(o.trainingLoad.days) ? { days: o.trainingLoad.days } : null,
+      activity: o && o.activity && typeof o.activity === "object"
+        ? { lastWorkoutOn: typeof o.activity.lastWorkoutOn === "string" ? o.activity.lastWorkoutOn : null, steps: Array.isArray(o.activity.steps) ? o.activity.steps : [] }
+        : null,
       payments: {
         status: row.paymentRetrying === true ? "past_due" : "active",
         paymentRetrying: row.paymentRetrying === true,
@@ -2642,6 +2954,12 @@
         periodEndsAt: row.periodEndsAt || null,
       },
     };
+    // Whether the dated food-log read answered (foodDated): the overview carries `logs`, null for none.
+    if (o && Object.prototype.hasOwnProperty.call(o, "logs") && o.logs !== undefined) rec.logsRead = true;
+    // Whether the Score read answered (gone quiet): only a true answer is carried.
+    if (o && o.scoreRead === true) rec.scoreRead = true;
+    // The client's newest message to this coach (gone quiet): left off when unread, null when none.
+    if (o && (typeof o.lastFromClient === "string" || o.lastFromClient === null)) rec.lastFromClient = o.lastFromClient;
     var team = careTeamFrom(o);
     if (team.pros) rec.pros = team.pros;
     rec.coCoaches = team.coCoaches;
@@ -2787,7 +3105,9 @@
     "program", "programs", "recovery", "vitals", "replyWait", "bookedSessions", "pros", "dismissals",
     // A client's break (pauseOf): without it the push read every client on a break as present and sent
     // their absence alerts all through it (Codex on #2705).
-    "pause"];
+    "pause",
+    // The trainer alerts (PR 1): the push reads them as the website does.
+    "assignedWorkouts", "trainingLoad", "activity", "lastFromClient", "scoreRead", "logsRead"];
   function engineSnapshot(rec) {
     if (!rec || typeof rec !== "object") return null;
     var out = {};
@@ -3679,6 +3999,7 @@
     CARD_BLOCKS: CARD_BLOCKS,
     THRESHOLDS: THRESHOLDS,
     DEFAULT_THRESHOLDS: DEFAULT_THRESHOLDS,
+    workoutCompletion: workoutCompletion,
     TUNABLES: TUNABLES,
     ROLE_DEFAULTS: ROLE_DEFAULTS,
     defaultsForRole: defaultsForRole,

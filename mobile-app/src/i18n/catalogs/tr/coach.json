@@ -233,6 +233,8 @@
   "case.evQuiet": "{n} GÜN SESSİZ",
   "case.evQuietAll": "7 GÜN SESSİZ",
   "case.evSessions": "{done}/{planned} SEANS",
+  "case.evWorkouts": "ATANAN ANTRENMANLAR",
+  "case.evWorkoutsDone": "{done}/{due} TAMAM · 4 HAFTA",
   "case.evWeekend": "HAFTA SONU {dim}",
   "case.evWkOf": "{date} HAFTASI",
   "case.flagged": "İŞARETLENDİ",

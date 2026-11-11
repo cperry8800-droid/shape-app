@@ -233,6 +233,8 @@
   "case.evQuiet": "SHIRU KWANAKI {n}",
   "case.evQuietAll": "SHIRU KWANAKI 7",
   "case.evSessions": "{done}/{planned} ZAMA",
+  "case.evWorkouts": "AIKIN MOTSA JIKI DA AKA BA SHI",
+  "case.evWorkoutsDone": "{done}/{due} AN YI · MAKO 4",
   "case.evWeekend": "ƘARSHEN MAKO {dim}",
   "case.evWkOf": "MAKON {date}",
   "case.flagged": "AN YI ALAMA",

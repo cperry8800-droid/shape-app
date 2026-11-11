@@ -189,7 +189,7 @@ test("the mock personas hit their designed severities", () => {
   assert.equal(by["Aisha K."].severity, "amber");
   // A coach's score drop is context (2026-11-10): Elena's 23% shows and never colours her row.
   assert.equal(by["Elena R."].severity, "green");
-  assert.deepEqual(keys(by["Elena R."]), ["score_drop"]);
+  assert.deepEqual(keys(by["Elena R."]), ["load_spike", "score_drop", "steps_falling"], "the training load and steps are context too (PR 1)");
   // Deandre's 3-day food-log gap is under a trainer's 5, and the nutritionist's anyway.
   assert.equal(by["Deandre K."].severity, "green");
   // Nadia's weight goal is the nutritionist's: the trainer sees its slip as context.
@@ -202,11 +202,13 @@ test("the mock personas hit their designed severities", () => {
   // Red is two areas: Marcus's missed sessions and his short sleep (the food gap is the
   // nutritionist's, the score drop context); Sam's missed sessions and quiet thread; Jonah's two
   // missed check-ins alone.
-  assert.deepEqual(keys(by["Marcus T."]), ["food_gap", "missed_sessions", "score_drop", "sleep_low"]);
+  assert.deepEqual(keys(by["Marcus T."]), ["food_gap", "missed_sessions", "score_drop", "sleep_low", "workouts_missed"]);
   // Marcus (5/9), Sam (9/14) and Jonah (10/14) are the missed-sessions cases (P2): booked sessions in
   // the last six weeks that were never completed, at or over the house 3.
-  assert.deepEqual(keys(by["Sam R."]), ["contact_gap", "missed_sessions"]);
-  assert.deepEqual(keys(by["Jonah W."]), ["checkin_overdue", "missed_sessions"]);
+  assert.deepEqual(keys(by["Sam R."]), ["contact_gap", "missed_sessions", "no_booking"], "his last session kept 16 days ago, nothing booked (PR 1)");
+  assert.deepEqual(keys(by["Jonah W."]), ["checkin_overdue", "completion_drop", "missed_sessions"], "every workout done, then 3 of 5 (PR 1)");
+  // Aisha has gone quiet: one line in place of the food-log and contact gaps (PR 1).
+  assert.deepEqual(keys(by["Aisha K."]), ["gone_quiet"]);
   // Tess B. is the brand-new client: green, isNew, and her missing first
   // check-in is excused by the new-client pass.
   assert.equal(by["Tess B."].severity, "green");
@@ -217,10 +219,10 @@ test("flags carry short pill labels in the spec format", () => {
   const feed = getTriageFeed("trainer", buildMockClients(NOW), NOW);
   const by = Object.fromEntries(feed.map((r) => [r.client.profile.name, r]));
   const labels = (r) => r.flags.map((f) => f.label).sort();
-  assert.deepEqual(labels(by["Marcus T."]), ["Missed 4", "No logs 5d", "Score ↓23%", "Sleep low"]);
-  assert.deepEqual(labels(by["Sam R."]), ["Missed 5", "Quiet 7d"]);
-  assert.deepEqual(labels(by["Jonah W."]), ["Check-in 2w late", "Missed 4"]);
-  assert.deepEqual(labels(by["Elena R."]), ["Score ↓23%"]);
+  assert.deepEqual(labels(by["Marcus T."]), ["3 of 8 done", "Missed 4", "No logs 5d", "Score ↓23%", "Sleep low"]);
+  assert.deepEqual(labels(by["Sam R."]), ["Missed 5", "Nothing booked", "Quiet 7d"]);
+  assert.deepEqual(labels(by["Jonah W."]), ["Check-in 2w late", "Completion down", "Missed 4"]);
+  assert.deepEqual(labels(by["Elena R."]), ["Load 3×", "Score ↓23%", "Steps −43%"]);
   assert.deepEqual(labels(by["Nadia P."]), ["Goal ETA +15d"]);
   for (const r of feed) for (const f of r.flags) assert.ok(f.label && f.label.length <= 18, f.key + " label fits a pill");
 });
