@@ -290,7 +290,7 @@ test("the Climb takes the coach's paper, accent and climb background; Book keeps
   reset({ custom: { look: { paper: 'bone', accent: 'rust' } } });
   let m = await mount(page());
   const root = document.querySelector('[data-trainer-profile]');
-  assert.equal(root.style.background, cssOf(P.BG), 'the bone paper, not the dark Climb');
+  assert.equal(root.style.background, cssOf(P.PAPER_BG), 'the bone paper, not the dark Climb');
   assert.equal(root.style.color, (() => { const d = document.createElement('div'); d.style.color = P.INK; return d.style.color; })(), "the paper's ink");
   assert.equal(button(/^Message Maya$/).style.background, cssOf(P.ACCENT), "the coach's rust, at its readable step");
   assert.equal(document.querySelector('[data-climb-book]').style.background, cssOf(P.CTA), "Book in the trainer's rust for a light paper");
@@ -304,7 +304,14 @@ test("the Climb takes the coach's paper, accent and climb background; Book keeps
   // The climb background: the kit's wash over the paper.
   reset({ custom: { look: { paper: 'bone', accent: 'rust' }, climbBg: 'dusk' } });
   m = await mount(page());
-  assert.equal(document.querySelector('[data-trainer-profile]').style.background, cssOf(`${bsClimbWash('dusk')}, ${P.BG}`));
+  assert.equal(document.querySelector('[data-trainer-profile]').style.background, cssOf(`${bsClimbWash('dusk')}, ${P.PAPER_BG}`));
+  await m.unmount();
+  // A dark stock is painted as the stock itself, as on the website, not its deeper surface (Codex on #2708).
+  const F = bsCoachPagePalette({ paper: 'forest', accent: 'rose' }, 'trainer');
+  assert.notEqual(F.PAPER_BG, F.BG);
+  reset({ custom: { look: { paper: 'forest', accent: 'rose' } } });
+  m = await mount(page());
+  assert.equal(document.querySelector('[data-trainer-profile]').style.background, cssOf(F.PAPER_BG), 'forest itself');
   await m.unmount();
   // A wash alone, on the dark Climb.
   reset({ custom: { climbBg: 'ember' } });
@@ -329,7 +336,7 @@ test("the Climb takes the coach's paper, accent and climb background; Book keeps
 
 test("the coach's own page takes their colours once their own doc is read, and keeps the Climb until then", async () => {
   const painted = () => document.querySelector('[data-trainer-profile]').style.background;
-  const BONE = cssOf(bsCoachPagePalette({ paper: 'bone', accent: 'rust' }, 'trainer').BG);
+  const BONE = cssOf(bsCoachPagePalette({ paper: 'bone', accent: 'rust' }, 'trainer').PAPER_BG);
   let release;
   reset({ me: 'u-maya', custom: { look: { paper: 'bone', accent: 'rust' } }, stored: { look: { paper: 'bone', accent: 'rust' } } });
   world.readHold = new Promise((r) => { release = r; });

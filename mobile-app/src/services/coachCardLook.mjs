@@ -20,7 +20,7 @@ export function bsClimbCardPalette(role = 'trainer') {
   const nutri = role === 'nutritionist';
   return Object.freeze({
     isLight: false, paperKey: null, accentKey: null,
-    PAPER: '#0a0f17', PAPER2: '#0f1722', BG: '#06090f', BG_RGB: '6,9,15', DEEP: '#070b11', DEEP_RGB: '7,11,17',
+    PAPER: '#0a0f17', P1_RGB: '10,15,23', PAPER2: '#0f1722', BG: '#06090f', BG_RGB: '6,9,15', DEEP: '#070b11', DEEP_RGB: '7,11,17',
     INK: '#eef3f0', inkRGB: '238,243,240', INK_SOFT: '#bfc6c3', INK_MUTED: '#9aa3a0',
     ACCENT: nutri ? '#d8a23a' : '#34d6c5', ON_ACCENT: '#0b0d0c',
     CTA: nutri ? '#d8a23a' : '#c0533b', ON_CTA: nutri ? '#16110a' : '#ffffff', CTA_TEXT: nutri ? '#e6c373' : '#ec8a70',

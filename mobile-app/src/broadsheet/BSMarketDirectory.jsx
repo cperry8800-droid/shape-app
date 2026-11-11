@@ -439,8 +439,11 @@ function mktDirLookBg(look) {
   const P = look.pal;
   const layers = [];
   if (look.wash) layers.push(look.wash);
-  if (look.cover) layers.push(`linear-gradient(90deg, rgba(${P.BG_RGB},0.95) 45%, rgba(${P.BG_RGB},0.82))`, `url(${JSON.stringify(look.cover)}) ${look.coverPos || 'center 50%'} / cover no-repeat`);
-  layers.push(P.BG);
+  // The card is the paper itself (with steel's sheen), as the website's card (--card, --card-sheen; Codex on #2708).
+  const rgb = P.P1_RGB || P.BG_RGB;
+  if (look.cover) layers.push(`linear-gradient(90deg, rgba(${rgb},0.95) 45%, rgba(${rgb},0.82))`, `url(${JSON.stringify(look.cover)}) ${look.coverPos || 'center 50%'} / cover no-repeat`);
+  if (P.PAPER_SHEEN) layers.push(P.PAPER_SHEEN);
+  layers.push(P.PAPER || P.BG);
   return layers.join(', ');
 }
 

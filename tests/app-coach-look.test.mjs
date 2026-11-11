@@ -132,6 +132,14 @@ test("a coach's row and pick take their look: the paper under a scrim over their
   const btn = pick.nodes().find((n) => n.props && n.props['data-mkt-pick'] === '');
   assert.equal(btn.props['data-mkt-look'], 'bone');
   assert.ok(cssList(btn.props.style.background).endsWith(look.pal.BG));
+  // A dark stock is the card's paper itself, and steel keeps its sheen, as the website's card (Codex on #2708).
+  for (const paper of ['forest', 'steel']) {
+    const lk = bsCoachCardLook({ can_view: true, custom: { look: { paper, accent: 'rose' } } }, 'trainer', OWNER);
+    const r = drive(dir.MktDirRow, { card: { ...card, look: lk }, first: true }).nodes().find((n) => n.props && n.props['data-mkt-row'] === '');
+    const bg = cssList(r.props.style.background);
+    assert.ok(bg.endsWith(lk.pal.PAPER), `${paper}: the paper, not its deeper surface`);
+    if (paper === 'steel') assert.ok(lk.pal.PAPER_SHEEN && bg.includes(lk.pal.PAPER_SHEEN), 'the sheen');
+  }
   // No look: the directory's own row and pick.
   const plain = drive(dir.MktDirRow, { card: { ...card, look: null }, first: true }).nodes().find((n) => n.props && n.props['data-mkt-row'] === '');
   assert.equal(plain.props['data-mkt-look'], undefined);

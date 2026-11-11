@@ -134,7 +134,10 @@ export function bsClimbTheme(palette, wash = null) {
     accFor: () => P.ACCENT, ctaFor: () => P.CTA, onCtaFor: () => P.ON_CTA, onAccFor: () => P.ON_ACCENT,
     DRAW: P.DRAW, HEAD: P.HEAD, ROUTE: P.ROUTE, SCRIM_RGB: P.BG_RGB, PLATE_RGB: P.DEEP_RGB, HI_RGB: ink,
     PRISM: P.DEEP4, PRISM_SCRIM_RGB: P.BG_RGB,
-    GROUND: wash ? `${wash}, ${P.BG}` : P.BG,
+    // The page's ground is the stock itself (PAPER_BG: the paper, with steel's sheen), as the website's page
+    // paints it; BG is the deeper surface the plates and bars sit on (Codex on #2708). An accent alone keeps
+    // the Climb's ground.
+    GROUND: (() => { const g = P.paperKey ? P.PAPER_BG : CLIMB.BG; return wash ? `${wash}, ${g}` : g; })(),
   });
 }
 const ClimbTheme = React.createContext(null);
