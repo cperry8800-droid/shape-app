@@ -128,6 +128,24 @@ test('Use photo waits for the kept photo before the sheet closes; a failed or st
   user = 'u1';                                      // the same account: saved, both writes bound to it
   assert.deepEqual(await onSave({ photo: args.photo, source: args.source, pos: args.pos }), { ok: true });
   assert.deepEqual([idWrites.length, writes.length, writes[0][2]], [1, 1, { expectedUserId: 'u1' }]);
+
+  // One kept-photo write at a time (Codex P2 on #2709): photo A's write outlasts the cap, so its sheet closes with
+  // it still out; photo B's write waits for it, so A never lands over B.
+  const order = [];
+  let releaseA = null;
+  const slowA = (kind, doc) => {
+    order.push(`start:${doc.src}`);
+    if (doc.src === 'A') return new Promise((r) => { releaseA = () => { order.push('done:A'); r({ ok: true }); }; });
+    order.push(`done:${doc.src}`);
+    return Promise.resolve({ ok: true });
+  };
+  const queued = load({ window: win(slowA), waitMs: 20 });
+  assert.deepEqual(await queued.bsSavePositionedPhoto({ ...args, source: 'A' }), { ok: true }, 'the cap still closes the sheet');
+  assert.deepEqual(await queued.bsSavePositionedPhoto({ ...args, source: 'B' }), { ok: true });
+  assert.deepEqual(order, ['start:A'], "B's write went out while A's was still out");
+  releaseA();
+  await new Promise((r) => setTimeout(r, 0));
+  assert.deepEqual(order, ['start:A', 'done:A', 'start:B', 'done:B'], 'the newer photo lands last');
 });
 
 // Save said nothing: toasts are a no-op app-wide, so a taken handle or a failed write left the page as it

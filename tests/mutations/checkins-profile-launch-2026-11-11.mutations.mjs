@@ -34,6 +34,7 @@ export default {
     // Codex P2 on #2709: the sheet closed while the photo as picked was still being written.
     { name: '(review) photo: the sheet closes before the kept photo is written', file: CLIENT, find: 'return Promise.race([Promise.resolve(kept).catch(() => null), cap])', replace: 'return Promise.race([Promise.resolve(null), cap])' },
     { name: '(review) photo: a stalled write holds the sheet', file: CLIENT, find: 'return Promise.race([Promise.resolve(kept).catch(() => null), cap])', replace: 'return Promise.resolve(kept).catch(() => null)' },
+    { name: '(review) photo: an older write lands over a newer one', file: CLIENT, find: 'const kept = _bsPhotoSourceChain = _bsPhotoSourceChain.catch(() => null)', replace: 'const kept = Promise.resolve()' },
     { name: '(review) photo: a failed write fails the avatar', file: CLIENT, find: 'return Promise.race([Promise.resolve(kept).catch(() => null), cap])', replace: 'return Promise.race([Promise.resolve(kept), cap])' },
     // Codex P2 on #2709: a photo opened under one account was saved to whoever was signed in at Use photo.
     { name: '(review) photo: saved to whoever is signed in at Use photo', file: CLIENT, find: '  if (now !== uid) return Promise.resolve({ error: { message: \'Account changed.\' } });', replace: '' },
