@@ -105,7 +105,7 @@ export async function POST(request: Request) {
   const { audience, candidates, coachSeen } = candidatesFor(snapshot, { tone, lastSeverity: (last.coachClients as Record<string, string>) || {}, now, habitContext, checkinOptedOut, thresholds, copy, coachContext, zone: prefs.tz, memberPaused });
   // The pushes decided are claimed under the person's cap before anything is sent (decideAndClaim).
   const admin = createAdminClient();
-  const { decided, claim } = await decideAndClaim(admin, actor.user.id, { candidates, last, prefs, now, audience, checkinOptedOut, pushedToday, tr: copy?.tr, coachSeen }, prefs.capTz);
+  const { decided, claim } = await decideAndClaim(admin, actor.user.id, { candidates, last, prefs, now, audience, checkinOptedOut, pushedToday, memberPaused, tr: copy?.tr, coachSeen }, prefs.capTz);
   const { send, digest, nextState, suppressed } = decided;
 
   // Persist the dedup/cap state BEFORE delivering. Delivery + state aren't one

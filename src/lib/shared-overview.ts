@@ -441,10 +441,13 @@ export async function buildSharedOverview(supabase: OverviewClient, { clientId, 
   const pauseMissing = (pauseRes.error as { code?: string } | null)?.code === 'PGRST202';
   if (pauseRes.error && !pauseMissing) console.error('[shared-overview] get_client_pause failed:', pauseRes.error.message);
   const pauseRow = !pauseRes.error && Array.isArray(pauseRes.data) && pauseRes.data[0] && typeof pauseRes.data[0] === 'object'
-    ? pauseRes.data[0] as { until_on?: unknown; set_by_role?: unknown; set_at?: unknown; set_by_me?: unknown } : null;
+    ? pauseRes.data[0] as { until_on?: unknown; set_by_role?: unknown; set_at?: unknown; set_by_me?: unknown; back_at?: unknown } : null;
+  // `backAt`: the instant the member's return day begins, which the engine compares on every calendar
+  // (Codex on #2705); left out when the function doesn't say, and the engine reads `until` on the viewer's.
+  const pauseBackAt = pauseRow && typeof pauseRow.back_at === 'string' && !Number.isNaN(Date.parse(pauseRow.back_at)) ? pauseRow.back_at : null;
   const pause = pauseRes.error ? undefined
     : pauseRow && typeof pauseRow.until_on === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(pauseRow.until_on)
-      ? { until: pauseRow.until_on, by: typeof pauseRow.set_by_role === 'string' ? pauseRow.set_by_role : null, mine: pauseRow.set_by_me === true, at: typeof pauseRow.set_at === 'string' ? pauseRow.set_at : null }
+      ? { until: pauseRow.until_on, by: typeof pauseRow.set_by_role === 'string' ? pauseRow.set_by_role : null, mine: pauseRow.set_by_me === true, at: typeof pauseRow.set_at === 'string' ? pauseRow.set_at : null, ...(pauseBackAt ? { backAt: pauseBackAt } : {}) }
       : null;
 
   // Objective sleep for the coach (share-gated like the other reads — the
@@ -830,7 +833,7 @@ export async function buildSharedOverview(supabase: OverviewClient, { clientId, 
     // The onboarding board per role, for a client in their first 30 days with the caller; omitted
     // otherwise (fix 4).
     ...(Object.keys(onboarding).length ? { onboarding } : {}),
-    // The client's pause ({ until, by, at }), null when none; left out when unread (above).
+    // The client's pause ({ until, by, mine, at, backAt }), null when none; left out when unread (above).
     ...(pause === undefined ? {} : { pause }),
   };
 }

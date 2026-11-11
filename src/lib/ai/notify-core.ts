@@ -22,7 +22,7 @@ import { bsUnitsMetric } from '../../../mobile-app/src/services/leadReason.mjs';
 
 export type Candidate = { type: string; title: string; body: string; route: string; data: Record<string, unknown>; priority: string };
 export type DecideResult = { send: Candidate[]; digest: Candidate | null; nextState: Record<string, unknown>; suppressed: { type: string; reason: string }[] };
-export type DecideInput = { candidates: Candidate[]; last: Record<string, unknown>; prefs: Record<string, unknown>; now: Date; audience: string; checkinOptedOut?: boolean; pushedToday?: number | null; tr?: Translate; coachSeen?: Record<string, string> | null };
+export type DecideInput = { candidates: Candidate[]; last: Record<string, unknown>; prefs: Record<string, unknown>; now: Date; audience: string; checkinOptedOut?: boolean; memberPaused?: boolean; pushedToday?: number | null; tr?: Translate; coachSeen?: Record<string, string> | null };
 // The coach's own context the engine reads (P2): their dismissals (coach_signal_dismissals rows) and
 // their check-in reviews (the coach_week_reviews doc). Each is null when it could not be read.
 export type CoachContext = { dismissals: unknown[] | null; reviews: Record<string, unknown> | null };

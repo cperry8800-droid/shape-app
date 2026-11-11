@@ -26,18 +26,22 @@ export function validPauseDay(v, now = new Date()) {
   const { min, max } = pauseBounds(now);
   return v >= min && v <= max;
 }
-// A break that still holds on the device's today (its last day included).
+// A break that still holds (its last day included): until the instant the member's return day begins
+// (`backAt`, the same on every calendar: Codex on #2705), else on the device's today.
 export function pauseHolds(pause, now = new Date()) {
-  return !!(pause && typeof pause.until === 'string' && ISO_DAY.test(pause.until) && localDay(now) <= pause.until);
+  if (!pause || typeof pause.until !== 'string' || !ISO_DAY.test(pause.until)) return false;
+  const back = typeof pause.backAt === 'string' ? Date.parse(pause.backAt) : NaN;
+  return Number.isFinite(back) ? now.getTime() < back : localDay(now) <= pause.until;
 }
 
 function rowOf(data) {
   const row = Array.isArray(data) ? data[0] : data;
   if (!row || typeof row !== 'object' || typeof row.until_on !== 'string' || !ISO_DAY.test(row.until_on)) return null;
-  return { until: row.until_on, by: typeof row.set_by_role === 'string' ? row.set_by_role : null, mine: row.set_by_me === true };
+  const backAt = typeof row.back_at === 'string' && Number.isFinite(Date.parse(row.back_at)) ? row.back_at : null;
+  return { until: row.until_on, by: typeof row.set_by_role === 'string' ? row.set_by_role : null, mine: row.set_by_me === true, ...(backAt ? { backAt } : {}) };
 }
 
-// { ok: true, ready: true, pause: { until, by, mine } | null } once the database answered;
+// { ok: true, ready: true, pause: { until, by, mine, backAt? } | null } once the database answered;
 // { ok: true, ready: false } before the migration runs (the function is not there yet: PGRST202);
 // { ok: false } when the read failed, which is never "no break".
 export async function readClientPause(client, clientId) {

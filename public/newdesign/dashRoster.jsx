@@ -473,7 +473,10 @@ function DashSecPause({ rec }) {
   if (read.kind === "failed") return <DashDrawerEmpty>Couldn't read their break just now. <button type="button" onClick={() => setAttempt((n) => n + 1)} style={{ background: "transparent", border: 0, color: "var(--sh-accent-ink, #2ee0c4)", cursor: "pointer", font: "inherit", padding: 0, minHeight: 36 }}>Try again</button></DashDrawerEmpty>;
   const bounds = dashPauseBounds();
   const p = read.pause;
-  const holds = !!p && p.until >= bounds.min;
+  // Until the member's return day begins (backAt: the same on every calendar, Codex on #2705), else on
+  // this device's day.
+  const backAt = p && typeof p.backAt === "string" ? Date.parse(p.backAt) : NaN;
+  const holds = !!p && (Number.isFinite(backAt) ? Date.now() < backAt : p.until >= bounds.min);
   const write = async (until) => {
     setSave({ kind: "saving" });
     const r = await window.shapeDb.setClientPause(id, until);

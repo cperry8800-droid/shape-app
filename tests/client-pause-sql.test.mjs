@@ -9,8 +9,8 @@
 //
 // What it pins (Codex on #2705): a break is one row from its first day to its last, kept after it
 // ends; ending early keeps the days it covered and a break begun today leaves none; a new break after
-// one has ended is a new row; the days are the member's own; and the first run's one-row-a-client
-// table becomes this one in place, its row kept.
+// one has ended is a new row; the days are the member's own, and the read says the instant their
+// return day begins; and the first run's one-row-a-client table becomes this one in place, its row kept.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -79,6 +79,10 @@ async function as(uid, sql, params = [], role = 'authenticated') {
 }
 const setPause = (uid, client, until) => as(uid, 'select public.set_client_pause($1, $2::date) as r', [client, until]).then((r) => r[0].r);
 const getPause = (uid, client) => as(uid, 'select until_on::text as until, set_by_role as by, set_by_me as mine from public.get_client_pause($1)', [client]);
+// When the latest break says the member is back (get_client_pause's back_at), as text, and the midnight
+// beginning `d` in `zone`, to compare it with.
+const backAt = (uid, client) => as(uid, 'select back_at::text as b from public.get_client_pause($1)', [client]).then((r) => (r[0] ? r[0].b : null));
+const midnight = async (d, zone) => { await reset(); return (await db.query('select (($1::date)::timestamp at time zone $2)::text as t', [d, zone])).rows[0].t; };
 const rows = async (client) => { await reset(); return (await db.query('select from_on::text as "from", until_on::text as until, set_by_role as by from public.client_pauses where client_id = $1 order by id', [client])).rows; };
 // A day in UTC's calendar (the member with no zone, or one Postgres does not know), `n` days on.
 const day = async (n, zone = 'UTC') => { await reset(); return (await db.query(`select ((now() at time zone '${zone}')::date + $1::int)::text as d`, [n])).rows[0].d; };
@@ -113,6 +117,10 @@ test('a break is set by the member or their coach, begins today, and its end mov
   assert.deepEqual(await rows(M), [{ from: await day(0), until: await day(5), by: 'member' }], 'a zone Postgres does not know is UTC');
   assert.deepEqual(await getPause(M, M), [{ until: await day(5), by: 'member', mine: true }]);
   assert.deepEqual(await getPause(COACH, M), [{ until: await day(5), by: 'member', mine: false }]);
+  // Back at the start of the day after their last, in their zone (Codex on #2705): one Postgres does
+  // not know is UTC.
+  assert.equal(await backAt(COACH, M), await midnight(await day(6), 'UTC'));
+  assert.equal(await backAt(STRANGER, M), null);
   assert.deepEqual(await getPause(STRANGER, M), [], 'a stranger reads nothing');
   assert.deepEqual(await getPause(null, M), [], 'nor does anyone signed out');
   // The coach moves the end: the same break, now set by them.
@@ -141,6 +149,8 @@ test('ended early, a break keeps the days it covered; the next one is a new row,
 test('the 90 days are the member\'s own, a day either side for a device on another calendar, never before today (Codex on #2705)', { skip: NO_DB }, async () => {
   const kz = 'Pacific/Kiritimati'; // UTC+14: usually a day ahead of UTC
   assert.equal((await setPause(K, K, await day(91, kz))).until, await day(91, kz), 'today + 90 on a device a day ahead');
+  assert.equal(await backAt(K, K), await midnight(await day(92, kz), kz), 'back at their own midnight, 14 hours before UTC\'s');
+  assert.notEqual(await backAt(K, K), await midnight(await day(92, kz), 'UTC'));
   await assert.rejects(setPause(K, K, await day(92, kz)), code(/^22023$/));
   await assert.rejects(setPause(K, K, await day(-2, kz)), code(/^22023$/));
   // A device a day behind picks its today, the member's yesterday: the break ends today, not before.

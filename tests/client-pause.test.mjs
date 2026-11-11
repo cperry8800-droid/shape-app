@@ -57,11 +57,13 @@ test('set_client_pause: the member or a coach on the client, today to 90 on in t
   assert.match(SQL, /perform pg_advisory_xact_lock\(/);
   assert.doesNotMatch(SQL, /on conflict \(client_id\)/, 'a new break after one has ended is a new row');
 });
-test('get_client_pause: the same people, while it holds and for 15 days after, and never the setter\'s id', () => {
-  assert.match(SQL, /returns table \(until_on date, set_by_role text, set_at timestamptz, set_by_me boolean\)/);
-  assert.match(SQL, /select p\.until_on, p\.set_by_role, p\.set_at, p\.set_by is not distinct from auth\.uid\(\)/);
-  assert.match(SQL, /and \(auth\.uid\(\) = p_client_id or public\.is_coach_on_client\(p_client_id\)\)\n    and p\.until_on >= current_date - 15\n  order by p\.from_on desc, p\.id desc\n  limit 1;/);
-  assert.match(SQL, /where auth\.uid\(\) is not null\n    and p_client_id is not null/);
+test('get_client_pause: the same people, while it holds and for 15 days after, when the member is back, and never the setter\'s id', () => {
+  assert.match(SQL, /returns table \(until_on date, set_by_role text, set_at timestamptz, set_by_me boolean, back_at timestamptz\)\nlanguage plpgsql/);
+  assert.match(SQL, /if v_uid is null or p_client_id is null\n     or not \(v_uid = p_client_id or public\.is_coach_on_client\(p_client_id\)\) then\n    return;/);
+  // The instant the member's return day begins, in their zone (Codex on #2705).
+  assert.match(SQL, /select c\.until_on, c\.set_by_role, c\.set_at, c\.set_by is not distinct from v_uid,\n         \(c\.until_on \+ 1\)::timestamp at time zone v_tz/);
+  assert.match(SQL, /and c\.until_on >= \(now\(\) at time zone v_tz\)::date - 15\n  order by c\.from_on desc, c\.id desc\n  limit 1;/);
+  assert.match(SQL, /raise exception 'get_client_pause must say when the member is back \(back_at\)';/);
 });
 
 // ── the overview ─────────────────────────────────────────────────────────────
@@ -111,6 +113,13 @@ test('the overview carries the break, null when there is none, and nothing when 
   assert.equal(log2.filter((l) => /get_client_pause failed/.test(l)).length, 1);
   const bad = await build(db(() => ({ data: [{ until_on: 'soon' }], error: null })));
   assert.equal(bad.pause, null, 'a day that is not a day is no break');
+  // When the member is back, as the database says it: carried to the engine's record (Codex on #2705).
+  const back = (b) => build(db(() => ({ data: [{ until_on: '2026-11-20', set_by_role: 'member', set_at: '2026-11-10T09:00:00Z', set_by_me: false, back_at: b }], error: null })));
+  const withBack = await back('2026-11-21T08:00:00+00:00');
+  assert.deepEqual(withBack.pause, { until: '2026-11-20', by: 'member', mine: false, at: '2026-11-10T09:00:00Z', backAt: '2026-11-21T08:00:00+00:00' });
+  assert.deepEqual(E.recordFromOverview({ id: A, name: 'Pat' }, withBack).pause, { until: '2026-11-20', by: 'member', backAt: '2026-11-21T08:00:00+00:00' });
+  assert.ok(!('backAt' in (await back('soon')).pause), 'a time that is not a time is left out');
+  assert.ok(!('backAt' in E.recordFromOverview({ id: A, name: 'Pat' }, { pause: { until: '2026-11-20', backAt: 'soon' } }).pause));
 });
 
 // ── the engine ───────────────────────────────────────────────────────────────
@@ -162,6 +171,32 @@ test('the welcome back draft is the member\'s own words, with no coach reason in
 });
 
 // ── the push ─────────────────────────────────────────────────────────────────
+test('on the member\'s calendar: a coach a day ahead still sees them away, one behind sees them back (Codex on #2705)', () => {
+  // A member in Los Angeles, away until Fri Nov 20: back at their midnight, 08:00 UTC on the 21st.
+  const la = { until: '2026-11-20', by: 'member', backAt: '2026-11-21T08:00:00+00:00' };
+  const feed = (zone, at, pause) => E.inZone(zone, new Date(at), (now) => E.getTriageFeed('trainer', [away(pause)], now)[0]);
+  // Noon on the 21st in Tokyo is 7 pm on the 20th in Los Angeles: still away.
+  const tokyo = feed('Asia/Tokyo', '2026-11-21T03:00:00Z', la);
+  assert.equal(tokyo.pause.state, 'paused');
+  assert.deepEqual(tokyo.flags, []);
+  assert.equal(feed('Asia/Tokyo', '2026-11-21T03:00:00Z', { until: '2026-11-20' }).pause.state, 'back', 'without the instant, the coach\'s own day');
+  // An hour after their midnight: back today, on every calendar.
+  for (const z of ['Asia/Tokyo', 'Pacific/Honolulu', 'UTC']) {
+    const r = feed(z, '2026-11-21T09:00:00Z', la);
+    assert.deepEqual([r.pause.state, r.pause.since, r.pause.day], ['back', '2026-11-21', 0], z);
+    assert.equal(r.flags[0].reason, 'Back from a break today: see how it went', z);
+  }
+  // A member in London is back at 00:00 UTC on the 21st, 4 pm on the 20th in Honolulu.
+  const ldn = { until: '2026-11-20', backAt: '2026-11-21T00:00:00+00:00' };
+  assert.equal(feed('Pacific/Honolulu', '2026-11-21T02:00:00Z', ldn).pause.state, 'back');
+  assert.equal(feed('Pacific/Honolulu', '2026-11-21T02:00:00Z', { until: '2026-11-20' }).pause.state, 'paused', 'without it, the coach\'s own day');
+  // The days back count from that instant: day 13 a minute before two weeks, then as if no break.
+  assert.equal(feed('UTC', '2026-12-05T07:59:00Z', la).pause.day, 13);
+  assert.equal(feed('UTC', '2026-12-05T08:00:00Z', la).pause, null);
+  // The website's panel and data layer read it too.
+  assert.match(read('public/supabase.js'), /if \(pause && typeof row\.back_at === 'string' && !isNaN\(Date\.parse\(row\.back_at\)\)\) pause\.backAt = row\.back_at;/);
+  assert.match(read('public/newdesign/dashRoster.jsx'), /const holds = !!p && \(Number\.isFinite\(backAt\) \? Date\.now\(\) < backAt : p\.until >= bounds\.min\);/);
+});
 const core = await loadRealModule(join(ROOT, 'src/lib/ai/notify-core.ts'), {
   typescript: true,
   registry: new Map([
@@ -205,6 +240,36 @@ test('a coach is not pushed about a client away, and is pushed "Back from a brea
   assert.equal(sent(undefined).length, 1, 'red without a break');
   assert.deepEqual(sent({ until: '2026-11-20' }), []);
   assert.match(sent({ until: '2026-11-10' })[0], /^client_amber:.*Back from a break today/);
+});
+
+test('the push reads a client\'s break from the roster a coach posts (engineSnapshot: Codex on #2705)', () => {
+  const rec = away({ until: '2026-11-20', by: 'member', backAt: '2026-11-21T08:00:00+00:00' });
+  assert.deepEqual(E.engineSnapshot(rec).pause, rec.pause);
+  const posted = (pause) => ({ role: 'trainer', at: +NOW, clients: [E.engineSnapshot(away(pause))] });
+  const sent = (pause) => core.candidatesFor(posted(pause), { tone: 'neutral', lastSeverity: {}, now: NOW }).candidates.map((c) => c.type);
+  assert.deepEqual(sent(undefined), ['client_red'], 'red without a break');
+  assert.deepEqual(sent({ until: '2026-11-20' }), []);
+  // Both coach apps post their roster through it.
+  assert.match(read('public/newdesign/dashData.jsx'), /\(records \|\| \[\]\)\.map\(\(r\) => DashSignals\.engineSnapshot\(r\)\)/);
+  assert.match(read('mobile-app/src/services/shapeBackend.js'), /records\.map\(\(r\) => E\.engineSnapshot\(r\)\)/);
+});
+const NOTIFY = await import('../src/lib/ai/notifications.mjs');
+test('a member on a break is sent nothing held from before it began; a coach\'s held alert stays (Codex on #2705)', () => {
+  const at = new Date('2026-11-11T15:00:00Z');
+  const prefs = { ...NOTIFY.DEFAULT_PREFS, tz: 'UTC', capTz: 'UTC' };
+  const move = { type: 'directive', key: 'self', sig: 'Focus|Log dinner||2026-11-09', title: 'Your move today', body: 'Log dinner', route: 'home', data: { move: 'log', lever: 'food' }, priority: 'high', channels: { push: true }, at: +at - 3600000 };
+  const coach = { type: 'client_amber', key: 'c9', sig: 'amber:Pat', title: 'Pat', body: 'No food logs', route: 'client', data: { providerRole: 'trainer' }, priority: 'med', channels: { push: true }, at: +at - 3600000 };
+  const last = { date: 'never', pendingDigest: [move, coach], types: { 'directive:self': { sig: move.sig, at: move.at } } };
+  const items = (d) => (d.digest ? d.digest.data.items : []).map((i) => i.type).sort();
+  assert.deepEqual(items(NOTIFY.decideNotifications({ candidates: [], last, prefs, now: at, audience: 'client' })), ['client_amber', 'directive'], 'without a break, both go');
+  const away = NOTIFY.decideNotifications({ candidates: [], last, prefs, now: at, audience: 'client', memberPaused: true });
+  assert.deepEqual(items(away), ['client_amber']);
+  assert.ok(!away.nextState.pendingDigest.some((i) => i.type === 'directive'), 'and it is not kept for later');
+  assert.ok(!('directive:self' in away.nextState.types), 'its stamp goes with it, so the move is sent once it is true after the break');
+  // A coach's own run is untouched by a member's break.
+  assert.deepEqual(items(NOTIFY.decideNotifications({ candidates: [], last, prefs, now: at, audience: 'coach', memberPaused: true })), ['client_amber', 'directive']);
+  // Both routes hand it on.
+  for (const f of ['src/app/api/ai/notify/route.ts', 'src/app/api/ai/notify/cron/route.ts']) assert.match(read(f), /\{ candidates, last, prefs, now, audience, checkinOptedOut, pushedToday, memberPaused, tr: copy\?\.tr, coachSeen \}/, f);
 });
 
 // ── the Score and prep-reminder crons ───────────────────────────────────────
@@ -253,8 +318,13 @@ test('the app\'s break: a day from today to 90 on; reads tell "none" from "could
   for (const [v, ok] of [['2026-11-11', true], ['2027-02-09', true], ['2026-11-10', false], ['2027-02-10', false], ['soon', false], [null, false]]) assert.equal(validPauseDay(v, now), ok, String(v));
   assert.equal(pauseHolds({ until: '2026-11-11' }, now), true, 'the last day away');
   assert.equal(pauseHolds({ until: '2026-11-10' }, now), false);
+  // With the instant the member is back (Codex on #2705), that, whatever this device's day.
+  assert.equal(pauseHolds({ until: '2026-11-10', backAt: new Date(+now + 3600000).toISOString() }, now), true, 'their day ends later than this device\'s');
+  assert.equal(pauseHolds({ until: '2026-11-11', backAt: new Date(+now - 1).toISOString() }, now), false, 'and earlier');
+  assert.equal(pauseHolds({ until: '2026-11-11', backAt: 'soon' }, now), true, 'an unreadable instant: this device\'s day');
   const client = (res) => ({ rpc: async (name, args) => ({ name, args, ...res }) });
   assert.deepEqual(await readClientPause(client({ data: [{ until_on: '2026-11-20', set_by_role: 'trainer', set_by_me: true }], error: null }), 'c1'), { ok: true, ready: true, pause: { until: '2026-11-20', by: 'trainer', mine: true } });
+  assert.deepEqual(await readClientPause(client({ data: [{ until_on: '2026-11-20', set_by_role: 'member', set_by_me: false, back_at: '2026-11-21T08:00:00+00:00' }], error: null }), 'c1'), { ok: true, ready: true, pause: { until: '2026-11-20', by: 'member', mine: false, backAt: '2026-11-21T08:00:00+00:00' } });
   assert.deepEqual(await readClientPause(client({ data: [], error: null }), 'c1'), { ok: true, ready: true, pause: null });
   assert.deepEqual(await readClientPause(client({ data: null, error: { code: 'PGRST202' } }), 'c1'), { ok: true, ready: false });
   assert.deepEqual(await readClientPause(client({ data: null, error: { code: '500' } }), 'c1'), { ok: false });

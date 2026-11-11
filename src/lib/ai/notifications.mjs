@@ -642,7 +642,7 @@ export function pushCount({ send = [], digest = null } = {}) {
 // on the person's date today (loadPushedToday, notify-core.ts), this engine's included; the cap
 // reads the larger of the two, so nothing is counted twice. Null (the read failed) keeps the
 // engine's own count, as before. The digest is held to it too (below).
-export function decideNotifications({ candidates = [], last = {}, prefs = {}, now = new Date(), audience = 'client', checkinOptedOut = false, pushedToday = null, tr, coachSeen: seen = null }) {
+export function decideNotifications({ candidates = [], last = {}, prefs = {}, now = new Date(), audience = 'client', checkinOptedOut = false, memberPaused = false, pushedToday = null, tr, coachSeen: seen = null }) {
   const P = { ...DEFAULT_PREFS, ...prefs, matrix: { ...(prefs.matrix || {}) } };
   // The engine's own count resets on the cap's day (P.capTz, the habit cron's zone), the day the
   // other senders' pushes are counted on; quiet hours below stay on P.tz.
@@ -685,6 +685,18 @@ export function decideNotifications({ candidates = [], last = {}, prefs = {}, no
     for (const i of state.pendingDigest) (isCheckinItem(i) ? purged : kept).push(i);
     state.pendingDigest = kept;
     for (const i of purged) releaseDedup(state.types, i, kept);
+  }
+  // ⚠ A MEMBER ON A BREAK GETS NONE OF THEIR OWN, HELD ONES INCLUDED (Codex on #2705). candidatesFor
+  // builds none while they are away (notify-core memberPaused), but a notice held by quiet hours or the
+  // cap before the break began would still go out with the next digest. Their own are the held items
+  // with no provider role (readNotifyState); each one's stamp is released, so a notice that is true
+  // again after the break is sent then.
+  if (audience === 'client' && memberPaused) {
+    const own = (i) => !(i && i.data && typeof i.data === 'object' && i.data.providerRole !== undefined);
+    const purged = state.pendingDigest.filter(own);
+    const kept = state.pendingDigest.filter((i) => !own(i));
+    state.pendingDigest = kept;
+    for (const i of purged) if (i && typeof i === 'object') releaseDedup(state.types, i, kept);
   }
   // A mild sleep move held from before the sleep rule goes the same way: nothing rebuilds it now.
   if (state.pendingDigest.some(isQuietSleepItem)) {

@@ -24,7 +24,8 @@
 -- never before today), or ends the break (null). Anyone else is refused.
 -- get_client_pause(client): the same people read the latest break, and who set it (the role, and
 -- whether it was the caller), while it holds and for 15 days after it ends (the engine's three days of
--- "Back" and its count from the return day). Never the setter's id.
+-- "Back" and its count from the return day), with the instant the member's return day begins (back_at).
+-- Never the setter's id, nor the member's zone.
 --
 -- Called by: src/lib/shared-overview.ts (each client's `pause`), mobile-app/src/services/clientPause.mjs
 -- (the member's Settings and a coach's case file in the app), public/supabase.js (the website's client
@@ -151,23 +152,43 @@ $$;
 
 -- ⚠ ITS COLUMNS ARE ITS SIGNATURE: "create or replace" cannot change a table function's columns, so a
 -- run of an older draft of this file is dropped first (no caller exists before this migration).
+-- ⚠ back_at IS THE INSTANT THE MEMBER'S RETURN DAY BEGINS (Codex on #2705). A coach reads the break on
+-- their own calendar, so one a day ahead of the member saw "Back from a break" while the member was
+-- still away, and one behind still saw them away after they came back. The instant is the same on every
+-- calendar, and the member's zone is never handed to the coach.
 drop function if exists public.get_client_pause(uuid);
 create or replace function public.get_client_pause(p_client_id uuid)
-returns table (until_on date, set_by_role text, set_at timestamptz, set_by_me boolean)
-language sql
+returns table (until_on date, set_by_role text, set_at timestamptz, set_by_me boolean, back_at timestamptz)
+language plpgsql
 stable
 security definer
 set search_path = public, pg_temp
 as $$
-  select p.until_on, p.set_by_role, p.set_at, p.set_by is not distinct from auth.uid()
-  from public.client_pauses p
-  where auth.uid() is not null
-    and p_client_id is not null
-    and p.client_id = p_client_id
-    and (auth.uid() = p_client_id or public.is_coach_on_client(p_client_id))
-    and p.until_on >= current_date - 15
-  order by p.from_on desc, p.id desc
+declare
+  v_uid uuid := auth.uid();
+  v_tz  text;
+begin
+  if v_uid is null or p_client_id is null
+     or not (v_uid = p_client_id or public.is_coach_on_client(p_client_id)) then
+    return;
+  end if;
+  -- The member's zone, as set_client_pause counts their days; UTC when it is empty or unknown.
+  select pr.timezone into v_tz from public.profiles pr where pr.id = p_client_id;
+  v_tz := coalesce(nullif(v_tz, ''), 'UTC');
+  begin
+    perform now() at time zone v_tz;
+  exception when others then
+    v_tz := 'UTC';
+  end;
+  return query
+  select c.until_on, c.set_by_role, c.set_at, c.set_by is not distinct from v_uid,
+         (c.until_on + 1)::timestamp at time zone v_tz
+  from public.client_pauses c
+  where c.client_id = p_client_id
+    and c.until_on >= (now() at time zone v_tz)::date - 15
+  order by c.from_on desc, c.id desc
   limit 1;
+end;
 $$;
 
 revoke all on function public.set_client_pause(uuid, date) from public, anon;
@@ -185,6 +206,9 @@ begin
       and column_name in ('id', 'from_on', 'until_on')) <> 3
      or not exists (select 1 from pg_constraint where conrelid = 'public.client_pauses'::regclass and conname = 'client_pauses_days') then
     raise exception 'client_pauses must keep one row a break, from its first day to its last';
+  end if;
+  if position('back_at timestamp with time zone' in pg_get_function_result('public.get_client_pause(uuid)'::regprocedure)) = 0 then
+    raise exception 'get_client_pause must say when the member is back (back_at)';
   end if;
   if has_table_privilege('authenticated', 'public.client_pauses', 'select')
      or has_table_privilege('anon', 'public.client_pauses', 'select')

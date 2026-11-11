@@ -375,7 +375,7 @@
     return x;
   }
   // ── A client's pause ("away until <date>", 2026-11-11-client-pause.sql) ────────────────────
-  // Set by the member or any of their coaches; record.pause = { until: "YYYY-MM-DD", by } from the
+  // Set by the member or any of their coaches; record.pause = { until: "YYYY-MM-DD", by, backAt? } from the
   // overview, null when none. While it holds, and for PAUSE_BACK_DAYS after it ends, the rules that read
   // the client's absence stay quiet (PAUSE_SILENCED) and a coach sees "Back from a break" instead. For
   // PAUSE_BOUND_DAYS after it ends, the gaps (food logs, check-ins, contact) count from the day they came
@@ -386,14 +386,26 @@
   var ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
   // null | { state: "paused", until, by } | { state: "back", until, since, day, fresh, by }: `since` is
   // the return day, `day` the days since it (0 on it), `fresh` within PAUSE_BACK_DAYS.
+  // ⚠ ON THE MEMBER'S CALENDAR, NOT THE VIEWER'S (Codex on #2705). `until` is the member's last day
+  // away, and a coach's surface runs on the coach's day: a coach a day ahead saw "Back from a break"
+  // while the member was still away. `backAt` (get_client_pause) is the instant their return day
+  // begins, the same in every zone; without it (a snapshot saved before it), the viewer's day.
   function pauseOf(c, now) {
     var p = c && c.pause;
     if (!p || typeof p !== "object" || typeof p.until !== "string" || !ISO_DAY.test(p.until)) return null;
     var by = typeof p.by === "string" ? p.by : null;
-    if (iso(now) <= p.until) return { state: "paused", until: p.until, by: by };
     var back = toDate(p.until);
     back.setDate(back.getDate() + 1);
-    var day = daysBetween(back, now);
+    var backAt = typeof p.backAt === "string" ? parseDate(p.backAt) : null;
+    var day;
+    if (backAt) {
+      var at = instantNow(now);
+      if (at.getTime() < backAt.getTime()) return { state: "paused", until: p.until, by: by };
+      day = daysBetween(backAt, at);
+    } else {
+      if (iso(now) <= p.until) return { state: "paused", until: p.until, by: by };
+      day = daysBetween(back, now);
+    }
     if (day >= PAUSE_BOUND_DAYS) return null;
     return { state: "back", until: p.until, since: iso(back), day: day, fresh: day < PAUSE_BACK_DAYS, by: by };
   }
@@ -2617,7 +2629,11 @@
     rec.coCoaches = team.coCoaches;
     // The client's pause ({ until, by }, pauseOf), null when none; left off when the overview could
     // not read it, so nothing reads differently from before the pause existed.
-    if (o && o.pause && typeof o.pause === "object" && typeof o.pause.until === "string") rec.pause = { until: o.pause.until, by: typeof o.pause.by === "string" ? o.pause.by : null };
+    if (o && o.pause && typeof o.pause === "object" && typeof o.pause.until === "string") {
+      rec.pause = { until: o.pause.until, by: typeof o.pause.by === "string" ? o.pause.by : null };
+      // The instant the member's return day begins (pauseOf reads it on every calendar: Codex on #2705).
+      if (typeof o.pause.backAt === "string" && parseDate(o.pause.backAt)) rec.pause.backAt = o.pause.backAt;
+    }
     else if (o && o.pause === null) rec.pause = null;
     return rec;
   }
@@ -2750,7 +2766,10 @@
   // `userId` is the id the route scope-checks (is_coach_on_client) and the alert opens.
   var SNAPSHOT_KEYS = ["profile", "progressRead", "onboarding", "screening", "trainingAdherence", "foodLogs",
     "shapeScoreHistory", "weighIns", "streaks", "lastContact", "checkIn", "nutrition", "goal", "goals", "goalPhase",
-    "program", "programs", "recovery", "vitals", "replyWait", "bookedSessions", "pros", "dismissals"];
+    "program", "programs", "recovery", "vitals", "replyWait", "bookedSessions", "pros", "dismissals",
+    // A client's break (pauseOf): without it the push read every client on a break as present and sent
+    // their absence alerts all through it (Codex on #2705).
+    "pause"];
   function engineSnapshot(rec) {
     if (!rec || typeof rec !== "object") return null;
     var out = {};

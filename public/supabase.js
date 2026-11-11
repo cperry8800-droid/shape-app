@@ -1005,6 +1005,8 @@ if (typeof window !== 'undefined') { window.SHAPE_TURNSTILE_SITEKEY = window.SHA
         var row = Array.isArray(res.data) ? res.data[0] : res.data;
         var pause = row && typeof row.until_on === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(row.until_on)
           ? { until: row.until_on, by: typeof row.set_by_role === 'string' ? row.set_by_role : null, mine: row.set_by_me === true } : null;
+        // When the member's return day begins, the same on every calendar (Codex on #2705).
+        if (pause && typeof row.back_at === 'string' && !isNaN(Date.parse(row.back_at))) pause.backAt = row.back_at;
         return { ok: true, ready: true, pause: pause };
       } catch (e) {
         return { ok: false };
