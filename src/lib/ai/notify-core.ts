@@ -13,7 +13,7 @@ import { isCoachRole, providerRoleForRole } from '@/lib/roles.mjs';
 import { loadCoachContext as loadCoachContextMjs } from './coachContext.mjs';
 import { createNotification } from '@/lib/notify';
 import { sendEmail } from '@/lib/email';
-import { normalizeZone, personZone } from '@/lib/time';
+import { instantInZone, normalizeZone, personZone } from '@/lib/time';
 import { claimPushSlots, type PushClaim } from '@/lib/push-cap';
 import type { SupabaseClient } from '@supabase/supabase-js';
 // The pure UMD engine (module.exports = api); imported directly (no window in Node).
@@ -246,6 +246,57 @@ export async function loadMemberPaused(client: SupabaseClient, userId: string, n
   }
 }
 
+// A client's break as the engine reads it (dashSignals.js pauseOf): its last day away, who set it, and
+// the instant their return day begins in their own zone (get_client_pause's back_at).
+export type ClientBreak = { until: string; by: string | null; backAt?: string };
+// ⚠ A COACH'S STORED ROSTER HOLDS EACH CLIENT'S BREAK AS OF ITS SAVE (Codex on #2705). The hourly run
+// reads that roster while the coach is away from Shape, so a break set since read as no break: an alert
+// for a client now away was still sent, or sent from the digest it was held in. Each client's latest
+// break is read fresh here with the service role, as get_client_pause answers it, and laid over the
+// roster (candidatesFor `clientBreaks`); a client away then reads clear, and the decision drops an alert
+// held for them (coachSeen). null when the breaks can't be read (or the table isn't there yet): the
+// roster is read as it was saved. A zone that can't be read leaves `backAt` out (the coach's day).
+export async function loadClientBreaks(admin: SupabaseClient, clientIds: string[], now: Date): Promise<Map<string, ClientBreak | null> | null> {
+  const ids = [...new Set((Array.isArray(clientIds) ? clientIds : []).filter((v) => typeof v === 'string' && v))].slice(0, 100);
+  const out = new Map<string, ClientBreak | null>();
+  if (!ids.length) return out;
+  try {
+    // 16 days of UTC's calendar: get_client_pause's 15 in the member's own, whichever side of UTC.
+    const floor = new Date(now.getTime() - 16 * 86_400_000).toISOString().slice(0, 10);
+    const [pauses, zones] = await Promise.all([
+      admin.from('client_pauses').select('id, client_id, from_on, until_on, set_by_role').in('client_id', ids).gte('until_on', floor),
+      admin.from('profiles').select('id, timezone').in('id', ids),
+    ]);
+    if (pauses.error || !Array.isArray(pauses.data)) return null;
+    const zoneOf = zones.error || !Array.isArray(zones.data) ? null
+      : new Map((zones.data as { id?: unknown; timezone?: unknown }[]).map((z) => [String(z.id), normalizeZone(z.timezone) || 'UTC']));
+    const latest = new Map<string, { id: number; from_on: string; until_on: string; set_by_role: unknown }>();
+    for (const r of pauses.data as { id?: unknown; client_id?: unknown; from_on?: unknown; until_on?: unknown; set_by_role?: unknown }[]) {
+      if (typeof r.client_id !== 'string' || typeof r.from_on !== 'string' || typeof r.until_on !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(r.until_on)) continue;
+      const row = { id: Number(r.id) || 0, from_on: r.from_on, until_on: r.until_on, set_by_role: r.set_by_role };
+      const had = latest.get(r.client_id);
+      // The latest break: the last to begin, and of two begun the same day the last made (order by from_on desc, id desc).
+      if (!had || row.from_on > had.from_on || (row.from_on === had.from_on && row.id > had.id)) latest.set(r.client_id, row);
+    }
+    for (const id of ids) {
+      const row = latest.get(id);
+      if (!row) { out.set(id, null); continue; }
+      const b: ClientBreak = { until: row.until_on, by: typeof row.set_by_role === 'string' ? row.set_by_role : null };
+      const zone = zoneOf ? (zoneOf.get(id) || 'UTC') : null;
+      if (zone) {
+        const [y, mo, d] = row.until_on.split('-').map(Number);
+        const next = new Date(Date.UTC(y, mo - 1, d + 1));
+        const t = instantInZone(next.getUTCFullYear(), next.getUTCMonth() + 1, next.getUTCDate(), 0, 0, zone);
+        if (Number.isFinite(t)) b.backAt = new Date(t).toISOString();
+      }
+      out.set(id, b);
+    }
+    return out;
+  } catch {
+    return null;
+  }
+}
+
 // Snapshot → candidates + audience. `lastSeverity` (coach) suppresses re-nags.
 export function candidatesFor(
   snapshot: Snapshot,
@@ -276,13 +327,23 @@ export function candidatesFor(
     // ones (F2). Omitted: the zone the snapshot was posted with.
     zone?: string | null;
     // A member on a break (loadMemberPaused): none of their own notices. A coach's roster reads each
-    // client's pause from the roster itself.
+    // client's pause from the roster itself, unless `clientBreaks` says otherwise.
     memberPaused?: boolean;
+    // Each client's latest break read fresh (loadClientBreaks), laid over a coach's roster: a client
+    // listed with null has none. Omitted or null: the breaks the roster was saved with.
+    clientBreaks?: Map<string, ClientBreak | null> | null;
   },
 ): { audience: 'client' | 'coach'; candidates: Candidate[]; coachSeen?: Record<string, string> } {
   const role = snapshot.role || '';
   if (isCoachRole(role)) {
-    const raw = Array.isArray(snapshot.clients) ? snapshot.clients : [];
+    const saved = Array.isArray(snapshot.clients) ? snapshot.clients : [];
+    // Each client's break as it is now, over the one the roster was saved with (loadClientBreaks).
+    const fresh = opts.clientBreaks;
+    const raw = !fresh ? saved : saved.map((c) => {
+      const id = coachRecordId(c);
+      if (!id || !fresh.has(id) || !c || typeof c !== 'object') return c;
+      return { ...(c as Record<string, unknown>), pause: fresh.get(id) ?? null };
+    });
     // The dismissals of this role only: a coach with both listings sets a reason aside per role.
     // …each snooze held to the run's own clock (liveDismissals).
     const clients = liveDismissals(opts.coachContext ? engine.attachCoachContext(raw, opts.coachContext, role) : raw, opts.now);

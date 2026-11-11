@@ -254,6 +254,49 @@ test('the push reads a client\'s break from the roster a coach posts (engineSnap
   assert.match(read('mobile-app/src/services/shapeBackend.js'), /records\.map\(\(r\) => E\.engineSnapshot\(r\)\)/);
 });
 const NOTIFY = await import('../src/lib/ai/notifications.mjs');
+test('the hourly run reads each client\'s break fresh, over the roster the coach saved (Codex on #2705)', async () => {
+  const at = new Date('2026-11-21T03:00:00Z');
+  const db = fakeSupabase({ tables: {
+    client_pauses: [
+      { id: 1, client_id: 'p1', from_on: '2026-11-01', until_on: '2026-11-05', set_by_role: 'member' },
+      { id: 2, client_id: 'p1', from_on: '2026-11-18', until_on: '2026-11-20', set_by_role: 'trainer' },
+      { id: 3, client_id: 'p3', from_on: '2026-11-19', until_on: '2026-11-25', set_by_role: 'member' },
+      { id: 4, client_id: 'p4', from_on: '2026-10-01', until_on: '2026-10-02', set_by_role: 'member' },
+    ],
+    profiles: [{ id: 'p1', timezone: 'America/Los_Angeles' }, { id: 'p3', timezone: 'Not/AZone' }],
+  } });
+  // The latest break, with the instant their return day begins in their zone (UTC for one unknown);
+  // none, or one long over, is null.
+  assert.deepEqual(Object.fromEntries(await core.loadClientBreaks(db, ['p1', 'p2', 'p3', 'p4', 'p1'], at)), {
+    p1: { until: '2026-11-20', by: 'trainer', backAt: '2026-11-21T08:00:00.000Z' },
+    p2: null,
+    p3: { until: '2026-11-25', by: 'member', backAt: '2026-11-26T00:00:00.000Z' },
+    p4: null,
+  });
+  const one = [{ id: 1, client_id: 'p1', from_on: '2026-11-18', until_on: '2026-11-20', set_by_role: 'member' }];
+  assert.equal(await core.loadClientBreaks(fakeSupabase({ tables: { client_pauses: one, profiles: [] }, fail: ['client_pauses'] }), ['p1'], at), null, 'a failed read is not "no break"');
+  assert.deepEqual((await core.loadClientBreaks(fakeSupabase({ tables: { client_pauses: one, profiles: [] }, fail: ['profiles'] }), ['p1'], at)).get('p1'), { until: '2026-11-20', by: 'member' }, 'no zone read: no instant, so the coach\'s day');
+  assert.equal((await core.loadClientBreaks(db, [], at)).size, 0);
+  // Saved before they went away, the roster reads them red; read fresh, they are away and clear.
+  const savedHere = { role: 'trainer', at: +NOW, clients: [E.engineSnapshot(away(undefined))] };
+  const savedAway = { role: 'trainer', at: +NOW, clients: [E.engineSnapshot(away({ until: '2026-11-20' }))] };
+  const run = (snap, clientBreaks) => core.candidatesFor(snap, { tone: 'neutral', lastSeverity: {}, now: NOW, clientBreaks });
+  assert.deepEqual(run(savedHere, null).candidates.map((c) => c.type), ['client_red']);
+  const fresh = run(savedHere, new Map([['p1', { until: '2026-11-20', by: 'member' }]]));
+  assert.deepEqual(fresh.candidates, []);
+  assert.ok('p1' in fresh.coachSeen && !['red', 'amber'].includes(fresh.coachSeen.p1), 'seen clear');
+  // A break the roster was saved with and no longer on record: as if none. One the read didn't list: as saved.
+  assert.deepEqual(run(savedAway, new Map([['p1', null]])).candidates.map((c) => c.type), ['client_red']);
+  assert.deepEqual(run(savedAway, new Map()).candidates, []);
+  // The alert held for them before they went away is dropped, not sent.
+  const held = { type: 'client_red', key: 'p1', sig: 'red:No food logs', title: 'Pat', body: 'No food logs', route: 'client', data: { providerRole: 'trainer' }, priority: 'high', channels: { push: true }, at: +NOW - 3600000 };
+  const d = NOTIFY.decideNotifications({ candidates: fresh.candidates, last: { date: 'never', pendingDigest: [held] }, prefs: { ...NOTIFY.DEFAULT_PREFS, tz: 'UTC', capTz: 'UTC' }, now: NOW, audience: 'coach', coachSeen: fresh.coachSeen });
+  assert.deepEqual([d.nextState.pendingDigest, d.digest, d.send], [[], null, []]);
+  // The hourly run reads them for a coach's roster, with its other per-coach reads.
+  const cron = read('src/app/api/ai/notify/cron/route.ts');
+  assert.match(cron, /loadClientBreaks\(admin, \(Array\.isArray\(snapshot\.clients\) \? snapshot\.clients : \[\]\)\.map\(coachRecordId\)\.filter\(\(v\): v is string => !!v\), now\),/);
+  assert.match(cron, /zone: prefs\.tz, memberPaused, clientBreaks \}\);/);
+});
 test('a member on a break is sent nothing held from before it began; a coach\'s held alert stays (Codex on #2705)', () => {
   const at = new Date('2026-11-11T15:00:00Z');
   const prefs = { ...NOTIFY.DEFAULT_PREFS, tz: 'UTC', capTz: 'UTC' };

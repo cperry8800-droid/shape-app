@@ -19,7 +19,7 @@
 import { timingSafeEqual } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { candidatesFor, decideAndClaim, deliver, readUserGoal, readNotifyState, writeNotifyState, writeUserGoal, loadPrefs, loadHabitContext, loadCoachThresholds, loadCoachContext, loadPushedToday, loadMemberPaused, memberCopy, notifyKind, snapshotsToEvaluate, NOTIFY_SNAPSHOT_KINDS, Notify, type Snapshot } from '@/lib/ai/notify-core';
+import { candidatesFor, coachRecordId, decideAndClaim, deliver, readUserGoal, readNotifyState, writeNotifyState, writeUserGoal, loadPrefs, loadHabitContext, loadCoachThresholds, loadCoachContext, loadPushedToday, loadMemberPaused, loadClientBreaks, memberCopy, notifyKind, snapshotsToEvaluate, NOTIFY_SNAPSHOT_KINDS, Notify, type Snapshot } from '@/lib/ai/notify-core';
 import { releasePushClaim } from '@/lib/push-cap';
 import { isCoachRole } from '@/lib/roles.mjs';
 import { rotated } from '../../../../../lib/run-rotation.mjs';
@@ -128,13 +128,18 @@ async function evaluateSnapshot(admin: ReturnType<typeof createAdminClient>, use
   // The coach's own office-settings tuning (R14), so the cron's alerts agree with
   // the roster the same thresholds produce on their dashboard.
   // …and their dismissals and check-in reviews read fresh (P2), so one made since the snapshot holds.
-  const [thresholds, coachContext] = isCoach
-    ? await Promise.all([loadCoachThresholds(admin, userId, snapshot.role), loadCoachContext(admin, userId)])
-    : [null, null];
+  // …and each client's break as it is now (Codex on #2705): one set since the roster was saved holds.
+  const [thresholds, coachContext, clientBreaks] = isCoach
+    ? await Promise.all([
+      loadCoachThresholds(admin, userId, snapshot.role),
+      loadCoachContext(admin, userId),
+      loadClientBreaks(admin, (Array.isArray(snapshot.clients) ? snapshot.clients : []).map(coachRecordId).filter((v): v is string => !!v), now),
+    ])
+    : [null, null, null];
   // The reader's language: a member's notices, and a coach's alert titles and digest.
   const copy = memberCopy(localeDoc, settings);
 
-  const { audience, candidates, coachSeen } = candidatesFor(snapshot, { tone: prefs.tone, lastSeverity: (last.coachClients as Record<string, string>) || {}, now, habitContext, checkinOptedOut, thresholds, copy, coachContext, zone: prefs.tz, memberPaused });
+  const { audience, candidates, coachSeen } = candidatesFor(snapshot, { tone: prefs.tone, lastSeverity: (last.coachClients as Record<string, string>) || {}, now, habitContext, checkinOptedOut, thresholds, copy, coachContext, zone: prefs.tz, memberPaused, clientBreaks });
   // The pushes decided are claimed under the person's cap before anything is sent (decideAndClaim).
   const { decided, claim } = await decideAndClaim(admin, userId, { candidates, last, prefs, now, audience, checkinOptedOut, pushedToday, memberPaused, tr: copy?.tr, coachSeen }, prefs.capTz);
   const { send, digest, nextState } = decided;

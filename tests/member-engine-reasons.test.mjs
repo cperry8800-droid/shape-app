@@ -524,7 +524,8 @@ test('the notify routes say a member\'s notices in their language and units, and
     assert.match(src, /readUserGoal\([^)]*'app_locale'\)/, rel);
     assert.match(src, /const copy = memberCopy\(localeDoc, settings\);/, rel);
     // The coach's fresh dismissals and reviews (coachContext) and the run's alert memory (coachSeen) ride along (P2).
-    assert.match(src, /candidatesFor\(snapshot, \{.*\bthresholds, copy, coachContext, zone: prefs\.tz, memberPaused \}\)/, rel);
+    // …and, in the hourly run, each client's break read fresh (clientBreaks, Codex on #2705).
+    assert.match(src, /candidatesFor\(snapshot, \{.*\bthresholds, copy, coachContext, zone: prefs\.tz, memberPaused(?:, clientBreaks)? \}\)/, rel);
     assert.match(src, /decideAndClaim\([^;{]*\{[^}]*tr: copy\?\.tr, coachSeen \}/, rel);
   }
   // The server bundles a catalog for exactly the languages the app ships.
