@@ -256,6 +256,8 @@ test('the legs: assigned workouts, the training load, the activity and the clien
   assert.equal(bsLastRunDay([{ created_at: '2026-11-09T10:00:00Z' }, { local_day: 'bad' }]), '2026-11-09');
   assert.equal(bsLastRunDay([{ local_day: '2026-11-03' }, { local_day: '2026-11-10' }, { local_day: '2026-11-05' }]), '2026-11-10', 'the newest, in any order');
   assert.equal(bsLastRunDay([]), null);
+  assert.equal(bsLastRunDay([{ local_day: '2026-11-08' }, { local_day: '2027-01-01' }], '2026-11-12'), '2026-11-08', 'a day past the ceiling is left out');
+  assert.equal(bsLastRunDay([{ local_day: '2026-11-12' }], '2026-11-12'), '2026-11-12', 'the ceiling itself counts');
   const m = (sender, at) => ({ sender_id: sender, created_at: at, conversation_id: 't' });
   assert.equal(bsLastFromClient([m('coach', '2026-11-10T10:00:00Z'), m('cli', '2026-11-08T10:00:00Z'), m('cli', '2026-11-09T10:00:00Z')], 'cli', 40), '2026-11-09T10:00:00.000Z');
   assert.equal(bsLastFromClient([m('coach', '2026-11-10T10:00:00Z')], 'cli', 40), null, 'none of theirs in a short read');
@@ -313,6 +315,16 @@ test('the overview reads a trainer\'s own assigned workouts and runs, and the ef
   // A failed read is unknown: the legs are left out.
   const failed = await overview({ client_workouts: [] }, { fail: ['workout_sessions'] });
   assert.ok(!('assignedWorkouts' in failed) && !('trainingLoad' in failed));
+  // A read at its cap is a subset, so unknown (Codex on #2717): 200 workouts, or 400 runs.
+  const manyW = Array.from({ length: 200 }, (_, i) => ({ id: 'm' + i, client_id: A, trainer_id: 7, status: 'published', scheduled_date: utcDay(1 + (i % 25)) }));
+  assert.ok(!('assignedWorkouts' in await overview({ client_workouts: manyW })), '200 workouts');
+  assert.ok((await overview({ client_workouts: manyW.slice(1) })).assignedWorkouts, '199 workouts: the whole read');
+  const run = (i) => ({ client_id: A, client_workout_id: null, provider_role: 'trainer', provider_id: 7, status: 'completed', session_rpe: 6, duration_seconds: 1800, created_at: new Date(Date.now() - (1 + (i % 30)) * DAY).toISOString(), summary: {} });
+  const manyR = Array.from({ length: 400 }, (_, i) => run(i));
+  const capR = await overview({ client_workouts: [], workout_sessions: manyR });
+  assert.ok(!('assignedWorkouts' in capR) && !('trainingLoad' in capR), '400 runs');
+  const underR = await overview({ client_workouts: [], workout_sessions: manyR.slice(1) });
+  assert.ok(underR.assignedWorkouts && underR.trainingLoad, '399 runs: the whole read');
   // A caller who also coaches nutrition, with another trainer on the team (Codex on #2717): their nutrition
   // page's joint attention would name that trainer for these workouts, so the leg is unknown.
   const both = { trainerId: 7, nutritionistId: 3, userId: COACH };
@@ -373,6 +385,9 @@ test('the overview reads 42 days of snapshots for the activity, and the client\'
   assert.equal((await overview({ daily_health_snapshot: rows, workout_sessions: older })).activity.lastWorkoutOn, utcDay(5), 'the newer snapshot day stays');
   assert.ok(!('activity' in await overview({ daily_health_snapshot: rows, workout_sessions: quick }, { fail: ['daily_health_snapshot'] })), 'a run never makes the snapshot read known');
   assert.equal((await overview({ daily_health_snapshot: rows, workout_sessions: quick }, { fail: ['workout_sessions'] })).activity.lastWorkoutOn, utcDay(5), 'a failed runs read leaves the snapshot');
+  // A run dated in the future never hides the snapshot's real day (Codex on #2717).
+  const future = [{ ...quick[0], summary: { snapshotDate: utcDay(-30) } }];
+  assert.equal((await overview({ daily_health_snapshot: rows, workout_sessions: future })).activity.lastWorkoutOn, utcDay(5));
   const conv = [{ id: 'cv1', client_id: A, provider_role: 'trainer', provider_id: 7, kind: 'direct', last_message_at: null }];
   const msgs = [{ conversation_id: 'cv1', sender_id: A, created_at: new Date(Date.now() - 3 * DAY).toISOString() }, { conversation_id: 'cv1', sender_id: COACH, created_at: new Date(Date.now() - DAY).toISOString() }];
   const talk = await overview({ conversations: conv, messages: msgs });

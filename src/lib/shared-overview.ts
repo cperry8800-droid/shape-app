@@ -44,6 +44,10 @@ const SNAPSHOT_WINDOW = 42;
 const REPLY_WAIT_READ = 40;
 // get_shared_client_workouts' own `limit 200` (2026-10-29-shared-schedules-any-coach.sql).
 const SHARED_WORKOUTS_CAP = 200;
+// The trainer's own reads (workouts missed, the load, the last run): each capped, and a read that comes
+// back at its cap is a subset, so its leg is unknown (Codex on #2717).
+const OWN_WORKOUTS_CAP = 200;
+const OWN_RUNS_CAP = 400;
 type ProgramDayRow = { scheduled_date: string | null; template_id: string | null; template_name: string | null; template_week: string | null };
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -687,16 +691,20 @@ export async function buildSharedOverview(supabase: OverviewClient, { clientId, 
     const [wRes, runRes] = await Promise.all([
       supabase.from('client_workouts').select('id, scheduled_date')
         .eq('client_id', clientId).eq('trainer_id', mine.trainer).eq('status', 'published')
-        .gte('scheduled_date', workoutSince).lte('scheduled_date', workoutToday).limit(200),
+        .gte('scheduled_date', workoutSince).lte('scheduled_date', workoutToday).limit(OWN_WORKOUTS_CAP),
       supabase.from('workout_sessions').select('client_workout_id, session_rpe, duration_seconds, ended_at, created_at, local_day:summary->>snapshotDate')
         .eq('client_id', clientId).eq('provider_role', 'trainer').eq('provider_id', mine.trainer)
         .in('status', ['completed', 'reviewed'])
         .gte('created_at', new Date(Date.now() - Math.max(ASSIGNED_WORKOUT_DAYS + 10, TRAINING_LOAD_DAYS) * 86_400_000).toISOString())
-        .limit(400),
+        .limit(OWN_RUNS_CAP),
     ]);
     if (wRes.error) console.error('[shared-overview] assigned workouts read failed:', wRes.error.message);
     if (runRes.error) console.error('[shared-overview] workout runs read failed:', runRes.error.message);
     const runs = (runRes.data ?? []) as Array<Record<string, unknown>>;
+    // ⚠ A READ AT ITS CAP IS A SUBSET (Codex on #2717): the rows are unordered, so a capped read is an
+    // arbitrary part of the window, and its leg is unknown rather than a falsely complete series.
+    const workoutsCapped = (wRes.data ?? []).length >= OWN_WORKOUTS_CAP;
+    const runsBad = Boolean(runRes.error) || runs.length >= OWN_RUNS_CAP;
     const doneIds = new Set(runs.map((r) => r.client_workout_id).filter((v) => v != null).map(String));
     // ⚠ A DUAL-ROLE CALLER WITH ANOTHER TRAINER (Codex on #2717): on their nutrition page joint attention
     // reads this leg as the co-coach trainer's, so it would name the other trainer for the caller's own
@@ -704,9 +712,12 @@ export async function buildSharedOverview(supabase: OverviewClient, { clientId, 
     // coaches nutrition and the care team holds another trainer, or may (a partial read).
     const otherTrainer = careTeamPartial || careTeam.some((m) => m.role === 'trainer' && !m.isMe && m.userId !== me.userId);
     const dualRoleShared = mine.nutritionist != null && otherTrainer;
-    assignedWorkouts = wRes.error || runRes.error || dualRoleShared ? undefined : bsAssignedWorkoutsLeg(wRes.data ?? [], doneIds, workoutToday);
-    trainingLoad = runRes.error ? undefined : bsTrainingLoadLeg(runs, Date.now());
-    if (!runRes.error) ownRunDay = bsLastRunDay(runs);
+    assignedWorkouts = wRes.error || workoutsCapped || runsBad || dualRoleShared ? undefined : bsAssignedWorkoutsLeg(wRes.data ?? [], doneIds, workoutToday);
+    trainingLoad = runsBad ? undefined : bsTrainingLoadLeg(runs, Date.now());
+    // ⚠ NEVER PAST TOMORROW (Codex on #2717): the run's day is the member's own summary.snapshotDate, which
+    // the save takes as sent. The engine drops a day past tomorrow, so one would hide a real snapshot day.
+    const runCeiling = new Date(Date.parse(workoutToday + 'T00:00:00Z') + 86_400_000).toISOString().slice(0, 10);
+    if (!runsBad) ownRunDay = bsLastRunDay(runs, runCeiling);
   } else if (mine.nutritionist != null) {
     const { data: sharedRows, error: sharedErr } = await supabase.rpc('get_shared_client_workouts', { p_client_id: clientId });
     if (sharedErr) console.error('[shared-overview] shared workouts read failed:', sharedErr.message);
