@@ -78,7 +78,9 @@ export default {
       find: '    const clients = liveDismissals(opts.coachContext ? engine.attachCoachContext(raw, opts.coachContext, role) : raw, opts.now);', replace: '    const clients = opts.coachContext ? engine.attachCoachContext(raw, opts.coachContext, role) : raw;' },
     { name: 'a snooze still running is dropped too', file: CORE,
       find: '      return Number.isFinite(t) && t > now.getTime();', replace: '      return false;' },
-    { name: 'an end that can\'t be read holds the flag hidden', file: CORE,
+    // A proven no-op: a kept dismissal whose end can't be read is an ended one to the engine as well
+    // (isDismissed: `if (!u || u.getTime() <= at) continue;`), so the flag comes back either way.
+    { name: 'an end that can\'t be read holds the flag hidden', file: CORE, expectSurvive: true,
       find: '      return Number.isFinite(t) && t > now.getTime();', replace: '      return !Number.isFinite(t) || t > now.getTime();' },
     { name: 'a dismissal with no end is dropped', file: CORE,
       find: "      if (until == null || until === '') return true;", replace: "      if (until == null || until === '') return false;" },
