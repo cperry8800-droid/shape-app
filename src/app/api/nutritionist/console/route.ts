@@ -299,29 +299,43 @@ export async function GET(request: Request) {
   // coach could add the same meal twice, as the trainer's session list could (Codex P2 on #2686).
   // The grocery note is a standing note, read on its own with no day window; `groceryNoteUnread` is a
   // failed read of it, which the page says rather than showing an empty box to save over.
+  // Both are read a page at a time (Codex P2 on #2693), as the trainer's session list is: a roster's two
+  // days of meals pass 1,000 rows at 100 clients and five a day, and a cut read is a plan short without a
+  // word, which lets a coach add a meal twice.
   const [mealRes, noteRes] = await Promise.all([
-    supabase
-      .from('coach_pushed_items')
-      .select('id, client_id, kind, payload, sent_at')
-      .eq('provider_role', ROLE)
-      .eq('provider_id', providerId)
-      .eq('kind', KIND)
-      .is('removed_at', null)
-      .gte('sent_at', exerciseReadSince(now, 1))
-      .order('sent_at', { ascending: true }),
-    supabase
-      .from('coach_pushed_items')
-      .select('id, client_id, kind, provider_id, payload, sent_at')
-      .eq('provider_role', ROLE)
-      .eq('provider_id', providerId)
-      .eq('kind', 'grocery_note')
-      .is('removed_at', null),
+    readAllById<PushedItemRow>((after) => {
+      let q = supabase
+        .from('coach_pushed_items')
+        .select('id, client_id, kind, payload, sent_at')
+        .eq('provider_role', ROLE)
+        .eq('provider_id', providerId)
+        .eq('kind', KIND)
+        .is('removed_at', null)
+        .gte('sent_at', exerciseReadSince(now, 1));
+      if (after) q = q.gt('id', after);
+      // capped-read-ok: one page of a cursor walk over every row (readAllById), not a cap.
+      return q.order('id', { ascending: true }).limit(ROW_PAGE);
+    }),
+    readAllById<PushedItemRow>((after) => {
+      let q = supabase
+        .from('coach_pushed_items')
+        .select('id, client_id, kind, provider_id, payload, sent_at')
+        .eq('provider_role', ROLE)
+        .eq('provider_id', providerId)
+        .eq('kind', 'grocery_note')
+        .is('removed_at', null);
+      if (after) q = q.gt('id', after);
+      // capped-read-ok: one page of a cursor walk over every row (readAllById), not a cap.
+      return q.order('id', { ascending: true }).limit(ROW_PAGE);
+    }),
   ]);
 
   const itemsUnread = !!mealRes.error || zonesUnread;
   if (mealRes.error) console.warn('[shape-app] nutritionist console: pushed meals read failed — today\'s plan renders as unread:', mealRes.error.message);
   const itemsByClient: Record<string, Array<Record<string, unknown>>> = {};
-  for (const r of (zonesUnread ? [] : mealRes.data ?? []) as PushedItemRow[]) {
+  // Paged by id; the plan lists in the order the coach added it.
+  const mealRows = (mealRes.data ?? []).slice().sort((a, b) => (Date.parse(a.sent_at) || 0) - (Date.parse(b.sent_at) || 0));
+  for (const r of (zonesUnread ? [] : mealRows)) {
     const zone = zoneByClient.get(r.client_id) ?? null;
     const m = pushedMealOf(r, zone);
     if (!m || m.day !== memberDay(now, zone)) continue;

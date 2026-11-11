@@ -320,6 +320,21 @@ test('nutritionist console: today\'s plan is the meals sent on each client\'s to
   assert.ok(reads.every((c) => c.ops.some(([op, col, v]) => op === 'eq' && col === 'kind' && (v === 'meal' || v === 'grocery_note'))), 'no read takes a cue')
 })
 
+test('nutritionist console: today\'s plan reads every row, a page at a time (Codex P2 on #2693)', async () => {
+  // 1,200 meals from yesterday in Los Angeles, then today's, sent last: one capped read stopped at 1,000
+  // and showed an empty plan, with no word that it was short.
+  const w = world('nutritionist')
+  const many = Array.from({ length: 1200 }, (_, n) => ({ id: `m${String(n).padStart(5, '0')}`, client_id: C, provider_role: 'nutritionist', provider_id: 7, kind: 'meal', payload: { name: `Old ${n}` }, sent_at: '2026-11-09T05:00:00.000Z', removed_at: null }))
+  w.coach_pushed_items = [...many, ...w.coach_pushed_items.map((r) => (r.id === 'meal-1' ? { ...r, id: 'z-meal-1' } : r))]
+  const db = fakeDb(w)
+  const { body } = await get('nutritionist', db)
+  assert.deepEqual(body.itemsByClient[A].map((m) => m.id), ['z-meal-1'], 'today\'s meal, past the first page')
+  assert.equal(body.itemsUnread, false)
+  const walks = db.calls.filter((c) => c.table === 'coach_pushed_items' && c.ops.some(([op, col, v]) => op === 'eq' && col === 'kind' && v === 'meal'))
+  assert.equal(walks.length, 2, 'two pages')
+  assert.ok(walks.every((c) => c.ops.some(([op, col]) => op === 'order' && col === 'id')), 'a keyset walk on id')
+})
+
 test('nutritionist console: a failed read of today\'s plan or the grocery note is unread, never empty (left by #2686)', async () => {
   const meals = await get('nutritionist', fakeDb(world('nutritionist'), { fail: (c) => c.table === 'coach_pushed_items' && c.ops.some(([op, col, v]) => op === 'eq' && col === 'kind' && v === 'meal') }))
   assert.equal(meals.body.itemsUnread, true)
