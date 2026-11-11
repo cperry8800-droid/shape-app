@@ -14458,6 +14458,15 @@ function useBSProfilePhoto(person, isSelf) {
     if (isSelf) { try { window.shapeDb?.getUserGoals?.('client_identity').then((d) => { if (d && d.photo) setPhoto(d.photo); }).catch(() => {}); } catch (e) {} }
     else if (person.photo) setPhoto(person.photo);
   }, [isSelf, person.userId]);
+  // Their own photo follows the identity cache when it is read again (a return to the app after a website
+  // edit, Nora's account setup, a save elsewhere): shape:identity carries the account's photo, or none
+  // when it was removed (Codex on #2707).
+  React.useEffect(() => {
+    if (!isSelf) return undefined;
+    const again = () => { try { const id = window.ShapeIdentity; if (id && typeof id === 'object') setPhoto(id.photo || null); } catch (e) {} };
+    window.addEventListener('shape:identity', again);
+    return () => window.removeEventListener('shape:identity', again);
+  }, [isSelf]);
   const onPick = (e) => {
     const f = e.target.files && e.target.files[0];
     if (!f) return;

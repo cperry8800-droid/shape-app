@@ -265,6 +265,12 @@ test("the shell re-reads the identity and announces the profile's kinds on a ret
   assert.match(src, /if \(typeof window !== 'undefined' && typeof document !== 'undefined' && !window\.__bsProfileReturnRefresh\) \{/);
   const hyd = src.slice(src.indexOf('function bsHydrateIdentity()'), src.indexOf('// Back in the app after being away'));
   assert.match(hyd, /if \(d == null\) return;/, 'a failed read blanks every avatar');
+  // The photo hook of one's own profile follows the cache when it is read again (Codex on #2707): its state
+  // was seeded once, so the coach's own page kept the old photo after a website change.
+  const hook = src.slice(src.indexOf('function useBSProfilePhoto('), src.indexOf('const onPick = (e) =>', src.indexOf('function useBSProfilePhoto(')));
+  assert.match(hook, /window\.addEventListener\('shape:identity', again\);/);
+  assert.match(hook, /if \(id && typeof id === 'object'\) setPhoto\(id\.photo \|\| null\);/);
+  assert.match(hook, /if \(!isSelf\) return undefined;/, "another's profile follows nobody's cache");
   // The coach's own page reads its public card again on either kind; another coach's page does not.
   const tp = readFileSync(join(ROOT, 'mobile-app/src/broadsheet/BSTrainerProfile.jsx'), 'utf8');
   assert.match(tp, /const BS_SELF_CARD_KINDS = \['client_identity', 'profile_custom'\];/);
