@@ -524,6 +524,8 @@ test('a moments ring points at the same pixels of the capture, whatever the card
   // Zoomed out the same day (owner: "show more zoomed out screenshots here", then
   // "Top three-quarters"): the screen is 78% of the card's width from its top, so
   // the rings moved into the screen's frame as a % of the capture. Same pixels.
+  // 88% since 2026-11-11 (owner: "a little larger within the box"); still the same
+  // pixels, and Grocery's ring, the lowest, ends 15 px clear of the 24 px margin.
   const EXPECTED = [
     { file: 'home-eat-v5.jpg', top: 566, height: 139, left: 24, right: 576 },
     { file: 'home-grocery-v5.jpg', top: 702, height: 143, left: 15, right: 585 },

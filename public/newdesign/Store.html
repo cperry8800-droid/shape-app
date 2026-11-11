@@ -16,6 +16,25 @@
   a { color: inherit; text-decoration: none; cursor: pointer; }
   img { display: block; max-width: 100%; }
   ::selection { background: #0ac5a8; color: #1a1612; }
+  /* The filter bar on a phone (store.jsx's StoreFilters). Its grid is "1fr auto", which the
+     shared header's phone stylesheet does not collapse, so the search and sort kept their
+     desktop width: the categories were squeezed into a ~90px column, the sort ran ~135px off
+     a 390px screen, and the bar, ~400px tall, stayed pinned under the header. Here it is one
+     column, scrolls with the page, and the search takes what the sort leaves. 900px is the
+     shared stylesheet's breakpoint. !important because the bar's styles are inline. */
+  @media (max-width: 900px) {
+    .store-filters { position: static !important; padding-top: 18px !important; padding-bottom: 18px !important; }
+    .store-filters-grid { grid-template-columns: minmax(0, 1fr) !important; gap: 14px !important; }
+    .store-filters-search input { min-width: 0 !important; flex: 1 1 auto; }
+    /* The balance strip, "1.1fr 1fr 1fr 1fr", which that stylesheet does not collapse
+       either: four columns on a 390px screen put the third and fourth figures past the
+       hero's clipped edge. Two by two, each pair's left cell flush with the copy. */
+    .store-stats { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; margin-top: 40px !important; }
+    .store-stats > div { padding: 20px 0 20px 16px !important; min-width: 0; }
+    .store-stats > div:nth-child(odd) { border-left: 0 !important; padding-left: 0 !important; }
+    .store-stats > div:nth-child(n+3) { border-top: 1px solid rgba(242,237,228,0.08); }
+    .store-stats > div:first-child > div:nth-child(2) { font-size: 56px !important; }
+  }
 </style>
 <script defer src="/consent-insights.js"></script></head>
 <body>

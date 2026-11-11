@@ -133,7 +133,7 @@ function StoreHero({ balance = BALANCE, credit = { session: 0, nutrition: 0 } })
           </p>
         </div>
 
-        <div style={{ marginTop: 64, display: "grid", gridTemplateColumns: "1.1fr 1fr 1fr 1fr", gap: 0, borderTop: "1px solid rgba(242,237,228,0.15)", borderBottom: "1px solid rgba(242,237,228,0.15)" }}>
+        <div className="store-stats" style={{ marginTop: 64, display: "grid", gridTemplateColumns: "1.1fr 1fr 1fr 1fr", gap: 0, borderTop: "1px solid rgba(242,237,228,0.15)", borderBottom: "1px solid rgba(242,237,228,0.15)" }}>
           <div style={{ padding: "28px 28px 28px 0" }}>
             <div style={{ fontFamily: sans, fontSize: 11, letterSpacing: "0.14em", textTransform: "uppercase", color: TEAL }}>Available balance</div>
             <div style={{ fontFamily: serif, fontSize: 76, letterSpacing: "-0.035em", color: INK, lineHeight: 1, marginTop: 12 }}>
@@ -177,14 +177,18 @@ function StoreHero({ balance = BALANCE, credit = { session: 0, nutrition: 0 } })
 function StoreFilters({ cat, setCat, sort, setSort, query, setQuery, affordable, setAffordable, categories = CATEGORIES }) {
   const pill = (on) => ({ padding: "9px 16px", borderRadius: 999, border: on ? `1px solid ${INK}` : "1px solid rgba(242,237,228,0.18)", background: on ? INK : "transparent", color: on ? PAPER : INK, fontFamily: sans, fontSize: 13, cursor: "pointer", fontWeight: on ? 500 : 400 });
   return (
-    <section style={{ padding: "28px 72px", borderTop: "1px solid rgba(242,237,228,0.08)", borderBottom: "1px solid rgba(242,237,228,0.08)", background: "rgba(242,237,228,0.02)", position: "sticky", top: 76, zIndex: 40, backdropFilter: "blur(12px)" }}>
-      <div style={{ maxWidth: 1320, margin: "0 auto", display: "grid", gridTemplateColumns: "1fr auto", gap: 32, alignItems: "center" }}>
+    // The class names are Store.html's phone layout for this bar (its <style>): one column,
+    // not pinned, the search taking the row. Without it the search and sort kept their desktop
+    // width on a phone, squeezed the categories into a ~90px column and ran ~135px off the
+    // screen, and the 400px-tall bar stayed pinned under the header.
+    <section className="store-filters" style={{ padding: "28px 72px", borderTop: "1px solid rgba(242,237,228,0.08)", borderBottom: "1px solid rgba(242,237,228,0.08)", background: "rgba(242,237,228,0.02)", position: "sticky", top: 76, zIndex: 40, backdropFilter: "blur(12px)" }}>
+      <div className="store-filters-grid" style={{ maxWidth: 1320, margin: "0 auto", display: "grid", gridTemplateColumns: "1fr auto", gap: 32, alignItems: "center" }}>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
           {categories.map((c) => <button key={c} style={pill(cat === c)} onClick={() => setCat(c)}>{c}</button>)}
           <span style={{ width: 1, background: "rgba(242,237,228,0.15)", height: 20, margin: "0 8px" }} />
           <button style={pill(affordable)} onClick={() => setAffordable(!affordable)}>Within my balance</button>
         </div>
-        <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+        <div className="store-filters-search" style={{ display: "flex", gap: 10, alignItems: "center" }}>
           <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search merch or rewards…" style={{ padding: "10px 16px", borderRadius: 999, border: "1px solid rgba(242,237,228,0.18)", background: "transparent", fontFamily: sans, fontSize: 13, color: INK, minWidth: 220, outline: "none" }} />
           <select value={sort} onChange={(e) => setSort(e.target.value)} style={{ padding: "10px 14px", borderRadius: 999, border: "1px solid rgba(242,237,228,0.18)", background: PAPER, fontFamily: sans, fontSize: 13, color: INK, cursor: "pointer" }}>
             <option>Featured</option>

@@ -1452,6 +1452,29 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
       .cpw.cpw[data-in-dash] .cpw-camp-title{font-size:clamp(26px,2.4vw,40px) !important}
       .cpw[data-in-dash] .cpw-camp-lead{font-size:15px}
     }
+    /* ⚠ THE PUBLIC PAGE ON A SHORT DESKTOP WINDOW SCALES WITH ITS HEIGHT (owner, 2026-11-11: "the
+       overall coaches profile page is looking a little large on smaller monitors", from a laptop at
+       125% scaling, a 1536x706 window). Every size above is a fixed px: the stage was 640px tall under
+       ~220px of bars whatever the window, so on a laptop it ran ~150px past the screen's foot, its
+       plates under the dock. Under 900px tall the stage, the portrait, the name, the gaps and the
+       plates follow 100vh down to a floor, and from 900px up nothing changes (each clamp tops out at
+       its old value there). Measured at 1536x706: the stage 514px (was 642), the portrait 259px
+       (330), the name 73px (93). The dashboard's own scale (data-in-dash, above) and phones keep theirs. */
+    @media (min-width:1000px) and (max-height:899px){
+      .cpw:not([data-in-dash]) .cpw-bar{padding:12px 0 10px}
+      .cpw:not([data-in-dash]) .cpw-camptabs{margin-top:12px}
+      .cpw:not([data-in-dash]) .cpw-camptabs button{min-height:44px}
+      .cpw:not([data-in-dash]) .cpw-stage{min-height:clamp(480px,71.2vh,640px)}
+      .cpw:not([data-in-dash]) .cpw-stage-grid{grid-template-columns:clamp(240px,36.7vh,330px) minmax(0,1fr);gap:clamp(36px,6.2vh,56px);padding:clamp(24px,4.4vh,40px) clamp(28px,4.4vh,40px) clamp(22px,3.8vh,34px);min-height:clamp(480px,71.2vh,640px)}
+      .cpw:not([data-in-dash]) .cpw-stage-text{padding-top:clamp(4px,2vh,18px)}
+      .cpw.cpw:not([data-in-dash]) .cpw-h1{font-size:max(40px,min(10.4vh,clamp(58px,7.4vw,118px),calc((0.79 * (min(100vw,1440px) - 64px) - 520px) / (var(--cpw-l,8) * 0.76)))) !important}
+      .cpw:not([data-in-dash]) .cpw-chips{margin-top:clamp(14px,2.7vh,24px)}
+      .cpw:not([data-in-dash]) .cpw-quote{margin-top:clamp(12px,2.2vh,20px);font-size:clamp(16px,2.1vh,18.5px)}
+      .cpw:not([data-in-dash]) .cpw-plates{padding-top:clamp(18px,3.8vh,34px)}
+      .cpw:not([data-in-dash]) .cpw-stat{padding:clamp(12px,1.8vh,16px) 14px clamp(11px,1.6vh,14px);gap:clamp(8px,1.1vh,10px)}
+      .cpw:not([data-in-dash]) .cpw-stat-n{font-size:clamp(28px,4.4vh,40px)}
+      .cpw.cpw:not([data-in-dash]) .cpw-camp-title{font-size:clamp(32px,min(4.2vw,6.4vh),58px) !important}
+    }
     @media (prefers-reduced-motion: reduce){
       .cpw-wire-run{animation:none}
       .cpw-wire-dup{display:none}

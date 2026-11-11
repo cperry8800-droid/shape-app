@@ -165,7 +165,10 @@
   /* ⚠ THE PHONE COLUMN IS NOT STICKY, AND THAT IS STRUCTURAL RATHER THAN A
      CHOICE. The phone IS what makes a beat as tall as it is — 272px wide at
      600/1387 is 629px, against a 630px beat content box — so measured travel is
-     ONE PIXEL. Declaring `position: sticky` there would be an effect that
+     ONE PIXEL. On a window under ~870px tall the phone narrows (the width rule
+     below) and the beat's 600px min-height takes over: 480px of phone in a
+     495px content box at 720px tall (measured), 15px of travel, still nothing a reader
+     would see. Declaring `position: sticky` there would be an effect that
      cannot happen, which is worse than no effect: the next reader reads it as
      working.
      To make it real the beat would have to be taller than the phone, and this
@@ -179,7 +182,14 @@
      "They are smaller compared to the other ones. Not as clear to read on
      website", then "just make each of these screen shots its own section".
      tests/getapp-page.test.mjs holds the page to one capture per beat. */
-  .beat-ph .ph { flex: 0 1 auto; width: 272px; min-width: 0; }
+  /* ⚠ AND THAT WIDTH IS CAPPED BY THE SCREEN'S HEIGHT (owner, 2026-11-11: the
+     screenshots "take up the whole screen on smaller monitors"). 272px is 629px
+     tall, so at 1280x720 each phone filled the screen under the bar. A phone now
+     leaves 240px of the screen free, the homepage's own rule (its --phw): 272px from
+     ~870px tall up, smaller below, never under 200px. On a phone too (owner,
+     2026-11-11: "yes shrink the app page screenshots on phones too"): the 900px
+     rule caps it at 264px and this rule shrinks it on a short screen. */
+  .beat-ph .ph { flex: 0 1 auto; width: clamp(200px, calc((100vh - 240px) * 600 / 1387), 272px); min-width: 0; }
 
   /* ---- the doors ------------------------------------------------------ */
   .doors { border-top: 1px solid var(--line); background: var(--paper2); }
@@ -236,7 +246,12 @@
        beats read as one walk.
        ⚠ The pairs never reached 264px here: their inline 182px held, since
        max-width can lower a width but not raise it. Since 2026-10-15 there are
-       no pairs; each of the eleven screens is a beat of its own. */
+       no pairs; each of the eleven screens is a beat of its own.
+       ⚠ 264px IS NOW A CAP, NOT A SIZE (owner, 2026-11-11: "yes shrink the app
+       page screenshots on phones too"). At a flat 264px each screen was ~610px
+       tall, more than an iPhone SE shows under Safari's bars. The width is the
+       desktop rule's height clamp, so a phone under ~850px tall gets a smaller
+       screen, never under the 200px floor that rule holds for the 8px mono. */
     .beat-ph { gap: 12px; flex-wrap: wrap; }
     .beat-ph .ph { max-width: 264px; }
     .beat .time { position: static; width: auto; margin-bottom: 8px; display: block; font-size: 22px; }
