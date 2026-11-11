@@ -20,6 +20,7 @@ import { readFileSync } from 'node:fs';
 const BANNER = readFileSync('public/newdesign/mobile-redirect.js', 'utf8');
 const STORE_JSX = readFileSync('public/newdesign/store.jsx', 'utf8');
 const STORE_HTML = readFileSync('public/newdesign/Store.html', 'utf8');
+const RECIPES_JSX = readFileSync('public/newdesign/recipesPage.jsx', 'utf8');
 
 /** Run mobile-redirect.js on a phone-width page under a stub DOM. */
 function runBanner(pathname = '/newdesign/Store.html') {
@@ -45,7 +46,9 @@ function runBanner(pathname = '/newdesign/Store.html') {
   bodyEl.appendChild = (c) => { c.parentNode = bodyEl; body.push(c); return c; };
   bodyEl.removeChild = (c) => { c.parentNode = null; body.splice(body.indexOf(c), 1); };
   const session = new Map();
+  const events = [];
   const window = {
+    dispatchEvent(e) { events.push(e.type); return true; },
     location: { search: '', pathname, replace() { throw new Error('the banner page redirected'); } },
     matchMedia: () => ({ matches: true }),
     pageYOffset: 0,
@@ -74,7 +77,7 @@ function runBanner(pathname = '/newdesign/Store.html') {
     if (frame) { const f = frame; frame = null; f(); }
     return rootStyle.get('--shape-banner-off');
   };
-  return { head, body, rootStyle, listeners, scrollTo };
+  return { head, body, rootStyle, listeners, scrollTo, events };
 }
 
 test("the header's banner offset follows the banner off the screen", () => {
@@ -91,11 +94,29 @@ test("the header's banner offset follows the banner off the screen", () => {
   assert.equal(scrollTo(-30), '48px', 'an iOS overscroll pushes the header below the banner');
 });
 
+test('a page that measures the header hears it move, once per change (Codex on #2699)', () => {
+  const { scrollTo, events } = runBanner();
+  const heard = () => events.filter((t) => t === 'shape:banner-offset').length;
+  assert.equal(heard(), 1, 'the first offset was not announced');
+  scrollTo(20);
+  assert.equal(heard(), 2, 'a change of offset was not announced');
+  scrollTo(900);
+  scrollTo(1400);
+  assert.equal(heard(), 3, 'an unchanged offset was announced again, on every scroll frame');
+  // The Recipes jump row is pinned at the header's measured bottom edge.
+  assert.match(RECIPES_JSX, /window\.addEventListener\("shape:banner-offset", measure\)/,
+    "the Recipes jump row no longer re-measures the header when the banner's offset changes");
+  assert.match(RECIPES_JSX, /window\.removeEventListener\("shape:banner-offset", measure\)/,
+    'the Recipes page keeps listening after it unmounts');
+});
+
 test('dismissing the banner drops its offset and its scroll listener', () => {
-  const { body, rootStyle, listeners, head } = runBanner();
+  const { body, rootStyle, listeners, head, events } = runBanner();
   const close = body[0].children.find((c) => c.tag === 'button');
   assert.ok(close && close.handlers.click, 'the banner lost its dismiss button');
+  const before = events.length;
   close.handlers.click();
+  assert.equal(events.length, before + 1, 'dismissing the banner moves the header without announcing it');
   assert.equal(body.length, 0, 'the banner is still on the page');
   assert.equal(head.length, 0, 'the header offset style is still on the page');
   assert.equal(rootStyle.has('--shape-banner-off'), false, 'the offset variable outlived the banner');

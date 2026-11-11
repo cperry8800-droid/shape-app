@@ -38,12 +38,25 @@
     // left of the banner on screen: 48px at the top of the page, 0 once it has gone.
     headerOffset.textContent = '@media (max-width: 760px){ header.shape-header{ top: var(--shape-banner-off, 48px) !important; } }';
     document.head.appendChild(headerOffset);
+    // ⚠ AND A PAGE THAT PLACES SOMETHING UNDER THE HEADER HEARS IT MOVE. The header's
+    // bottom edge now changes as the page scrolls, so a page that measures it (the
+    // Recipes jump row, recipesPage.jsx) would keep the 120px it read at the top and
+    // hang 48px below the header (Codex on #2699): 'shape:banner-offset' fires on each
+    // change of the offset and when the banner is dismissed.
     var root = document.documentElement;
     var ticking = false;
+    var lastOff = null;
+    var announce = function () {
+      try { window.dispatchEvent(new Event('shape:banner-offset')); } catch (e) {}
+    };
     var syncOffset = function () {
       ticking = false;
       var y = window.pageYOffset || root.scrollTop || 0;
-      root.style.setProperty('--shape-banner-off', Math.min(48, Math.max(0, 48 - y)) + 'px');
+      var off = Math.min(48, Math.max(0, 48 - y));
+      if (off === lastOff) return;
+      lastOff = off;
+      root.style.setProperty('--shape-banner-off', off + 'px');
+      announce();
     };
     var onScroll = function () {
       if (ticking) return;
@@ -73,6 +86,7 @@
       if (headerOffset.parentNode) headerOffset.parentNode.removeChild(headerOffset);
       window.removeEventListener('scroll', onScroll);
       root.style.removeProperty('--shape-banner-off');
+      announce();
     });
     bar.appendChild(label);
     bar.appendChild(close);
