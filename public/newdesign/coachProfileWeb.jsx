@@ -1193,7 +1193,8 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
   const years = aboutDoc && aboutDoc.years ? aboutDoc.years : null;
   // Every coach coaches remotely through the app (owner, 2026-11-11: "every coach should have remote listed"):
   // one who meets in person reads In person + remote.
-  const howSaid = !aboutDoc || !aboutDoc.how ? "" : aboutDoc.how === "online" ? "Remote" : "In person + remote";
+  // A coach who has not said how they meet is Remote, as the Coaches page lists them (Codex on #2715).
+  const howSaid = aboutDoc && (aboutDoc.how === "in_person" || aboutDoc.how === "both") ? "In person + remote" : "Remote";
   const pronounsSaid = !isPrivate && live && row && typeof row.pronouns === "string" && row.pronouns.trim().length <= 24 ? row.pronouns.trim() : "";
   const discipline = focusWords.length ? focusWords.join(" · ") : (specialty || (nutri ? "Nutritionist" : "Coach"));
   // Milestones on the route, only from figures there are: their years coaching, the programs they

@@ -803,11 +803,12 @@ function TrainerPage({ theme = null, person, role = 'trainer', onBack, onMessage
   const nextSlot = avail.kind === 'ready' && !introClosed && Array.isArray(avail.open)
     ? avail.open.filter((s) => s && s.at > nowMs).sort((a, b) => a.at - b.at)[0] || null : null;
   const fmtNext = (ms) => { try { return new Date(ms).toLocaleString(locale, { weekday: 'short', hour: 'numeric', minute: '2-digit', timeZone: viewerZone() }); } catch (e) { return ''; } };
-  const how = !aboutDoc || !aboutDoc.how ? ''
-    : aboutDoc.how === 'online' ? tr('profile:climb.howOnline', { defaultValue: 'Remote' })
-    // Every coach coaches remotely through the app (owner, 2026-11-11: "every coach should have remote
-    // listed"): one who meets in person reads In person + remote.
-    : tr('profile:climb.howBoth', { defaultValue: 'In person + remote' });
+  // Every coach coaches remotely through the app (owner, 2026-11-11: "every coach should have remote
+  // listed"): one who meets in person reads In person + remote, and one who has not said reads Remote, as
+  // the Coaches tab lists them (Codex on #2715). A private page says neither.
+  const how = isPrivate ? ''
+    : aboutDoc && (aboutDoc.how === 'in_person' || aboutDoc.how === 'both') ? tr('profile:climb.howBoth', { defaultValue: 'In person + remote' })
+    : tr('profile:climb.howOnline', { defaultValue: 'Remote' });
   const who = {
     name, first, initials, avatar: avatarShown, onAvatarError: () => setBrokenAvatar(avatarShown), online,
     eyebrow: isPrivate ? tierName : [roleLine, where].filter(Boolean).join(' · '),
@@ -1974,9 +1975,10 @@ function bsAboutHas(part, { about = null, prompts = [], links = null, certs = []
   return !!(about || prompts.length || certs.length || song);
 }
 function AboutTab({ t, tr, ACC, ink, DISPLAY, MONO, about, prompts, links, certs = [], gallery = [], isSelf, first, onEdit, biz = null, song = null, part = null }) {
+  // About says only what the coach wrote; in person is in person and online too (the climb's how, above,
+  // says Remote for a coach who has not said).
   const how = !about || !about.how ? null
     : about.how === 'online' ? tr('profile:about.howOnline', { defaultValue: 'Coaches online' })
-    // In person is in person and online too: every coach coaches through the app (the climb's how, above).
     : tr('profile:about.howBoth', { defaultValue: 'Coaches online and in person' });
   const facts = about ? [
     about.years ? tr('profile:about.years', { defaultValue: '{count, plural, one {Coaching for # year} other {Coaching for # years}}', count: about.years }) : null,

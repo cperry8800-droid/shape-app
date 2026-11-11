@@ -573,8 +573,10 @@ test('every coach is listed remote: in person reads In person + remote, none sta
   assert.equal(mk.mkPass(inPerson, f({ city: inPerson.city === 'Lisbon' ? 'Miami' : 'Lisbon' })), false, 'a city no longer narrows the list');
   // The website's coach page and the app's say the same of a coach who meets in person.
   const web = readFileSync(join(ROOT, 'public/newdesign/coachProfileWeb.jsx'), 'utf8');
-  assert.match(web, /const howSaid = !aboutDoc \|\| !aboutDoc\.how \? "" : aboutDoc\.how === "online" \? "Remote" : "In person \+ remote";/);
+  // A coach who has not said how they meet is Remote on both pages too (Codex on #2715).
+  assert.match(web, /const howSaid = aboutDoc && \(aboutDoc\.how === "in_person" \|\| aboutDoc\.how === "both"\) \? "In person \+ remote" : "Remote";/);
   const app = readFileSync(join(ROOT, 'mobile-app/src/broadsheet/BSTrainerProfile.jsx'), 'utf8');
+  assert.match(app, /const how = isPrivate \? ''\n\s*: aboutDoc && \(aboutDoc\.how === 'in_person' \|\| aboutDoc\.how === 'both'\) \? tr\('profile:climb\.howBoth'[^\n]*\n\s*: tr\('profile:climb\.howOnline', \{ defaultValue: 'Remote' \}\);/);
   assert.doesNotMatch(app, /profile:climb\.howInPerson|profile:about\.howInPerson/, 'the app still says in person alone');
 });
 
