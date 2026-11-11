@@ -654,5 +654,21 @@
   "plan.renewsYearly": "Renews yearly",
   "plan.includedCoach": "Included with your coaching",
   "plan.includedCoachBody": "Nora, Shape Radio and the AI helpers come with your coaching.",
-  "plan.includedCoachOwn": "Your coaching includes membership; you can cancel your own plan."
+  "plan.includedCoachOwn": "Your coaching includes membership; you can cancel your own plan.",
+  "pause.group": "Taking a break",
+  "pause.row": "Away",
+  "pause.preview": "Sign in to set a break.",
+  "pause.unavailable": "Couldn’t load your break.",
+  "pause.retry": "Try again",
+  "pause.byYou": "You set this.",
+  "pause.byCoach": "Your coach set this.",
+  "pause.range": "Pick a day from today to 90 days from now.",
+  "pause.failed": "Couldn’t save. Try again.",
+  "pause.until": "Away until {date}",
+  "pause.change": "Change the date",
+  "pause.end": "End the break",
+  "pause.desc": "Going away? Pick your last day away: reminders and check-in nudges stay quiet until then, and your coaches see you’re away. Your membership carries on as usual.",
+  "pause.dateLabel": "Away until",
+  "pause.save": "Save the break",
+  "pause.cancel": "Keep the date"
 }

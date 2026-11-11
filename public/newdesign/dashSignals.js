@@ -374,6 +374,70 @@
     x.setHours(0, 0, 0, 0);
     return x;
   }
+  // ── A client's pause ("away until <date>", 2026-11-11-client-pause.sql) ────────────────────
+  // Set by the member or any of their coaches; record.pause = { until: "YYYY-MM-DD", by, backAt? } from the
+  // overview, null when none. While it holds, and for PAUSE_BACK_DAYS after it ends, the rules that read
+  // the client's absence stay quiet (PAUSE_SILENCED) and a coach sees "Back from a break" instead. For
+  // PAUSE_BOUND_DAYS after it ends, the gaps (food logs, check-ins, contact) count from the day they came
+  // back, never from before the break. Engine policy, not a coach tunable.
+  var PAUSE_BACK_DAYS = 3;
+  var PAUSE_BOUND_DAYS = 14;
+  var PAUSE_SILENCED = { food_gap: true, food_logging: true, checkin_overdue: true, contact_gap: true, missed_sessions: true, goal_slip: true, streak_broken: true, score_drop: true };
+  var ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
+  // null | { state: "paused", until, by } | { state: "back", until, since, day, fresh, by }: `since` is
+  // the return day, `day` the days since it (0 on it), `fresh` within PAUSE_BACK_DAYS.
+  // ⚠ ON THE MEMBER'S CALENDAR, NOT THE VIEWER'S (Codex on #2705). `until` is the member's last day
+  // away, and a coach's surface runs on the coach's day: a coach a day ahead saw "Back from a break"
+  // while the member was still away. `backAt` (get_client_pause) is the instant their return day
+  // begins, the same in every zone; without it (a snapshot saved before it), the viewer's day.
+  function pauseOf(c, now) {
+    var p = c && c.pause;
+    if (!p || typeof p !== "object" || typeof p.until !== "string" || !ISO_DAY.test(p.until)) return null;
+    var by = typeof p.by === "string" ? p.by : null;
+    var back = toDate(p.until);
+    back.setDate(back.getDate() + 1);
+    var backAt = typeof p.backAt === "string" ? parseDate(p.backAt) : null;
+    var day;
+    if (backAt) {
+      var at = instantNow(now);
+      if (at.getTime() < backAt.getTime()) {
+        // ⚠ A BREAK READ AFTER THE ROSTER WAS SAVED, AND OVER BY THEN (Codex on #2705). The hourly run reads
+        // a coach's stored roster as of its save (notify-core rosterClock) and lays each break over it as
+        // read at the run (`readAt`). One that ended after the save read as still under way, so the coach's
+        // "Back from a break" waited for their next visit. Over by the read, the welcome back speaks for its
+        // PAUSE_BACK_DAYS, counted to the read; the roster knows nothing of the days since they came back,
+        // so nothing that reads their absence speaks, then or after.
+        var readAt = typeof p.readAt === "string" ? parseDate(p.readAt) : null;
+        var readDay = readAt && readAt.getTime() >= backAt.getTime() ? daysBetween(backAt, readAt) : -1;
+        if (readDay >= 0 && readDay < PAUSE_BACK_DAYS) return { state: "back", until: p.until, since: iso(back), day: readDay, fresh: true, by: by };
+        return { state: "paused", until: p.until, by: by };
+      }
+      day = daysBetween(backAt, at);
+    } else {
+      if (iso(now) <= p.until) return { state: "paused", until: p.until, by: by };
+      day = daysBetween(back, now);
+    }
+    if (day >= PAUSE_BOUND_DAYS) return null;
+    return { state: "back", until: p.until, since: iso(back), day: day, fresh: day < PAUSE_BACK_DAYS, by: by };
+  }
+  // Local midnight of the day they came back from a break, while the gaps still count from it; else null.
+  function resumeDay(c, now) {
+    var p = pauseOf(c, now);
+    return p && p.state === "back" ? toDate(p.since) : null;
+  }
+  // The days since they came back, on the member's calendar (pauseOf's `day`, from backAt), while the
+  // gaps still count from it; else null. ⚠ NOT daysBetween(resumeDay, now) (Codex on #2705): that is
+  // their return date on the viewer's clock, so a coach a day behind the member counted a day fewer.
+  function resumeDays(c, now) {
+    var p = pauseOf(c, now);
+    return p && p.state === "back" ? p.day : null;
+  }
+  // The coach's welcome back, for PAUSE_BACK_DAYS after a break: both coaches' (FLAG_DISCIPLINE general).
+  function rulePauseEnded(p) {
+    if (!p || p.state !== "back" || !p.fresh) return null;
+    return { key: "pause_ended", label: p.day === 0 ? "Back today" : "Back " + p.day + "d", reason: p.day === 0 ? "Back from a break today: see how it went" : "Back from a break since " + p.since + ": see how it went", figures: { since: p.since, day: p.day }, sig: "back:" + p.since };
+  }
+
   // The viewer's own onboarding board for this client (the overview's `onboarding`, per role;
   // client-onboarding review, fix 4), and one of its steps.
   function onboardingFor(c, role) {
@@ -744,6 +808,13 @@
       var bounded = !!joinDay && last < joinDay;
       if (bounded) gap = daysBetween(joinDay, now);
       else if (!joinDay && c.profile && c.profile.isNew) return null;
+      // A log from before their break counts the gap from the day they came back (pauseOf).
+      var backDay = resumeDay(c, now);
+      if (backDay && last < backDay && (!bounded || joinDay < backDay)) {
+        gap = resumeDays(c, now);
+        if (gap < THRESHOLDS.FOOD_GAP_DAYS) return null;
+        return { key: "food_gap", label: "No logs " + gap + "d", reason: "No food logs in the " + gap + " days since their break", figures: { days: gap, sinceBreak: true }, sig: "back:" + iso(backDay) };
+      }
       if (gap >= THRESHOLDS.FOOD_GAP_DAYS) {
         return { key: "food_gap", label: "No logs " + gap + "d", reason: bounded ? "No food logs in the " + gap + " days since they joined" : "No food logs in " + gap + " days", figures: { days: gap, sinceJoined: bounded }, sig: bounded ? "joined:" + iso(joinDay) : "last:" + iso(last) };
       }
@@ -796,6 +867,14 @@
     // check-in yet, which keeps a new client's pass. The food-gap rule bounds its count the same way.
     var joinDay = clientJoinDay(c);
     if (last && joinDay && mondayOf(last) < mondayOf(joinDay)) last = null;
+    // Back from a break: the weeks they were away are not missed, nor the week they came back in. A
+    // check-in from before it counts as one for that week, so the week after is the first one due.
+    var backDay = resumeDay(c, now);
+    var sinceBreak = false;
+    if (backDay && (!last || mondayOf(last) < mondayOf(backDay))) {
+      last = mondayOf(backDay);
+      sinceBreak = true;
+    }
     if (!last) {
       if (c.profile && c.profile.isNew) return null; // new clients get a pass
       return { key: "checkin_overdue", missedWeeks: 99, label: "No first check-in", reason: "Hasn't completed a first check-in", figures: { first: true }, sig: "first" };
@@ -806,7 +885,9 @@
     // mornings aren't a wall of amber.
     var dayIntoWeek = (now.getDay() + 6) % 7; // Mon=0 … Sun=6
     if (missedWeeks === 1 && dayIntoWeek < THRESHOLDS.CHECKIN_GRACE_DAYS) return null;
-    var label = missedWeeks === 1
+    var label = sinceBreak
+      ? (missedWeeks === 1 ? "Check-in due — the first since their break" : "No check-in in the " + missedWeeks + " weeks since their break")
+      : missedWeeks === 1
       ? "Check-in due — last was week of " + iso(mondayOf(last))
       : "No check-in for " + missedWeeks + " weeks";
     // `lastWeekOf` is the Monday the reason names, as the reason prints it (YYYY-MM-DD, local).
@@ -848,6 +929,13 @@
       return { key: "contact_gap", label: "Never messaged", reason: "No message in the " + since + " days since they joined", sig: "never", figures: { never: true } };
     }
     var gap = daysBetween(last, now);
+    // Quiet since before their break: counted from the day they came back.
+    var backDay = resumeDay(c, now);
+    if (backDay && last < backDay) {
+      gap = resumeDays(c, now);
+      if (gap < THRESHOLDS.CONTACT_GAP_DAYS) return null;
+      return { key: "contact_gap", label: "Quiet " + gap + "d", reason: "No contact in the " + gap + " days since their break", sig: "back:" + iso(backDay), figures: { days: gap, sinceBreak: true } };
+    }
     if (gap >= THRESHOLDS.CONTACT_GAP_DAYS) {
       return { key: "contact_gap", label: "Quiet " + gap + "d", reason: "No contact in " + gap + " days", sig: "last:" + instantKey(ts), figures: { days: gap } };
     }
@@ -1290,6 +1378,14 @@
       if ((f = ruleRecoveryLow(c, now))) flags.push(f);
     }
 
+    // ⚠ AWAY IS NOT ABSENT (a pause, 2026-11-11). While the client is paused, and for the first days
+    // back, nothing that reads their absence speaks; a coach sees them back instead (rulePauseEnded).
+    var paused = pauseOf(c, now);
+    if (paused && (paused.state === "paused" || paused.fresh)) {
+      flags = flags.filter(function (fl) { return !PAUSE_SILENCED[fl.key]; });
+      if (coachView && (f = rulePauseEnded(paused))) flags.push(f);
+    }
+
     // ⚠ A DISMISSED OR SNOOZED REASON IS SKIPPED BEFORE SEVERITY, so it neither colours the row nor
     // leads the directive nor alerts. It holds while its episode (`sig`) is the same and, for a
     // snooze, until its time; a new episode of the same reason comes back on its own.
@@ -1317,7 +1413,8 @@
     // M13). Their progress read answers, with nothing in it, so they sat in "Progress unknown"
     // instead of reading "New". A read that failed or is still loading stays unknown.
     var progress = progressStatus(c, now);
-    var severity = progress.state === "ready" || (progress.state === "insufficient" && c.profile && c.profile.isNew) ? "green" : "unknown";
+    // …nor is a client on a break (pauseOf): away, nothing recent is what is expected.
+    var severity = progress.state === "ready" || (progress.state === "insufficient" && ((c.profile && c.profile.isNew) || (paused && (paused.state === "paused" || paused.fresh)))) ? "green" : "unknown";
     // ⚠ A COACH'S RED IS TWO DIFFERENT AREAS, OR A SAFETY FLAG (owner, 2026-11-10). Two flags used to
     // be red, and two flags are often one thing seen twice: a food-log gap and calories nobody logged,
     // or a quiet thread and the reply waiting in it. Red now needs the client slipping in two areas
@@ -1355,7 +1452,7 @@
     food_gap: "nutrition", food_logging: "nutrition", ledger_blown: "nutrition", protein_under: "nutrition",
     hunger_high: "nutrition", hydration_low: "nutrition",
     sleep_low: "recovery", energy_low: "recovery", recovery_low: "recovery",
-    checkin_overdue: "contact", contact_gap: "contact", reply_waiting: "contact", checkin_waiting: "contact",
+    checkin_overdue: "contact", contact_gap: "contact", reply_waiting: "contact", checkin_waiting: "contact", pause_ended: "contact",
     plan_due: "onboarding", screening_missing: "onboarding", screening_flagged: "safety",
     score_drop: "progress", goal_slip: "progress",
     program_ending: "calendar", plan_ending: "calendar", payment_retrying: "billing",
@@ -1438,6 +1535,7 @@
     program_ending: "general",    // each coach's own program or plan
     payment_retrying: "general",  // each coach's own subscription
     plan_ending: "general",
+    pause_ended: "general",       // back from a break: every coach on the client says welcome back
   };
   function flagDiscipline(key) { return FLAG_DISCIPLINE[key] || "general"; }
   function disciplineOwner(discipline) {
@@ -1511,6 +1609,8 @@
           client: c,
           severity: r.severity,
           progress: progressStatus(c, now),
+          // Away or just back (pauseOf), so a surface can say "Away until Nov 20"; null otherwise.
+          pause: pauseOf(c, now),
           flags: tagged,
           readOnly: readOnlyFlags(c, now, role),
           reasons: r.flags.map(function (x) { return x.reason; }),
@@ -1996,7 +2096,7 @@
       energy_low: "energy", hunger_high: "hunger", hydration_low: "hydration",
       // The screening is a conversation: reach out about it.
       screening_flagged: "contact", screening_missing: "contact",
-      plan_due: "plan", reply_waiting: "reply", checkin_waiting: "review", missed_sessions: "sessions",
+      plan_due: "plan", reply_waiting: "reply", checkin_waiting: "review", missed_sessions: "sessions", pause_ended: "contact",
       program_ending: "program", payment_retrying: "billing", plan_ending: "renewal", recovery_low: "recovery",
     })[key] || null;
   }
@@ -2028,7 +2128,7 @@
     // A check-in with a low rating or a question sits beside contact; missed sessions above goal pace;
     // a cancelled plan just under it; a wearable's low recovery just above sleep; the calendar and
     // money reminders last.
-    reply_waiting: 110, checkin_waiting: 75, missed_sessions: 65, plan_ending: 58, recovery_low: 36,
+    reply_waiting: 110, pause_ended: 78, checkin_waiting: 75, missed_sessions: 65, plan_ending: 58, recovery_low: 36,
     program_ending: 25, payment_retrying: 20,
   };
   function flagPriority(f) {
@@ -2295,6 +2395,7 @@
     screening_flagged: { kind: "read_screening", label: "Read health screening" },
     plan_due:          { kind: "adjust_program", label: "Publish week 1", nutrition: { kind: "adjust_plan", label: "Publish the first plan" } },
     contact_gap:       { kind: "message", label: "Message", draft: true, nora: true },
+    pause_ended:       { kind: "message", label: "Welcome back", draft: true, nora: true },
     screening_missing: { kind: "message", label: "Ask for the screening", draft: true },
     missed_sessions:   { kind: "schedule", label: "Schedule" },
     goal_slip:         { kind: "message", label: "Ask for a weigh-in", draft: true, nora: true },
@@ -2338,6 +2439,8 @@
         if ((hello && hello.done === false) || (flag && (flag.sig === "hello" || flag.sig === "never"))) return "Hi " + firstName(rec) + " — welcome aboard! I'm glad you're here. How's your first week going so far?";
         return hi + "it's been a little while since we talked. How's this week going?";
       }
+      case "pause_ended":
+        return "Welcome back, " + firstName(rec) + "! How was the break? Let's pick up where we left off. How are you feeling about this week?";
       case "checkin_overdue":
         return ci && ci.lastWeekOf
           ? hi + "I haven't seen your weekly check-in yet. Could you send it when you get a minute? It helps me plan your next week."
@@ -2542,6 +2645,14 @@
     var team = careTeamFrom(o);
     if (team.pros) rec.pros = team.pros;
     rec.coCoaches = team.coCoaches;
+    // The client's pause ({ until, by }, pauseOf), null when none; left off when the overview could
+    // not read it, so nothing reads differently from before the pause existed.
+    if (o && o.pause && typeof o.pause === "object" && typeof o.pause.until === "string") {
+      rec.pause = { until: o.pause.until, by: typeof o.pause.by === "string" ? o.pause.by : null };
+      // The instant the member's return day begins (pauseOf reads it on every calendar: Codex on #2705).
+      if (typeof o.pause.backAt === "string" && parseDate(o.pause.backAt)) rec.pause.backAt = o.pause.backAt;
+    }
+    else if (o && o.pause === null) rec.pause = null;
     return rec;
   }
   // The check-in the engine reads: its week, its ratings, whether it asks something, when it was
@@ -2673,7 +2784,10 @@
   // `userId` is the id the route scope-checks (is_coach_on_client) and the alert opens.
   var SNAPSHOT_KEYS = ["profile", "progressRead", "onboarding", "screening", "trainingAdherence", "foodLogs",
     "shapeScoreHistory", "weighIns", "streaks", "lastContact", "checkIn", "nutrition", "goal", "goals", "goalPhase",
-    "program", "programs", "recovery", "vitals", "replyWait", "bookedSessions", "pros", "dismissals"];
+    "program", "programs", "recovery", "vitals", "replyWait", "bookedSessions", "pros", "dismissals",
+    // A client's break (pauseOf): without it the push read every client on a break as present and sent
+    // their absence alerts all through it (Codex on #2705).
+    "pause"];
   function engineSnapshot(rec) {
     if (!rec || typeof rec !== "object") return null;
     var out = {};
@@ -3583,6 +3697,7 @@
     findJointAttention: findJointAttention,
     getTriageFeed: getTriageFeed,
     inZone: inZone,
+    pauseOf: pauseOf,
     progressStatus: progressStatus,
     buildProgrammingQueue: buildProgrammingQueue,
     buildMockClients: buildMockClients,

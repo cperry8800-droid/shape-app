@@ -654,5 +654,21 @@
   "plan.renewsYearly": "Renouvellement annuel",
   "plan.includedCoach": "Inclus avec votre coaching",
   "plan.includedCoachBody": "Nora, Shape Radio et les assistants IA sont inclus avec votre coaching.",
-  "plan.includedCoachOwn": "Votre coaching inclut l’abonnement ; vous pouvez résilier votre propre formule."
+  "plan.includedCoachOwn": "Votre coaching inclut l’abonnement ; vous pouvez résilier votre propre formule.",
+  "pause.group": "Une absence",
+  "pause.row": "Absence",
+  "pause.preview": "Connectez-vous pour indiquer une absence.",
+  "pause.unavailable": "Impossible de charger votre absence.",
+  "pause.retry": "Réessayer",
+  "pause.byYou": "Vous l’avez indiquée.",
+  "pause.byCoach": "Votre coach l’a indiquée.",
+  "pause.range": "Choisissez un jour entre aujourd’hui et dans 90 jours.",
+  "pause.failed": "Non enregistré. Réessayez.",
+  "pause.until": "Absence jusqu’au {date}",
+  "pause.change": "Changer la date",
+  "pause.end": "Terminer l’absence",
+  "pause.desc": "Vous partez ? Choisissez votre dernier jour d’absence : les rappels et les relances de check-in restent silencieux jusque-là, et vos coachs voient que vous êtes absent. Votre abonnement continue normalement.",
+  "pause.dateLabel": "Absence jusqu’au",
+  "pause.save": "Enregistrer l’absence",
+  "pause.cancel": "Garder la date"
 }

@@ -654,5 +654,21 @@
   "plan.renewsYearly": "Si rinnova ogni anno",
   "plan.includedCoach": "Incluso nel tuo coaching",
   "plan.includedCoachBody": "Nora, Shape Radio e gli assistenti IA sono inclusi nel tuo coaching.",
-  "plan.includedCoachOwn": "Il tuo coaching include l’abbonamento; puoi disdire il tuo piano."
+  "plan.includedCoachOwn": "Il tuo coaching include l’abbonamento; puoi disdire il tuo piano.",
+  "pause.group": "Un periodo via",
+  "pause.row": "Assente",
+  "pause.preview": "Accedi per indicare un periodo via.",
+  "pause.unavailable": "Impossibile caricare il tuo periodo via.",
+  "pause.retry": "Riprova",
+  "pause.byYou": "L’hai indicato tu.",
+  "pause.byCoach": "L’ha indicato il tuo coach.",
+  "pause.range": "Scegli un giorno tra oggi e fra 90 giorni.",
+  "pause.failed": "Non salvato. Riprova.",
+  "pause.until": "Assente fino al {date}",
+  "pause.change": "Cambia la data",
+  "pause.end": "Termina il periodo via",
+  "pause.desc": "Parti? Scegli il tuo ultimo giorno via: promemoria e avvisi di check-in restano in silenzio fino ad allora, e i tuoi coach vedono che sei via. L’abbonamento continua come sempre.",
+  "pause.dateLabel": "Assente fino al",
+  "pause.save": "Salva il periodo via",
+  "pause.cancel": "Mantieni la data"
 }

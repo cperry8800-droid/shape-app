@@ -152,7 +152,7 @@ test('the route reads the id where a record carries it, and the role only when t
   for (const rel of ['src/app/api/ai/notify/route.ts', 'src/app/api/ai/notify/cron/route.ts']) {
     const src = read(rel);
     assert.match(src, /loadCoachContext\(/, rel + ' does not read the dismissals and reviews fresh');
-    assert.match(src, /tr: copy\?\.tr, coachSeen \}/, rel + ' does not settle the alert memory');
+    assert.match(src, /tr: copy\?\.tr, coachSeen, coachAway \}/, rel + ' does not settle the alert memory');
   }
   // The app posts the engine's snapshot, with the id the route reads.
   assert.match(read('mobile-app/src/services/shapeBackend.js'), /records\.map\(\(r\) => E\.engineSnapshot\(r\)\)\.filter\(Boolean\)/);
@@ -209,8 +209,8 @@ const cronRoute = await loadRealModule(join(ROOT, 'src/app/api/ai/notify/cron/ro
   ]),
 });
 // The fake database, with the upsert writeUserGoal makes.
-function notifyDb(tables) {
-  const fake = fakeSupabase({ tables, rpcs: { is_coach_on_client: () => true } });
+function notifyDb(tables, fail = []) {
+  const fake = fakeSupabase({ tables, rpcs: { is_coach_on_client: () => true }, fail });
   const from = fake.from;
   fake.from = (table) => {
     const chain = from(table);
@@ -224,6 +224,18 @@ function notifyDb(tables) {
     return chain;
   };
   return fake;
+}
+// The coach's listings, and an active subscription from each client to the listing of its role: the hourly
+// run evaluates only the clients the coach still has (notify-core loadClientBreaks; CodeRabbit on #2705).
+function coaching(coachId, byRole) {
+  const out = { trainers: [], nutritionists: [], subscriptions: [], client_pauses: [], profiles: [] };
+  let n = 100;
+  for (const [role, ids] of Object.entries(byRole)) {
+    const pid = ++n;
+    out[role === 'trainer' ? 'trainers' : 'nutritionists'].push({ id: pid, owner_id: coachId });
+    for (const id of ids) out.subscriptions.push({ client_id: id, provider_id: pid, provider_role: role, status: 'active' });
+  }
+  return out;
 }
 // A client the engine reads on the real clock: this week's check-in filed, logging daily, and the given
 // last contact per role (six days is amber; one day is clear).
@@ -276,7 +288,7 @@ test('the hourly run evaluates both rosters, each on its own memory: a client on
     // s1 is on both rosters: clear for the trainer, amber for the nutritionist.
     { user_id: 'coach-1', kind: 'notify_snapshot:trainer', data: { role: 'trainer', at: Date.now(), clients: [rosterClient('t1', { trainer: daysAgo(8) }), rosterClient('s1', { trainer: daysAgo(1) })] } },
     { user_id: 'coach-1', kind: 'notify_snapshot:nutritionist', data: { role: 'nutritionist', at: Date.now(), clients: [rosterClient('s1', { nutritionist: daysAgo(8) })] } },
-  ] };
+  ], ...coaching('coach-1', { trainer: ['t1', 's1'], nutritionist: ['s1'] }) };
   db = notifyDb(tables);
   delivered.length = 0;
   const first = await runCron();
@@ -287,6 +299,93 @@ test('the hourly run evaluates both rosters, each on its own memory: a client on
   assert.deepEqual(delivered, [], "the trainer reading s1 clear does not make the nutritionist alert again");
   assert.deepEqual(Object.keys(docOf(tables, 'notify_state:nutritionist').coachClients), ['s1']);
   assert.deepEqual(Object.keys(docOf(tables, 'notify_state:trainer').coachClients), ['t1']);
+});
+
+test('the hourly run alerts only about the clients the coach still has, and sends nothing when it can\'t tell (CodeRabbit on #2705)', async () => {
+  const held = { type: 'client_amber', key: 'gone1', sig: 'amber:No contact', title: 'Client gone1', body: 'No contact in 8 days', route: 'client', data: { providerRole: 'trainer', clientId: 'gone1' }, priority: 'med', channels: { push: true }, at: Date.now() - 3600e3 };
+  const fixture = () => ({ user_goals: [
+    { user_id: 'coach-1', kind: 'notify_snapshot:trainer', data: { role: 'trainer', at: Date.now(), clients: [rosterClient('t1', { trainer: daysAgo(8) }), rosterClient('gone1', { trainer: daysAgo(8) })] } },
+    { user_id: 'coach-1', kind: 'notify_state:trainer', data: { coachClients: { gone1: 'amber' }, pendingDigest: [held] } },
+  ], ...coaching('coach-1', { trainer: ['t1'] }) });
+  // gone1 left after the roster was saved: no alert about them, the one held for them dropped, forgotten.
+  const tables = fixture();
+  db = notifyDb(tables);
+  delivered.length = 0;
+  await runCron();
+  assert.deepEqual(sentAs(), ['trainer:t1']);
+  const state = docOf(tables, 'notify_state:trainer');
+  assert.ok(!(state.pendingDigest || []).some((i) => i.key === 'gone1'), 'the held alert is not kept for later');
+  assert.ok(!('gone1' in (state.coachClients || {})), 'and they are forgotten');
+  // Who the coach has can't be read: nothing about anyone this hour, and the memory untouched.
+  for (const t of ['subscriptions', 'trainers']) {
+    const failing = fixture();
+    db = notifyDb(failing, [t]);
+    delivered.length = 0;
+    await runCron();
+    assert.deepEqual(delivered, [], `a failed ${t} read sends nothing`);
+    assert.deepEqual(docOf(failing, 'notify_state:trainer').pendingDigest, [held], `${t}: the held alert waits for an hour that can tell`);
+  }
+});
+
+test('an alert held for a client off the roster altogether is dropped, live and hourly, and what the memory holds stays (CodeRabbit on #2705)', async () => {
+  // left1 is on neither roster: their coach's app stopped posting them when they left.
+  const held = { type: 'client_red', key: 'left1', sig: 'red:No contact', title: 'Client left1', body: 'No contact in 12 days', route: 'client', data: { providerRole: 'trainer', clientId: 'left1' }, priority: 'high', channels: { push: true }, at: Date.now() - 3600e3 };
+  const state0 = { coachClients: { left1: 'red' }, pendingDigest: [held] };
+  const check = (tables, how) => {
+    assert.deepEqual(sentAs(), ['trainer:t1'], `${how}: only the client on the roster`);
+    const state = docOf(tables, 'notify_state:trainer');
+    assert.ok(!(state.pendingDigest || []).some((i) => i.key === 'left1'), `${how}: the held alert is not kept for later`);
+    assert.equal(state.coachClients.left1, 'red', `${how}: the memory keeps what it had (settleCoachMemory)`);
+  };
+  const live = { user_goals: [{ user_id: 'coach-1', kind: 'notify_state:trainer', data: state0 }] };
+  db = notifyDb(live);
+  actor = { user: { id: 'coach-1' }, role: 'trainer', roles: ['trainer'], supabase: db };
+  delivered.length = 0;
+  assert.equal((await postRoster({ role: 'trainer', clients: [rosterClient('t1', { trainer: daysAgo(8) })] })).status, 200);
+  check(live, 'live');
+  const hourly = { user_goals: [
+    { user_id: 'coach-1', kind: 'notify_snapshot:trainer', data: { role: 'trainer', at: Date.now(), clients: [rosterClient('t1', { trainer: daysAgo(8) })] } },
+    { user_id: 'coach-1', kind: 'notify_state:trainer', data: state0 },
+  ], ...coaching('coach-1', { trainer: ['t1'] }) };
+  db = notifyDb(hourly);
+  delivered.length = 0;
+  await runCron();
+  check(hourly, 'hourly');
+});
+
+test('a muted member on a break still loses what was held from before it, and is sent nothing (Codex on #2705)', async () => {
+  // Held by quiet hours before they muted; the break then began, and would end, inside the mute.
+  const move = { type: 'directive', key: 'self', sig: 'Focus|Log dinner||2026-11-09', title: 'Your move today', body: 'Log dinner', route: 'home', data: { move: 'log', lever: 'food' }, priority: 'high', channels: { push: true }, at: Date.now() - 3600e3 };
+  const state0 = { date: 'never', pendingDigest: [move], types: { 'directive:self': { sig: move.sig, at: move.at } } };
+  const iso = (days) => new Date(Date.now() + days * DAY).toISOString().slice(0, 10);
+  const member = (pauses, muted = true) => ({ user_goals: [
+    { user_id: 'm1', kind: 'notify_snapshot', data: { role: 'client', at: Date.now(), record: { profile: { id: 'm1', name: 'Me' }, progressRead: { state: 'ready' } } } },
+    { user_id: 'm1', kind: 'notify_state', data: structuredClone(state0) },
+  ], notification_settings: [{ user_id: 'm1', muted }], client_pauses: pauses });
+  // Away: the held notice goes, and its stamp, so one true again after the break is sent then; nothing now.
+  const away = member([{ id: 1, client_id: 'm1', from_on: iso(-1), until_on: iso(7), set_by_role: 'member' }]);
+  db = notifyDb(away);
+  delivered.length = 0;
+  await runCron();
+  assert.deepEqual(delivered, [], 'muted: nothing sent');
+  assert.deepEqual(docOf(away, 'notify_state').pendingDigest, []);
+  assert.ok(!('directive:self' in docOf(away, 'notify_state').types), 'the stamp is released');
+  // Muted with no break, or one long over: the state is left as it was, the held notice with it.
+  for (const pauses of [[], [{ id: 2, client_id: 'm1', from_on: iso(-30), until_on: iso(-20), set_by_role: 'member' }]]) {
+    const here = member(pauses);
+    db = notifyDb(here);
+    delivered.length = 0;
+    await runCron();
+    assert.deepEqual([delivered, docOf(here, 'notify_state')], [[], state0]);
+  }
+  // A coach's muted run reads no break and writes nothing.
+  const coach = { user_goals: [
+    { user_id: 'coach-1', kind: 'notify_snapshot:trainer', data: { role: 'trainer', at: Date.now(), clients: [rosterClient('t1', { trainer: daysAgo(8) })] } },
+  ], notification_settings: [{ user_id: 'coach-1', muted: true }], client_pauses: [{ id: 3, client_id: 'coach-1', from_on: iso(-1), until_on: iso(7), set_by_role: 'member' }], ...coaching('coach-1', { trainer: ['t1'] }) };
+  db = notifyDb(coach);
+  delivered.length = 0;
+  await runCron();
+  assert.deepEqual([delivered, docOf(coach, 'notify_state:trainer')], [[], undefined]);
 });
 
 // ── The engine audit of 2026-11-11 ─────────────────────────────────────────
@@ -304,7 +403,7 @@ test('the hourly run reads a roster as of its save: a client active then is not 
   // Read against the run's clock, as it was, a1 is red: no food log in 8 days, no contact in 8.
   const against = core.candidatesFor({ ...snapshot, at: Date.now() }, { tone: 'neutral', lastSeverity: {}, now: new Date() });
   assert.ok(against.candidates.some((c) => c.type === 'client_red' && c.key === 'a1'), 'the fixture is the false alert the run sent');
-  const tables = { user_goals: [{ user_id: 'coach-9', kind: 'notify_snapshot:nutritionist', data: snapshot }] };
+  const tables = { user_goals: [{ user_id: 'coach-9', kind: 'notify_snapshot:nutritionist', data: snapshot }], ...coaching('coach-9', { nutritionist: ['a1', 's1'] }) };
   db = notifyDb(tables);
   delivered.length = 0;
   const first = await runCron();
@@ -367,7 +466,7 @@ test('the run still reads the one snapshot from before the split, until that rol
   const tables = { user_goals: [
     { user_id: 'coach-1', kind: 'notify_snapshot', data: { role: 'trainer', at: Date.now(), clients: [rosterClient('t1', { trainer: daysAgo(8) }), rosterClient('t2', { trainer: daysAgo(8) })] } },
     { user_id: 'coach-1', kind: 'notify_state', data: legacyState },
-  ] };
+  ], ...coaching('coach-1', { trainer: ['t1', 't2'] }) };
   db = notifyDb(tables);
   delivered.length = 0;
   await runCron();

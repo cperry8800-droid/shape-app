@@ -654,5 +654,21 @@
   "plan.renewsYearly": "Gia hạn hằng năm",
   "plan.includedCoach": "Đã gồm trong gói huấn luyện",
   "plan.includedCoachBody": "Nora, Shape Radio và các trợ lý AI đã gồm trong gói huấn luyện của bạn.",
-  "plan.includedCoachOwn": "Gói huấn luyện đã gồm gói thành viên; bạn có thể hủy gói riêng của mình."
+  "plan.includedCoachOwn": "Gói huấn luyện đã gồm gói thành viên; bạn có thể hủy gói riêng của mình.",
+  "pause.group": "Tạm nghỉ một thời gian",
+  "pause.row": "Vắng mặt",
+  "pause.preview": "Đăng nhập để đặt thời gian nghỉ.",
+  "pause.unavailable": "Không tải được thời gian nghỉ của bạn.",
+  "pause.retry": "Thử lại",
+  "pause.byYou": "Bạn đã đặt điều này.",
+  "pause.byCoach": "HLV của bạn đã đặt điều này.",
+  "pause.range": "Chọn một ngày từ hôm nay đến 90 ngày tới.",
+  "pause.failed": "Chưa lưu được. Thử lại.",
+  "pause.until": "Vắng mặt đến {date}",
+  "pause.change": "Đổi ngày",
+  "pause.end": "Kết thúc thời gian nghỉ",
+  "pause.desc": "Bạn sắp đi xa? Chọn ngày cuối cùng bạn vắng mặt: lời nhắc và gợi ý check-in sẽ im lặng đến lúc đó, và các HLV thấy bạn đang vắng mặt. Gói thành viên vẫn tiếp tục như thường.",
+  "pause.dateLabel": "Vắng mặt đến",
+  "pause.save": "Lưu thời gian nghỉ",
+  "pause.cancel": "Giữ ngày"
 }

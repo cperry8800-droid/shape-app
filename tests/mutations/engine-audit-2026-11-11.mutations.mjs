@@ -71,7 +71,7 @@ export default {
       find: '  const brief = DashSignals.goalBrief ? DashSignals.goalBrief(rec, new Date(), thresholds || undefined) : null;', replace: '  const brief = DashSignals.goalBrief ? DashSignals.goalBrief(rec, new Date()) : null;' },
     // ── F1: the roster as of its save ──────────────────────────────────────────
     { name: 'the roster is read against the run\'s clock again', file: CORE,
-      find: '    const rows = engine.inZone(zone, rosterClock(snapshot, opts.now), (at) =>', replace: '    const rows = engine.inZone(zone, opts.now, (at) =>' },
+      find: '    const feed = engine.inZone(zone, rosterClock(snapshot, opts.now), (at) =>', replace: '    const feed = engine.inZone(zone, opts.now, (at) =>' },
     { name: 'the roster clock is always the run\'s', file: CORE,
       find: "  return typeof at === 'number' && Number.isFinite(at) && at < now.getTime() ? new Date(at) : now;", replace: '  return now;' },
     { name: 'a save stamped ahead of the run is taken as the clock', file: CORE,
@@ -94,9 +94,9 @@ export default {
     { name: 'a member\'s record is read in no zone', file: CORE,
       find: '    const { directive, flags } = engine.inZone(opts.zone || snapshot.tz || null, opts.now, (at) => ({', replace: '    const { directive, flags } = engine.inZone(null, opts.now, (at) => ({' },
     { name: 'the hourly run passes no zone', file: CRON,
-      find: 'thresholds, copy, coachContext, zone: prefs.tz });', replace: 'thresholds, copy, coachContext });' },
+      find: 'thresholds, copy, coachContext, zone: prefs.tz, memberPaused, rosterAccess });', replace: 'thresholds, copy, coachContext, memberPaused, rosterAccess });' },
     { name: 'the live route passes no zone', file: LIVE,
-      find: 'thresholds, copy, coachContext, zone: prefs.tz });', replace: 'thresholds, copy, coachContext });' },
+      find: 'thresholds, copy, coachContext, zone: prefs.tz, memberPaused, revokedClients });', replace: 'thresholds, copy, coachContext, memberPaused, revokedClients });' },
     { name: 'Nora triages in no zone', file: NORA,
       find: '      try { feed = engine.inZone(zone, now, (at) =>', replace: '      try { feed = engine.inZone(null, now, (at) =>' },
     // ── F3: Nora's reason ──────────────────────────────────────────────────────

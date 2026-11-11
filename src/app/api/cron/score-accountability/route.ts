@@ -20,6 +20,8 @@ import { listOf, np, phrase } from '../../../../../mobile-app/src/services/notic
 import { ACTIVE_SUB } from '@/lib/membership-core';
 import { dailyCheckinOn } from '@/lib/ai/notifications.mjs';
 import { rotated } from '../../../../lib/run-rotation.mjs';
+import { pausesByClient, pauseCovers } from '../../../../lib/client-pause.mjs';
+import type { ClientBreak } from '../../../../lib/client-pause.mjs';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -100,6 +102,9 @@ async function run(request: Request) {
   const lastMon = new Date(thisMon);
   lastMon.setUTCDate(lastMon.getUTCDate() - 7);
   const lastMonday = isoDate(lastMon);
+  const lastSun = new Date(lastMon);
+  lastSun.setUTCDate(lastSun.getUTCDate() + 6);
+  const lastSunday = isoDate(lastSun);
   // Narrow scan window for per-day obligations (the RPC's recency bound is 14d; this
   // just limits how many candidate rows we hand it). 3 days covers a daily cron + slack.
   const recent = new Date(now);
@@ -150,8 +155,10 @@ async function run(request: Request) {
     let wosBy: Map<string, WoRow[]>;
     let habitsBy: Map<string, HabitRow[]>;
     let checkinOff: Set<string>;
+    // Each member's breaks, "away until" (2026-11-11-client-pause.sql): no penalty for a day one covers.
+    let breaksBy: Map<string, ClientBreak[]>;
     try {
-      const [sessRes, wosRes, habitsRes, settingsRes] = await Promise.all([
+      const [sessRes, wosRes, habitsRes, settingsRes, pausesRes] = await Promise.all([
         // (1) Kept sessions → +12. There is NO session PENALTY: a session's only
         // "kept" signal is the coach marking it 'completed', so a lingering
         // 'confirmed' is coach bookkeeping, not a client miss — penalizing it
@@ -193,7 +200,25 @@ async function run(request: Request) {
           .in('user_id', ids)
           .eq('kind', 'client_settings')
           .limit(ROWS_MAX),
+        // (5) Their breaks, set by the member or a coach: each one's first and last day, every break that
+        // ended on or after the earliest day judged here (last week's Monday). The member's own
+        // `paused_until` in Settings is still honoured inside apply_obligation_penalty.
+        admin
+          .from('client_pauses')
+          .select('client_id, from_on, until_on')
+          .in('client_id', ids)
+          .gte('until_on', lastMonday)
+          .limit(ROWS_MAX),
       ]);
+      // ⚠ BEFORE THE MIGRATION RUNS THE TABLE IS NOT THERE, and that is no pause, not a failed read.
+      // Any other failure skips the chunk, as the reads above do: a member who is away is never charged
+      // on a read that could not say so.
+      const pausesMissing = ['42P01', 'PGRST205'].includes(String((pausesRes.error as { code?: string } | null)?.code || ''));
+      if (pausesRes.error && !pausesMissing) {
+        console.error('[score-accountability] pauses read failed — skipping chunk:', pausesRes.error);
+        continue;
+      }
+      breaksBy = pausesByClient(pausesMissing ? [] : pausesRes.data);
       // Supabase queries RESOLVE with `.error` set rather than throwing — an
       // unchecked failure would group `data || []` and silently part-score the
       // chunk (rewards/penalties missing while check-ins still apply). A read
@@ -204,7 +229,7 @@ async function run(request: Request) {
           sessRes.error || wosRes.error || habitsRes.error || settingsRes.error);
         continue;
       }
-      if ([sessRes, wosRes, habitsRes, settingsRes].some((r) => (r.data || []).length >= ROWS_MAX)) {
+      if ([sessRes, wosRes, habitsRes, settingsRes, pausesRes].some((r) => (r.data || []).length >= ROWS_MAX)) {
         console.error(`[score-accountability] chunk hit the ${ROWS_MAX}-row page bound (possible truncation) — skipping chunk`);
         continue;
       }
@@ -255,7 +280,11 @@ async function run(request: Request) {
         const dippedKinds: string[] = [];
         let dipTotal = 0;
 
-        const penalize = async (kind: string, refId: string | null, day: string, label: string) => {
+        // `to`: an obligation that spans days (a week's check-in) is none when a break covers any of them.
+        const penalize = async (kind: string, refId: string | null, day: string, label: string, to: string = day) => {
+          // A day a break covers is no obligation, as the Settings `paused_until` is inside the RPC; a
+          // break begun after it, or ended before it, covers nothing (pauseCovers).
+          if (pauseCovers(breaksBy.get(uid), day, to)) return;
           const { data } = await admin.rpc('apply_obligation_penalty', {
             p_uid: uid,
             p_kind: kind,
@@ -284,7 +313,7 @@ async function run(request: Request) {
 
         // (3) Missed weekly check-in for the just-completed ISO week — unless the
         // member has Check-ins switched off (see the settings read above).
-        if (!checkinOff.has(uid)) await penalize('checkin', null, lastMonday, "last week's check-in");
+        if (!checkinOff.has(uid)) await penalize('checkin', null, lastMonday, "last week's check-in", lastSunday);
 
         // (4) Broken streaks on active daily DO-habits (penalty day = yesterday).
         for (const h of habitsBy.get(uid) || []) {

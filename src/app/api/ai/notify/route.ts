@@ -21,7 +21,7 @@ import { NextResponse } from 'next/server';
 import { readJson } from '@/lib/request-utils';
 import { resolveActor } from '@/lib/ai/server';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { candidatesFor, coachRecordId, decideAndClaim, deliver, readUserGoal, readNotifyState, writeNotifyState, writeUserGoal, loadPrefs, loadHabitContext, loadCoachThresholds, loadCoachContext, loadPushedToday, memberCopy, notifyKind, rosterRole, Notify, type Snapshot, type HabitContext } from '@/lib/ai/notify-core';
+import { candidatesFor, coachRecordId, decideAndClaim, deliver, readUserGoal, readNotifyState, writeNotifyState, writeUserGoal, loadPrefs, loadHabitContext, loadCoachThresholds, loadCoachContext, loadPushedToday, loadMemberPaused, memberCopy, notifyKind, rosterRole, Notify, type Snapshot, type HabitContext } from '@/lib/ai/notify-core';
 import { releasePushClaim } from '@/lib/push-cap';
 import { isCoachRole } from '@/lib/roles.mjs';
 import { requireMembership } from '@/lib/require-membership';
@@ -64,6 +64,9 @@ export async function POST(request: Request) {
   // Build the snapshot of REAL data, role-scoped.
   const snapshot: Snapshot = { role, tz: prefs.tz, at: +now };
   let habitContext: HabitContext | undefined;
+  // A member on a break gets none of their own notices (loadMemberPaused, asked as the member).
+  let memberPaused = false;
+  let revokedClients: string[] = [];
   if (isCoach) {
     const clients = Array.isArray(parsed.data.clients) ? parsed.data.clients.slice(0, 100) : [];
     // Re-check coach scope for every client in PARALLEL — sequential RPCs for up
@@ -81,13 +84,18 @@ export async function POST(request: Request) {
       })
     );
     snapshot.clients = checks.filter((c): c is unknown => c !== null);
+    // The posted clients it refused (or couldn't check): an alert held for them is dropped (CodeRabbit on #2705).
+    revokedClients = clients.map((c, i) => (checks[i] === null ? coachRecordId(c) : null)).filter((v): v is string => !!v);
   } else {
     const record = parsed.data.record;
     if (!record || typeof record !== 'object') {
       return NextResponse.json({ error: 'record is required.' }, { status: 400 });
     }
     snapshot.record = record;
-    habitContext = await loadHabitContext(actor.supabase, actor.user.id, now, prefs.tz);
+    [habitContext, memberPaused] = await Promise.all([
+      loadHabitContext(actor.supabase, actor.user.id, now, prefs.tz),
+      loadMemberPaused(actor.supabase, actor.user.id, now, prefs.tz),
+    ]);
   }
 
   // The coach's office-settings tuning drives the same engine these candidates come
@@ -97,10 +105,10 @@ export async function POST(request: Request) {
     : [null, null];
   // The reader's language: a member's notices, and a coach's alert titles and digest.
   const copy = memberCopy(localeDoc, settings);
-  const { audience, candidates, coachSeen } = candidatesFor(snapshot, { tone, lastSeverity: (last.coachClients as Record<string, string>) || {}, now, habitContext, checkinOptedOut, thresholds, copy, coachContext, zone: prefs.tz });
+  const { audience, candidates, coachSeen, coachAway } = candidatesFor(snapshot, { tone, lastSeverity: (last.coachClients as Record<string, string>) || {}, now, habitContext, checkinOptedOut, thresholds, copy, coachContext, zone: prefs.tz, memberPaused, revokedClients });
   // The pushes decided are claimed under the person's cap before anything is sent (decideAndClaim).
   const admin = createAdminClient();
-  const { decided, claim } = await decideAndClaim(admin, actor.user.id, { candidates, last, prefs, now, audience, checkinOptedOut, pushedToday, tr: copy?.tr, coachSeen }, prefs.capTz);
+  const { decided, claim } = await decideAndClaim(admin, actor.user.id, { candidates, last, prefs, now, audience, checkinOptedOut, pushedToday, memberPaused, tr: copy?.tr, coachSeen, coachAway }, prefs.capTz);
   const { send, digest, nextState, suppressed } = decided;
 
   // Persist the dedup/cap state BEFORE delivering. Delivery + state aren't one

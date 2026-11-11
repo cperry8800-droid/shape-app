@@ -19,7 +19,7 @@
 import { timingSafeEqual } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { candidatesFor, decideAndClaim, deliver, readUserGoal, readNotifyState, writeNotifyState, writeUserGoal, loadPrefs, loadHabitContext, loadCoachThresholds, loadCoachContext, loadPushedToday, memberCopy, notifyKind, snapshotsToEvaluate, NOTIFY_SNAPSHOT_KINDS, Notify, type Snapshot } from '@/lib/ai/notify-core';
+import { candidatesFor, coachRecordId, decideAndClaim, deliver, readUserGoal, readNotifyState, writeNotifyState, writeUserGoal, loadPrefs, loadHabitContext, loadCoachThresholds, loadCoachContext, loadPushedToday, loadMemberPaused, loadClientBreaks, purgeHeldWhileMuted, memberCopy, notifyKind, snapshotsToEvaluate, NOTIFY_SNAPSHOT_KINDS, Notify, type Snapshot } from '@/lib/ai/notify-core';
 import { releasePushClaim } from '@/lib/push-cap';
 import { isCoachRole } from '@/lib/roles.mjs';
 import { rotated } from '../../../../../lib/run-rotation.mjs';
@@ -105,7 +105,12 @@ async function evaluate(admin: ReturnType<typeof createAdminClient>, userId: str
 // One snapshot, on its role's own alert memory (readNotifyState).
 async function evaluateSnapshot(admin: ReturnType<typeof createAdminClient>, userId: string, snapshot: Snapshot): Promise<number | null> {
   const prefs = await loadPrefs(admin, userId);      // the preference center
-  if (prefs.muted) return null;                       // honor master mute
+  // Honor master mute: nothing is sent. A muted member on a break still loses what was held from before
+  // it (purgeHeldWhileMuted, Codex on #2705).
+  if (prefs.muted) {
+    if (!isCoachRole(snapshot.role)) await purgeHeldWhileMuted(admin, userId, snapshot.role, prefs, new Date());
+    return null;
+  }
   // ⚠ Read alongside `notify_state` rather than in a second round trip: this runs for every active
   // person, so an extra sequential query per person is real cost.
   // The day's pushes (the person's one daily limit) ride in the same batch (Codex on #2417).
@@ -123,18 +128,31 @@ async function evaluateSnapshot(admin: ReturnType<typeof createAdminClient>, use
   const checkinOptedOut = !Notify.dailyCheckinOn(settings.dailyCheckin);
   const isCoach = isCoachRole(snapshot.role);  // trainer | nutritionist | dietitian
   const habitContext = isCoach ? undefined : await loadHabitContext(admin, userId, now, prefs.tz);
+  // A member on a break gets none of their own notices (loadMemberPaused, read fresh).
+  const memberPaused = isCoach ? false : await loadMemberPaused(admin, userId, now, prefs.tz, { asService: true });
   // The coach's own office-settings tuning (R14), so the cron's alerts agree with
   // the roster the same thresholds produce on their dashboard.
   // …and their dismissals and check-in reviews read fresh (P2), so one made since the snapshot holds.
-  const [thresholds, coachContext] = isCoach
-    ? await Promise.all([loadCoachThresholds(admin, userId, snapshot.role), loadCoachContext(admin, userId)])
-    : [null, null];
+  // …and who of the roster they still have, with each one's break as it is now (Codex and CodeRabbit on
+  // #2705): a break set since the roster was saved holds, and a client they no longer have is dropped.
+  const [thresholds, coachContext, rosterAccess] = isCoach
+    ? await Promise.all([
+      loadCoachThresholds(admin, userId, snapshot.role),
+      loadCoachContext(admin, userId),
+      loadClientBreaks(admin, userId, (Array.isArray(snapshot.clients) ? snapshot.clients : []).map(coachRecordId).filter((v): v is string => !!v), now),
+    ])
+    : [null, null, null];
+  // ⚠ FAIL CLOSED: who the coach still has can't be read, so nothing is sent about anyone this hour.
+  if (isCoach && !rosterAccess) {
+    console.warn('[shape-ai] notify cron: roster access check failed; skipped this hour for', userId);
+    return null;
+  }
   // The reader's language: a member's notices, and a coach's alert titles and digest.
   const copy = memberCopy(localeDoc, settings);
 
-  const { audience, candidates, coachSeen } = candidatesFor(snapshot, { tone: prefs.tone, lastSeverity: (last.coachClients as Record<string, string>) || {}, now, habitContext, checkinOptedOut, thresholds, copy, coachContext, zone: prefs.tz });
+  const { audience, candidates, coachSeen, coachAway } = candidatesFor(snapshot, { tone: prefs.tone, lastSeverity: (last.coachClients as Record<string, string>) || {}, now, habitContext, checkinOptedOut, thresholds, copy, coachContext, zone: prefs.tz, memberPaused, rosterAccess });
   // The pushes decided are claimed under the person's cap before anything is sent (decideAndClaim).
-  const { decided, claim } = await decideAndClaim(admin, userId, { candidates, last, prefs, now, audience, checkinOptedOut, pushedToday, tr: copy?.tr, coachSeen }, prefs.capTz);
+  const { decided, claim } = await decideAndClaim(admin, userId, { candidates, last, prefs, now, audience, checkinOptedOut, pushedToday, memberPaused, tr: copy?.tr, coachSeen, coachAway }, prefs.capTz);
   const { send, digest, nextState } = decided;
   const items = digest ? [...send, digest] : send;
   let delivered = 0;

@@ -10,6 +10,7 @@ import { makePlaybackGate } from './playbackGate.mjs';
 import { attachRadioListening, listeningAllowed, RADIO_LISTEN_PATH } from '../../../public/newdesign/radioListening.mjs';
 import { bsSetSentryUser } from '../sentry.mjs';
 import { clearAccountZone, viewerZone } from './shapeZone.mjs';
+import { syncHabitsToBreak } from './habitBreak.mjs';
 import { bsReadAccountZone, bsWriteAccountZone } from './accountZone.mjs';
 // The reader's own vocabulary — never re-typed here, so the writer cannot drift
 // into emitting an answer the core does not recognise.
@@ -190,6 +191,9 @@ function setCached(next = {}) {
   const uid = (state.user && state.user.id) || null;
   // An account signing in ends any sign-out under way (signOutGen.mjs).
   if (uid && uid !== prevUid) signOutEnded();
+  // …and its break decides whether this device keeps its habit reminders (habitBreak.mjs), once this
+  // module has finished loading (a sign-in at boot lands here before it has).
+  if (uid && uid !== prevUid) { try { setTimeout(() => { void syncHabitBreak(true); }, 0); } catch (e) {} }
   const name = (state.profile && state.profile.full_name) || null;
   // PII-free Sentry user context — id, roles, is_coach ONLY (src/lib/sentry-context.mjs
   // owns that rule; the profile is passed through unreshaped so the module stays the one
@@ -10054,6 +10058,50 @@ async function scheduleLocalHabit(r) {
   if (signOutGen() !== gen) return;
   if (notifications.length) await LN.schedule({ notifications });
 }
+// ⚠ A BREAK QUIETS THIS DEVICE'S HABIT REMINDERS TOO (Codex on #2705): the OS fires them with no server
+// in the loop, so while the member's break holds the device keeps none, and puts back the ones it took
+// down once it ends (habitBreak.mjs). Run at sign-in, when the app comes to the front (at most every 10
+// minutes), and after a break or a reminder is saved here. One run at a time: a forced run waits for the
+// one under way and then reads afresh, since that one may have read the break before the save.
+const HABIT_BREAK_EVERY_MS = 10 * 60_000;
+let _habitBreakRun = null;
+let _habitBreakAt = 0;
+// Total: it never throws into its caller (a reminder's save, a sign-in), whatever goes wrong.
+function syncHabitBreak(force = false) {
+  try {
+    if (_habitBreakRun) return force ? _habitBreakRun.then(() => syncHabitBreak(true)) : _habitBreakRun;
+    const uid = state.user?.id;
+    if (!uid || !supabase || !_localNotifs()) return Promise.resolve('skipped');
+    if (!force && Date.now() - _habitBreakAt < HABIT_BREAK_EVERY_MS) return Promise.resolve('skipped');
+    _habitBreakAt = Date.now();
+    const gen = signOutGen();
+    let storage = null;
+    try { storage = window.localStorage; } catch (e) { /* none */ }
+    const run = Promise.resolve().then(() => syncHabitsToBreak({
+      db: supabase, uid, storage,
+      isCurrent: () => state.user?.id === uid && signOutGen() === gen,
+      // The habit ids this device has scheduled now, from the OS (as cancelAllLocalHabits finds them).
+      pendingIds: async () => {
+        const LN = _localNotifs(); if (!LN || !LN.getPending) return null;
+        try {
+          const p = await LN.getPending();
+          return [...new Set((p && p.notifications || []).filter((n) => n && n.extra && n.extra.route === 'habits' && n.extra.habitId != null).map((n) => String(n.extra.habitId)))];
+        } catch (e) { return null; }
+      },
+      cancelAll: cancelAllLocalHabits,
+      readRows: async () => {
+        try { const { data, error } = await supabase.from('habit_reminders').select('*').eq('user_id', uid); return error ? null : (data || []); } catch (e) { return null; }
+      },
+      schedule: scheduleLocalHabit,
+    })).catch(() => 'skipped');
+    const tracked = run.finally(() => { if (_habitBreakRun === tracked) _habitBreakRun = null; });
+    _habitBreakRun = tracked;
+    return tracked;
+  } catch (e) { return Promise.resolve('skipped'); }
+}
+if (typeof document !== 'undefined' && document.addEventListener) {
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState !== 'hidden') void syncHabitBreak(); });
+}
 async function listHabitReminders() {
   if (!supabase || !state.user?.id) return [];
   try { const { data } = await supabase.from('habit_reminders').select('*').eq('user_id', state.user.id); return data || []; } catch (e) { return []; }
@@ -10074,6 +10122,8 @@ async function setHabitReminder({ habitId, label, time, days, enabled } = {}) {
   await scheduleLocalHabit(row);
   // A reminder was saved: the shell may now ask for phone notifications (L5, bsReminderSet below).
   if (row.enabled) { try { if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('shape:reminderSet')); } catch (e) {} }
+  // Saved while away: the break takes it down again with the rest (syncHabitBreak).
+  void syncHabitBreak(true);
   return row;
 }
 // habit_id is the global PK (→ user_habits.id), so it identifies one user's row;
@@ -10090,7 +10140,7 @@ async function snoozeHabitReminder(habitId, minutes) {
   const until = new Date(Date.now() + (minutes || 60) * 60000).toISOString();
   try { await supabase.from('habit_reminders').update({ snooze_until: until }).eq('habit_id', habitId).eq('user_id', state.user.id); } catch (e) {}
 }
-window.ShapeHabitReminders = { list: listHabitReminders, set: setHabitReminder, remove: removeHabitReminder, snooze: snoozeHabitReminder };
+window.ShapeHabitReminders = { list: listHabitReminders, set: setHabitReminder, remove: removeHabitReminder, snooze: snoozeHabitReminder, syncBreak: (force) => syncHabitBreak(force === true) };
 
 // ─── User-set reminders (standalone nudges: weigh-in / check-in / water / photo /
 // custom) — CRUD over /api/client/reminders; the hourly cron fires them. ────────

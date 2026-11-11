@@ -79,6 +79,7 @@ import { BSNoraProfile } from './BSNoraProfile.jsx';
 import { BSLeaderboard } from './BSLeaderboard.jsx';
 import { BSChannelMark } from './BSChannelMark.jsx';
 import { BSTimezoneSetting } from './BSTimezone.jsx';
+import { BSPauseSetting } from './BSClientPause.jsx';
 import { BSScoreFixNote } from './BSScoreFixNote.jsx';
 import { BSWorkoutDetail } from './BSWorkoutDetail.jsx';
 import { BSWorkoutSession } from './BSWorkoutSession.jsx';
@@ -35071,6 +35072,17 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
           </div>
         </div>
       </div>
+
+      {/* AWAY — the member's own break (BSClientPause.jsx): reminders and nudges quiet to a day they
+          pick. A member's only (a coach account draws nothing), and hidden until its migration runs. */}
+      {!isCoachRole && (
+        <div data-settings-region="" style={{ padding: `22px ${t.padX}px 0` }}>
+          <BSSetLabel t={t}>{tr('settings:pause.group', { defaultValue: 'Taking a break' })}</BSSetLabel>
+          <div data-settings-plate="" style={{ ...plate(16), overflow: 'hidden' }}>
+            <BSPauseSetting t={t} coach={isCoachRole} />
+          </div>
+        </div>
+      )}
 
       {/* LANGUAGE and TIME ZONE — one plate, a row each: the app-wide UI locale (i18n), then the
           account's one clock (P9; BSTimezone.jsx), every role: BSSettings is the coach apps'

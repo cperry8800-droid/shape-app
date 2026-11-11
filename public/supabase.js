@@ -994,6 +994,35 @@ if (typeof window !== 'undefined') { window.SHAPE_TURNSTILE_SITEKEY = window.SHA
         .order('created_at', { ascending: false });
     },
 
+    // A client's break, "away until <date>" (supabase-migrations/2026-11-11-client-pause.sql), as the
+    // signed-in member for themselves or a coach for a client of theirs (the app's twin:
+    // mobile-app/src/services/clientPause.mjs). { ok, ready, pause: { until, by, mine } | null };
+    // ready false before the migration runs; ok false when the read failed, which is never "no break".
+    async getClientPause(clientId) {
+      try {
+        var res = await client.rpc('get_client_pause', { p_client_id: clientId });
+        if (res.error) return res.error.code === 'PGRST202' ? { ok: true, ready: false } : { ok: false };
+        var row = Array.isArray(res.data) ? res.data[0] : res.data;
+        var pause = row && typeof row.until_on === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(row.until_on)
+          ? { until: row.until_on, by: typeof row.set_by_role === 'string' ? row.set_by_role : null, mine: row.set_by_me === true } : null;
+        // When the member's return day begins, the same on every calendar (Codex on #2705).
+        if (pause && typeof row.back_at === 'string' && !isNaN(Date.parse(row.back_at))) pause.backAt = row.back_at;
+        return { ok: true, ready: true, pause: pause };
+      } catch (e) {
+        return { ok: false };
+      }
+    },
+    // `until` YYYY-MM-DD to set or move it, null to end it. { ok, error?: 'range' | 'refused' | 'failed' }.
+    async setClientPause(clientId, until) {
+      try {
+        var res = await client.rpc('set_client_pause', { p_client_id: clientId, p_until: until == null ? null : until });
+        if (!res.error) return { ok: true };
+        return { ok: false, error: res.error.code === '42501' ? 'refused' : res.error.code === '22023' ? 'range' : 'failed' };
+      } catch (e) {
+        return { ok: false, error: 'failed' };
+      }
+    },
+
     async getClientWorkout(id) {
       return await client
         .from('client_workouts')

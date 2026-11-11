@@ -642,7 +642,7 @@ export function pushCount({ send = [], digest = null } = {}) {
 // on the person's date today (loadPushedToday, notify-core.ts), this engine's included; the cap
 // reads the larger of the two, so nothing is counted twice. Null (the read failed) keeps the
 // engine's own count, as before. The digest is held to it too (below).
-export function decideNotifications({ candidates = [], last = {}, prefs = {}, now = new Date(), audience = 'client', checkinOptedOut = false, pushedToday = null, tr, coachSeen: seen = null }) {
+export function decideNotifications({ candidates = [], last = {}, prefs = {}, now = new Date(), audience = 'client', checkinOptedOut = false, memberPaused = false, pushedToday = null, tr, coachSeen: seen = null, coachAway = null }) {
   const P = { ...DEFAULT_PREFS, ...prefs, matrix: { ...(prefs.matrix || {}) } };
   // The engine's own count resets on the cap's day (P.capTz, the habit cron's zone), the day the
   // other senders' pushes are counted on; quiet hours below stay on P.tz.
@@ -675,9 +675,28 @@ export function decideNotifications({ candidates = [], last = {}, prefs = {}, no
       for (const id of clear) { delete state.types[`client_red:${id}`]; delete state.types[`client_amber:${id}`]; }
       state.pendingDigest = state.pendingDigest.filter((i) => !(i && (i.type === 'client_red' || i.type === 'client_amber') && clear.has(i.key)));
     }
+    // ⚠ ONLY ABOUT A CLIENT THIS RUN EVALUATED (CodeRabbit's security check on #2705). The run sees every
+    // client on the roster (coachSeen has each), so an alert still held for one off it, a client the coach
+    // no longer has, is dropped rather than sent. What the memory holds for them is kept (settleCoachMemory).
+    state.pendingDigest = state.pendingDigest.filter((i) => !(i && (i.type === 'client_red' || i.type === 'client_amber') && !Object.prototype.hasOwnProperty.call(seen, i.key)));
     // One that eased from red to amber may go red again: that red is news, so its old stamp goes.
     const prev = last.coachClients && typeof last.coachClients === 'object' ? last.coachClients : {};
     for (const id of Object.keys(seen)) if (seen[id] === 'amber' && prev[id] === 'red') delete state.types[`client_red:${id}`];
+  }
+  // ⚠ A CLIENT ON A BREAK IS NOT ALERTED ABOUT FROM BEFORE IT (Codex on #2705). Only a client seen clear
+  // had their held alert dropped, and one away or just back whose row stays amber on a flag the break
+  // leaves (a plan or program ending, or the welcome back itself) is not clear, so an alert held
+  // for their absence ("No food logs") went out with the next digest, mid-break. `coachAway` names those
+  // clients, each with the reasons their row still carries (candidatesFor); a held alert for one of them
+  // whose reason the row no longer carries is dropped, and one it still carries goes as held.
+  if (audience === 'coach' && coachAway && typeof coachAway === 'object') {
+    state.pendingDigest = state.pendingDigest.filter((i) => {
+      if (!(i && (i.type === 'client_red' || i.type === 'client_amber'))) return true;
+      const still = Object.prototype.hasOwnProperty.call(coachAway, i.key) ? coachAway[i.key] : null;
+      if (!Array.isArray(still)) return true;
+      const reason = i.data && typeof i.data === 'object' ? i.data.reasonKey : null;
+      return typeof reason === 'string' && still.includes(reason);
+    });
   }
   if (checkinOptedOut) {
     const kept = [];
@@ -685,6 +704,18 @@ export function decideNotifications({ candidates = [], last = {}, prefs = {}, no
     for (const i of state.pendingDigest) (isCheckinItem(i) ? purged : kept).push(i);
     state.pendingDigest = kept;
     for (const i of purged) releaseDedup(state.types, i, kept);
+  }
+  // ⚠ A MEMBER ON A BREAK GETS NONE OF THEIR OWN, HELD ONES INCLUDED (Codex on #2705). candidatesFor
+  // builds none while they are away (notify-core memberPaused), but a notice held by quiet hours or the
+  // cap before the break began would still go out with the next digest. Their own are the held items
+  // with no provider role (readNotifyState); each one's stamp is released, so a notice that is true
+  // again after the break is sent then.
+  if (audience === 'client' && memberPaused) {
+    const own = (i) => !(i && i.data && typeof i.data === 'object' && i.data.providerRole !== undefined);
+    const purged = state.pendingDigest.filter(own);
+    const kept = state.pendingDigest.filter((i) => !own(i));
+    state.pendingDigest = kept;
+    for (const i of purged) if (i && typeof i === 'object') releaseDedup(state.types, i, kept);
   }
   // A mild sleep move held from before the sleep rule goes the same way: nothing rebuilds it now.
   if (state.pendingDigest.some(isQuietSleepItem)) {

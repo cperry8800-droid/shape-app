@@ -13,8 +13,9 @@ import { isCoachRole, providerRoleForRole } from '@/lib/roles.mjs';
 import { loadCoachContext as loadCoachContextMjs } from './coachContext.mjs';
 import { createNotification } from '@/lib/notify';
 import { sendEmail } from '@/lib/email';
-import { normalizeZone, personZone } from '@/lib/time';
+import { instantInZone, normalizeZone, personZone } from '@/lib/time';
 import { claimPushSlots, type PushClaim } from '@/lib/push-cap';
+import { OPEN_SUB_STATUSES } from '../coach-trajectory.mjs';
 import type { SupabaseClient } from '@supabase/supabase-js';
 // The pure UMD engine (module.exports = api); imported directly (no window in Node).
 import DashSignals from '../../../public/newdesign/dashSignals.js';
@@ -22,7 +23,7 @@ import { bsUnitsMetric } from '../../../mobile-app/src/services/leadReason.mjs';
 
 export type Candidate = { type: string; title: string; body: string; route: string; data: Record<string, unknown>; priority: string };
 export type DecideResult = { send: Candidate[]; digest: Candidate | null; nextState: Record<string, unknown>; suppressed: { type: string; reason: string }[] };
-export type DecideInput = { candidates: Candidate[]; last: Record<string, unknown>; prefs: Record<string, unknown>; now: Date; audience: string; checkinOptedOut?: boolean; pushedToday?: number | null; tr?: Translate; coachSeen?: Record<string, string> | null };
+export type DecideInput = { candidates: Candidate[]; last: Record<string, unknown>; prefs: Record<string, unknown>; now: Date; audience: string; checkinOptedOut?: boolean; memberPaused?: boolean; pushedToday?: number | null; tr?: Translate; coachSeen?: Record<string, string> | null; coachAway?: Record<string, string[]> | null };
 // The coach's own context the engine reads (P2): their dismissals (coach_signal_dismissals rows) and
 // their check-in reviews (the coach_week_reviews doc). Each is null when it could not be read.
 export type CoachContext = { dismissals: unknown[] | null; reviews: Record<string, unknown> | null };
@@ -168,7 +169,7 @@ export function memberCopy(localeDoc: Record<string, unknown>, settings: Record<
 type Directive = { verdict: string; reason: string; action: { label: string; kind: string } | null; read: { summary30d: string; oneThingNow: string }; cited?: string[] };
 type Flag = { key: string; label: string; reason: string; owned?: boolean; discipline?: string };
 type Lead = { key: string; reason: string; label?: string; sig?: string | null; action?: { kind: string; label: string } | null };
-type TriageRow = { client: { userId?: string; id?: string; profile?: { id?: string; name?: string } }; severity: string; flags: Flag[]; reasons: string[]; lead?: Lead | null };
+type TriageRow = { client: { userId?: string; id?: string; profile?: { id?: string; name?: string } }; severity: string; flags: Flag[]; reasons: string[]; lead?: Lead | null; pause?: { state?: string; fresh?: boolean } | null };
 const engine = DashSignals as unknown as {
   attachCoachContext: (records: unknown[], ctx: CoachContext, role?: string) => unknown[];
   buildDirective: (record: unknown, now?: Date, role?: string) => Directive;
@@ -227,6 +228,117 @@ export function liveDismissals(records: unknown[], now: Date): unknown[] {
   });
 }
 
+// ⚠ A MEMBER ON A BREAK GETS NONE OF THIS ENGINE'S NOTICES (a pause, 2026-11-11-client-pause.sql:
+// "away until <date>", set by them or a coach). Read fresh on every run, never from the stored
+// record, so a pause set or ended since the app last posted holds. `asService`: the hourly run reads
+// the table with the service role; the live route asks get_client_pause as the member. A read that
+// fails, or a table not there yet, is no pause: the notices go on as before.
+export async function loadMemberPaused(client: SupabaseClient, userId: string, now: Date, tz: string, opts: { asService?: boolean } = {}): Promise<boolean> {
+  try {
+    const r = opts.asService
+      // One row a break, kept after it ends: the latest end is the one that may hold today.
+      ? await client.from('client_pauses').select('until_on').eq('client_id', userId).order('until_on', { ascending: false }).limit(1).maybeSingle()
+      : await client.rpc('get_client_pause', { p_client_id: userId });
+    if (r.error) return false;
+    const row = (Array.isArray(r.data) ? r.data[0] : r.data) as { until_on?: unknown } | null | undefined;
+    return !!row && typeof row.until_on === 'string' && ymdInTz(now, tz) <= row.until_on;
+  } catch {
+    return false;
+  }
+}
+
+// ⚠ A MUTED MEMBER ON A BREAK STILL LOSES WHAT WAS HELD FROM BEFORE IT (Codex on #2705). The hourly run
+// stops at master mute before deciding anything, so the break's purge (decideNotifications memberPaused)
+// never ran there, and a notice held before a break that began and ended inside the mute went out once
+// they unmuted. While the break holds, this purges as the live route's muted run does: the decision stops
+// at the mute, so nothing is decided to send and nothing is claimed. Not on a break, nothing held, or a
+// read that fails: the state is left as it is.
+export async function purgeHeldWhileMuted(admin: SupabaseClient, userId: string, role: unknown, prefs: Prefs, now: Date): Promise<void> {
+  if (!(await loadMemberPaused(admin, userId, now, prefs.tz, { asService: true }))) return;
+  const last = await readNotifyState(admin, userId, role);
+  const held = Array.isArray(last.pendingDigest) ? last.pendingDigest.length : 0;
+  if (!held) return;
+  const { nextState } = Notify.decideNotifications({ candidates: [], last, prefs: { ...prefs, muted: true }, now, audience: 'client', memberPaused: true });
+  const kept = Array.isArray(nextState.pendingDigest) ? nextState.pendingDigest.length : held;
+  if (kept !== held) await writeNotifyState(admin, userId, role, nextState);
+}
+
+// A client's break as the engine reads it (dashSignals.js pauseOf): its last day away, who set it, and
+// the instant their return day begins in their own zone (get_client_pause's back_at).
+export type ClientBreak = { until: string; by: string | null; backAt?: string };
+// Who of a stored roster the coach still has (`coached`), and those clients' latest breaks read fresh
+// (`breaks`: null when they couldn't be read). loadClientBreaks.
+export type RosterAccess = { coached: Set<string>; breaks: Map<string, ClientBreak | null> | null };
+// ⚠ A COACH'S STORED ROSTER HOLDS EACH CLIENT'S BREAK AS OF ITS SAVE (Codex on #2705). The hourly run
+// reads that roster while the coach is away from Shape, so a break set since read as no break: an alert
+// for a client now away was still sent, or sent from the digest it was held in. Each client's latest
+// break is read fresh here with the service role, as get_client_pause answers it, and laid over the
+// roster (candidatesFor `clientBreaks`); a client away then reads clear, and the decision drops an alert
+// held for them (coachSeen). null when the breaks can't be read (or the table isn't there yet): the
+// roster is read as it was saved. A zone that can't be read leaves `backAt` out (the coach's day).
+// ⚠ ONLY THE COACH'S OWN CLIENTS (CodeRabbit's security check on #2705). The stored roster is the
+// coach's own user_goals row, which they may write directly, with any role and any ids, and this read
+// runs as the service role: unchecked, a forged roster would push a stranger's break, and the day it
+// ended, to whoever wrote it. A client is read only when is_coach_on_client would answer for this coach
+// (an active, trialing or past-due subscription to a listing they own); the rest are left out, read as
+// saved. A check that can't be made reads nothing (null).
+// ⚠ AND ONLY THE COACH'S OWN CLIENTS ARE EVALUATED (CodeRabbit's security check on #2705): `coached` is
+// who of the roster they still have, and candidatesFor `rosterAccess` evaluates those alone, dropping
+// the alerts held for the rest. So a client who has left, or one a forged roster names, is never
+// alerted about from what the roster held. null when the check can't be made: the run sends nothing.
+export async function loadClientBreaks(admin: SupabaseClient, coachId: string, clientIds: string[], now: Date): Promise<RosterAccess | null> {
+  const asked = [...new Set((Array.isArray(clientIds) ? clientIds : []).filter((v) => typeof v === 'string' && v))].slice(0, 100);
+  const out = new Map<string, ClientBreak | null>();
+  if (!asked.length || typeof coachId !== 'string' || !coachId) return { coached: new Set(), breaks: out };
+  try {
+    // 16 days of UTC's calendar: get_client_pause's 15 in the member's own, whichever side of UTC.
+    const floor = new Date(now.getTime() - 16 * 86_400_000).toISOString().slice(0, 10);
+    // One round trip: the coach's listings, the clients' subscriptions, their breaks and their zones.
+    const [trainers, nutritionists, subs, pauses, zones] = await Promise.all([
+      admin.from('trainers').select('id').eq('owner_id', coachId),
+      admin.from('nutritionists').select('id').eq('owner_id', coachId),
+      admin.from('subscriptions').select('client_id, provider_id, provider_role').in('client_id', asked).in('status', OPEN_SUB_STATUSES),
+      admin.from('client_pauses').select('id, client_id, from_on, until_on, set_by_role').in('client_id', asked).gte('until_on', floor),
+      admin.from('profiles').select('id, timezone').in('id', asked),
+    ]);
+    if (trainers.error || nutritionists.error || subs.error || !Array.isArray(subs.data)) return null;
+    const own = (r: { data: unknown }) => new Set((Array.isArray(r.data) ? r.data as { id?: unknown }[] : []).map((x) => String(x.id)));
+    const tIds = own(trainers), nIds = own(nutritionists);
+    const coached = new Set((subs.data as { client_id?: unknown; provider_id?: unknown; provider_role?: unknown }[])
+      .filter((x) => (x.provider_role === 'trainer' && tIds.has(String(x.provider_id))) || (x.provider_role === 'nutritionist' && nIds.has(String(x.provider_id))))
+      .map((x) => String(x.client_id)));
+    const ids = asked.filter((id) => coached.has(id));
+    // The breaks unread: who they still have is known, their breaks are as the roster was saved.
+    if (pauses.error || !Array.isArray(pauses.data)) return { coached, breaks: null };
+    const zoneOf = zones.error || !Array.isArray(zones.data) ? null
+      : new Map((zones.data as { id?: unknown; timezone?: unknown }[]).map((z) => [String(z.id), normalizeZone(z.timezone) || 'UTC']));
+    const latest = new Map<string, { id: number; from_on: string; until_on: string; set_by_role: unknown }>();
+    for (const r of pauses.data as { id?: unknown; client_id?: unknown; from_on?: unknown; until_on?: unknown; set_by_role?: unknown }[]) {
+      if (typeof r.client_id !== 'string' || typeof r.from_on !== 'string' || typeof r.until_on !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(r.until_on)) continue;
+      const row = { id: Number(r.id) || 0, from_on: r.from_on, until_on: r.until_on, set_by_role: r.set_by_role };
+      const had = latest.get(r.client_id);
+      // The latest break: the last to begin, and of two begun the same day the last made (order by from_on desc, id desc).
+      if (!had || row.from_on > had.from_on || (row.from_on === had.from_on && row.id > had.id)) latest.set(r.client_id, row);
+    }
+    for (const id of ids) {
+      const row = latest.get(id);
+      if (!row) { out.set(id, null); continue; }
+      const b: ClientBreak = { until: row.until_on, by: typeof row.set_by_role === 'string' ? row.set_by_role : null };
+      const zone = zoneOf ? (zoneOf.get(id) || 'UTC') : null;
+      if (zone) {
+        const [y, mo, d] = row.until_on.split('-').map(Number);
+        const next = new Date(Date.UTC(y, mo - 1, d + 1));
+        const t = instantInZone(next.getUTCFullYear(), next.getUTCMonth() + 1, next.getUTCDate(), 0, 0, zone);
+        if (Number.isFinite(t)) b.backAt = new Date(t).toISOString();
+      }
+      out.set(id, b);
+    }
+    return { coached, breaks: out };
+  } catch {
+    return null;
+  }
+}
+
 // Snapshot → candidates + audience. `lastSeverity` (coach) suppresses re-nags.
 export function candidatesFor(
   snapshot: Snapshot,
@@ -256,16 +368,51 @@ export function candidatesFor(
     // The person's own zone (loadPrefs' `tz`), so the engine counts their days, not the server's UTC
     // ones (F2). Omitted: the zone the snapshot was posted with.
     zone?: string | null;
+    // A member on a break (loadMemberPaused): none of their own notices. A coach's roster reads each
+    // client's pause from the roster itself, unless `clientBreaks` says otherwise.
+    memberPaused?: boolean;
+    // Who of a coach's stored roster they still have, and those clients' breaks read fresh
+    // (loadClientBreaks): only those clients are evaluated, each break laid over the saved one (null:
+    // none). Omitted: the roster as saved (the live route, whose roster is checked as it is posted).
+    rosterAccess?: RosterAccess | null;
+    // Clients the coach no longer has (the live route's scope check, and loadClientBreaks): an alert
+    // held for them is dropped, and they are forgotten (coachSeen 'clear').
+    revokedClients?: string[];
   },
-): { audience: 'client' | 'coach'; candidates: Candidate[]; coachSeen?: Record<string, string> } {
+): { audience: 'client' | 'coach'; candidates: Candidate[]; coachSeen?: Record<string, string>; coachAway?: Record<string, string[]> } {
   const role = snapshot.role || '';
   if (isCoachRole(role)) {
-    const raw = Array.isArray(snapshot.clients) ? snapshot.clients : [];
+    const saved = Array.isArray(snapshot.clients) ? snapshot.clients : [];
+    // Only the clients the coach still has, each break as it is now over the one the roster was saved
+    // with (loadClientBreaks); the rest are dropped, and so are the alerts held for them.
+    const access = opts.rosterAccess || null;
+    const kept = !access ? saved : saved.filter((c) => { const id = coachRecordId(c); return !!id && access.coached.has(id); });
+    const revoked = new Set((Array.isArray(opts.revokedClients) ? opts.revokedClients : []).filter((v) => typeof v === 'string' && v));
+    if (access) for (const c of saved) { const id = coachRecordId(c); if (id && !access.coached.has(id)) revoked.add(id); }
+    const fresh = access ? access.breaks : null;
+    // Each break as read at this run (`readAt`), so one over since the save says "Back from a break"
+    // (pauseOf), though the rest of the roster is read as of its save.
+    const readAt = opts.now.toISOString();
+    const raw = !fresh ? kept : kept.map((c) => {
+      const id = coachRecordId(c);
+      if (!id || !fresh.has(id) || !c || typeof c !== 'object') return c;
+      const b = fresh.get(id);
+      return { ...(c as Record<string, unknown>), pause: b ? { ...b, readAt } : null };
+    });
     // The dismissals of this role only: a coach with both listings sets a reason aside per role.
     // …each snooze held to the run's own clock (liveDismissals).
     const clients = liveDismissals(opts.coachContext ? engine.attachCoachContext(raw, opts.coachContext, role) : raw, opts.now);
     const zone = opts.zone || snapshot.tz || null;
-    const rows = engine.inZone(zone, rosterClock(snapshot, opts.now), (at) => engine.getTriageFeed(role, clients, at, opts.thresholds || undefined)).map((r) => ({
+    const feed = engine.inZone(zone, rosterClock(snapshot, opts.now), (at) => engine.getTriageFeed(role, clients, at, opts.thresholds || undefined));
+    // The clients away or just back (pauseOf), each with the reasons their row still carries, so an alert
+    // held from before the break for a reason it silences is dropped (decideNotifications coachAway).
+    const coachAway: Record<string, string[]> = {};
+    for (const r of feed) {
+      const p = r && r.pause;
+      const id = r && coachRecordId(r.client);
+      if (id && p && (p.state === 'paused' || p.fresh)) coachAway[id] = (Array.isArray(r.flags) ? r.flags : []).map((f) => String(f && f.key));
+    }
+    const rows = feed.map((r) => ({
       clientId: coachRecordId(r.client) as string,
       clientName: (r.client.profile && r.client.profile.name) || 'A client',
       severity: r.severity,
@@ -278,11 +425,14 @@ export function candidatesFor(
     return {
       audience: 'coach',
       candidates: Notify.coachCandidates({ triageRows: rows, lastSeverity: opts.lastSeverity, providerRole: role, tr: opts.copy?.tr }),
-      // Who this run saw clear, so the alert memory forgets them (settleCoachMemory).
-      coachSeen: Notify.coachSeen(rows),
+      // Who this run saw clear, so the alert memory forgets them (settleCoachMemory), and those the coach
+      // no longer has, so an alert held for them is dropped (decideNotifications).
+      coachSeen: { ...Object.fromEntries([...revoked].map((id) => [id, 'clear'])), ...Notify.coachSeen(rows) },
+      coachAway,
     };
   }
   const candidates: Candidate[] = [];
+  if (opts.memberPaused) return { audience: 'client', candidates };
   const record = snapshot.record;
   if (record && typeof record === 'object') {
     // On the member's own day (F2), as their Home reads it on the phone.

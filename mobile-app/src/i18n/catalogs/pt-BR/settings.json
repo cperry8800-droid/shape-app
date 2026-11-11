@@ -654,5 +654,21 @@
   "plan.renewsYearly": "Renova todo ano",
   "plan.includedCoach": "Incluída no seu coaching",
   "plan.includedCoachBody": "Nora, Shape Radio e os assistentes de IA vêm com o seu coaching.",
-  "plan.includedCoachOwn": "Seu coaching inclui a assinatura; você pode cancelar o seu próprio plano."
+  "plan.includedCoachOwn": "Seu coaching inclui a assinatura; você pode cancelar o seu próprio plano.",
+  "pause.group": "Um tempo fora",
+  "pause.row": "Ausente",
+  "pause.preview": "Entre para marcar um tempo fora.",
+  "pause.unavailable": "Não foi possível carregar seu tempo fora.",
+  "pause.retry": "Tentar de novo",
+  "pause.byYou": "Você marcou isso.",
+  "pause.byCoach": "Seu coach marcou isso.",
+  "pause.range": "Escolha um dia entre hoje e daqui a 90 dias.",
+  "pause.failed": "Não foi salvo. Tente de novo.",
+  "pause.until": "Ausente até {date}",
+  "pause.change": "Mudar a data",
+  "pause.end": "Encerrar o tempo fora",
+  "pause.desc": "Vai viajar? Escolha seu último dia fora: lembretes e avisos de check-in ficam em silêncio até lá, e seus coaches veem que você está fora. Sua assinatura continua normalmente.",
+  "pause.dateLabel": "Ausente até",
+  "pause.save": "Salvar o tempo fora",
+  "pause.cancel": "Manter a data"
 }

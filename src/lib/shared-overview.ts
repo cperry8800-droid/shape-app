@@ -391,6 +391,7 @@ export async function buildSharedOverview(supabase: OverviewClient, { clientId, 
     { data: convoRows, error: convoErr },
     { data: scoreHistory },
     { data: programDays, error: programDaysErr },
+    pauseRes,
   ] = await Promise.all([
     supabase.rpc('get_client_goals', { p_user_id: clientId }),
     supabase.rpc('get_client_stats', { p_user_id: clientId }),
@@ -428,9 +429,26 @@ export async function buildSharedOverview(supabase: OverviewClient, { clientId, 
     // "Not shared" — the get_client_meal_prep precedent above.
     supabase.rpc('get_client_score_history', { p_user_id: clientId }),
     programDaysRead,
+    // The client's pause, "away until" (2026-11-11-client-pause.sql): the member's or a coach's, read
+    // by the member and their coaches while it holds and for 15 days after.
+    supabase.rpc('get_client_pause', { p_client_id: clientId }),
   ]);
   const programDetail = (programRow?.detail ?? {}) as Record<string, unknown>;
   if (programError) console.error('[shared-overview] client_programs read failed:', programError.message);
+  // ⚠ A FAILED PAUSE READ IS NOT "NOT PAUSED", AND NOT DEPLOYED IS NOT FAILED. The key is left out when
+  // the read failed (the engine reads no pause, as before this leg), null when it answered with none,
+  // and also left out before the migration runs (PGRST202), so nothing reads differently until it does.
+  const pauseMissing = (pauseRes.error as { code?: string } | null)?.code === 'PGRST202';
+  if (pauseRes.error && !pauseMissing) console.error('[shared-overview] get_client_pause failed:', pauseRes.error.message);
+  const pauseRow = !pauseRes.error && Array.isArray(pauseRes.data) && pauseRes.data[0] && typeof pauseRes.data[0] === 'object'
+    ? pauseRes.data[0] as { until_on?: unknown; set_by_role?: unknown; set_at?: unknown; set_by_me?: unknown; back_at?: unknown } : null;
+  // `backAt`: the instant the member's return day begins, which the engine compares on every calendar
+  // (Codex on #2705); left out when the function doesn't say, and the engine reads `until` on the viewer's.
+  const pauseBackAt = pauseRow && typeof pauseRow.back_at === 'string' && !Number.isNaN(Date.parse(pauseRow.back_at)) ? pauseRow.back_at : null;
+  const pause = pauseRes.error ? undefined
+    : pauseRow && typeof pauseRow.until_on === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(pauseRow.until_on)
+      ? { until: pauseRow.until_on, by: typeof pauseRow.set_by_role === 'string' ? pauseRow.set_by_role : null, mine: pauseRow.set_by_me === true, at: typeof pauseRow.set_at === 'string' ? pauseRow.set_at : null, ...(pauseBackAt ? { backAt: pauseBackAt } : {}) }
+      : null;
 
   // Objective sleep for the coach (share-gated like the other reads — the
   // providers_read_subscriber_snapshots RLS policy lets an active coach read
@@ -815,5 +833,7 @@ export async function buildSharedOverview(supabase: OverviewClient, { clientId, 
     // The onboarding board per role, for a client in their first 30 days with the caller; omitted
     // otherwise (fix 4).
     ...(Object.keys(onboarding).length ? { onboarding } : {}),
+    // The client's pause ({ until, by, mine, at, backAt }), null when none; left out when unread (above).
+    ...(pause === undefined ? {} : { pause }),
   };
 }

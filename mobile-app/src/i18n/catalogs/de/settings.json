@@ -654,5 +654,21 @@
   "plan.renewsYearly": "Verlängert sich jährlich",
   "plan.includedCoach": "In deinem Coaching enthalten",
   "plan.includedCoachBody": "Nora, Shape Radio und die KI-Helfer sind in deinem Coaching enthalten.",
-  "plan.includedCoachOwn": "Dein Coaching enthält die Mitgliedschaft; du kannst deinen eigenen Plan kündigen."
+  "plan.includedCoachOwn": "Dein Coaching enthält die Mitgliedschaft; du kannst deinen eigenen Plan kündigen.",
+  "pause.group": "Eine Auszeit",
+  "pause.row": "Abwesend",
+  "pause.preview": "Melde dich an, um eine Auszeit einzutragen.",
+  "pause.unavailable": "Deine Auszeit konnte nicht geladen werden.",
+  "pause.retry": "Erneut versuchen",
+  "pause.byYou": "Du hast das eingetragen.",
+  "pause.byCoach": "Dein Coach hat das eingetragen.",
+  "pause.range": "Wähle einen Tag zwischen heute und in 90 Tagen.",
+  "pause.failed": "Nicht gespeichert. Versuch es noch einmal.",
+  "pause.until": "Abwesend bis {date}",
+  "pause.change": "Datum ändern",
+  "pause.end": "Auszeit beenden",
+  "pause.desc": "Du bist unterwegs? Wähle deinen letzten Tag weg: Erinnerungen und Check-in-Hinweise bleiben bis dahin still, und deine Coaches sehen, dass du weg bist. Deine Mitgliedschaft läuft ganz normal weiter.",
+  "pause.dateLabel": "Abwesend bis",
+  "pause.save": "Auszeit speichern",
+  "pause.cancel": "Datum behalten"
 }

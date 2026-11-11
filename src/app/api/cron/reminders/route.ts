@@ -14,6 +14,7 @@ import { timingSafeEqual } from 'node:crypto';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createNotification } from '@/lib/notify';
 import { np } from '../../../../../mobile-app/src/services/noticeCopy.mjs';
+import { pausesByClient, pauseCovers, type ClientBreak } from '../../../../lib/client-pause.mjs';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -163,6 +164,28 @@ type Reminder = {
   at_time: string; days: number[]; tz: string; last_fired_on: string | null;
 };
 
+// ⚠ A MEMBER ON A BREAK IS SENT NONE OF THEIR OWN REMINDERS (2026-11-11-client-pause.sql; Codex on
+// #2705). Their break screen says "reminders and check-in nudges stay quiet until then", and this cron
+// sent every enabled one regardless. The breaks of the members with a reminder due, from the day before
+// yesterday on, a chunk at a time (src/lib/client-pause.mjs). A read that fails, or a table not there
+// yet, holds none back: the reminders go as before.
+export async function breaksOfMembers(admin: ReturnType<typeof createAdminClient>, userIds: string[], now: Date): Promise<Map<string, ClientBreak[]>> {
+  const ids = [...new Set(userIds.filter((v) => typeof v === 'string' && v))];
+  const out = new Map<string, ClientBreak[]>();
+  if (!ids.length) return out;
+  const floor = new Date(now.getTime() - 2 * 86_400_000).toISOString().slice(0, 10);
+  for (let i = 0; i < ids.length; i += 200) {
+    try {
+      const { data, error } = await admin.from('client_pauses').select('client_id, from_on, until_on').in('client_id', ids.slice(i, i + 200)).gte('until_on', floor);
+      if (error) continue;
+      for (const [id, breaks] of pausesByClient(data)) out.set(id, breaks);
+    } catch {
+      // Sent as before.
+    }
+  }
+  return out;
+}
+
 async function handle(request: Request) {
   if (!authorized(request)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const admin = createAdminClient();
@@ -197,9 +220,15 @@ async function handle(request: Request) {
     if (date) due.push({ r, date });
   }
   const answered = await morningsAnswered(admin, due.filter((d) => d.r.kind === 'daily_checkin').map((d) => ({ userId: d.r.user_id, date: d.date })));
+  const away = await breaksOfMembers(admin, due.map((d) => d.r.user_id), now);
 
   for (const { r, date } of due) {
     try {
+      // On a break that covers this reminder's own day: none today, and it is done for the day.
+      if (pauseCovers(away.get(r.user_id), date)) {
+        await admin.from('user_scheduled_reminders').update({ last_fired_on: date }).eq('id', r.id);
+        continue;
+      }
       if (r.kind === 'daily_checkin' && answered.has(`${r.user_id}|${date}`)) {
         // Answered already: today is done for this reminder.
         await admin.from('user_scheduled_reminders').update({ last_fired_on: date }).eq('id', r.id);

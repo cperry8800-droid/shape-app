@@ -524,8 +524,11 @@ test('the notify routes say a member\'s notices in their language and units, and
     assert.match(src, /readUserGoal\([^)]*'app_locale'\)/, rel);
     assert.match(src, /const copy = memberCopy\(localeDoc, settings\);/, rel);
     // The coach's fresh dismissals and reviews (coachContext) and the run's alert memory (coachSeen) ride along (P2).
-    assert.match(src, /candidatesFor\(snapshot, \{.*\bthresholds, copy, coachContext, zone: prefs\.tz \}\)/, rel);
-    assert.match(src, /decideAndClaim\([^;{]*\{[^}]*tr: copy\?\.tr, coachSeen \}/, rel);
+    // …and who of the roster the coach still has, with each break read fresh (rosterAccess, the hourly
+    // run) or the clients the scope check refused (revokedClients, the live route): Codex and
+    // CodeRabbit on #2705.
+    assert.match(src, /candidatesFor\(snapshot, \{.*\bthresholds, copy, coachContext, zone: prefs\.tz, memberPaused(?:, (?:rosterAccess|revokedClients))? \}\)/, rel);
+    assert.match(src, /decideAndClaim\([^;{]*\{[^}]*tr: copy\?\.tr, coachSeen, coachAway \}/, rel);
   }
   // The server bundles a catalog for exactly the languages the app ships.
   const cats = fs.readFileSync(path.join(ROOT, 'src/lib/ai/memberCatalogs.ts'), 'utf8');
