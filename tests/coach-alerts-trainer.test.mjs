@@ -91,6 +91,7 @@ const quiet = (over = {}) => base({
   checkIn: { lastWeekOf: day(14), latest: { weekOf: day(14), submittedAt: day(10) + 'T09:00:00' } },
   lastFromClient: day(9) + 'T10:00:00',
   lastContact: { trainer: day(8) + 'T10:00:00', nutritionist: null },
+  scoreRead: true,
   ...over,
 });
 test('gone quiet: nothing in 7 days takes the place of the food-log and contact gaps', () => {
@@ -108,7 +109,8 @@ test('gone quiet: nothing in 7 days takes the place of the food-log and contact 
 });
 
 test('gone quiet needs every read: an unread one is never "nothing"', () => {
-  for (const drop of ['activity', 'foodLogs', 'checkIn', 'lastFromClient']) {
+  // The Score read too: a Score day is activity (Codex on #2717).
+  for (const drop of ['activity', 'foodLogs', 'checkIn', 'lastFromClient', 'scoreRead']) {
     const rec = quiet();
     delete rec[drop];
     assert.equal(flag(feed('trainer', rec), 'gone_quiet'), null, drop + ' unread');
@@ -199,6 +201,10 @@ test('context: a training-load spike and falling steps show for a trainer, never
   assert.equal(flag(n, 'steps_falling'), null);
   // Thin evidence: nothing.
   assert.equal(flag(feed('trainer', base({ trainingLoad: { days: load.days.slice(-3) } })), 'load_spike'), null);
+  // The floor counts rated runs, not days (Codex on #2717): four runs over two baseline days are enough.
+  const twoDays = { days: [{ on: day(20), load: 600, runs: 2 }, { on: day(13), load: 600, runs: 2 }, { on: day(2), load: 900, runs: 1 }] };
+  assert.ok(flag(feed('trainer', base({ trainingLoad: twoDays })), 'load_spike'));
+  assert.equal(flag(feed('trainer', base({ trainingLoad: { days: twoDays.days.map((d) => ({ ...d, runs: 1 })) } })), 'load_spike'), null, 'two runs are not four');
   assert.equal(flag(feed('trainer', base({ activity: { lastWorkoutOn: null, steps: steps.steps.slice(0, 10) } })), 'steps_falling'), null);
 });
 
@@ -230,7 +236,7 @@ test('the legs: assigned workouts, the training load, the activity and the clien
     { session_rpe: 6, duration_seconds: 2400, ended_at: '2026-11-08T20:00:00Z' },
     { session_rpe: 6, duration_seconds: 2400, local_day: '2026-09-01' },
   ], now);
-  assert.deepEqual(load, { days: [{ on: '2026-11-08', load: 240 }, { on: '2026-11-10', load: 570 }] });
+  assert.deepEqual(load, { days: [{ on: '2026-11-08', load: 240, runs: 1 }, { on: '2026-11-10', load: 570, runs: 2 }] });
   const act = bsActivityLeg([{ snapshot_date: '2026-11-09', workout_minutes: 40, steps: 8000 }, { snapshot_date: '2026-11-10', workout_minutes: 0, steps: 6000.4 }, { snapshot_date: '2026-11-07', steps: 0 }]);
   assert.deepEqual(act, { lastWorkoutOn: '2026-11-09', steps: [{ on: '2026-11-09', steps: 8000 }, { on: '2026-11-10', steps: 6000 }] });
   assert.equal(bsActivityLeg(null), null);
@@ -282,7 +288,12 @@ test('the overview reads a trainer\'s own assigned workouts and runs, and the ef
     ],
   });
   assert.deepEqual(ov.assignedWorkouts.days, [{ on: utcDay(4), done: true }, { on: utcDay(2), done: false }]);
-  assert.deepEqual(ov.trainingLoad.days, [{ on: utcDay(4), load: 350 }]);
+  assert.deepEqual(ov.trainingLoad.days, [{ on: utcDay(4), load: 350, runs: 1 }]);
+  assert.equal(ov.scoreRead, true, 'the Score read answered');
+  const noScore = await overview({}, { fail: ['rpc:get_client_score_history'] });
+  assert.equal(noScore.scoreRead, false);
+  assert.ok(!('scoreRead' in DS.recordFromOverview({ id: 'c1' }, noScore)), 'a failed Score read leaves the record unknown');
+  assert.equal(DS.recordFromOverview({ id: 'c1' }, ov).scoreRead, true);
   // A failed read is unknown: the legs are left out.
   const failed = await overview({ client_workouts: [] }, { fail: ['workout_sessions'] });
   assert.ok(!('assignedWorkouts' in failed) && !('trainingLoad' in failed));
@@ -296,6 +307,11 @@ test('the overview gives a nutritionist the trainers\' workouts through the shar
   assert.ok(!('trainingLoad' in ov), 'the trainer\'s effort stays the trainer\'s');
   const failed = await overview({}, { me, subs, fail: ['rpc:get_shared_client_workouts'] });
   assert.ok(!('assignedWorkouts' in failed));
+  // Two trainers' workouts never make one series (Codex on #2717): unknown, not blamed on one of them.
+  const two = await overview({}, { me, subs, rpcs: { get_shared_client_workouts: () => [{ scheduled_date: utcDay(3), runs: [], trainer_name: 'Alex' }, { scheduled_date: utcDay(1), runs: [], trainer_name: 'Bo' }] } });
+  assert.ok(!('assignedWorkouts' in two));
+  const one = await overview({}, { me, subs, rpcs: { get_shared_client_workouts: () => [{ scheduled_date: utcDay(3), runs: [], trainer_name: 'Alex' }, { scheduled_date: utcDay(1), runs: [{}], trainer_name: 'Alex' }] } });
+  assert.deepEqual(one.assignedWorkouts.days.map((d) => d.done), [false, true]);
 });
 
 test('the overview reads 42 days of snapshots for the activity, and the client\'s last message', async () => {
@@ -323,6 +339,7 @@ test('the record carries the new legs from the overview, and the push snapshot k
   assert.equal(rec.lastFromClient, ov.lastFromClient);
   const snap = DS.engineSnapshot(rec);
   for (const k of ['assignedWorkouts', 'trainingLoad', 'activity', 'lastFromClient']) assert.deepEqual(snap[k], rec[k], k);
+  assert.equal(DS.engineSnapshot({ ...rec, scoreRead: true }).scoreRead, true, 'the push keeps the Score read');
   const none = DS.recordFromOverview({ id: 'c1', name: 'Ada' }, {});
   assert.equal(none.assignedWorkouts, null);
   assert.equal(none.activity, null);

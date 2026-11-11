@@ -1414,7 +1414,9 @@
   function lastActivity(c, now) {
     var a = c && c.activity && typeof c.activity === "object" ? c.activity : null;
     var f = c && c.foodLogs;
-    var known = !!a && !!f && !!(c && c.checkIn) && c && Object.prototype.hasOwnProperty.call(c, "lastFromClient") && c.lastFromClient !== undefined;
+    // ⚠ AND THE SCORE READ (Codex on #2717): a Score day is activity, so a failed read of it is unknown.
+    var scoreKnown = !!(c && (c.streaks || c.scoreRead === true));
+    var known = !!a && !!f && !!(c && c.checkIn) && scoreKnown && c && Object.prototype.hasOwnProperty.call(c, "lastFromClient") && c.lastFromClient !== undefined;
     var dates = [];
     if (a && a.lastWorkoutOn) dates.push(toDate(a.lastWorkoutOn));
     if (f && f.lastLoggedOn) dates.push(toDate(f.lastLoggedOn));
@@ -1500,7 +1502,8 @@
       var d = tl.days[i], v = d ? kpiNum(d.load) : null;
       if (!d || typeof d.on !== "string" || v == null || v <= 0 || d.on > today) continue;
       if (d.on >= wkFrom) week += v;
-      else if (d.on >= baseFrom) { base += v; baseN++; }
+      // The rated runs that day (bsTrainingLoadLeg's `runs`), one when a record predates it (Codex on #2717).
+      else if (d.on >= baseFrom) { base += v; var rn = kpiNum(d.runs); baseN += rn != null && rn >= 1 ? rn : 1; }
     }
     if (baseN < THRESHOLDS.LOAD_MIN_SESSIONS || !(base > 0)) return null;
     var avg = base / 4;
@@ -2943,6 +2946,8 @@
         periodEndsAt: row.periodEndsAt || null,
       },
     };
+    // Whether the Score read answered (gone quiet): only a true answer is carried.
+    if (o && o.scoreRead === true) rec.scoreRead = true;
     // The client's newest message to this coach (gone quiet): left off when unread, null when none.
     if (o && (typeof o.lastFromClient === "string" || o.lastFromClient === null)) rec.lastFromClient = o.lastFromClient;
     var team = careTeamFrom(o);
@@ -3092,7 +3097,7 @@
     // their absence alerts all through it (Codex on #2705).
     "pause",
     // The trainer alerts (PR 1): the push reads them as the website does.
-    "assignedWorkouts", "trainingLoad", "activity", "lastFromClient"];
+    "assignedWorkouts", "trainingLoad", "activity", "lastFromClient", "scoreRead"];
   function engineSnapshot(rec) {
     if (!rec || typeof rec !== "object") return null;
     var out = {};

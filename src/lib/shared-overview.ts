@@ -392,7 +392,7 @@ export async function buildSharedOverview(supabase: OverviewClient, { clientId, 
     { data: prep },
     { data: programRow, error: programError },
     { data: convoRows, error: convoErr },
-    { data: scoreHistory },
+    { data: scoreHistory, error: scoreError },
     { data: programDays, error: programDaysErr },
     pauseRes,
   ] = await Promise.all([
@@ -699,7 +699,12 @@ export async function buildSharedOverview(supabase: OverviewClient, { clientId, 
   } else if (mine.nutritionist != null) {
     const { data: sharedRows, error: sharedErr } = await supabase.rpc('get_shared_client_workouts', { p_client_id: clientId });
     if (sharedErr) console.error('[shared-overview] shared workouts read failed:', sharedErr.message);
-    assignedWorkouts = sharedErr ? undefined : bsAssignedWorkoutsLeg((sharedRows ?? []) as unknown[], null, workoutToday);
+    // ⚠ ONE TRAINER'S, OR NONE (Codex on #2717): the shared read holds every trainer's workouts with
+    // only their name, and one series would blame the co-coach joint attention names for another
+    // trainer's misses. With more than one trainer's workouts in it, the leg is left out (unknown).
+    const shared = (sharedRows ?? []) as Array<{ trainer_name?: unknown }>;
+    const trainersIn = new Set(shared.map((r) => String(r?.trainer_name ?? '')));
+    assignedWorkouts = sharedErr || trainersIn.size > 1 ? undefined : bsAssignedWorkoutsLeg(shared as unknown[], null, workoutToday);
   }
   // The program: what the caller put on the client's calendar (bsWorkoutProgramLeg), else an
   // assignment row (the program-tools route's, which keeps its paused rule in bsProgramLeg).
@@ -876,6 +881,9 @@ export async function buildSharedOverview(supabase: OverviewClient, { clientId, 
     ...(logDays === undefined ? {} : { logDays }),
     nutritionTargets,
     scoreHistory: scoreHistory ?? null,
+    // Whether the Score read answered (gone quiet reads a Score day as activity, so a failed read is
+    // unknown, never "no Score day": Codex on #2717).
+    scoreRead: !scoreError,
     // The onboarding board per role, for a client in their first 30 days with the caller; omitted
     // otherwise (fix 4).
     ...(Object.keys(onboarding).length ? { onboarding } : {}),

@@ -413,12 +413,12 @@ export function bsAssignedWorkoutsLeg(workouts, doneIds, today) {
 // ── The trainer's own sessions' effort (training load, context only) ─────────
 // session_rpe × minutes per finished run of the trainer's own workouts, by the member's local day
 // (summary.snapshotDate, else the run's UTC day), over the last TRAINING_LOAD_DAYS. A run with no
-// rating or no duration carries no load and is left out. Out: { days: [{ on, load }] } oldest first.
+// rating or no duration carries no load and is left out. Out: { days: [{ on, load, runs }] } oldest first.
 export const TRAINING_LOAD_DAYS = 36;
 /** @param {unknown[]} runs @param {number} [now] */
 export function bsTrainingLoadLeg(runs, now = Date.now()) {
   const since = isoDayUTC(now - TRAINING_LOAD_DAYS * DAY_MS);
-  /** @type {Map<string, number>} */
+  /** @type {Map<string, { load: number, runs: number }>} */
   const byDay = new Map();
   for (const r of Array.isArray(runs) ? runs : []) {
     if (!r || typeof r !== 'object') continue;
@@ -429,9 +429,11 @@ export function bsTrainingLoadLeg(runs, now = Date.now()) {
     const at = ms(row.ended_at) ?? ms(row.created_at);
     const on = local || (at != null ? isoDayUTC(at) : null);
     if (!on || on < since) continue;
-    byDay.set(on, (byDay.get(on) || 0) + rpe * (secs / 60));
+    const cur = byDay.get(on) || { load: 0, runs: 0 };
+    byDay.set(on, { load: cur.load + rpe * (secs / 60), runs: cur.runs + 1 });
   }
-  const days = [...byDay.entries()].sort((a, b) => (a[0] < b[0] ? -1 : 1)).map(([on, load]) => ({ on, load: Math.round(load) }));
+  // `runs`: the rated runs that day, so the baseline's evidence floor counts runs, not days (Codex on #2717).
+  const days = [...byDay.entries()].sort((a, b) => (a[0] < b[0] ? -1 : 1)).map(([on, v]) => ({ on, load: Math.round(v.load), runs: v.runs }));
   return { days };
 }
 
