@@ -44,6 +44,9 @@ const FREE_FEATURES = [
 ];
 const COACH_INCLUDED_LINE = "Membership is included while you’re coached on Shape.";
 
+// ⚠ EXAMPLES, AND EACH CARD SAYS SO (owner, 2026-11-11: "Look at every page on website"). These are
+// the site's sample coaches with illustrative rates; the Coaches page labels the same names Example, and
+// these cards carried no label. Each now has one; a real coach's rate is on their page.
 const EXAMPLE_COACHES = [
   { role: "Trainer", name: "Maya Okafor", city: "Brooklyn", price: 120, cadence: "/mo", note: "Strength · hypertrophy", avg: "$60–$150 / session average", hue: ["#0ac5a8", "#0ac5a8"] },
   { role: "Nutritionist", name: "Rae Lindqvist", city: "Lisbon", price: 180, cadence: "/mo", note: "Endurance · plant-based", avg: "$120–$250 / consult average", hue: ["#d2693f", "#e79a52"] },
@@ -167,7 +170,7 @@ function CoachCard({ c }) {
       <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 20 }}>
         <div style={{ width: 48, height: 48, borderRadius: 999, background: `linear-gradient(135deg, ${c.hue[0]}, ${c.hue[1]})` }} />
         <div>
-          <div style={{ fontFamily: mono, fontSize: 10, letterSpacing: "0.14em", color: TEAL, marginBottom: 3 }}>{c.role.toUpperCase()}</div>
+          <div style={{ fontFamily: mono, fontSize: 10, letterSpacing: "0.14em", color: TEAL, marginBottom: 3 }}>{c.role.toUpperCase()} <span data-pr-example="" style={{ marginLeft: 6, color: "#e6c373" }}>· EXAMPLE</span></div>
           <div style={{ fontFamily: serif, fontSize: 22, letterSpacing: "-0.015em" }}>{c.name}</div>
         </div>
       </div>

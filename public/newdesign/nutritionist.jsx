@@ -48,7 +48,7 @@ function NutHero() {
           }}>
             {/* Header */}
             <div style={{ textAlign: "center", marginBottom: 18 }}>
-              <div style={{ fontFamily: mono, fontSize: 9.5, letterSpacing: "0.32em", color: TEAL, textTransform: "uppercase" }}>Today's plan</div>
+              <div style={{ fontFamily: mono, fontSize: 9.5, letterSpacing: "0.32em", color: TEAL, textTransform: "uppercase" }}>Example · today's plan</div>
               <div style={{ fontFamily: serif, fontStyle: "italic", fontSize: 22, color: INK, marginTop: 4, letterSpacing: "-0.01em" }}>Tuesday · Apr 15</div>
               <div style={{ fontFamily: mono, fontSize: 9, letterSpacing: "0.2em", color: "rgba(242,237,228,0.45)", marginTop: 6 }}>RX BY RAE LINDQVIST, RD</div>
             </div>
@@ -391,7 +391,7 @@ function NutFAQ() {
     { q: "How does Shape handle HIPAA and scope of practice?", a: "Client records are encrypted at rest and in transit. Scope-of-practice tiers are enforced by credential — non-RDs can't access medical nutrition therapy flows. BAAs available for practices that need them." },
     { q: "Can I bring my existing clients?", a: "Yes. We help with transition emails, pricing continuity, and importing plan templates." },
     { q: "Payouts?", a: "Straight to your bank, on the schedule you set in your own Stripe account. 1099s auto-generated every January." },
-    { q: "Plans only, no consults — is that a thing?", a: "Yes. Publish meal plans as one-time or recurring products. Many nutritionists earn 30–40% of revenue from plan sales alone." },
+    { q: "Plans only, no consults — is that a thing?", a: "Yes. Publish meal plans as one-time or recurring products, and sell them without booking a single consult." },
   ];
   const [open, setOpen] = React.useState(0);
   return (

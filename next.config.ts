@@ -68,6 +68,13 @@ const nextConfig: NextConfig = {
       // The members page is retired the same way (owner, 2026-11-09: "remove the members page
       // from website"). Temporary, like About.
       { source: '/newdesign/Client.html', destination: '/newdesign/index.html', permanent: false },
+      // Two unlinked persona pages, retired 2026-11-11 (owner: "Look at every page on website").
+      // Team.html showed a made-up member's team ("Your team · Priya Shankar", 131 sessions, 94%
+      // completion) and ClientProfile.html a made-up member's profile and revenue, to anyone, with
+      // no label. Each lands on the page that shows the reader's own: ClientTeam.html (it reads
+      // /api/client/team) and the member's profile in ClientApp, as /client-profile already does.
+      { source: '/newdesign/Team.html', destination: '/newdesign/ClientTeam.html', permanent: false },
+      { source: '/newdesign/ClientProfile.html', destination: '/newdesign/ClientApp.html#profile', permanent: false },
       // The legacy coach applications are retired (owner, 2026-10-12: "retire legacy pages"):
       // the root pages and the /mobile preview's sign-up pages each kept their own copy of the
       // application, which drifted from the rules the website and the app follow. Every old link
