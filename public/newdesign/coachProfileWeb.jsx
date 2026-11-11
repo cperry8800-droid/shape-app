@@ -25,8 +25,9 @@
 //                rating, and the other words for members), About, Find me (the practice, the socials,
 //                where they coach), Posts, and the Summit: the storefront. The app's camps, in its
 //                order. A visitor sees a camp only when there is something in it (or a read failed,
-//                said so with Try again); the coach sees them all, saying what to add. Their names
-//                sit under the bar and pin under the header: tabs on a desktop, a Sections bar on a phone.
+//                said so with Try again); the coach sees them all, saying what to add. Their names sit
+//                under the wire and pin under the header: tabs on a desktop, a Sections bar on a phone.
+//                Each opens its camp as its own page, as the app's tabs do; one camp shows at a time.
 //   The accent   the coach's own (Make it yours → look.accent, else the old customizer's hex) tints the
 //                drawing alone: the route, the contours, the summit's ring, the pins, the spine and its
 //                diamonds, the name's full stop. Text and buttons keep the role's colours.
@@ -67,6 +68,53 @@ const CPW_STAT_WORDS = { rating: "Rating", reviews: "Reviews", years: "Years coa
 // The anon grant's columns of a listing (the app's PUBLIC_PROVIDER_COLUMNS, shapeBackend.js): a `*`
 // read fails the whole row for a visitor.
 const CPW_LISTING_COLS = "id, name, specialty, category, price, credential, credential_full, specialty_type, owner_id, at_capacity, capacity_resume_at, verified, monthly_offer, listing_media, listing_ready";
+
+// ── A sample kitchen's recipes ──────────────────────────────────────────────────────────────
+// A sample nutritionist's recipes are written from the Shape Kitchen catalog (nutritionistDemo.mjs: its
+// `catalog`). The app hands in its own; the website's copy is recipes.jsx (held to the app's by
+// tests/recipe-web-mobile-parity.test.mjs), a Babel script the profile page doesn't load. So a sample
+// nutritionist's page fetches it once, compiles it with the page's own Babel (about 0.2 s, after the page
+// has drawn) and runs it in a function scope; the catalog it publishes (window.findRecipeBySlug) is
+// adapted to the app's shape: ingredients as { n, m }, the time in minutes. A page that has it already
+// (the recipe pages) skips the fetch. A failed load leaves the sample without recipes, as before.
+function cpwLoadRecipeCatalog() {
+  if (typeof window === "undefined") return Promise.reject(new Error("no window"));
+  if (typeof window.findRecipeBySlug === "function") return Promise.resolve(window.findRecipeBySlug);
+  if (!window.__cpwRecipesLoad) {
+    window.__cpwRecipesLoad = fetch("/newdesign/recipes.jsx")
+      .then((r) => { if (!r.ok) throw new Error("recipes " + r.status); return r.text(); })
+      .then((src) => {
+        const B = window.Babel;
+        if (!B || typeof B.transform !== "function") throw new Error("no Babel");
+        new Function(B.transform(src, { presets: ["react"] }).code)();
+        if (typeof window.findRecipeBySlug !== "function") throw new Error("no catalog");
+        return window.findRecipeBySlug;
+      })
+      .catch((e) => { window.__cpwRecipesLoad = null; throw e; });
+  }
+  return window.__cpwRecipesLoad;
+}
+// A catalog line ("6 oz chicken thigh, skin-on (330 kcal)") as the item's { n: amount, m: name }: a leading
+// quantity and unit is the amount, the kcal note goes.
+const CPW_ING_AMOUNT = /^((?:\d+(?:[./]\d+)?|[½¼¾⅓⅔])(?:\s*(?:-|to)\s*\d+(?:[./]\d+)?)?\s*(?:oz|g|kg|lb|lbs|ml|l|cups?|tbsp|tsp|cloves?|slices?|cans?|large|medium|small|pinch|handful)?\.?)\s+(.+)$/i;
+function cpwIngredient(g) {
+  const s = String(g || "").replace(/\s*\(\s*~?\d+\s*kcal\s*\)\s*$/i, "").trim();
+  const m = CPW_ING_AMOUNT.exec(s);
+  return m && m[1].length <= 24 ? { n: m[1].trim(), m: m[2].trim() } : { m: s };
+}
+function cpwWebKitchen(find) {
+  return {
+    recipe: (slug) => {
+      const r = typeof slug === "string" && slug ? find(slug) : null;
+      return r ? { ...r, ingredients: (Array.isArray(r.ingredients) ? r.ingredients : []).map((g) => (g && typeof g === "object" ? g : cpwIngredient(g))) } : null;
+    },
+    minutes: (r) => {
+      const t = String((r && r.time) || "").toLowerCase();
+      const h = t.match(/(\d+(?:\.\d+)?)\s*(?:hr|hrs|hour|hours|h)\b/), m = t.match(/(\d+(?:\.\d+)?)\s*(?:min|mins|minute|minutes|m)\b/);
+      return h || m ? Math.round((h ? parseFloat(h[1]) * 60 : 0) + (m ? parseFloat(m[1]) : 0)) : null;
+    },
+  };
+}
 
 // ── The kit ──────────────────────────────────────────────────────────────────────────────────
 // Loaded once, as the page's scripts run, so it arrives while the profile is still being read.
@@ -496,7 +544,7 @@ function CpwBase({ T, K, film, highlight, tip, shots, onShot }) {
 // Each program (a nutritionist's meal plans) as a card with its own photo (the cover the coach added in the
 // builder, else the first image of its media), or a band in the card's colour with none. No peaks drawn over
 // it (owner, 2026-11-09: "remove the graph design part, looks stupid"). Start opens the program's sheet (its
-// weeks, Ask, and Buy with the code box: today's path); a meal plan's opens the storefront where it is bought.
+// weeks, Ask, and Buy with the code box: today's path); a meal plan's opens its preview (CpwMealPlanSheet).
 const CPW_PEAKS = ["#c0533b", "#d8a23a", "#a78bfa", "#5fb16e", "#5b8df9"];
 function CpwRange({ T, items, failed = false, failedWhat = "", onRetry, onOpen, sample = false, startLabel = "Start" }) {
   const { ACC, INK, ink, first, isSelf, nutri, ON_CTA, CTA } = T;
@@ -726,12 +774,20 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
   const headH = useCpwHeadH(chrome);
 
   // ── The sample (a coach with no Shape account) ──
+  // A sample nutritionist's recipes come from the website's catalog, once it has loaded (cpwLoadRecipeCatalog).
+  const [webKitchen, setWebKitchen] = React.useState(null);
+  React.useEffect(() => {
+    if (live || !nutri) return undefined;
+    let on = true;
+    cpwLoadRecipeCatalog().then((find) => { if (on) setWebKitchen(cpwWebKitchen(find)); }).catch(() => {});
+    return () => { on = false; };
+  }, [live, nutri]);
   const sample = React.useMemo(() => {
     if (live) return null;
     const key = String(sampleKey || nameIn || "");
-    if (nutri) return K.bsNutritionistDemo(demo ? {} : { ...K.bsNutritionistSampleOf({ key }), where: "", business: null });
+    if (nutri) return K.bsNutritionistDemo(demo ? { catalog: webKitchen } : { ...K.bsNutritionistSampleOf({ key }), where: "", business: null, catalog: webKitchen });
     return K.bsTrainerDemo(demo ? { media: "/newdesign/demo/" } : { media: "/newdesign/demo/", ...K.bsTrainerSampleOf({ key }), where: "", business: null });
-  }, [live, nutri, sampleKey, nameIn, demo]);
+  }, [live, nutri, sampleKey, nameIn, demo, webKitchen]);
 
   // ── Who ──
   const isPrivate = !!(live && row && (row.can_view === false || (row.can_view == null && row.is_public === false)));
@@ -955,13 +1011,38 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
   const spineName = { base: "Start here", summit: words.work };
   const camps = campList.map(([k, kind, name]) => ({ key: k, name, spine: spineName[k] || name, label: kind === "Camp" ? `Camp ${++campN}` : kind }));
   const campRefs = React.useRef({});
-  const [campOn, setCampOn] = React.useState(null);
-  const campKeys = camps.map((c) => c.key).join(",");
-  // On a desktop (owner, 2026-11-11: "can we make each of these sections appear as tabs towards the top so
-  // users dont have to scroll so far down"): every camp is a tab in a row under the bar, above the stage,
-  // pinned under the header once it reaches it, the camp that is on lit. A tab scrolls to its camp; the row wraps, never
-  // scrolls sideways. What pins under it (the spine's marks, the studio's row, a camp brought into view)
-  // sits below its measured height, which grows when a narrow dashboard wraps it onto two lines.
+  // ── The camps as pages (owner, 2026-11-11: "don't, have each section just scroll down, have it open its
+  //    own page, if you will ... Similar to the app"): one camp shows at a time, the one picked from the tabs
+  //    (on a phone, the Sections bar's grid), the first on landing. The others stay mounted, hidden, so a
+  //    camp keeps its own state (the kitchen's part, the studio's filter) when the reader comes back to it.
+  const [campPicked, setCampOn] = React.useState(null);
+  const campOn = camps.some((c) => c.key === campPicked) ? campPicked : (camps[0] ? camps[0].key : null);
+  // Until the reader picks one, the page lands on the first camp, and a read that comes in late can add an
+  // earlier one (a photo post brings Base ahead of Book). Once the reader scrolls, taps or types, the camp
+  // on screen is held, so a late read never swaps the page they are reading.
+  React.useEffect(() => {
+    if (campPicked != null || !campOn) return undefined;
+    const hold = () => setCampOn((k) => (k == null ? campOn : k));
+    const evs = ["scroll", "pointerdown", "keydown"];
+    evs.forEach((e) => window.addEventListener(e, hold, { passive: true }));
+    return () => evs.forEach((e) => window.removeEventListener(e, hold));
+  }, [campPicked, campOn]);
+  // A camp left behind stays mounted, hidden, so what it was playing would play on out of sight (the intro
+  // film in Base, the profile song in About). Leaving a camp stops it: a video or audio pauses where it is;
+  // the song's player is another site's frame and can't be told to pause, so it loads again, stopped.
+  const campWas = React.useRef(campOn);
+  React.useEffect(() => {
+    const was = campWas.current;
+    campWas.current = campOn;
+    const el = was && was !== campOn ? campRefs.current[was] : null;
+    if (!el) return;
+    el.querySelectorAll("video, audio").forEach((m) => { try { if (!m.paused) m.pause(); } catch (e) {} });
+    el.querySelectorAll("iframe").forEach((f) => { const src = f.getAttribute("src"); if (src) f.setAttribute("src", src); });
+  }, [campOn]);
+  // The tabs sit under the wire, over the camps (owner, 2026-11-11, with a screenshot of that gap), and pin
+  // under the header once they reach it, so another camp is a click away from anywhere in a long one. The
+  // row wraps, never scrolls sideways. What pins under it (the spine's mark, the studio's filter row) sits
+  // below its measured height, which grows when a narrow dashboard wraps it onto two lines.
   const showTabs = wide && camps.length > 1;
   const campTabsRef = React.useRef(null);
   const [campTabsH, setCampTabsH] = React.useState(50);
@@ -975,29 +1056,8 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
     ro.observe(el);
     return () => ro.disconnect();
   }, [showTabs]);
-  // What pins under the header before a camp: the tab row on a desktop, the bar on a phone.
+  // What pins under the header over a camp: the tab row on a desktop, the bar on a phone.
   const pinH = wide ? (showTabs ? campTabsH : 0) : 51;
-  // The camp on: the last one whose head has come up under the header and the camp tabs (a phone's bar).
-  // Read on scroll, once a frame: an observer of the camps entering a band lit the one before, whose
-  // foot was still in it, while the next camp's head sat under the row.
-  React.useEffect(() => {
-    if (typeof window === "undefined" || !window.addEventListener) return undefined;
-    const keys = campKeys.split(",");
-    let raf = 0;
-    const read = () => {
-      raf = 0;
-      const line = headH + pinH + 40;
-      let on = null;
-      for (const k of keys) { const el = campRefs.current[k]; if (el && el.getBoundingClientRect().top <= line) on = k; }
-      // At the foot of the page the last camps never reach the line: the summit is on there.
-      try { const d = document.documentElement; if (window.innerHeight + window.scrollY >= d.scrollHeight - 4) on = keys[keys.length - 1]; } catch (e) {}
-      setCampOn(on);
-    };
-    const onScroll = () => { if (!raf) raf = (window.requestAnimationFrame || setTimeout)(read); };
-    window.addEventListener("scroll", onScroll, { passive: true });
-    onScroll();
-    return () => { window.removeEventListener("scroll", onScroll); if (raf) (window.cancelAnimationFrame || clearTimeout)(raf); };
-  }, [campKeys, headH, pinH]);
   // On a phone (owner, 2026-11-09: "need a new way to organize these on coaches profile, no side
   // scrolling"): the bar names the camp that is on; a tap opens every camp as a grid under it, and a camp,
   // Escape or a tap off the bar closes it.
@@ -1020,7 +1080,38 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
     document.addEventListener("keydown", key);
     return () => { document.removeEventListener("pointerdown", off, true); document.removeEventListener("keydown", key); };
   }, [campPick]);
-  const toCamp = (k) => { const el = campRefs.current[k]; setCampOn(k); if (el && el.scrollIntoView) { try { el.scrollIntoView({ behavior: cpwReducedMotion() ? "auto" : "smooth", block: "start" }); } catch (e) {} } };
+  // Opening a camp: picked from below the tabs (they are pinned), it starts at its top, under them, as a
+  // new page does; picked with the stage still in view, the page stays where it is. `then` runs once the
+  // camp is drawn (Work with brings the storefront into view after the Summit opens).
+  const campsRef = React.useRef(null);
+  const campThen = React.useRef(null);
+  const toCampTop = () => {
+    const main = campsRef.current;
+    if (!main || typeof window === "undefined" || !window.scrollTo) return;
+    const y = Math.max(0, Math.round(window.scrollY + main.getBoundingClientRect().top - headH - pinH));
+    if (window.scrollY > y + 1) { try { window.scrollTo({ top: y, behavior: "auto" }); } catch (e) { window.scrollTo(0, y); } }
+  };
+  const toCamp = (k, then = null) => {
+    if (k === campOn) { if (then) then(); else toCampTop(); return; }
+    campThen.current = { k, then };
+    setCampOn(k);
+  };
+  React.useEffect(() => {
+    const p = campThen.current;
+    if (!p || p.k !== campOn) return;
+    campThen.current = null;
+    if (p.then) p.then(); else toCampTop();
+  }, [campOn]);
+  // The tabs as a tab list: the arrows, Home and End move between them, each opening its camp.
+  const onTabKey = (e) => {
+    const i = camps.findIndex((c) => c.key === campOn);
+    const j = e.key === "ArrowRight" ? i + 1 : e.key === "ArrowLeft" ? i - 1 : e.key === "Home" ? 0 : e.key === "End" ? camps.length - 1 : null;
+    if (j == null || !camps.length) return;
+    e.preventDefault();
+    const next = camps[(j + camps.length) % camps.length];
+    toCamp(next.key);
+    try { const b = campTabsRef.current && campTabsRef.current.querySelector(`[data-camp-tab="${next.key}"]`); if (b) b.focus(); } catch (err) {}
+  };
 
   // ── The first screen's readouts, each only from what was read ──
   // The open times in the next seven days (the plate) and the first of them (the dock, the wire): none
@@ -1065,15 +1156,19 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
   const statusSaid = !live || isPrivate ? "" : atCapacity ? "Full · waiting list" : listed && weekReady && wide ? (openThisWeek ? `Taking new clients · ${openThisWeek} open ${openThisWeek === 1 ? "time" : "times"} this week` : "Taking new clients") : listed ? "Taking new clients" : "";
 
   // ── Overlays ──
-  const [sheet, setSheet] = React.useState(null); // { kind: 'work'|'reviews'|'piece'|'program'|'replay'|'plateDay'|'recipe', … }
+  const [sheet, setSheet] = React.useState(null); // { kind: 'work'|'reviews'|'piece'|'program'|'mealPlan'|'replay'|'plateDay'|'recipe', … }
   const [editing, setEditing] = React.useState(false);
   const [shared, setShared] = React.useState("");
   const railRef = React.useRef(null);
   // Work with: the sheet on a phone; on a desktop, the storefront at the summit, brought into view.
   const openWork = () => {
     if (wide && railRef.current) {
-      try { railRef.current.scrollIntoView({ behavior: cpwReducedMotion() ? "auto" : "smooth", block: "start" }); } catch (e) {}
-      try { const h = railRef.current.querySelector("h2"); if (h && h.focus) h.focus({ preventScroll: true }); } catch (e) {}
+      toCamp("summit", () => {
+        const rail = railRef.current;
+        if (!rail) return;
+        try { rail.scrollIntoView({ behavior: cpwReducedMotion() ? "auto" : "smooth", block: "start" }); } catch (e) {}
+        try { const h = rail.querySelector("h2"); if (h && h.focus) h.focus({ preventScroll: true }); } catch (e) {}
+      });
       return;
     }
     setSheet({ kind: "work" });
@@ -1143,8 +1238,8 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
         onRetry={() => (listing.state === "error" ? setListingEpoch : setWeekEpoch)((n) => n + 1)} bookHref={providerId ? bookHref : null} onWork={openWork} />
     );
     if (k === "range" && nutri) return (
-      <CpwRange T={T} items={mealPlans.map((pl, i) => ({ key: "mp:" + (pl.id || i), name: pl.name, tag: String(pl.category || "Meal plan").replace(/_/g, " "), weeks: cpwWeeksOf(pl), perWeek: null, price: K.bsWorkPrice(pl.price) || "", paid: K.bsWorkPaid(pl.price), desc: pl.description || pl.blurb || "", poster: null, pr: null }))}
-        failed={live && salePlans.state === "error"} onRetry={salePlans.retry} onOpen={openWork} sample={!!sample} startLabel="Start" />
+      <CpwRange T={T} items={mealPlans.map((pl, i) => ({ key: "mp:" + (pl.id || i), name: pl.name, tag: String(pl.category || "Meal plan").replace(/_/g, " "), weeks: cpwWeeksOf(pl), perWeek: null, price: K.bsWorkPrice(pl.price) || "", paid: K.bsWorkPaid(pl.price), desc: pl.description || pl.blurb || "", poster: null, pr: pl }))}
+        failed={live && salePlans.state === "error"} onRetry={salePlans.retry} onOpen={(pl) => { if (pl) setSheet({ kind: "mealPlan", pl }); }} sample={!!sample} startLabel="Start" />
     );
     if (k === "range") return (
       <React.Fragment>
@@ -1158,8 +1253,8 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
         ) : null}
       </React.Fragment>
     );
-    if (k === "kitchen") return <CpwKitchenTab T={T} kitchen={kitchen} gallery={gallery} onRecipe={(r) => setSheet({ kind: "recipe", r })} />;
-    if (k === "plates") return <CpwPlateNotesTab T={T} days={plateDays} failed={postsFailed} onRetry={posts.retry} onOpen={(day) => setSheet({ kind: "plateDay", day, i: 0 })} />;
+    if (k === "kitchen") return <CpwKitchenTab T={T} K={K} kitchen={kitchen} gallery={gallery} onRecipe={(r) => setSheet({ kind: "recipe", r })} />;
+    if (k === "plates") return <CpwPlateNotesTab T={T} K={K} days={plateDays} failed={postsFailed} onRetry={posts.retry} onOpen={(day, i = 0) => setSheet({ kind: "plateDay", day, i })} />;
     if (k === "replays") return <CpwReplaysTab T={T} replays={replays} failed={postsFailed} onRetry={posts.retry} onOpen={(r) => setSheet({ kind: "replay", r, i: 0 })} />;
     if (k === "proof") return <CpwProof T={T} items={proof} />;
     if (k === "words") return (
@@ -1190,7 +1285,7 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
   const campLead = {
     base: isSelf && !hasBase ? "Pin a highlight and add your intro film in the Shape app (Make it yours → Spotlight), and they lead your page." : `${[film ? "The intro film" : null, highlight ? `${first}'s pin` : null, tip ? `in ${first}'s words` : null].filter(Boolean).join(", ") || `${first}'s latest`}${shots.length ? ", and the newest posts" : ""}.`,
     day: avail.sample ? "Sample times, shown and never taken." : "The week's open times. Take one for a free intro call.",
-    range: nutri ? "Each peak is a week, climbing to the top." : "Each peak is a week of the program, climbing to the top.",
+    range: nutri ? "Open a plan to see a day of its meals." : "Open a program to see its weeks and its first week.",
     kitchen: `What ${first} cooks and teaches.`,
     plates: "",
     replays: "",
@@ -1262,7 +1357,7 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
     .cpw-wire:hover .cpw-wire-run,.cpw-wire:focus-within .cpw-wire-run{animation-play-state:paused}
     .cpw-wire-it{font-size:15px}
     @keyframes cpw-wire{to{transform:translateX(-50%)}}
-    .cpw-campnav{position:sticky;z-index:20;margin:0 0 14px;background:rgba(6,9,15,.94);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);border-bottom:1px solid rgba(238,243,240,.1)}
+    .cpw-campnav{position:sticky;z-index:20;margin-top:18px;background:rgba(6,9,15,.94);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);border-bottom:1px solid rgba(238,243,240,.1)}
     .cpw-campnav button{cursor:pointer;font-family:${CPW_MONO};font-weight:600;font-size:11.5px;letter-spacing:.09em;text-transform:uppercase}
     .cpw-campnav-pick{display:flex;align-items:center;gap:10px;width:100%;min-height:46px;padding:0 16px;border:0;background:transparent;text-align:left}
     .cpw-campnav-pick [data-camp-here]{flex:1;min-width:0;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -1270,15 +1365,16 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
     .cpw-campnav-grid{position:absolute;left:0;right:0;top:100%;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;padding:10px 16px 14px;background:#06090f;border-bottom:1px solid rgba(238,243,240,.1);box-shadow:0 14px 28px rgba(0,0,0,.45)}
     .cpw-campnav-grid[hidden]{display:none}
     .cpw-campnav-grid button{min-width:0;min-height:44px;padding:0 6px;border:1px solid;border-radius:8px;font-size:10.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-    .cpw-camptabs{position:sticky;z-index:20;margin:0 0 18px;background:rgba(6,9,15,.94);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);border-top:1px solid rgba(238,243,240,.08);border-bottom:1px solid rgba(238,243,240,.1)}
+    .cpw-camptabs{position:sticky;z-index:20;margin-top:18px;background:rgba(6,9,15,.94);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);border-top:1px solid rgba(238,243,240,.08);border-bottom:1px solid rgba(238,243,240,.1)}
     .cpw-camptabs-row{display:flex;flex-wrap:wrap;align-items:stretch;column-gap:4px;margin-left:-14px}
     .cpw-camptabs button{position:relative;display:inline-flex;align-items:center;gap:8px;min-height:48px;padding:0 14px;border:0;background:transparent;cursor:pointer;font-family:${CPW_MONO};font-weight:600;font-size:11.5px;letter-spacing:.09em;text-transform:uppercase;white-space:nowrap}
     .cpw-camptabs button::after{content:"";position:absolute;left:10px;right:10px;bottom:-1px;height:2px;border-radius:2px;background:currentColor;opacity:0;transition:opacity .15s}
-    .cpw-camptabs button[aria-current]::after{opacity:1}
-    .cpw-camptabs button:not([aria-current]):hover{color:#fff !important}
+    .cpw-camptabs button[aria-selected="true"]::after{opacity:1}
+    .cpw-camptabs button[aria-selected="false"]:hover{color:#fff !important}
     .cpw-camps{position:relative;padding:36px 0 24px}
     .cpw-camps::before{content:"";position:absolute;left:24px;top:0;bottom:0;width:2px;background:linear-gradient(180deg,${drawA(0.1)},${DRAW} 60px,${DRAW} calc(100% - 60px),${drawA(0.1)});box-shadow:0 0 12px ${drawA(0.35)}}
     .cpw-camp{position:relative;display:grid;grid-template-columns:210px minmax(0,1fr);padding:30px 0 40px}
+    .cpw-camp[hidden]{display:none}
     .cpw-camp-mark{position:sticky;top:${headH + pinH + 28}px;align-self:start;display:grid;grid-template-columns:50px minmax(0,1fr);column-gap:10px;row-gap:3px;align-items:center}
     .cpw-diamond{grid-row:1 / 3;justify-self:center;width:22px;height:22px;transform:rotate(45deg);border:2px solid;box-shadow:0 0 14px ${drawA(0.45)}}
     .cpw-camp-name{font-weight:650;font-size:15.5px;color:#eef3f0}
@@ -1304,6 +1400,13 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
     .cpw-range-body{display:flex;flex-direction:column;flex:1;padding:16px 18px 18px}
     .cpw .cpw-range-name{margin:0 !important;font-family:${CPW_DISPLAY};font-size:22px !important;line-height:1.1 !important;font-weight:850;font-stretch:118%;color:#fff;letter-spacing:normal !important}
     .cpw-range-foot{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:auto;padding-top:18px}
+    .cpw-kitchen-plate{display:grid;grid-template-columns:auto minmax(0,1fr);gap:28px;align-items:center}
+    .cpw-kitchen-recipes{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:16px}
+    .cpw-recipe-card{border:1px solid rgba(238,243,240,.1)}
+    .cpw-recipe-card:hover{border-color:${cssA(0.55)}}
+    .cpw-kitchen-staples{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+    .cpw-plate-days{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:16px;align-items:start}
+    .cpw .cpw-kitchen-h{font-size:21px !important;line-height:1.2 !important}
     .cpw-summit-store [data-work-with-panel] > h2{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
     .cpw-summit-store{max-width:640px;padding:22px 24px 26px;background:linear-gradient(180deg,#0f1722,#0a0f17);border:1px solid rgba(238,243,240,.1);border-top:3px solid ${ACC};border-radius:14px}
     .cpw-dock{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:900;display:flex;align-items:center;gap:18px;padding:10px 10px 10px 12px;width:min(860px,calc(100vw - 32px));background:rgba(10,15,23,.95);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);border:1px solid ${cssA(0.38)};border-radius:16px;box-shadow:0 20px 50px -18px rgba(0,0,0,.95)}
@@ -1381,7 +1484,7 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
        (330), the name 73px (93). The dashboard's own scale (data-in-dash, above) and phones keep theirs. */
     @media (min-width:1000px) and (max-height:899px){
       .cpw:not([data-in-dash]) .cpw-bar{padding:12px 0 10px}
-      .cpw:not([data-in-dash]) .cpw-camptabs{margin-bottom:14px}
+      .cpw:not([data-in-dash]) .cpw-camptabs{margin-top:12px}
       .cpw:not([data-in-dash]) .cpw-camptabs button{min-height:44px}
       .cpw:not([data-in-dash]) .cpw-stage{min-height:clamp(480px,71.2vh,640px)}
       .cpw:not([data-in-dash]) .cpw-stage-grid{grid-template-columns:clamp(240px,36.7vh,330px) minmax(0,1fr);gap:clamp(36px,6.2vh,56px);padding:clamp(24px,4.4vh,40px) clamp(28px,4.4vh,40px) clamp(22px,3.8vh,34px);min-height:clamp(480px,71.2vh,640px)}
@@ -1423,6 +1526,7 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
       .cpw-camp-label{display:block;margin-bottom:8px}
       .cpw-camp-head{flex-direction:column;align-items:flex-start;gap:6px}
       .cpw-base-grid{grid-template-columns:minmax(0,1fr)}
+      .cpw-kitchen-plate,.cpw-kitchen-staples,.cpw-plate-days{grid-template-columns:minmax(0,1fr)}
       .cpw-quotes{grid-template-columns:repeat(2,minmax(0,1fr))}
     }
     @media (max-width:760px){
@@ -1492,42 +1596,7 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
             <span role="status" aria-live="polite" className="cpw-dtl" style={{ color: ACC }}>{shared}</span>
           </div>
         </div>
-      </div>
 
-      {/* ── The camps' names, under the bar and over the stage, pinned under the header from there: tabs
-             on a desktop, one bar on a phone. Nothing is lit until a camp comes up under them. ── */}
-      {showTabs ? (
-        <nav ref={campTabsRef} aria-label="Profile sections" className="cpw-camptabs" data-camp-tabs="" style={{ top: headH }}>
-          <div className="cpw-wrap">
-            <div className="cpw-camptabs-row">
-              {camps.map((c) => (
-                <button key={c.key} type="button" data-camp-tab={c.key} aria-current={campOn === c.key ? "true" : undefined} onClick={() => toCamp(c.key)}
-                  style={{ color: campOn === c.key ? ACC : ink(0.72) }}>{c.name}</button>
-              ))}
-            </div>
-          </div>
-        </nav>
-      ) : null}
-      {!wide && camps.length > 1 ? (
-        <nav ref={campNavRef} aria-label="Profile sections" className="cpw-campnav" data-camp-nav="" style={{ top: headH }}>
-          {(() => {
-            const here = camps.find((c) => c.key === campOn) || null;
-            return (
-              <button ref={campPickRef} type="button" className="cpw-campnav-pick" data-camp-pick="" aria-expanded={campPick ? "true" : "false"} aria-controls="cpw-camp-grid" onClick={() => setCampPick((v) => !v)}>
-                <span data-camp-here="" style={{ color: here ? ACC : INK }}>{!here ? "Sections" : here.label === here.name ? here.name : `${here.label} · ${here.name}`}</span>
-                <svg aria-hidden="true" width="12" height="12" viewBox="0 0 12 12" style={{ transform: campPick ? "rotate(180deg)" : "none" }}><path d="M2.5 4.5L6 8l3.5-3.5" fill="none" stroke={ink(0.55)} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg>
-              </button>
-            );
-          })()}
-          <div id="cpw-camp-grid" className="cpw-campnav-grid" data-camp-grid="" hidden={!campPick}>
-            {camps.map((c) => (
-              <button key={c.key} type="button" data-camp-link={c.key} aria-current={campOn === c.key ? "true" : undefined} onClick={() => { closeCampPick(); toCamp(c.key); }}
-                style={{ color: campOn === c.key ? ACC : "#eef3f0", borderColor: campOn === c.key ? cpwA(ACC, 0.6) : "rgba(238,243,240,.14)", background: campOn === c.key ? cpwA(ACC, 0.12) : "transparent" }}>{c.name}</button>
-            ))}
-          </div>
-        </nav>
-      ) : null}
-      <div className="cpw-wrap">
         {/* ── The first screen: the stage ── */}
         <section className={"cpw-stage" + (wire.length ? " cpw-has-wire" : "")} data-who="" aria-label={name}>
           {/* The art: their photo, darkened, under the terrain. The whole stage on a desktop; on a phone the
@@ -1617,11 +1686,48 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
         <CpwWire items={wire} T={T} />
       </div>
 
-      {/* ── The spine: the camps, one after another ── */}
+      {/* ── The camps' names, under the wire and over the camps, pinned under the header from there: tabs on
+             a desktop, one bar on a phone. The camp they name is the one shown. ── */}
+      {showTabs ? (
+        <nav ref={campTabsRef} aria-label="Profile sections" className="cpw-camptabs" data-camp-tabs="" style={{ top: headH }}>
+          <div className="cpw-wrap">
+            <div className="cpw-camptabs-row" role="tablist" aria-label="Profile sections" onKeyDown={onTabKey}>
+              {camps.map((c) => {
+                const on = campOn === c.key;
+                return (
+                  <button key={c.key} type="button" role="tab" id={`camp-tab-${c.key}`} aria-controls={`camp-${c.key}`} aria-selected={on ? "true" : "false"} tabIndex={on ? 0 : -1}
+                    data-camp-tab={c.key} onClick={() => toCamp(c.key)} style={{ color: on ? ACC : ink(0.72) }}>{c.name}</button>
+                );
+              })}
+            </div>
+          </div>
+        </nav>
+      ) : null}
+      {!wide && camps.length > 1 ? (
+        <nav ref={campNavRef} aria-label="Profile sections" className="cpw-campnav" data-camp-nav="" style={{ top: headH }}>
+          {(() => {
+            const here = camps.find((c) => c.key === campOn) || camps[0];
+            return (
+              <button ref={campPickRef} type="button" className="cpw-campnav-pick" data-camp-pick="" aria-expanded={campPick ? "true" : "false"} aria-controls="cpw-camp-grid" onClick={() => setCampPick((v) => !v)}>
+                <span data-camp-here="" style={{ color: ACC }}>{here.label === here.name ? here.name : `${here.label} · ${here.name}`}</span>
+                <svg aria-hidden="true" width="12" height="12" viewBox="0 0 12 12" style={{ transform: campPick ? "rotate(180deg)" : "none" }}><path d="M2.5 4.5L6 8l3.5-3.5" fill="none" stroke={ink(0.55)} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg>
+              </button>
+            );
+          })()}
+          <div id="cpw-camp-grid" className="cpw-campnav-grid" data-camp-grid="" hidden={!campPick}>
+            {camps.map((c) => (
+              <button key={c.key} type="button" data-camp-link={c.key} aria-current={campOn === c.key ? "true" : undefined} onClick={() => { closeCampPick(); toCamp(c.key); }}
+                style={{ color: campOn === c.key ? ACC : "#eef3f0", borderColor: campOn === c.key ? cpwA(ACC, 0.6) : "rgba(238,243,240,.14)", background: campOn === c.key ? cpwA(ACC, 0.12) : "transparent" }}>{c.name}</button>
+            ))}
+          </div>
+        </nav>
+      ) : null}
+      {/* ── The spine: the camp picked, the others mounted and hidden ── */}
       <div className="cpw-wrap">
-        <main className="cpw-camps" style={{ minWidth: 0 }}>
+        <main ref={campsRef} className="cpw-camps" style={{ minWidth: 0 }}>
           {camps.map((c) => (
-            <section key={c.key} ref={(el) => { campRefs.current[c.key] = el; }} data-camp={c.key} id={`camp-${c.key}`} aria-labelledby={`camp-h-${c.key}`} className="cpw-camp" style={{ scrollMarginTop: headH + pinH + (wide ? 16 : 9) }}>
+            <section key={c.key} ref={(el) => { campRefs.current[c.key] = el; }} data-camp={c.key} id={`camp-${c.key}`} aria-labelledby={`camp-h-${c.key}`} className="cpw-camp"
+              role={showTabs ? "tabpanel" : undefined} hidden={c.key !== campOn} data-camp-on={c.key === campOn ? "" : undefined} style={{ scrollMarginTop: headH + pinH + (wide ? 16 : 9) }}>
               <div className="cpw-camp-mark" aria-hidden="true">
                 <span className="cpw-diamond" style={{ borderColor: campOn === c.key ? DRAW : cpwA(DRAW, 0.7), background: campOn === c.key ? cpwA(DRAW, 0.25) : pal.PAPER_BG }} />
                 <span className="cpw-dtl" style={{ color: ACC }}>{c.label}</span>
@@ -1672,6 +1778,17 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
           days={studioModel ? studioModel.workouts.filter((w) => w.kind === "day" && w.program && w.program.id === String(sheet.pr.id)).sort((a, b) => a.key.localeCompare(b.key, "en", { numeric: true })) : []}
           onBuy={() => { const pl = sheet.pr.plan || {}; lvBuyPlan({ name: pl.name, price: sheet.pr.price, planId: pl.id, providerId: pl.provider_id || pl.providerId || providerId, providerRole: pl.provider_role || pl.providerRole || role }); }} />
       ) : null}
+      {sheet && sheet.kind === "mealPlan" ? (() => {
+        const pl = sheet.pl;
+        const provider = pl.provider_id || pl.providerId || providerId;
+        // The storefront's rule (CpwWorkWith canBuy): sold here only from a listing, never a sample's.
+        const canBuy = !isSelf && !sample && listed && pl.id != null && !!provider && K.bsWorkPaid(pl.price);
+        return (
+          <CpwMealPlanSheet T={T} K={K} pl={pl} canBuy={canBuy} onClose={() => setSheet(null)} onWork={() => { setSheet(null); openWork(); }}
+            onAsk={isSelf || isPrivate ? null : () => { setSheet(null); message(); }}
+            onBuy={() => lvBuyPlan({ name: pl.name, price: K.bsWorkPrice(pl.price), planId: pl.id, providerId: provider, providerRole: pl.provider_role || pl.providerRole || "nutritionist" })} />
+        );
+      })() : null}
       {sheet && sheet.kind === "replay" ? (
         <CpwReplaySheet T={T} r={sheet.r} i={sheet.i} setI={(i) => setSheet({ ...sheet, i })} avatar={avatarShown} onClose={() => setSheet(null)} onWork={() => { setSheet(null); openWork(); }} />
       ) : null}
@@ -1679,7 +1796,7 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
         <CpwPlateSheet T={T} K={K} day={sheet.day} i={sheet.i} setI={(i) => setSheet({ ...sheet, i })} avatar={avatarShown} onClose={() => setSheet(null)} onWork={() => { setSheet(null); openWork(); }} />
       ) : null}
       {sheet && sheet.kind === "recipe" ? (
-        <CpwRecipeSheet T={T} r={sheet.r} onClose={() => setSheet(null)} />
+        <CpwRecipeSheet T={T} K={K} r={sheet.r} onClose={() => setSheet(null)} />
       ) : null}
       {editing && canEdit ? <ProfileCustomizer key={uid || "self"} initial={custom} c={ACC} coach ownerUid={uid} ownerName={name} onClose={() => setEditing(false)} onSave={(doc) => { setCustom(doc); setEditing(false); }} /> : null}
     </div>
@@ -2446,68 +2563,138 @@ function CpwSwatch({ r, T, size = 76 }) {
   if (r.photo) return <img src={r.photo} alt="" style={{ flex: "none", width: size, height: size, objectFit: "cover" }} />;
   return <span aria-hidden="true" style={{ flex: "none", width: size, height: size, display: "grid", placeItems: "center", background: `linear-gradient(135deg, ${cpwA(T.ACC, 0.55)}, ${T.pal.PAPER2})`, color: T.INK, fontSize: size * 0.4, fontWeight: 600 }}>{String(r.t || "?").trim().charAt(0).toUpperCase()}</span>;
 }
-function CpwKitchenTab({ T, kitchen, gallery, onRecipe }) {
+// ── Kitchen ──────────────────────────────────────────────────────────────────────────────────
+// The camp as one page (owner, 2026-11-11, of Kitchen and Plate notes: "we also need to really improve these
+// sections and that data/information that is shown on them"): every part of the kitchen shows at once,
+// none behind a switch. The plate the coach teaches, drawn as a plate with its shares on it, beside the
+// portion rules; the recipes they give clients, each with its time, energy, servings, where its energy
+// comes from and their note; and the staples, by fridge, pantry and freezer.
+function CpwPlate({ plate, colors, size = 216 }) {
+  const word = { veg: "Veg", protein: "Protein", carbs: "Carbs" };
+  const parts = [["veg", plate.veg], ["protein", plate.protein], ["carbs", plate.carbs]].filter(([, v]) => Number(v) > 0);
+  const tot = parts.reduce((n, [, v]) => n + Number(v), 0) || 1;
+  const c = size / 2, r = size / 2 - 16;
+  let a0 = -Math.PI / 2;
+  const arcs = parts.map(([k, v]) => {
+    const a1 = a0 + (Number(v) / tot) * Math.PI * 2;
+    const pt = (a) => `${(c + r * Math.cos(a)).toFixed(2)} ${(c + r * Math.sin(a)).toFixed(2)}`;
+    const mid = (a0 + a1) / 2;
+    const out = { k, v: Number(v), d: parts.length > 1 ? `M ${c} ${c} L ${pt(a0)} A ${r} ${r} 0 ${a1 - a0 > Math.PI ? 1 : 0} 1 ${pt(a1)} Z` : null, lx: c + r * 0.58 * Math.cos(mid), ly: c + r * 0.58 * Math.sin(mid) };
+    a0 = a1;
+    return out;
+  });
+  return (
+    <svg data-kitchen-plate-art="" width={size} height={size} viewBox={`0 0 ${size} ${size}`} role="img" aria-label={`The plate: ${arcs.map((a) => `${a.v}% ${word[a.k].toLowerCase()}`).join(", ")}`} style={{ flex: "none", display: "block" }}>
+      <circle cx={c} cy={c} r={c - 2} fill="#0f1722" stroke="rgba(238,243,240,.16)" strokeWidth="2" />
+      <circle cx={c} cy={c} r={c - 9} fill="none" stroke="rgba(238,243,240,.08)" strokeWidth="1" />
+      {arcs.map((a) => (a.d ? <path key={a.k} d={a.d} fill={colors[a.k]} stroke="#0a0f17" strokeWidth="3" strokeLinejoin="round" /> : <circle key={a.k} cx={c} cy={c} r={r} fill={colors[a.k]} />))}
+      {arcs.filter((a) => a.v >= 12).map((a) => (
+        <g key={a.k} aria-hidden="true">
+          <text x={a.lx} y={a.ly - 2} textAnchor="middle" style={{ fontFamily: CPW_FIG, fontWeight: 700, fontSize: 21, fill: "#06090f" }}>{a.v}%</text>
+          <text x={a.lx} y={a.ly + 14} textAnchor="middle" style={{ fontFamily: CPW_MONO, fontWeight: 700, fontSize: 9.5, letterSpacing: "0.1em", fill: "rgba(6,9,15,.78)", textTransform: "uppercase" }}>{word[a.k].toUpperCase()}</text>
+        </g>
+      ))}
+    </svg>
+  );
+}
+// Where a recipe's or a day's energy comes from, as a bar: protein, carbs and fat, by their kcal.
+function CpwEnergyBar({ K, m, colors, ink, grams = true }) {
+  const split = K.energySplit(m);
+  if (!split) return null;
+  // A gold or amber accent takes the carbs' amber, so the plate draws carbs grey (cpwPlateColors); here they
+  // are a light grey and fat a dark one, two shades apart, so the bar's three never read as two.
+  const greyCarbs = colors.carbs === ink(0.4);
+  const seg = [["p", "Protein", colors.protein], ["c", "Carbs", greyCarbs ? ink(0.82) : colors.carbs], ["f", "Fat", ink(greyCarbs ? 0.3 : 0.38)]];
+  return (
+    <div data-energy-split="">
+      <div role="img" aria-label={`Energy: ${split.p}% protein, ${split.c}% carbs, ${split.f}% fat`} style={{ display: "flex", height: 6, borderRadius: 99, overflow: "hidden", gap: 2 }}>
+        {seg.map(([k, , col]) => (split[k] > 0 ? <span key={k} style={{ flex: `${split[k]} 0 0`, background: col }} /> : null))}
+      </div>
+      {grams ? (
+        <div aria-hidden="true" style={{ marginTop: 6, display: "flex", flexWrap: "wrap", gap: "2px 12px", fontFamily: CPW_MONO, fontSize: 11, color: ink(0.7) }}>
+          {seg.map(([k, l, col]) => <span key={k} style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><span style={{ width: 7, height: 7, borderRadius: 99, background: col }} />{cpwNum(m[k])} g {l.toLowerCase()}</span>)}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+function CpwKitchenTab({ T, K, kitchen, gallery, onRecipe }) {
   const { pal, ACC, INK, ink, first, isSelf } = T;
   const plate = kitchen ? kitchen.plate : null;
   const rules = kitchen ? kitchen.rules : [];
   const staples = kitchen ? kitchen.staples : [];
   const recipes = kitchen ? kitchen.recipes : [];
-  const count = { recipes: recipes.length, plate: plate || rules.length ? 1 : 0, staples: staples.length };
-  const parts = [["recipes", "Recipes"], ["plate", "Plate"], ["staples", "Staples"]].filter(([k]) => isSelf || count[k] > 0);
-  const [sec, setSec] = React.useState(null);
-  const now = parts.some(([k]) => k === sec) ? sec : (parts[0] ? parts[0][0] : null);
   const colors = cpwPlateColors(ACC, ink);
-  const part = { Veg: "Vegetables", Protein: "Protein", Carbs: "Carbs" };
   const inApp = (what) => <CpwHint ink={ink}>{what} Set it in the Shape app, in Make it yours → Your kitchen.</CpwHint>;
-  const recipesPart = recipes.length ? (
-    <div data-kitchen-recipes="" className="cpw-cards2" style={{ gap: 10 }}>
-      {recipes.map((r) => (
-        <button key={r.id} type="button" data-recipe={r.id} onClick={() => onRecipe(r)} style={{ width: "100%", padding: "10px 0 0", border: 0, borderTop: `1px solid ${ink(0.12)}`, background: "transparent", color: INK, display: "flex", gap: 12, alignItems: "stretch", textAlign: "left", cursor: "pointer", fontFamily: CPW_BODY }}>
-          <CpwSwatch r={r} T={T} />
-          <span style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 3, lineHeight: 1.35 }}>
-            <span style={{ fontFamily: CPW_DISPLAY, fontWeight: 600, fontSize: 16 }}>{r.t}</span>
-            {cpwRecipeMeta(r) ? <span style={{ fontFamily: CPW_MONO, fontSize: 11, color: ink(0.62) }}>{cpwRecipeMeta(r)}</span> : null}
-            {r.note ? <span style={{ fontSize: 14, color: ink(0.86) }}>{r.note}</span> : null}
-            <span style={{ marginTop: 2, fontFamily: CPW_DISPLAY, fontSize: 13.5, fontWeight: 600, color: ACC }}>The recipe →</span>
-          </span>
-        </button>
-      ))}
+  const head = (title, count, line) => (
+    <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12, flexWrap: "wrap", paddingBottom: 8, marginBottom: 14, borderBottom: `1px solid ${ink(0.12)}` }}>
+      <h3 className="cpw-kitchen-h" style={{ margin: 0, fontFamily: CPW_DISPLAY, fontWeight: 700, fontSize: 21, color: INK }}>{title}{count ? <span className="cpw-fig" style={{ marginLeft: 10, fontSize: 17, color: ink(0.55) }}>{count}</span> : null}</h3>
+      {line ? <span style={{ fontSize: 13.5, color: ink(0.66) }}>{line}</span> : null}
     </div>
-  ) : isSelf ? inApp("Write the recipes you give clients.") : null;
+  );
   const platePart = plate || rules.length ? (
-    <div data-kitchen-plate="">
-      <span style={cpwEyebrow(ink, ACC)}>The plate {first} teaches</span>
-      <div style={{ marginTop: 12, display: "flex", gap: 22, alignItems: "center", flexWrap: "wrap" }}>
-        {plate ? (
-          <span aria-hidden="true" style={{ flex: "none", width: 150, height: 150, borderRadius: 99, background: `conic-gradient(${colors.veg} 0 ${plate.veg}%, ${colors.protein} ${plate.veg}% ${plate.veg + plate.protein}%, ${colors.carbs} ${plate.veg + plate.protein}% 100%)`, display: "grid", placeItems: "center", boxShadow: `0 0 0 6px ${pal.PAPER2}` }}>
-            <span style={{ width: 54, height: 54, borderRadius: 99, background: pal.PAPER }} />
-          </span>
-        ) : null}
-        <div style={{ flex: "1 1 200px", minWidth: 0, maxWidth: 320, display: "flex", flexDirection: "column", gap: 7 }}>
-          {plate ? [["Veg", plate.veg, colors.veg], ["Protein", plate.protein, colors.protein], ["Carbs", plate.carbs, colors.carbs]].filter(([, v]) => v > 0).map(([k, v, c]) => (
-            <span key={k} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14.5 }}>
-              <span aria-hidden="true" style={{ width: 10, height: 10, borderRadius: 99, background: c }} /><span style={{ flex: 1 }}>{part[k]}</span>
-              <span style={{ fontFamily: CPW_MONO, fontSize: 12, color: ink(0.7) }}>{v}%</span>
-            </span>
-          )) : null}
+    <div data-kitchen-plate="" className="cpw-kitchen-plate">
+      {plate ? (
+        <div style={{ display: "flex", gap: 18, alignItems: "center", flexWrap: "wrap" }}>
+          <CpwPlate plate={plate} colors={colors} />
+          <div data-plate-legend="" style={{ display: "flex", flexDirection: "column", gap: 8, minWidth: 150 }}>
+            {[["Vegetables", plate.veg, colors.veg], ["Protein", plate.protein, colors.protein], ["Carbs", plate.carbs, colors.carbs]].filter(([, v]) => v > 0).map(([l, v, col]) => (
+              <span key={l} style={{ display: "flex", alignItems: "center", gap: 9, fontSize: 14.5 }}>
+                <span aria-hidden="true" style={{ width: 11, height: 11, borderRadius: 3, background: col }} /><span style={{ flex: 1 }}>{l}</span>
+                <span className="cpw-fig" style={{ fontSize: 16 }}>{v}%</span>
+              </span>
+            ))}
+          </div>
         </div>
-      </div>
-      {rules.length ? <ul style={{ margin: "16px 0 0", padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 7, maxWidth: 680 }}>{rules.map((r, i) => <li key={i} style={{ display: "flex", gap: 10, fontSize: 15, lineHeight: 1.45 }}><span aria-hidden="true" style={{ color: ACC, fontFamily: CPW_MONO }}>—</span>{r}</li>)}</ul> : null}
+      ) : null}
+      {rules.length ? (
+        <ol data-plate-rules="" style={{ margin: 0, padding: 0, listStyle: "none", display: "grid", gap: 10, alignContent: "start" }}>
+          {rules.map((r, i) => (
+            <li key={i} className="cpw-card" style={{ display: "flex", gap: 14, alignItems: "baseline", padding: "13px 16px", borderRadius: 12 }}>
+              <span className="cpw-fig" style={{ flex: "none", width: 26, fontSize: 22, color: ACC }}>{i + 1}</span>
+              <span style={{ fontSize: 15.5, lineHeight: 1.45, color: INK }}>{r}</span>
+            </li>
+          ))}
+        </ol>
+      ) : null}
     </div>
   ) : isSelf ? inApp("Show members how you build a plate, and the portion rules you teach.") : null;
+  const recipesPart = recipes.length ? (
+    <div data-kitchen-recipes="" className="cpw-kitchen-recipes">
+      {recipes.map((r) => {
+        const facts = [Number.isFinite(r.min) ? [r.min, "min"] : null, Number.isFinite(r.kcal) ? [r.kcal, "kcal"] : null, Number.isFinite(r.p) ? [r.p, "g protein"] : null, Number.isFinite(r.serves) ? [r.serves, r.serves === 1 ? "serving" : "servings"] : null].filter(Boolean);
+        return (
+          <button key={r.id} type="button" data-recipe={r.id} onClick={() => onRecipe(r)} className="cpw-card cpw-recipe-card" style={{ padding: 0, overflow: "hidden", color: INK, textAlign: "left", cursor: "pointer", fontFamily: CPW_BODY, display: "flex", flexDirection: "column" }}>
+            {r.photo ? <img src={r.photo} alt="" loading="lazy" style={{ display: "block", width: "100%", height: 132, objectFit: "cover" }} />
+              : <span aria-hidden="true" style={{ display: "flex", alignItems: "flex-end", height: 72, padding: "0 16px 10px", background: `linear-gradient(120deg, ${cpwA(ACC, 0.42)}, rgba(10,15,23,0) 75%), #0f1722`, fontFamily: CPW_DISPLAY, fontWeight: 850, fontSize: 30, color: "rgba(255,255,255,.9)" }}>{String(r.t || "?").trim().charAt(0).toUpperCase()}</span>}
+            <span style={{ display: "flex", flexDirection: "column", gap: 8, padding: "14px 16px 16px", flex: 1 }}>
+              <span style={{ fontFamily: CPW_DISPLAY, fontWeight: 700, fontSize: 17.5, lineHeight: 1.2 }}>{r.t}</span>
+              {facts.length ? (
+                <span data-recipe-facts="" style={{ display: "flex", flexWrap: "wrap", gap: "4px 14px" }}>
+                  {facts.map(([n, l]) => <span key={l} style={{ display: "inline-flex", alignItems: "baseline", gap: 4 }}><span className="cpw-fig" style={{ fontSize: 16 }}>{n}</span><span style={{ fontSize: 12, color: ink(0.66) }}>{l}</span></span>)}
+                </span>
+              ) : null}
+              <CpwEnergyBar K={K} m={{ p: r.p, c: r.c, f: r.f }} colors={colors} ink={ink} />
+              {r.note ? <span data-recipe-note="" style={{ display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical", overflow: "hidden", paddingLeft: 10, borderLeft: `2px solid ${ACC}`, fontSize: 14, lineHeight: 1.45, color: ink(0.88) }}>{r.note}</span> : null}
+              <span style={{ marginTop: "auto", paddingTop: 4, fontFamily: CPW_DISPLAY, fontSize: 13.5, fontWeight: 650, color: ACC }}>The recipe →</span>
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  ) : isSelf ? inApp("Write the recipes you give clients.") : null;
   const groups = { fridge: "Fridge", pantry: "Pantry", freezer: "Freezer" };
   const staplesPart = staples.length ? (
     <div data-kitchen-staples="">
-      <span style={cpwEyebrow(ink)}>Always in the kitchen</span>
-      <div className="cpw-cards2" style={{ marginTop: 12, gap: 10 }}>
+      <div className="cpw-kitchen-staples">
         {Object.keys(groups).map((g) => {
           const inG = staples.filter((x) => x.g === g);
           if (!inG.length) return null;
           return (
-            <div key={g} data-staple-group={g} style={{ padding: "12px 14px 14px", borderRadius: 14, background: pal.PAPER2 }}>
-              <div style={{ fontFamily: CPW_DISPLAY, fontSize: 15, fontWeight: 600 }}>{groups[g]}<span style={{ marginLeft: 6, fontFamily: CPW_MONO, fontSize: 11, fontWeight: 400, color: ink(0.55) }}>{inG.length}</span></div>
-              <div style={{ marginTop: 8, display: "flex", flexWrap: "wrap", gap: 8 }}>
-                {inG.map((x) => <span key={x.n} data-staple="" style={{ minHeight: 34, padding: "0 13px", borderRadius: 999, display: "inline-flex", alignItems: "center", background: cpwA(ACC, 0.12), fontSize: 14 }}>{x.n}</span>)}
+            <div key={g} data-staple-group={g} className="cpw-card" style={{ padding: "14px 16px 16px", borderRadius: 14 }}>
+              <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", fontFamily: CPW_DISPLAY, fontSize: 15.5, fontWeight: 650 }}>{groups[g]}<span className="cpw-fig" style={{ fontSize: 14, color: ink(0.55) }}>{inG.length}</span></div>
+              <div style={{ marginTop: 10, display: "flex", flexWrap: "wrap", gap: 7 }}>
+                {inG.map((x) => <span key={x.n} data-staple="" style={{ minHeight: 32, padding: "0 12px", borderRadius: 999, display: "inline-flex", alignItems: "center", background: cpwA(ACC, 0.12), fontSize: 14 }}>{x.n}</span>)}
               </div>
             </div>
           );
@@ -2517,26 +2704,15 @@ function CpwKitchenTab({ T, kitchen, gallery, onRecipe }) {
     </div>
   ) : isSelf ? inApp("List what is always in your fridge, pantry and freezer.") : null;
   return (
-    <section data-kitchen-tab="" style={{ paddingTop: 20 }}>
-      {now ? (
-        <React.Fragment>
-          {parts.length > 1 ? (
-            <div role="group" aria-label="In the kitchen" style={{ display: "flex", gap: 6, maxWidth: 520 }}>
-              {parts.map(([k, label]) => { const on = k === now; return (
-                <button key={k} type="button" data-kitchen-section={k} aria-pressed={on} onClick={() => setSec(k)} style={{ flex: 1, minHeight: 44, padding: "0 8px", border: `1px solid ${on ? ACC : ink(0.22)}`, background: on ? cpwA(ACC, 0.14) : "transparent", color: INK, fontFamily: CPW_DISPLAY, fontSize: 14, fontWeight: on ? 600 : 500, cursor: "pointer" }}>
-                  {label}{k !== "plate" && count[k] ? <span style={{ marginLeft: 6, fontFamily: CPW_MONO, fontSize: 11, color: ink(0.6) }}>{count[k]}</span> : null}
-                </button>
-              ); })}
-            </div>
-          ) : now === "recipes" ? <span style={cpwEyebrow(ink, ACC)}>Recipes</span> : null}
-          <div style={{ marginTop: parts.length > 1 || now === "recipes" ? 16 : 0 }}>{now === "recipes" ? recipesPart : now === "plate" ? platePart : staplesPart}</div>
-        </React.Fragment>
-      ) : null}
-      <CpwGallery gallery={gallery} />
+    <section data-kitchen-tab="" style={{ paddingTop: 20, display: "flex", flexDirection: "column", gap: 34 }}>
+      {platePart ? <div data-kitchen-part="plate">{head(`The plate ${first} teaches`, null, plate ? "Every meal, built the same way" : null)}{platePart}</div> : null}
+      {recipesPart ? <div data-kitchen-part="recipes">{head(`What ${first} cooks`, recipes.length || null, recipes.length ? "Tap one for the ingredients and the method" : null)}{recipesPart}</div> : null}
+      {staplesPart ? <div data-kitchen-part="staples">{head("Always in the kitchen", staples.length || null, null)}{staplesPart}</div> : null}
+      <CpwGallery gallery={gallery} top={0} />
     </section>
   );
 }
-function CpwRecipeSheet({ T, r, onClose }) {
+function CpwRecipeSheet({ T, K, r, onClose }) {
   const { pal, ACC, INK, ink, first } = T;
   return (
     <CpwSheet pal={pal} label={r.t} onClose={onClose} data={{ "data-recipe-sheet": "" }}>
@@ -2549,10 +2725,13 @@ function CpwRecipeSheet({ T, r, onClose }) {
         </div>
       </div>
       {r.note ? <p style={{ margin: "14px 0 0", paddingLeft: 10, borderLeft: `3px solid ${ACC}`, fontSize: 15, lineHeight: 1.5 }}>{r.note}</p> : null}
+      {K ? <div style={{ marginTop: 14 }}><CpwEnergyBar K={K} m={{ p: r.p, c: r.c, f: r.f }} colors={cpwPlateColors(ACC, ink)} ink={ink} /></div> : null}
       {Array.isArray(r.ing) && r.ing.length ? (
         <div style={{ marginTop: 16 }}>
           <span style={cpwEyebrow(ink)}>Ingredients</span>
-          {r.ing.map((g, i) => <div key={i} style={{ display: "flex", gap: 10, padding: "8px 0", borderTop: `1px solid ${ink(0.12)}`, fontSize: 14.5 }}><span style={{ flex: 1 }}>{g.n}</span><span style={{ fontFamily: CPW_MONO, fontSize: 12, color: ink(0.7) }}>{g.m || g.q || ""}</span></div>)}
+          {/* An ingredient is { n: its amount, m: its name } (profileCustom.mjs bsKitchenRecipeItem), the amount
+              first as the app's sheet has it; this read them the other way round, the name in the amount's place. */}
+          {r.ing.map((g, i) => <div key={i} data-recipe-ing="" style={{ display: "flex", gap: 12, padding: "8px 0", borderTop: `1px solid ${ink(0.12)}`, fontSize: 14.5 }}><span style={{ flex: "none", width: 84, fontFamily: CPW_MONO, fontSize: 12, color: ink(0.7), paddingTop: 2 }}>{g.n || ""}</span><span style={{ flex: 1 }}>{g.m}</span></div>)}
         </div>
       ) : null}
       {Array.isArray(r.steps) && r.steps.length ? (
@@ -2567,21 +2746,75 @@ function CpwRecipeSheet({ T, r, onClose }) {
 }
 
 // ── Plate notes ──────────────────────────────────────────────────────────────────────────────
-function CpwPlateNotesTab({ T, days, failed = false, onRetry, onOpen }) {
+// Each day the coach shared, open on the page (owner, 2026-11-11: "really improve these sections and that
+// data/information that is shown on them"): the day's energy and protein, carbs and fat when every meal
+// carried them, where its energy came from, then each meal at its time with its energy and protein, the
+// coach's note on it, and the Shape Kitchen recipe it was made from (its page on this site). A meal opens
+// the day's sheet at that meal. Above the days, what they add up to: the days shared and the day's average.
+const cpwDayTotals = (day) => {
+  const sum = (k) => { let n = 0; for (const x of day.meals) { const v = cpwNum(x.meal && x.meal[k]); if (v == null) return null; n += v; } return n; };
+  return { kcal: sum("kcal"), p: sum("p"), c: sum("c"), f: sum("f") };
+};
+const cpwRecipeHref = (slug) => (/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(String(slug || "")) ? `/recipes/${slug}` : null);
+function CpwPlateNotesTab({ T, K, days, failed = false, onRetry, onOpen }) {
   const { pal, ACC, INK, ink, first, isSelf } = T;
+  const colors = cpwPlateColors(ACC, ink);
   const dayName = (day) => { if (!Number.isFinite(day.at)) return "A day of meals"; try { return new Date(day.at).toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" }); } catch (e) { return day.key; } };
+  const fmt = (ms) => { try { return new Date(ms).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }); } catch (e) { return ""; } };
+  const totals = days.map(cpwDayTotals);
+  const avg = (k) => (totals.length && totals.every((t) => t[k] != null) ? Math.round(totals.reduce((n, t) => n + t[k], 0) / totals.length) : null);
+  const summary = [[days.length, days.length === 1 ? "day shared" : "days shared"], [avg("kcal"), "kcal a day"], [avg("p"), "g protein a day"], [days.reduce((n, d) => n + d.meals.length, 0), "meals"]].filter(([n]) => n != null && n > 0);
   return (
     <section data-plates-tab="" style={{ paddingTop: 20 }}>
-      <p style={{ margin: 0, fontSize: 14.5, color: ink(0.74) }}>Days of meals {first} logged and shared. Step through each one.</p>
-      <div className="cpw-cards2" style={{ marginTop: 14, gap: 12 }}>
-        {days.map((day) => (
-          <button key={day.key} type="button" data-plate-day="" onClick={() => onOpen(day)} style={{ padding: "13px 15px", border: 0, borderTop: `2px solid ${ACC}`, background: pal.PAPER2, color: INK, textAlign: "left", cursor: "pointer", display: "flex", flexDirection: "column", gap: 4, fontFamily: CPW_BODY }}>
-            <span style={{ fontFamily: CPW_MONO, fontSize: 10, letterSpacing: "0.14em", textTransform: "uppercase", color: ink(0.64) }}>{day.meals.length} {day.meals.length === 1 ? "meal" : "meals"}</span>
-            <span style={{ fontFamily: CPW_DISPLAY, fontWeight: 600, fontSize: 18 }}>{dayName(day)}</span>
-            <span style={{ fontSize: 13.5, color: ink(0.74) }}>{day.meals.map((m) => m.title).join(" · ")}</span>
-            <span style={{ fontFamily: CPW_MONO, fontSize: 11, color: ink(0.62) }}>{[day.proteinAll ? `${day.protein} g protein` : null, day.kcal != null ? `${day.kcal} kcal` : null].filter(Boolean).join(" · ")}</span>
-          </button>
-        ))}
+      <p style={{ margin: 0, fontSize: 14.5, color: ink(0.74) }}>The meals {first} logged and shared, each with {first}'s note. Open one to step through the day.</p>
+      {days.length && summary.length > 1 ? (
+        <div data-plates-summary="" style={{ marginTop: 14, display: "flex", flexWrap: "wrap", gap: 10 }}>
+          {summary.map(([n, l]) => (
+            <span key={l} className="cpw-plate" style={{ padding: "10px 14px 9px", display: "inline-flex", flexDirection: "column", gap: 5, minWidth: 120 }}>
+              <span className="cpw-fig" style={{ fontSize: 24 }}>{Number(n).toLocaleString()}</span>
+              <span className="cpw-dtl" style={{ color: ink(0.66), fontSize: 10 }}>{l}</span>
+            </span>
+          ))}
+        </div>
+      ) : null}
+      <div className="cpw-plate-days" style={{ marginTop: 16 }}>
+        {days.map((day, di) => {
+          const t = totals[di];
+          const figs = [[t.kcal, "kcal"], [t.p, "g protein"], [t.c, "g carbs"], [t.f, "g fat"]].filter(([n]) => n != null);
+          return (
+            <article key={day.key} data-plate-day="" className="cpw-card" style={{ padding: 0, overflow: "hidden", borderTop: `2px solid ${ACC}`, borderRadius: 14, display: "flex", flexDirection: "column" }}>
+              <div style={{ padding: "16px 18px 12px" }}>
+                <span style={cpwEyebrow(ink)}>{day.meals.length} {day.meals.length === 1 ? "meal" : "meals"}</span>
+                <h3 style={{ margin: "4px 0 0", fontFamily: CPW_DISPLAY, fontWeight: 700, fontSize: 20, color: INK }}>{dayName(day)}</h3>
+                {figs.length ? (
+                  <div data-plate-day-totals="" style={{ marginTop: 10, display: "flex", flexWrap: "wrap", gap: "4px 16px" }}>
+                    {figs.map(([n, l]) => <span key={l} style={{ display: "inline-flex", alignItems: "baseline", gap: 4 }}><span className="cpw-fig" style={{ fontSize: 18 }}>{n.toLocaleString()}</span><span style={{ fontSize: 12, color: ink(0.66) }}>{l}</span></span>)}
+                  </div>
+                ) : null}
+                {t.p != null && t.c != null && t.f != null ? <div style={{ marginTop: 10 }}><CpwEnergyBar K={K} m={t} colors={colors} ink={ink} grams={false} /></div> : null}
+              </div>
+              <ol data-plate-day-meals="" style={{ margin: 0, padding: "0 18px", listStyle: "none" }}>
+                {day.meals.map((x, k) => {
+                  const m = x.meal || {};
+                  const href = cpwRecipeHref(m.recipeId);
+                  const said = [cpwNum(m.kcal) != null ? `${cpwNum(m.kcal)} kcal` : null, cpwNum(m.p) != null ? `${cpwNum(m.p)} g protein` : null].filter(Boolean).join(" · ");
+                  return (
+                    <li key={x.key || k} data-plate-meal="" style={{ display: "grid", gridTemplateColumns: "64px minmax(0,1fr)", columnGap: 10, padding: "11px 0", borderTop: `1px solid ${ink(0.1)}` }}>
+                      <span style={{ fontFamily: CPW_MONO, fontSize: 11.5, color: ACC, paddingTop: 2 }}>{x.at ? fmt(x.at) : ""}</span>
+                      <span style={{ minWidth: 0, display: "flex", flexDirection: "column", gap: 3 }}>
+                        <button type="button" data-plate-open="" onClick={() => onOpen(day, k)} style={{ padding: 0, border: 0, background: "transparent", color: INK, textAlign: "left", cursor: "pointer", fontFamily: CPW_BODY, fontSize: 15, fontWeight: 600, minHeight: 24 }}>{x.title}</button>
+                        {said ? <span style={{ fontFamily: CPW_MONO, fontSize: 11, color: ink(0.62) }}>{said}</span> : null}
+                        {x.body ? <span data-plate-note="" style={{ display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", fontSize: 13.5, lineHeight: 1.45, color: ink(0.82) }}>{x.body}</span> : null}
+                        {href ? <a data-plate-recipe="" href={href} style={{ alignSelf: "flex-start", fontSize: 13, fontWeight: 650, color: ACC, textDecoration: "none", minHeight: 24, display: "inline-flex", alignItems: "center" }}>The recipe ↗</a> : null}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ol>
+              <button type="button" data-plate-step-through="" onClick={() => onOpen(day, 0)} style={{ marginTop: "auto", minHeight: 46, border: 0, borderTop: `1px solid ${ink(0.1)}`, background: "transparent", color: ACC, fontFamily: CPW_DISPLAY, fontSize: 14, fontWeight: 650, cursor: "pointer" }}>Step through the day →</button>
+            </article>
+          );
+        })}
       </div>
       {failed ? <CpwReadFailed ink={ink} ACC={ACC} tag="posts" what={isSelf ? "Couldn't read your plate notes just now." : `Couldn't read ${first}'s plate notes just now.`} onRetry={onRetry} /> : null}
       {!days.length && isSelf && !failed ? <CpwHint ink={ink}>Share the meals you log, and each day you share becomes a plate note here.</CpwHint> : null}
@@ -2771,6 +3004,89 @@ function CpwProgramSheet({ T, pr, item = null, days = [], sells, onClose, onBuy,
               </div>
             ) : <button type="button" onClick={onWork} style={line}>Work with {first}</button>}
         {!isSelf && !pr.sample && pr.paid && sells ? <div style={{ marginTop: 8 }}><LvCodeBox ink="#e8ebef" /></div> : null}
+      </div>
+    </CpwSheet>
+  );
+}
+// ── A meal plan's preview ────────────────────────────────────────────────────────────────────
+// Open on a meal plan card (owner, 2026-11-11: "it shouldn't bring you down to bottom of the page, it
+// should open up a preview of some of these meal plans in separate pop up"): what is inside it, as the
+// app's preview sheet shows it (BSPlanPreviewSheet), from the same model (bsPlanPreview): the weeks, the
+// meals a day, the week's days when the menus vary, the two meals the public read carries and how many
+// more there are; the coach's description or note. Start buys it (lvBuyPlan and the code box, the
+// storefront's path); a plan that isn't sold here offers Work with.
+function CpwMealPlanSheet({ T, K, pl, canBuy, onClose, onBuy, onWork, onAsk = null }) {
+  const { pal, ACC, first, isSelf } = T;
+  const CTA = T.CTA || ACC, ON_CTA = T.ON_CTA || T.ON_ACC;
+  const muted = "rgba(232,235,239,0.6)";
+  const p = K.bsPlanPreview(pl, { isNutri: true });
+  const price = K.bsWorkPrice(pl.price) || "";
+  const weeks = cpwWeeksOf(pl) || p.weeks || null;
+  const menu = p.kind === "menu" && p.units.length > 0;
+  const plates = [[weeks, weeks === 1 ? "Week" : "Weeks"], [menu ? p.units.length : null, p.perDay ? "Meals a week" : "Meals a day"]].filter(([n]) => n);
+  const desc = String(pl.description || pl.blurb || "").trim();
+  const image = p.media.find((m) => m.type !== "video") || null;
+  const video = p.media.find((m) => m.type === "video") || null;
+  const line = { width: "100%", minHeight: 50, border: "1px solid rgba(232,235,239,0.25)", background: "transparent", color: "#e8ebef", fontFamily: CPW_BODY, fontWeight: 600, cursor: "pointer" };
+  const label = { fontFamily: CPW_MONO, fontSize: 10, letterSpacing: "0.14em", textTransform: "uppercase", color: muted };
+  return (
+    <CpwSheet pal={pal} label={pl.name} onClose={onClose} dark width={600} data={{ "data-meal-plan-sheet": "" }}>
+      <CpwSheetHead eyebrow={`Meal plan${price ? " · " + price : ""}`} ACC={muted} color="#e8ebef" onClose={onClose} />
+      <h2 className="cpw-s26" style={{ margin: 0, fontFamily: CPW_DISPLAY, fontWeight: 300, fontSize: 26, lineHeight: 1.1 }}>{pl.name}<span style={{ color: ACC }}>.</span></h2>
+      {plates.length ? (
+        <div data-meal-plan-plates="" style={{ display: "flex", gap: 10, marginTop: 12 }}>
+          {plates.map(([n, l]) => (
+            <span key={l} className="cpw-plate" style={{ flex: 1, padding: "12px 14px 10px", display: "flex", flexDirection: "column", gap: 6 }}>
+              <span className="cpw-fig" style={{ fontSize: 30 }}>{n}</span>
+              <span className="cpw-dtl" style={{ color: muted }}>{l}</span>
+            </span>
+          ))}
+        </div>
+      ) : null}
+      {video ? <div style={{ marginTop: 12 }}><CpwVideo url={video.url} title={pl.name} /></div>
+        : image ? <div style={{ marginTop: 12, aspectRatio: "16 / 9", overflow: "hidden", background: "#000" }}><img src={image.url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /></div> : null}
+      {desc || p.note ? <p data-meal-plan-desc="" style={{ margin: "12px 0 0", paddingLeft: 10, borderLeft: `3px solid ${ACC}`, fontSize: 14.5, lineHeight: 1.5 }}>{desc || p.note}</p> : null}
+      {menu ? (
+        <div data-meal-plan-menu="" style={{ marginTop: 16 }}>
+          <span style={label}>{p.perDay ? "A day on the plan" : "Every day on the plan"}</span>
+          {/* A per-day plan's seven days are its table of contents: counts only, no meal's text. */}
+          {p.perDay && Array.isArray(p.days) ? (
+            <div data-meal-plan-days="" style={{ marginTop: 8, display: "grid", gridTemplateColumns: "repeat(7, minmax(0, 1fr))", gap: 5 }}>
+              {p.days.map((d) => (
+                <span key={d.label} style={{ padding: "7px 0", textAlign: "center", border: `1px solid ${d.count ? "rgba(232,235,239,0.16)" : "transparent"}`, background: d.count ? cpwA(ACC, 0.1) : "transparent", opacity: d.count ? 1 : 0.45 }}>
+                  <span style={{ display: "block", ...label, fontSize: 9 }}>{d.label}</span>
+                  <span className="cpw-fig" style={{ display: "block", marginTop: 3, fontSize: 15 }}>{d.count || "–"}</span>
+                </span>
+              ))}
+            </div>
+          ) : null}
+          {p.free.map((u, k) => (
+            <div key={k} data-meal-plan-meal="" style={{ display: "flex", alignItems: "baseline", gap: 10, padding: "11px 0", borderBottom: "1px solid rgba(232,235,239,0.1)" }}>
+              {u.label ? <span style={{ flexShrink: 0, minWidth: 82, fontFamily: CPW_MONO, fontSize: 10.5, letterSpacing: "0.08em", color: ACC }}>{u.label}</span> : null}
+              <span style={{ flex: 1, minWidth: 0, fontSize: 15 }}>{u.title}</span>
+              {u.kcal != null ? <span style={{ flexShrink: 0, fontFamily: CPW_MONO, fontSize: 12, color: muted }}>{u.kcal} kcal</span> : null}
+            </div>
+          ))}
+          {p.locked > 0 ? (
+            <div data-meal-plan-locked="" style={{ marginTop: 10, padding: "10px 0", borderTop: "1px dashed rgba(232,235,239,0.24)", textAlign: "center", ...label }}>
+              ＋{p.locked} more {p.locked === 1 ? "meal" : "meals"}{canBuy ? " · unlocked when you buy" : " in the plan"}
+            </div>
+          ) : null}
+        </div>
+      ) : (
+        <p data-meal-plan-no-outline="" style={{ margin: "16px 0 0", fontSize: 14, lineHeight: 1.5, fontStyle: "italic", color: "rgba(232,235,239,0.75)" }}>
+          {isSelf ? "Write the plan's meals in the Shape app and members see a day of them here." : `${first} hasn't published the meals for this one yet.`}
+        </p>
+      )}
+      <div style={{ marginTop: 20 }}>
+        {isSelf ? <p style={{ margin: 0, fontSize: 13.5, lineHeight: 1.45, color: muted }}>This is what members see before they buy.</p>
+          : canBuy ? (
+            <div style={{ display: "grid", gridTemplateColumns: onAsk ? "1fr 1.4fr" : "1fr", gap: 8 }}>
+              {onAsk ? <button type="button" data-meal-plan-ask="" onClick={onAsk} style={line}>Ask {first}</button> : null}
+              <button type="button" data-meal-plan-buy="" onClick={onBuy} style={{ ...line, border: 0, background: CTA, color: ON_CTA, fontWeight: 700 }}>Start · {price}</button>
+            </div>
+          ) : <button type="button" data-meal-plan-work="" onClick={onWork} style={line}>Work with {first}</button>}
+        {canBuy && !isSelf ? <div style={{ marginTop: 8 }}><LvCodeBox ink="#e8ebef" /></div> : null}
       </div>
     </CpwSheet>
   );

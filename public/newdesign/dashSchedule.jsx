@@ -570,34 +570,66 @@ function DscHoursEditor({ role, live, initial, storedZone, onCancel, onSaved, on
 }
 
 // The rail's summary of the week's hours, and the way into editing them.
+// The week's open hours as seven day cards (owner, 2026-11-11, of the Hours & rules sheet: "make this look
+// cleaner ... Make the hours section in top a little more spread out"): each day its hours, a bar of the
+// day from midnight to midnight with its open time on it, and how long it is open; a closed day is quiet.
+// Edit hours sits beside the heading. Each day's label is followed directly by its hours, as the summary
+// has always read ("Mon8:00 AM–12:00 PM").
 function DscHoursPlate({ slots, live, storedZone, editing, state = "ready", onEdit }) {
   const { cells } = dscHoursModel(slots);
   const openMin = cells.reduce((n, d) => n + d.filter(Boolean).length, 0) * DSC_HALF;
   const zoneLabel = dscZoneLabel(live, storedZone);
+  const hrs = (m) => (window.ShapeScheduleRules ? window.ShapeScheduleRules.hoursLabel(m) : String(m / 60));
+  const rows = dscHoursRows(cells);
   return (
-    <div>
-      <span className="dash-eyebrow" style={{ color: DSC_GOLD }}>Open hours · your marketplace profile</span>
-      <div style={{ fontFamily: DSC_MONO, fontSize: 9, color: DSC_INK50, marginTop: 4 }}>{(window.ShapeScheduleRules ? window.ShapeScheduleRules.hoursLabel(openMin) : String(openMin / 60)) + " open hrs/wk" + (zoneLabel ? " · " + zoneLabel : "")}</div>
-      <div data-hours-summary="" aria-busy={state === "loading"} style={{ display: "grid", gridTemplateColumns: "34px 1fr", gap: "4px 8px", margin: "10px 0 12px", fontSize: 11.5, opacity: state === "ready" ? 1 : 0.45 }}>
+    <div data-hours-plate="">
+      <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: "12px 20px", flexWrap: "wrap" }}>
+        <div style={{ minWidth: 0 }}>
+          <span className="dash-eyebrow" style={{ color: DSC_GOLD }}>Open hours · your marketplace profile</span>
+          <div data-hours-total="" style={{ marginTop: 6, fontSize: 13, color: DSC_INK50 }}>
+            <span style={{ fontFamily: serif, fontSize: 20, color: "var(--sh-ink, #f2ede4)", marginRight: 6 }}>{hrs(openMin)}</span>open hrs a week{zoneLabel ? " · " + zoneLabel : ""}
+          </div>
+        </div>
+        <button type="button" data-edit-hours="" onClick={onEdit} disabled={editing || state !== "ready"} style={{ ...dscBtn(editing || state !== "ready" ? "" : "on"), opacity: editing || state !== "ready" ? 0.6 : 1 }}>
+          {editing ? "Editing on the grid" : state === "loading" ? "Loading your hours…" : "Edit hours"}
+        </button>
+      </div>
+      <div data-hours-summary="" aria-busy={state === "loading"} className="dsc-hours-week" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(122px, 1fr))", gap: 10, marginTop: 16, opacity: state === "ready" ? 1 : 0.45 }}>
         {DSC_AVAIL_DAYS.map(([lbl, wd]) => {
           const text = dscDaySummary(cells, wd);
+          const closed = text === "Closed";
+          const runs = rows.filter((r) => r.weekday === wd);
+          const dayMin = runs.reduce((n, r) => n + r.duration_min, 0);
+          const ranges = text.split(", ");
           return (
-            <React.Fragment key={wd}>
-              <span style={{ fontFamily: DSC_MONO, fontSize: 9, color: DSC_INK50, paddingTop: 1 }}>{lbl}</span>
-              <span style={{ color: text === "Closed" ? DSC_INK50 : "var(--sh-ink, #f2ede4)" }}>{text}</span>
-            </React.Fragment>
+            <div key={wd} data-hours-day={lbl} style={{ minWidth: 0, display: "flex", flexDirection: "column", gap: 9, padding: "12px 13px 11px", borderRadius: 12, border: "1px solid " + (closed ? DSC_HAIR : "rgba(var(--sh-accent-rgb, 46,224,196),0.32)"), background: closed ? "transparent" : "rgba(var(--sh-accent-rgb, 46,224,196),0.06)" }}>
+              <span style={{ fontFamily: DSC_MONO, fontSize: 10.5, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: closed ? DSC_INK50 : DSC_TEAL_INK }}>{lbl}</span>
+              <span style={{ fontSize: 14, lineHeight: 1.35, fontWeight: closed ? 400 : 600, color: closed ? DSC_INK50 : "var(--sh-ink, #f2ede4)", fontVariantNumeric: "tabular-nums" }}>
+                {/* A range breaks only after its dash ("6:00 AM–" / "10:00 AM"), never inside a time. */}
+                {ranges.map((r, i) => {
+                  const cut = r.indexOf("–");
+                  return (
+                    <span key={i} style={{ display: "block" }}>
+                      {cut > 0 ? <React.Fragment><span style={{ whiteSpace: "nowrap" }}>{r.slice(0, cut + 1)}</span><wbr /><span style={{ whiteSpace: "nowrap" }}>{r.slice(cut + 1)}</span></React.Fragment> : r}
+                      {i < ranges.length - 1 ? ", " : ""}
+                    </span>
+                  );
+                })}
+              </span>
+              <span aria-hidden="true" style={{ position: "relative", height: 5, borderRadius: 99, background: DSC_HAIR, overflow: "hidden", marginTop: "auto" }}>
+                {runs.map((r, i) => <span key={i} style={{ position: "absolute", top: 0, bottom: 0, left: (r.start_minute / 1440 * 100) + "%", width: (r.duration_min / 1440 * 100) + "%", background: DSC_TEAL, borderRadius: 99 }} />)}
+              </span>
+              <span style={{ fontFamily: DSC_MONO, fontSize: 10, color: DSC_INK50 }}>{closed ? "No bookings" : hrs(dayMin) + " hrs open"}</span>
+            </div>
           );
         })}
       </div>
       {state === "ready" && openMin === 0 && (
-        <div data-hours-empty="" style={{ fontSize: 12.5, lineHeight: 1.5, color: DSC_GOLD, marginBottom: 12 }}>
+        <div data-hours-empty="" style={{ fontSize: 12.5, lineHeight: 1.5, color: DSC_GOLD, marginTop: 12 }}>
           No open hours yet, so members can't book you. Edit hours opens your week as a grid: press on a start time and drag down to open it, then save.
         </div>
       )}
-      {state === "failed" && <div role="alert" style={{ fontSize: 11.5, color: DSC_RUST, marginBottom: 8 }}>Your hours couldn't load. Reload to edit them.</div>}
-      <button type="button" data-edit-hours="" onClick={onEdit} disabled={editing || state !== "ready"} style={{ ...dscBtn(editing || state !== "ready" ? "" : "on"), opacity: editing || state !== "ready" ? 0.6 : 1 }}>
-        {editing ? "Editing on the grid" : state === "loading" ? "Loading your hours…" : "Edit hours"}
-      </button>
+      {state === "failed" && <div role="alert" style={{ fontSize: 11.5, color: DSC_RUST, marginTop: 10 }}>Your hours couldn't load. Reload to edit them.</div>}
     </div>
   );
 }
@@ -820,6 +852,8 @@ function dscPortal(node) {
     ? ReactDOM.createPortal(node, document.body) : node;
 }
 // `unsaved()` names what is changed and not saved ([] when nothing is).
+// Each part of the Hours & rules sheet as a card on the sheet's ground: one hairline, a 14px radius, room inside.
+const DSC_SETTINGS_CARD = { boxSizing: "border-box", padding: "18px 20px 20px", borderRadius: 14, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.1)", background: "rgba(var(--sh-ink-rgb, 242,237,228),0.025)" };
 function DscSettingsSheet({ onClose, unsaved, children }) {
   const dialogRef = React.useRef(null);
   const overlayRef = React.useRef(null);
@@ -891,8 +925,8 @@ function DscSettingsSheet({ onClose, unsaved, children }) {
             </div>
           </div>
         )}
-        <div style={{ display: "grid", gap: 16 }}>{children}</div>
-        <p data-settings-help="" style={{ margin: "18px 0 0", fontSize: 11.5, lineHeight: 1.5, color: DSC_INK50 }}>
+        <div style={{ display: "grid", gap: 16, marginTop: 6 }}>{children}</div>
+        <p data-settings-help="" style={{ margin: "18px 2px 0", fontSize: 12, lineHeight: 1.5, color: DSC_INK50 }}>
           <span aria-hidden="true" style={{ fontFamily: DSC_MONO, fontWeight: 700, marginRight: 6 }}>?</span>Members book only inside your open hours and rules, never in time off; you can still book and move clients yourself.
         </p>
       </div>
@@ -2912,18 +2946,20 @@ function CoachSchedulePage({ role }) {
       {!narrow && <DscSettingsTab open={settingsOpen} note={hoursNote} onOpen={() => setSettingsOpen(true)} />}
       {settingsOpen && (
         <DscSettingsSheet onClose={closeSettings} unsaved={unsavedWords}>
-          {editingHours
-            ? <DscHoursEditor role={role} live={isLive} initial={availSlots} storedZone={availZone}
-                onCancel={() => setEditingHours(false)} onSaved={hoursSaved} onDirty={markUnsaved("hours")} />
-            : <DscHoursPlate slots={availSlots} live={isLive} storedZone={availZone} editing={editingHours} state={hoursState}
-                onEdit={() => { setSlot(null); setBooking(null); setEditingHours(true); }} />}
+          <div data-settings-card="hours" style={DSC_SETTINGS_CARD}>
+            {editingHours
+              ? <DscHoursEditor role={role} live={isLive} initial={availSlots} storedZone={availZone}
+                  onCancel={() => setEditingHours(false)} onSaved={hoursSaved} onDirty={markUnsaved("hours")} />
+              : <DscHoursPlate slots={availSlots} live={isLive} storedZone={availZone} editing={editingHours} state={hoursState}
+                  onEdit={() => { setSlot(null); setBooking(null); setEditingHours(true); }} />}
+          </div>
           {/* Time off beside the booking rules where the sheet is wide; one above the other where not. */}
-          <div data-settings-pair="" style={{ borderTop: "1px solid " + DSC_HAIR, paddingTop: 16, display: "flex", flexWrap: "wrap", gap: "24px 48px" }}>
-            <div style={{ flex: "1 1 320px", minWidth: 0 }}>
+          <div data-settings-pair="" style={{ display: "flex", flexWrap: "wrap", gap: 16, alignItems: "stretch" }}>
+            <div data-settings-card="off" style={{ ...DSC_SETTINGS_CARD, flex: "1 1 320px", minWidth: 0 }}>
               <DscTimeOffPlate list={timeOff} zone={offZone || availZone} adding={offAdding} busyId={offBusy} error={offErr}
                 onAdd={addTimeOff} onRemove={removeTimeOff} onDirty={markUnsaved("off")} />
             </div>
-            <div style={{ flex: "1 1 320px", minWidth: 0 }}>
+            <div data-settings-card="rules" style={{ ...DSC_SETTINGS_CARD, flex: "1 1 320px", minWidth: 0 }}>
               <DscRulesPlate role={role} live={isLive} onToast={showToast} onDirty={markUnsaved("rules")} />
             </div>
           </div>

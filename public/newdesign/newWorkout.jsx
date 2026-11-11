@@ -220,6 +220,7 @@ function NewWorkoutPage() {
       payoutCard={trainerPayoutCard}
       eyebrow={<a href={dashShellHref("TrainerPrograms.html")} style={{ color: "rgba(242,237,228,0.55)" }}>← PROGRAMS & WORKOUTS</a>}
       title={isEditing ? "Manage workout" : "New workout"}
+      introId="workout"
       subtitle={isEditing ? "Edit exercise blocks, pricing, client assignments, marketplace settings, and attached playlists for this workout." : "Build a single session. Save to your library, attach to a program, or sell stand-alone."}
       actions={<>
         <a href={dashShellHref("TrainerPrograms.html")} style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer" }}>Cancel</a>

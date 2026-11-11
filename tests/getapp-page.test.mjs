@@ -224,7 +224,9 @@ test('the type request names every axis the page sets', () => {
 
 test('every capture is labelled an example, and the hero says what that means', () => {
   // ⚠ THE LABEL IS WHAT MAKES THE FIGURES ON THIS PAGE ALLOWED. Each screen is
-  // the app's signed-out preview: a demo persona, invented numbers. The house
+  // the app with its example member (the signed-out preview's sample data, captured
+  // from a build that admits a signed-out session since the preview was removed on
+  // 2026-11-10): a demo persona, invented numbers. The house
   // rule is not "never show it" but "never claim it unlabelled".
   // `<section class="beat[" ]`, so a beat that gains a modifier class is still
   // counted rather than silently dropped from every check below.
@@ -243,7 +245,7 @@ test('every capture is labelled an example, and the hero says what that means', 
     assert.match(b, /<span class="exlabel">/, 'a beat shows a capture with no example label:\n' + b.slice(0, 200));
   }
   // The hero carries the long form once, which is what the short ones mean.
-  assert.match(HTML, /<span class="exlabel">Example member &#183; captured from the app&rsquo;s signed-out preview<\/span>/,
+  assert.match(HTML, /<span class="exlabel">Example member &#183; captured from the app with its sample data<\/span>/,
     'the hero lost the long example label, so the short ones on each beat name nothing');
 });
 
@@ -274,7 +276,7 @@ test('the hero has no figure row, and its example label stays', () => {
   assert.doesNotMatch(HTML, /<span class="eb2">(screens|languages|ads on Radio)<\/span>/, 'a hero figure is back');
   const hero = /<section class="hero"[\s\S]*?<\/section>/.exec(HTML);
   assert.ok(hero, 'the hero is gone');
-  assert.match(hero[0], /<span class="exlabel">Example member &#183; captured from the app&rsquo;s signed-out preview<\/span>/,
+  assert.match(hero[0], /<span class="exlabel">Example member &#183; captured from the app with its sample data<\/span>/,
     'the hero lost the label that marks the screens as an example');
 });
 
