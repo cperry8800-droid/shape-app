@@ -321,13 +321,43 @@ function cpwClimbPalette(K, nutri) {
     // The booking colour, and its lighter step for text on the dark page (4.5:1 and over).
     CTA: nutri ? "#d8a23a" : "#c0533b", ON_CTA: nutri ? "#16110a" : "#ffffff", CTA_TEXT: nutri ? "#e6c373" : "#ec8a70",
     RUST: "#ec8a70", GREEN: "#5fb16e",
+    // The page's surfaces (the stylesheet's --cpw-* properties): its ground, the deep plates and the
+    // stage, the strong text. A coach's own palette fills the same (cpwPagePalette).
+    BG: CPW_BG, BG_RGB: "6,9,15", DEEP: "#070b11", DEEP_RGB: "7,11,17", DEEP2: "#0c131d", DEEP3: "#060a10", DEEP4: "#0b1622",
+    P1_RGB: "10,15,23", HEAD: "#fff", ROUTE: "#effffc", picked: false,
   };
 }
-// The coach's accent for the drawing (PARITY §2): their look's accent as the kit paints it on a dark
-// stock (a black one turns white there; the role's own default is no pick), else the old customizer's
-// `custom.accent` when it is a #rrggbb that shows on the page; else the role's own. Only the drawing takes it: the route and its
-// glow, the contours, the summit's ring, the milestone pins, the camp spine and diamonds, and the name's
-// full stop. Text and controls keep the role's colours, so their contrast never rests on the pick.
+// ⚠ THE COACH'S OWN COLOURS REACH THE PAGE (owner, 2026-11-11: "coaches should be able to customize how
+// their page appears publicly. So the edits need to work. This should also effect the marketplace card
+// as well"). The paper and accent picked in Edit profile → Appearance (or the app's Make it yours) paint
+// the whole page: its ground, plates, stage, text and controls. The colours are the kit's
+// bsCoachPagePalette, which the coach's card on the Coaches page (marketplace.jsx) reads too. No pick
+// (null) is the Climb above, unchanged: no paper, or the editors' seed (the dark stock with the role's
+// own accent: teal, a nutritionist amber). A kit from before it (a cached copy) is the Climb as well.
+const cpwContrast = (a, b) => { const x = cpwLum(a), y = cpwLum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
+function cpwPagePalette(K, look, role, nutri) {
+  const climb = cpwClimbPalette(K, nutri);
+  const own = K && typeof K.bsCoachPagePalette === "function" ? K.bsCoachPagePalette(look, role) : null;
+  return own ? { ...own, picked: true } : climb;
+}
+// The page's palette as the stylesheet's custom properties, set on the page's root.
+const cpwPaletteVars = (pal) => ({
+  "--cpw-ink": pal.INK, "--cpw-ink-rgb": pal.inkRGB, "--cpw-head": pal.HEAD,
+  "--cpw-bg": pal.BG, "--cpw-bg-rgb": pal.BG_RGB, "--cpw-deep": pal.DEEP, "--cpw-deep-rgb": pal.DEEP_RGB,
+  "--cpw-deep2": pal.DEEP2, "--cpw-deep3": pal.DEEP3,
+  "--cpw-p1": pal.PAPER, "--cpw-p1-rgb": pal.P1_RGB, "--cpw-p2": pal.PAPER2, "--cpw-p3": pal.PAPER3,
+});
+// The climb background a coach picked (Edit profile → Appearance): the kit's wash over the paper.
+const cpwPageGround = (K, pal, custom) => {
+  const wash = K && typeof K.bsClimbWash === "function" ? K.bsClimbWash(custom && custom.climbBg) : null;
+  return wash ? `${wash}, ${pal.PAPER_BG}` : pal.PAPER_BG;
+};
+// The coach's accent for the drawing (PARITY §2): their look's accent as the kit paints it on their
+// paper's stock (the dark one with no paper; a black one turns white there; the role's own default is
+// no pick), else the old customizer's `custom.accent` when it is a #rrggbb that shows on the page; else
+// the page's accent. The drawing is the route and its glow, the contours, the summit's ring, the
+// milestone pins, the camp spine and diamonds, and the name's full stop. Text and controls take the
+// page's accent (cpwPagePalette), stepped until it reads; the booking keeps the role's colour.
 const CPW_HEX = /^#[0-9a-f]{6}$/i;
 // The digits are extracted, never sliced: a paper token (var(--…, #hex)) parses to its hex.
 const cpwLum = (hex) => {
@@ -337,13 +367,15 @@ const cpwLum = (hex) => {
   const [r, g, b] = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((v) => { const c = v / 255; return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); });
   return 0.2126 * r + 0.7152 * g + 0.0722 * b;
 };
-function cpwDrawAccent(K, look, custom, role, fallback) {
-  const shows = (hex) => CPW_HEX.test(hex) && (cpwLum(hex) + 0.05) / (cpwLum(CPW_BG) + 0.05) >= 1.6;
+function cpwDrawAccent(K, look, custom, role, fallback, pal) {
+  // Against the page's own ground: the Climb's, or the coach's paper (cpwPagePalette).
+  const ground = (pal && CPW_HEX.test(pal.BG) && pal.BG) || CPW_BG;
+  const shows = (hex) => CPW_HEX.test(hex) && cpwContrast(hex, ground) >= 1.6;
   // The role's own key (teal for a trainer, amber for a nutritionist: what the editor seeds, and the
   // samples carry) is no pick: the page keeps the Climb's teal or gold.
   const own = role === "nutritionist" ? "amber" : "teal";
   if (look && look.accent && look.accent !== own && K.BS_COACH_ACCENTS && K.BS_COACH_ACCENTS[look.accent] && typeof K.bsCoachPalette === "function") {
-    const a = K.bsCoachPalette({ paper: "dark", accent: look.accent }, role).ACCENT;
+    const a = K.bsCoachPalette({ paper: (pal && pal.paperKey) || "dark", accent: look.accent }, role).ACCENT;
     if (shows(a)) return a.toLowerCase();
   }
   const old = custom && typeof custom.accent === "string" ? custom.accent.trim() : "";
@@ -415,7 +447,7 @@ function cpwTerrain(W, H, sxp, syp, seed) {
 }
 // The stage's terrain over the coach's photo: contours, the route to the summit, and its milestones,
 // each a figure the page has (their years coaching, the programs they publish), never an invented one.
-function CpwTerrain({ ACC, seed, sx, sy, pins = [] }) {
+function CpwTerrain({ ACC, seed, sx, sy, pins = [], pal = { DEEP4: "#0b1622", DEEP: "#070b11", ROUTE: "#effffc" } }) {
   const W = 1400, H = 640;
   const t = cpwTerrain(W, H, sx, sy, seed);
   const gid = "cpw-tg-" + seed;
@@ -425,7 +457,7 @@ function CpwTerrain({ ACC, seed, sx, sy, pins = [] }) {
     <div aria-hidden="true" className="cpw-terrain" data-terrain="">
       <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none">
         <defs>
-          <linearGradient id={gid} x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#0b1622" stopOpacity=".2" /><stop offset="1" stopColor="#070b11" stopOpacity=".9" /></linearGradient>
+          <linearGradient id={gid} x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor={pal.DEEP4} stopOpacity=".2" /><stop offset="1" stopColor={pal.DEEP} stopOpacity=".9" /></linearGradient>
         </defs>
         {t.back.map((l, i) => <path key={"b" + i} d={l.d} fill="none" stroke={ACC} strokeOpacity={l.o} strokeWidth="1" vectorEffect="non-scaling-stroke" />)}
         <path d={t.mainFill} fill={`url(#${gid})`} />
@@ -434,7 +466,7 @@ function CpwTerrain({ ACC, seed, sx, sy, pins = [] }) {
         <line x1={t.SX} y1={t.SY} x2={t.SX} y2={H} stroke={ACC} strokeOpacity=".22" strokeWidth="14" vectorEffect="non-scaling-stroke" />
         <line x1={t.SX} y1={t.SY} x2={t.SX} y2={H} stroke={ACC} strokeOpacity=".55" strokeWidth="2" vectorEffect="non-scaling-stroke" />
         <path d={t.route} fill="none" stroke={ACC} strokeOpacity=".35" strokeWidth="6" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
-        <path d={t.route} fill="none" stroke="#effffc" strokeWidth="2" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+        <path d={t.route} fill="none" stroke={pal.ROUTE} strokeWidth="2" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
       </svg>
       <span className="cpw-peak" style={{ left: `${(t.SX / W) * 100}%`, top: `${(t.SY / H) * 100}%`, borderColor: ACC, boxShadow: `0 0 0 6px ${cpwA(ACC, 0.18)}, 0 0 22px ${cpwA(ACC, 0.7)}` }} />
       {pinAt.map((p, i) => (
@@ -445,8 +477,10 @@ function CpwTerrain({ ACC, seed, sx, sy, pins = [] }) {
     </div>
   );
 }
+// The tick: dark or white on its fill, whichever reads more (Codex on #2706: a mid-tone such as green or
+// violet takes the dark one).
 function CpwCheck({ color }) {
-  return <svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16"><circle cx="8" cy="8" r="8" fill={color} /><path d="M4.5 8.2l2.3 2.3 4.7-4.9" fill="none" stroke="#06090f" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>;
+  return <svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16"><circle cx="8" cy="8" r="8" fill={color} /><path d="M4.5 8.2l2.3 2.3 4.7-4.9" fill="none" stroke={cpwContrast(color, "#06090f") >= cpwContrast(color, "#ffffff") ? "#06090f" : "#ffffff"} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>;
 }
 // The portrait in the prism frame: cut corners, the role's colour along its edge, base camp on it.
 function CpwPrism({ T, src, onError, initials, eyebrow, line }) {
@@ -456,10 +490,10 @@ function CpwPrism({ T, src, onError, initials, eyebrow, line }) {
       <div className="cpw-prism-edge" style={{ background: `linear-gradient(160deg, ${ACC}, ${cpwA(ACC, 0.2)} 45%, ${CTA})` }}>
         <div className="cpw-prism-in">
           {src ? <img src={src} alt="" onError={onError} style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "center 25%" }} />
-            : <span data-initials="" style={{ fontFamily: CPW_DISPLAY, fontSize: 64, fontWeight: 800, color: "#eef3f0" }}>{initials}</span>}
+            : <span data-initials="" style={{ fontFamily: CPW_DISPLAY, fontSize: 64, fontWeight: 800, color: "var(--cpw-ink)" }}>{initials}</span>}
           <figcaption className="cpw-prism-cap">
             {eyebrow ? <span className="cpw-dtl" style={{ color: ACC }}>{eyebrow}</span> : null}
-            {line ? <span style={{ display: "block", marginTop: 4, fontSize: 15.5, fontWeight: 600, color: "#fff" }}>{line}</span> : null}
+            {line ? <span style={{ display: "block", marginTop: 4, fontSize: 15.5, fontWeight: 600, color: "var(--cpw-head)" }}>{line}</span> : null}
           </figcaption>
         </div>
       </div>
@@ -473,7 +507,7 @@ function CpwWire({ items, T }) {
   if (!items.length) return null;
   const run = (dup) => items.map((it) => (
     <span key={(dup ? "d" : "") + it.key} className={dup ? "cpw-wire-it cpw-wire-dup" : "cpw-wire-it"} aria-hidden={dup ? "true" : undefined} data-wire-item={dup ? undefined : ""}>
-      <b style={{ color: "#fff", fontWeight: 650 }}>{it.strong}</b> <span style={{ color: ink(0.78) }}>{it.text}</span>
+      <b style={{ color: "var(--cpw-head)", fontWeight: 650 }}>{it.strong}</b> <span style={{ color: ink(0.78) }}>{it.text}</span>
     </span>
   ));
   return (
@@ -502,7 +536,7 @@ function CpwBase({ T, K, film, highlight, tip, shots, onShot }) {
               </div>
               <figcaption style={{ padding: "14px 18px 16px" }}>
                 <span className="cpw-dtl" style={{ color: ACC }}>Intro film</span>
-                {film.caption ? <span style={{ display: "block", marginTop: 6, fontFamily: CPW_DISPLAY, fontSize: 22, fontWeight: 800, fontStretch: "115%", lineHeight: 1.15, color: "#fff", overflowWrap: "anywhere" }}>{film.caption}</span> : null}
+                {film.caption ? <span style={{ display: "block", marginTop: 6, fontFamily: CPW_DISPLAY, fontSize: 22, fontWeight: 800, fontStretch: "115%", lineHeight: 1.15, color: "var(--cpw-head)", overflowWrap: "anywhere" }}>{film.caption}</span> : null}
               </figcaption>
             </figure>
           ) : null}
@@ -511,8 +545,8 @@ function CpwBase({ T, K, film, highlight, tip, shots, onShot }) {
               {highlight ? (
                 <div data-coach-highlight="" className="cpw-card">
                   <span className="cpw-dtl" style={{ color: T.pal.CTA_TEXT }}>Pinned · {K.bsPinKindLabel(highlight.kind) || "Highlight"}</span>
-                  <p style={{ margin: "12px 0 0", fontFamily: CPW_DISPLAY, fontSize: 21, fontWeight: 800, fontStretch: "112%", lineHeight: 1.2, color: "#fff", overflowWrap: "anywhere" }}>{highlight.title}</p>
-                  {highlight.metric ? <span data-coach-highlight-metric="" className="cpw-fig" style={{ display: "block", marginTop: 12, fontSize: 40, color: "#fff", overflowWrap: "anywhere" }}>{highlight.metric}</span> : null}
+                  <p style={{ margin: "12px 0 0", fontFamily: CPW_DISPLAY, fontSize: 21, fontWeight: 800, fontStretch: "112%", lineHeight: 1.2, color: "var(--cpw-head)", overflowWrap: "anywhere" }}>{highlight.title}</p>
+                  {highlight.metric ? <span data-coach-highlight-metric="" className="cpw-fig" style={{ display: "block", marginTop: 12, fontSize: 40, color: "var(--cpw-head)", overflowWrap: "anywhere" }}>{highlight.metric}</span> : null}
                   {highlight.note ? <p style={{ margin: "10px 0 0", fontSize: 15, lineHeight: 1.45, color: ink(0.8), overflowWrap: "anywhere" }}>{highlight.note}</p> : null}
                 </div>
               ) : null}
@@ -561,10 +595,10 @@ function CpwRange({ T, items, failed = false, failedWhat = "", onRetry, onOpen, 
               <article key={p.key} data-program="" data-lead={i === 0 ? "" : undefined} className="cpw-range-card" style={{ borderLeftColor: col }}>
                 {/* The program's own photo, or a band in its colour; no drawing over it (owner, 9 Nov: "remove the graph
                     design part, looks stupid"). */}
-                <div className={"cpw-range-art" + (p.poster ? "" : " bare")} aria-hidden="true" style={p.poster ? undefined : { background: `linear-gradient(120deg, ${cpwA(col, 0.34)}, rgba(10,15,23,0) 72%), #0f1722` }}>
+                <div className={"cpw-range-art" + (p.poster ? "" : " bare")} aria-hidden="true" style={p.poster ? undefined : { background: `linear-gradient(120deg, ${cpwA(col, 0.34)}, rgba(var(--cpw-p1-rgb),0) 72%), var(--cpw-p2)` }}>
                   {p.poster ? <img src={p.poster} alt="" loading="lazy" /> : null}
-                  <span className="cpw-range-tag cpw-dtl" style={{ color: "#fff", borderColor: cpwA(col, 0.9) }}>{p.tag || (nutri ? "Meal plan" : "Program")}</span>
-                  {p.weeks ? <span className="cpw-range-weeks"><span className="cpw-fig" style={{ fontSize: 20 }}>{p.weeks}</span> <span className="cpw-dtl" style={{ color: "rgba(238,243,240,.82)" }}>{p.weeks === 1 ? "week" : "weeks"}</span></span> : null}
+                  <span className="cpw-range-tag cpw-dtl" style={{ color: "var(--cpw-head)", borderColor: cpwA(col, 0.9) }}>{p.tag || (nutri ? "Meal plan" : "Program")}</span>
+                  {p.weeks ? <span className="cpw-range-weeks"><span className="cpw-fig" style={{ fontSize: 20 }}>{p.weeks}</span> <span className="cpw-dtl" style={{ color: "rgba(var(--cpw-ink-rgb),.82)" }}>{p.weeks === 1 ? "week" : "weeks"}</span></span> : null}
                 </div>
                 <div className="cpw-range-body">
                   <h3 className="cpw-range-name">{p.name}</h3>
@@ -601,16 +635,16 @@ function CpwDock({ T, avatar, status, introMin, next, book, onMessage, onWork })
   return (
     <div className="cpw-dock" data-dock="" role="region" aria-label={`Book ${first}`}>
       <div className="cpw-dock-who">
-        {avatar ? <img src={avatar} alt="" className="cpw-dock-av" /> : <span className="cpw-dock-av" style={{ display: "grid", placeItems: "center", fontWeight: 800, color: "#eef3f0" }}>{cpwInitials(name)}</span>}
+        {avatar ? <img src={avatar} alt="" className="cpw-dock-av" /> : <span className="cpw-dock-av" style={{ display: "grid", placeItems: "center", fontWeight: 800, color: "var(--cpw-ink)" }}>{cpwInitials(name)}</span>}
         <span style={{ minWidth: 0 }}>
-          <span className="cpw-dock-name" style={{ display: "block", fontWeight: 700, fontSize: 15.5, color: "#fff", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{name}</span>
+          <span className="cpw-dock-name" style={{ display: "block", fontWeight: 700, fontSize: 15.5, color: "var(--cpw-head)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{name}</span>
           {status ? <span className="cpw-dock-status" style={{ display: "block", fontSize: 13, color: ACC, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{status}</span> : null}
         </span>
       </div>
       {introMin ? (
         <div className="cpw-dock-cell">
           <span className="cpw-dtl" style={{ color: ink(0.7) }}>Free intro</span>
-          <span style={{ fontWeight: 700, fontSize: 15, color: "#fff" }}>{introMin} min</span>
+          <span style={{ fontWeight: 700, fontSize: 15, color: "var(--cpw-head)" }}>{introMin} min</span>
         </div>
       ) : null}
       {next ? (
@@ -620,7 +654,7 @@ function CpwDock({ T, avatar, status, introMin, next, book, onMessage, onWork })
         </div>
       ) : null}
       <div className="cpw-dock-acts">
-        <button type="button" data-message="" onClick={onMessage} className="cpw-cta cpw-cta-line cpw-dock-msg" style={{ color: "#eef3f0", minHeight: 46 }}>Message</button>
+        <button type="button" data-message="" onClick={onMessage} className="cpw-cta cpw-cta-line cpw-dock-msg" style={{ color: "var(--cpw-ink)", minHeight: 46 }}>Message</button>
         {book ? (book.kind === "link"
           ? <a href={book.href} data-dock-book="" className="cpw-cta" style={{ background: CTA, color: ON_CTA, minHeight: 46 }}>{book.label}</a>
           : <button type="button" data-dock-book="" onClick={book.onClick} className="cpw-cta" style={{ background: CTA, color: ON_CTA, minHeight: 46 }}>{book.label}</button>)
@@ -806,15 +840,15 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
   const customBio = custom && typeof custom.bio === "string" ? custom.bio.trim() : "";
   const bio = isPrivate ? "" : String((live ? (customBio || (row && (row.goal || row.bio))) : (sample && sample.live && sample.live.goal)) || "").trim();
 
-  // ── The Climb's colours: one dark page for every coach (it is one layout, not a picker), Shape's teal
-  //    for a trainer and gold for a nutritionist, and the booking colour (trainer rust, nutritionist
-  //    gold). The wall photo they set in Make it yours is the stage's photo. ──
+  // ── The page's colours: the coach's own paper and accent (cpwPagePalette), else the Climb's dark page,
+  //    Shape's teal for a trainer and gold for a nutritionist, with the booking colour (trainer rust,
+  //    nutritionist gold). The wall photo they set in Make it yours is the stage's photo. ──
   const look = K.bsProfileLook(custom && custom.look) || {};
-  const pal = cpwClimbPalette(K, nutri);
+  const pal = cpwPagePalette(K, look, role, nutri);
   const ACC = pal.ACCENT, ON_ACC = pal.ON_ACCENT, INK = pal.INK;
   const CTA = pal.CTA, ON_CTA = pal.ON_CTA;
   const ink = (a) => `rgba(${pal.inkRGB},${a})`;
-  const DRAW = cpwDrawAccent(K, look, custom, role, ACC);
+  const DRAW = cpwDrawAccent(K, look, custom, role, ACC, pal);
 
   // ── Their listing ──
   const [listingEpoch, setListingEpoch] = React.useState(0);
@@ -1340,7 +1374,7 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
     </div>
   ) : null;
   return (
-    <div className="cpw" data-coach-profile="" data-climb="" data-in-dash={chrome ? undefined : ""} data-role={role} data-mode={live ? "live" : "sample"} data-accent={DRAW} style={{ position: "relative", minHeight: chrome ? "100vh" : "auto", background: pal.PAPER_BG, color: INK, fontFamily: CPW_BODY, WebkitFontSmoothing: "antialiased", paddingBottom: docked ? 96 : 0 }}>
+    <div className="cpw" data-coach-profile="" data-climb="" data-in-dash={chrome ? undefined : ""} data-role={role} data-mode={live ? "live" : "sample"} data-accent={DRAW} data-paper={pal.picked ? (pal.paperKey || "climb") : undefined} data-light={pal.isLight ? "" : undefined} style={{ ...cpwPaletteVars(pal), position: "relative", minHeight: chrome ? "100vh" : "auto", background: cpwPageGround(K, pal, custom), color: INK, fontFamily: CPW_BODY, WebkitFontSmoothing: "antialiased", paddingBottom: docked ? 96 : 0 }}>
       <style>{`
     /* clip, not hidden: hidden makes a box a scroller, and the camp row and its marks never pin.
        pageShell's html, body { overflow-x: hidden } does that to <body> on every page, and a coach dashboard's
@@ -1352,113 +1386,113 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
     .cpw *,.cpw *::before,.cpw *::after{box-sizing:border-box}
     .cpw-wrap{max-width:1440px;margin:0 auto;padding:0 32px}
     .cpw-dtl{font-family:${CPW_MONO};font-weight:600;letter-spacing:.09em;text-transform:uppercase;font-size:11.5px;line-height:1.3}
-    .cpw-fig{font-family:${CPW_FIG};font-weight:700;letter-spacing:-.035em;line-height:1;color:#fff;font-variant-numeric:tabular-nums}
+    .cpw-fig{font-family:${CPW_FIG};font-weight:700;letter-spacing:-.035em;line-height:1;color:var(--cpw-head);font-variant-numeric:tabular-nums}
     .cpw-bar{display:flex;align-items:center;justify-content:space-between;gap:10px 12px;flex-wrap:wrap;padding:18px 0 16px}
-    .cpw-pill{display:inline-flex;align-items:center;min-height:44px;padding:0 14px;border:1px solid rgba(238,243,240,.2);border-radius:10px;background:rgba(238,243,240,.03);font-family:${CPW_BODY};font-size:14px;font-weight:600;text-decoration:none;cursor:pointer;white-space:nowrap}
+    .cpw-pill{display:inline-flex;align-items:center;min-height:44px;padding:0 14px;border:1px solid rgba(var(--cpw-ink-rgb),.2);border-radius:10px;background:rgba(var(--cpw-ink-rgb),.03);font-family:${CPW_BODY};font-size:14px;font-weight:600;text-decoration:none;cursor:pointer;white-space:nowrap}
     .cpw-pill.cpw-dtl{font-family:${CPW_MONO};font-size:11.5px;min-height:40px}
-    .cpw-stage{position:relative;border-radius:22px;overflow:hidden;background:#070b11;border:1px solid rgba(238,243,240,.08);min-height:640px;isolation:isolate}
+    .cpw-stage{position:relative;border-radius:22px;overflow:hidden;background:var(--cpw-deep);border:1px solid rgba(var(--cpw-ink-rgb),.08);min-height:640px;isolation:isolate}
     .cpw-stage-photo{position:absolute;inset:0;z-index:0;filter:grayscale(.5) brightness(.5)}
     .cpw-stage-art{position:absolute;inset:0}
-    .cpw-stage-shade{position:absolute;inset:0;z-index:1;pointer-events:none;background:linear-gradient(90deg,rgba(7,11,17,.9) 0%,rgba(7,11,17,.5) 36%,rgba(7,11,17,.12) 70%,rgba(7,11,17,.3) 100%),linear-gradient(0deg,rgba(7,11,17,.96) 0%,rgba(7,11,17,0) 46%)}
+    .cpw-stage-shade{position:absolute;inset:0;z-index:1;pointer-events:none;background:linear-gradient(90deg,rgba(var(--cpw-deep-rgb),.9) 0%,rgba(var(--cpw-deep-rgb),.5) 36%,rgba(var(--cpw-deep-rgb),.12) 70%,rgba(var(--cpw-deep-rgb),.3) 100%),linear-gradient(0deg,rgba(var(--cpw-deep-rgb),.96) 0%,rgba(var(--cpw-deep-rgb),0) 46%)}
     .cpw-terrain{position:absolute;inset:0;z-index:1;pointer-events:none}
     .cpw-terrain svg{position:absolute;inset:0;width:100%;height:100%}
     .cpw-peak{position:absolute;width:14px;height:14px;margin:-7px 0 0 -7px;border-radius:50%;border:2px solid;background:#effffc}
     .cpw-pin{position:absolute;display:flex;align-items:center;gap:8px;white-space:nowrap;transform:translate(-8px,-8px)}
-    .cpw-pin i{width:16px;height:16px;border-radius:50%;border:2px solid;background:#070b11;flex:none}
-    .cpw-pin .cpw-dtl{padding:3px 8px;background:rgba(6,9,15,.84);border-radius:4px;color:#eef3f0;font-size:10.5px}
+    .cpw-pin i{width:16px;height:16px;border-radius:50%;border:2px solid;background:var(--cpw-deep);flex:none}
+    .cpw-pin .cpw-dtl{padding:3px 8px;background:rgba(var(--cpw-bg-rgb),.84);border-radius:4px;color:var(--cpw-ink);font-size:10.5px}
     .cpw-summit{position:absolute;z-index:3;transform:translate(-50%,calc(-100% - 20px));display:flex;flex-direction:column;align-items:center;gap:8px;border:0;background:transparent;padding:0;cursor:pointer;color:inherit;font:inherit}
     .cpw-summit-plate{display:inline-flex;align-items:baseline;padding:14px 18px 12px;border:1px solid}
-    .cpw-summit-cap{padding:4px 9px;background:rgba(6,9,15,.86);border-radius:4px}
-    .cpw-plate{background:linear-gradient(180deg,#0c131d,#060a10);border:1px solid rgba(238,243,240,.12);clip-path:polygon(0 0,calc(100% - 14px) 0,100% 14px,100% 100%,0 100%);box-shadow:inset 0 1px 0 rgba(255,255,255,.07)}
+    .cpw-summit-cap{padding:4px 9px;background:rgba(var(--cpw-bg-rgb),.86);border-radius:4px}
+    .cpw-plate{background:linear-gradient(180deg,var(--cpw-deep2),var(--cpw-deep3));border:1px solid rgba(var(--cpw-ink-rgb),.12);clip-path:polygon(0 0,calc(100% - 14px) 0,100% 14px,100% 100%,0 100%);box-shadow:inset 0 1px 0 rgba(255,255,255,.07)}
     .cpw-stage-grid{position:relative;z-index:2;display:grid;grid-template-columns:330px minmax(0,1fr);gap:56px;padding:40px 40px 34px;min-height:640px}
     .cpw-stage-text{min-width:0;display:flex;flex-direction:column;padding-top:18px}
     .cpw-stage-text > :not(.cpw-plates){max-width:660px}
     .cpw-prism{margin:0;align-self:start}
     .cpw-prism-edge{padding:2px;clip-path:polygon(0 0,calc(100% - 46px) 0,100% 46px,100% 100%,46px 100%,0 calc(100% - 46px))}
-    .cpw-prism-in{position:relative;aspect-ratio:330/440;background:#0c131d;display:grid;place-items:center;overflow:hidden;clip-path:polygon(0 0,calc(100% - 45px) 0,100% 45px,100% 100%,45px 100%,0 calc(100% - 45px))}
+    .cpw-prism-in{position:relative;aspect-ratio:330/440;background:var(--cpw-deep2);display:grid;place-items:center;overflow:hidden;clip-path:polygon(0 0,calc(100% - 45px) 0,100% 45px,100% 100%,45px 100%,0 calc(100% - 45px))}
     .cpw-prism-in img{position:absolute;inset:0}
-    .cpw-prism-cap{position:absolute;left:0;right:0;bottom:0;padding:44px 22px 22px;background:linear-gradient(0deg,rgba(6,9,15,.97) 0%,rgba(6,9,15,.86) 55%,rgba(6,9,15,0) 100%)}
+    .cpw-prism-cap{position:absolute;left:0;right:0;bottom:0;padding:44px 22px 22px;background:linear-gradient(0deg,rgba(var(--cpw-bg-rgb),.97) 0%,rgba(var(--cpw-bg-rgb),.86) 55%,rgba(var(--cpw-bg-rgb),0) 100%)}
     .cpw .cpw-h1{margin-top:12px !important;font-size:max(44px,min(clamp(58px,7.4vw,118px),calc((0.79 * (min(100vw,1440px) - 64px) - 520px) / (var(--cpw-l,8) * 0.76)))) !important;line-height:.86 !important;font-weight:850;font-stretch:125%;letter-spacing:-0.025em !important}
     .cpw-chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:24px}
-    .cpw-chip{display:inline-flex;align-items:center;gap:7px;min-height:36px;padding:0 12px;border:1px solid rgba(238,243,240,.2);border-radius:8px;background:rgba(6,9,15,.86);font-size:14.5px;font-weight:600;color:#eef3f0}
+    .cpw-chip{display:inline-flex;align-items:center;gap:7px;min-height:36px;padding:0 12px;border:1px solid rgba(var(--cpw-ink-rgb),.2);border-radius:8px;background:rgba(var(--cpw-bg-rgb),.86);font-size:14.5px;font-weight:600;color:var(--cpw-ink)}
     .cpw-follow{display:flex;flex-wrap:wrap;align-items:center;gap:2px 22px;margin-top:12px}
     .cpw-follow button{border:0;cursor:pointer}
     .cpw-follow button[data-follow-count]{display:inline-flex;align-items:baseline;gap:8px;min-height:44px;padding:0;background:transparent;color:inherit;font:inherit}
     .cpw-follow button[data-follow-requests]{min-height:32px}
-    .cpw-follow-n{font-family:${CPW_DISPLAY};font-size:24px;line-height:1;color:#fff}
-    .cpw-quote{margin:20px 0 0;font-size:18.5px;line-height:1.5;color:#eef3f0;white-space:pre-line;overflow-wrap:anywhere;text-shadow:0 1px 2px rgba(6,9,15,.95),0 0 16px rgba(6,9,15,.9)}
-    .cpw-sample-note{margin:14px 0 0;padding:9px 12px;border-left:2px solid;background:rgba(6,9,15,.78);font-size:13.5px;line-height:1.45;color:rgba(238,243,240,.85)}
+    .cpw-follow-n{font-family:${CPW_DISPLAY};font-size:24px;line-height:1;color:var(--cpw-head)}
+    .cpw-quote{margin:20px 0 0;font-size:18.5px;line-height:1.5;color:var(--cpw-ink);white-space:pre-line;overflow-wrap:anywhere;text-shadow:0 1px 2px rgba(var(--cpw-bg-rgb),.95),0 0 16px rgba(var(--cpw-bg-rgb),.9)}
+    .cpw-sample-note{margin:14px 0 0;padding:9px 12px;border-left:2px solid;background:rgba(var(--cpw-bg-rgb),.78);font-size:13.5px;line-height:1.45;color:rgba(var(--cpw-ink-rgb),.85)}
     .cpw-stage-actions{display:flex;flex-wrap:wrap;align-items:center;gap:6px 16px;margin-top:10px}
     .cpw-cta{display:inline-flex;align-items:center;justify-content:center;min-height:48px;padding:0 20px;border:0;border-radius:10px;font-family:${CPW_BODY};font-size:15px;font-weight:700;cursor:pointer;text-decoration:none;white-space:nowrap;box-shadow:inset 0 1px 0 rgba(255,255,255,.22),0 10px 22px -12px rgba(0,0,0,.8)}
-    .cpw-cta-line{background:rgba(6,9,15,.5);border:1px solid rgba(238,243,240,.28);box-shadow:none}
+    .cpw-cta-line{background:rgba(var(--cpw-bg-rgb),.5);border:1px solid rgba(var(--cpw-ink-rgb),.28);box-shadow:none}
     .cpw-textlink{min-height:44px;padding:0;border:0;background:transparent;font-family:${CPW_BODY};font-size:15px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;text-decoration:none;white-space:nowrap}
     .cpw-plates{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-top:auto;padding-top:34px}
     .cpw-stat{padding:16px 16px 14px;display:flex;flex-direction:column;gap:10px;min-width:0}
     .cpw-stat-n{font-size:40px}
     .cpw-stat-l{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .cpw-stat::after{content:"";display:block;height:6px;background:repeating-linear-gradient(90deg,${cssA(0.55)} 0 2px,transparent 2px 5px)}
-    .cpw-wire{display:flex;align-items:center;gap:22px;margin-top:10px;padding:0 0 0 22px;min-height:52px;border:1px solid rgba(238,243,240,.08);border-radius:14px;background:#070b11;overflow:hidden}
+    .cpw-wire{display:flex;align-items:center;gap:22px;margin-top:10px;padding:0 0 0 22px;min-height:52px;border:1px solid rgba(var(--cpw-ink-rgb),.08);border-radius:14px;background:var(--cpw-deep);overflow:hidden}
     .cpw-wire-track{flex:1;min-width:0;overflow:hidden;-webkit-mask-image:linear-gradient(90deg,transparent,#000 3%,#000 94%,transparent);mask-image:linear-gradient(90deg,transparent,#000 3%,#000 94%,transparent)}
     .cpw-wire-run{display:inline-flex;gap:46px;padding-right:46px;white-space:nowrap;animation:cpw-wire 46s linear infinite}
     .cpw-wire:hover .cpw-wire-run,.cpw-wire:focus-within .cpw-wire-run{animation-play-state:paused}
     .cpw-wire-it{font-size:15px}
     @keyframes cpw-wire{to{transform:translateX(-50%)}}
-    .cpw-campnav{position:sticky;z-index:20;margin-top:18px;background:rgba(6,9,15,.94);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);border-bottom:1px solid rgba(238,243,240,.1)}
+    .cpw-campnav{position:sticky;z-index:20;margin-top:18px;background:rgba(var(--cpw-bg-rgb),.94);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);border-bottom:1px solid rgba(var(--cpw-ink-rgb),.1)}
     .cpw-campnav button{cursor:pointer;font-family:${CPW_MONO};font-weight:600;font-size:11.5px;letter-spacing:.09em;text-transform:uppercase}
     .cpw-campnav-pick{display:flex;align-items:center;gap:10px;width:100%;min-height:46px;padding:0 16px;border:0;background:transparent;text-align:left}
     .cpw-campnav-pick [data-camp-here]{flex:1;min-width:0;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .cpw-campnav-pick svg{flex:none}
-    .cpw-campnav-grid{position:absolute;left:0;right:0;top:100%;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;padding:10px 16px 14px;background:#06090f;border-bottom:1px solid rgba(238,243,240,.1);box-shadow:0 14px 28px rgba(0,0,0,.45)}
+    .cpw-campnav-grid{position:absolute;left:0;right:0;top:100%;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;padding:10px 16px 14px;background:var(--cpw-bg);border-bottom:1px solid rgba(var(--cpw-ink-rgb),.1);box-shadow:0 14px 28px rgba(0,0,0,.45)}
     .cpw-campnav-grid[hidden]{display:none}
     .cpw-campnav-grid button{min-width:0;min-height:44px;padding:0 6px;border:1px solid;border-radius:8px;font-size:10.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-    .cpw-camptabs{position:sticky;z-index:20;margin-top:18px;background:rgba(6,9,15,.94);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);border-top:1px solid rgba(238,243,240,.08);border-bottom:1px solid rgba(238,243,240,.1)}
+    .cpw-camptabs{position:sticky;z-index:20;margin-top:18px;background:rgba(var(--cpw-bg-rgb),.94);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);border-top:1px solid rgba(var(--cpw-ink-rgb),.08);border-bottom:1px solid rgba(var(--cpw-ink-rgb),.1)}
     .cpw-camptabs-row{display:flex;flex-wrap:wrap;align-items:stretch;column-gap:4px;margin-left:-14px}
     .cpw-camptabs button{position:relative;display:inline-flex;align-items:center;gap:8px;min-height:48px;padding:0 14px;border:0;background:transparent;cursor:pointer;font-family:${CPW_MONO};font-weight:600;font-size:11.5px;letter-spacing:.09em;text-transform:uppercase;white-space:nowrap}
     .cpw-camptabs button::after{content:"";position:absolute;left:10px;right:10px;bottom:-1px;height:2px;border-radius:2px;background:currentColor;opacity:0;transition:opacity .15s}
     .cpw-camptabs button[aria-selected="true"]::after{opacity:1}
-    .cpw-camptabs button[aria-selected="false"]:hover{color:#fff !important}
+    .cpw-camptabs button[aria-selected="false"]:hover{color:var(--cpw-head) !important}
     .cpw-camps{position:relative;padding:36px 0 24px}
     .cpw-camps::before{content:"";position:absolute;left:24px;top:0;bottom:0;width:2px;background:linear-gradient(180deg,${drawA(0.1)},${DRAW} 60px,${DRAW} calc(100% - 60px),${drawA(0.1)});box-shadow:0 0 12px ${drawA(0.35)}}
     .cpw-camp{position:relative;display:grid;grid-template-columns:210px minmax(0,1fr);padding:30px 0 40px}
     .cpw-camp[hidden]{display:none}
     .cpw-camp-mark{position:sticky;top:${headH + pinH + 28}px;align-self:start;display:grid;grid-template-columns:50px minmax(0,1fr);column-gap:10px;row-gap:3px;align-items:center}
     .cpw-diamond{grid-row:1 / 3;justify-self:center;width:22px;height:22px;transform:rotate(45deg);border:2px solid;box-shadow:0 0 14px ${drawA(0.45)}}
-    .cpw-camp-name{font-weight:650;font-size:15.5px;color:#eef3f0}
+    .cpw-camp-name{font-weight:650;font-size:15.5px;color:var(--cpw-ink)}
     .cpw-camp-label{display:none}
     .cpw-camp-head{display:flex;justify-content:space-between;align-items:flex-end;gap:18px;padding-bottom:16px;margin-bottom:24px;border-bottom:1px solid ${cssA(0.32)}}
-    .cpw .cpw-camp-title{margin:0 !important;font-family:${CPW_DISPLAY};font-weight:850;font-stretch:125%;font-size:clamp(34px,4.2vw,58px) !important;line-height:.95 !important;letter-spacing:-0.01em !important;color:#fff}
+    .cpw .cpw-camp-title{margin:0 !important;font-family:${CPW_DISPLAY};font-weight:850;font-stretch:125%;font-size:clamp(34px,4.2vw,58px) !important;line-height:.95 !important;letter-spacing:-0.01em !important;color:var(--cpw-head)}
     .cpw-camp-lead{margin:10px 0 0;font-size:16px;line-height:1.45}
-    .cpw-card{padding:20px 22px;background:linear-gradient(180deg,#0f1722,#0a0f17);border:1px solid rgba(238,243,240,.1);border-radius:16px;box-shadow:inset 0 1px 0 rgba(255,255,255,.05)}
+    .cpw-card{padding:20px 22px;background:linear-gradient(180deg,var(--cpw-p2),var(--cpw-p1));border:1px solid rgba(var(--cpw-ink-rgb),.1);border-radius:16px;box-shadow:inset 0 1px 0 rgba(255,255,255,.05)}
     .cpw-base-grid{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:20px;align-items:start}
     .cpw-base-one{display:grid;grid-template-columns:minmax(0,1fr);gap:20px;max-width:880px}
     .cpw-shots{display:flex;gap:14px;overflow-x:auto;padding-bottom:4px;scrollbar-width:none}
     .cpw-shots::-webkit-scrollbar{display:none}
     .cpw-shot{flex:0 0 132px;padding:0;border:0;background:transparent;text-align:left;cursor:pointer;font-family:${CPW_BODY}}
-    .cpw-shot-img{display:block;position:relative;height:150px;border:2px solid;clip-path:polygon(0 0,calc(100% - 16px) 0,100% 16px,100% 100%,0 100%);overflow:hidden;background:#0c131d}
+    .cpw-shot-img{display:block;position:relative;height:150px;border:2px solid;clip-path:polygon(0 0,calc(100% - 16px) 0,100% 16px,100% 100%,0 100%);overflow:hidden;background:var(--cpw-deep2)}
     .cpw-shot-img img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
     .cpw-range{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:18px}
-    .cpw-range-card{display:flex;flex-direction:column;background:linear-gradient(180deg,#0f1722,#0a0f17);border:1px solid rgba(238,243,240,.1);border-left:3px solid;clip-path:polygon(0 0,calc(100% - 18px) 0,100% 18px,100% 100%,0 100%);min-width:0}
-    .cpw-range-art{position:relative;height:168px;overflow:hidden;background:linear-gradient(180deg,#152030,#0a0f17)}
+    .cpw-range-card{display:flex;flex-direction:column;background:linear-gradient(180deg,var(--cpw-p2),var(--cpw-p1));border:1px solid rgba(var(--cpw-ink-rgb),.1);border-left:3px solid;clip-path:polygon(0 0,calc(100% - 18px) 0,100% 18px,100% 100%,0 100%);min-width:0}
+    .cpw-range-art{position:relative;height:168px;overflow:hidden;background:linear-gradient(180deg,var(--cpw-p3),var(--cpw-p1))}
     .cpw-range-art img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;filter:brightness(.78)}
     .cpw-range-art.bare{height:64px}
-    .cpw-range-tag{position:absolute;left:12px;top:12px;padding:4px 8px;border:1px solid;border-radius:5px;background:rgba(6,9,15,.78);font-size:10.5px}
-    .cpw-range-weeks{position:absolute;right:12px;top:10px;padding:4px 9px;border-radius:5px;background:rgba(6,9,15,.78);display:inline-flex;align-items:baseline;gap:5px}
+    .cpw-range-tag{position:absolute;left:12px;top:12px;padding:4px 8px;border:1px solid;border-radius:5px;background:rgba(var(--cpw-bg-rgb),.78);font-size:10.5px}
+    .cpw-range-weeks{position:absolute;right:12px;top:10px;padding:4px 9px;border-radius:5px;background:rgba(var(--cpw-bg-rgb),.78);display:inline-flex;align-items:baseline;gap:5px}
     .cpw-range-body{display:flex;flex-direction:column;flex:1;padding:16px 18px 18px}
-    .cpw .cpw-range-name{margin:0 !important;font-family:${CPW_DISPLAY};font-size:22px !important;line-height:1.1 !important;font-weight:850;font-stretch:118%;color:#fff;letter-spacing:normal !important}
+    .cpw .cpw-range-name{margin:0 !important;font-family:${CPW_DISPLAY};font-size:22px !important;line-height:1.1 !important;font-weight:850;font-stretch:118%;color:var(--cpw-head);letter-spacing:normal !important}
     .cpw-range-foot{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:auto;padding-top:18px}
     .cpw-kitchen-plate{display:grid;grid-template-columns:auto minmax(0,1fr);gap:28px;align-items:center}
     .cpw-kitchen-recipes{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:16px}
-    .cpw-recipe-card{border:1px solid rgba(238,243,240,.1)}
+    .cpw-recipe-card{border:1px solid rgba(var(--cpw-ink-rgb),.1)}
     .cpw-recipe-card:hover{border-color:${cssA(0.55)}}
     .cpw-kitchen-staples{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
     .cpw-plate-days{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:16px;align-items:start}
     .cpw .cpw-kitchen-h{font-size:21px !important;line-height:1.2 !important}
     .cpw-summit-store [data-work-with-panel] > h2{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
-    .cpw-summit-store{max-width:640px;padding:22px 24px 26px;background:linear-gradient(180deg,#0f1722,#0a0f17);border:1px solid rgba(238,243,240,.1);border-top:3px solid ${ACC};border-radius:14px}
-    .cpw-dock{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:900;display:flex;align-items:center;gap:18px;padding:10px 10px 10px 12px;width:min(860px,calc(100vw - 32px));background:rgba(10,15,23,.95);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);border:1px solid ${cssA(0.38)};border-radius:16px;box-shadow:0 20px 50px -18px rgba(0,0,0,.95)}
+    .cpw-summit-store{max-width:640px;padding:22px 24px 26px;background:linear-gradient(180deg,var(--cpw-p2),var(--cpw-p1));border:1px solid rgba(var(--cpw-ink-rgb),.1);border-top:3px solid ${ACC};border-radius:14px}
+    .cpw-dock{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:900;display:flex;align-items:center;gap:18px;padding:10px 10px 10px 12px;width:min(860px,calc(100vw - 32px));background:rgba(var(--cpw-p1-rgb),.95);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);border:1px solid ${cssA(0.38)};border-radius:16px;box-shadow:0 20px 50px -18px rgba(0,0,0,.95)}
     .cpw-dock-who{display:flex;align-items:center;gap:12px;min-width:0;flex:1}
-    .cpw-dock-av{width:44px;height:44px;flex:none;object-fit:cover;background:#152030;clip-path:polygon(0 0,calc(100% - 9px) 0,100% 9px,100% 100%,9px 100%,0 calc(100% - 9px))}
-    .cpw-dock-cell{display:flex;flex-direction:column;gap:4px;padding-left:18px;border-left:1px solid rgba(238,243,240,.12);white-space:nowrap}
+    .cpw-dock-av{width:44px;height:44px;flex:none;object-fit:cover;background:var(--cpw-p3);clip-path:polygon(0 0,calc(100% - 9px) 0,100% 9px,100% 100%,9px 100%,0 calc(100% - 9px))}
+    .cpw-dock-cell{display:flex;flex-direction:column;gap:4px;padding-left:18px;border-left:1px solid rgba(var(--cpw-ink-rgb),.12);white-space:nowrap}
     .cpw-dock-acts{display:flex;gap:8px;flex:none}
     /* The floating chat button (globalChatButton.js) keeps its corner above the dock while there is one. */
     ${docked ? "#shape-global-chat-button{bottom:96px !important}" : ""}
@@ -1567,7 +1601,7 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
     @media (max-width:999px){
       .cpw-stage{min-height:0}
       .cpw-stage-art{bottom:auto;height:calc(min(0.58 * (100vw - 72px), 250px) * 1.3334 + 34px)}
-      .cpw-stage-shade{background:linear-gradient(0deg,#070b11 0%,rgba(7,11,17,.4) 30%,rgba(7,11,17,.15) 70%,rgba(7,11,17,.4) 100%)}
+      .cpw-stage-shade{background:linear-gradient(0deg,var(--cpw-deep) 0%,rgba(var(--cpw-deep-rgb),.4) 30%,rgba(var(--cpw-deep-rgb),.15) 70%,rgba(var(--cpw-deep-rgb),.4) 100%)}
       .cpw-bar{gap:8px}
       .cpw-bar .cpw-pill{padding:0 12px}
       .cpw-pill.cpw-dtl{white-space:normal;min-height:36px;padding:6px 12px;font-size:10.5px}
@@ -1658,7 +1692,7 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
             {wall ? <img src={wall} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: (K.bsLookPosition ? K.bsLookPosition(look, CPW_FOCUS) : (CPW_FOCUS[look.focus] || CPW_FOCUS.center)) || CPW_FOCUS.center }} /> : null}
           </div>
           <div aria-hidden="true" className="cpw-stage-shade" />
-          <CpwTerrain ACC={DRAW} seed={seed} sx={wide ? 0.79 : 0.8} sy={wide ? 0.44 : 0.42} pins={wide && !isSelf ? milestones : []} />
+          <CpwTerrain ACC={DRAW} pal={pal} seed={seed} sx={wide ? 0.79 : 0.8} sy={wide ? 0.44 : 0.42} pins={wide && !isSelf ? milestones : []} />
           {/* The summit: the rating, from the reviews, and how many. None while unread or on a failed read. */}
           {!isPrivate && (reviews.count > 0 || (!reviews.unread && !reviews.failed)) ? (
             <button type="button" data-summit="" className="cpw-summit" onClick={() => setSheet({ kind: "reviews" })}
@@ -1678,7 +1712,7 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
               eyebrow={["Base camp", where || null].filter(Boolean).join(" · ")} line={years ? `Coaching for ${years} ${years === 1 ? "year" : "years"}` : (tier ? `${tier} coach` : roleLine)} />
             <div className="cpw-stage-text">
               <span className="cpw-dtl cpw-eyebrow" style={{ color: ACC }}>{[roleLine, where].filter(Boolean).join(" · ")}</span>
-              <h1 className="cpw-h1" style={{ margin: 0, fontFamily: CPW_DISPLAY, color: "#fff", overflowWrap: "anywhere", "--cpw-l": cpwLongestWord(name) + 1 }}>{cpwNameHead(name)}<span style={{ whiteSpace: "nowrap" }}>{cpwNameTail(name)}<span data-name-stop="" style={{ color: DRAW }}>.</span></span></h1>
+              <h1 className="cpw-h1" style={{ margin: 0, fontFamily: CPW_DISPLAY, color: "var(--cpw-head)", overflowWrap: "anywhere", "--cpw-l": cpwLongestWord(name) + 1 }}>{cpwNameHead(name)}<span style={{ whiteSpace: "nowrap" }}>{cpwNameTail(name)}<span data-name-stop="" style={{ color: DRAW }}>.</span></span></h1>
               {isPrivate ? (
                 <React.Fragment>
                   <p style={{ margin: "16px 0 0", fontSize: 15, color: ink(0.8) }}>{row && row.visibility === "friends" ? `${first} shares their profile with friends. Connect to see more.` : `${first} keeps their profile private. Only their name and tier are shown.`}</p>
@@ -1773,7 +1807,7 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
           <div id="cpw-camp-grid" className="cpw-campnav-grid" data-camp-grid="" hidden={!campPick}>
             {camps.map((c) => (
               <button key={c.key} type="button" data-camp-link={c.key} aria-current={campOn === c.key ? "true" : undefined} onClick={() => { closeCampPick(); toCamp(c.key); }}
-                style={{ color: campOn === c.key ? ACC : "#eef3f0", borderColor: campOn === c.key ? cpwA(ACC, 0.6) : "rgba(238,243,240,.14)", background: campOn === c.key ? cpwA(ACC, 0.12) : "transparent" }}>{c.name}</button>
+                style={{ color: campOn === c.key ? ACC : "var(--cpw-ink)", borderColor: campOn === c.key ? cpwA(ACC, 0.6) : "rgba(var(--cpw-ink-rgb),.14)", background: campOn === c.key ? cpwA(ACC, 0.12) : "transparent" }}>{c.name}</button>
             ))}
           </div>
         </nav>
@@ -2641,9 +2675,9 @@ function CpwPlate({ plate, colors, size = 216 }) {
   });
   return (
     <svg data-kitchen-plate-art="" width={size} height={size} viewBox={`0 0 ${size} ${size}`} role="img" aria-label={`The plate: ${arcs.map((a) => `${a.v}% ${word[a.k].toLowerCase()}`).join(", ")}`} style={{ flex: "none", display: "block" }}>
-      <circle cx={c} cy={c} r={c - 2} fill="#0f1722" stroke="rgba(238,243,240,.16)" strokeWidth="2" />
-      <circle cx={c} cy={c} r={c - 9} fill="none" stroke="rgba(238,243,240,.08)" strokeWidth="1" />
-      {arcs.map((a) => (a.d ? <path key={a.k} d={a.d} fill={colors[a.k]} stroke="#0a0f17" strokeWidth="3" strokeLinejoin="round" /> : <circle key={a.k} cx={c} cy={c} r={r} fill={colors[a.k]} />))}
+      <circle cx={c} cy={c} r={c - 2} style={{ fill: "var(--cpw-p2)", stroke: "rgba(var(--cpw-ink-rgb),.16)" }} strokeWidth="2" />
+      <circle cx={c} cy={c} r={c - 9} fill="none" style={{ stroke: "rgba(var(--cpw-ink-rgb),.08)" }} strokeWidth="1" />
+      {arcs.map((a) => (a.d ? <path key={a.k} d={a.d} fill={colors[a.k]} style={{ stroke: "var(--cpw-p1)" }} strokeWidth="3" strokeLinejoin="round" /> : <circle key={a.k} cx={c} cy={c} r={r} fill={colors[a.k]} />))}
       {arcs.filter((a) => a.v >= 12).map((a) => (
         <g key={a.k} aria-hidden="true">
           <text x={a.lx} y={a.ly - 2} textAnchor="middle" style={{ fontFamily: CPW_FIG, fontWeight: 700, fontSize: 21, fill: "#06090f" }}>{a.v}%</text>
@@ -2722,7 +2756,7 @@ function CpwKitchenTab({ T, K, kitchen, gallery, onRecipe }) {
         return (
           <button key={r.id} type="button" data-recipe={r.id} onClick={() => onRecipe(r)} className="cpw-card cpw-recipe-card" style={{ padding: 0, overflow: "hidden", color: INK, textAlign: "left", cursor: "pointer", fontFamily: CPW_BODY, display: "flex", flexDirection: "column" }}>
             {r.photo ? <img src={r.photo} alt="" loading="lazy" style={{ display: "block", width: "100%", height: 132, objectFit: "cover" }} />
-              : <span aria-hidden="true" style={{ display: "flex", alignItems: "flex-end", height: 72, padding: "0 16px 10px", background: `linear-gradient(120deg, ${cpwA(ACC, 0.42)}, rgba(10,15,23,0) 75%), #0f1722`, fontFamily: CPW_DISPLAY, fontWeight: 850, fontSize: 30, color: "rgba(255,255,255,.9)" }}>{String(r.t || "?").trim().charAt(0).toUpperCase()}</span>}
+              : <span aria-hidden="true" data-recipe-initial="" style={{ display: "flex", alignItems: "flex-end", height: 72, padding: "0 16px 10px", background: `linear-gradient(120deg, ${cpwA(ACC, 0.42)}, rgba(var(--cpw-p1-rgb),0) 75%), var(--cpw-p2)`, fontFamily: CPW_DISPLAY, fontWeight: 850, fontSize: 30, color: "var(--cpw-head)" }}>{String(r.t || "?").trim().charAt(0).toUpperCase()}</span>}
             <span style={{ display: "flex", flexDirection: "column", gap: 8, padding: "14px 16px 16px", flex: 1 }}>
               <span style={{ fontFamily: CPW_DISPLAY, fontWeight: 700, fontSize: 17.5, lineHeight: 1.2 }}>{r.t}</span>
               {facts.length ? (
