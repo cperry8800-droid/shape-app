@@ -3,7 +3,6 @@ import { createPortal } from 'react-dom';
 import { bsDash, bsDashA } from './BSDash.jsx';
 import { useBSClean, BSCleanType, bsCleanSheet } from './bsCleanType.jsx';
 import { bsDialogRef } from '../services/dialogBack.mjs';
-import { bsCompareRows, bsComparePriceRank, BS_COMPARE_MAX } from '../services/coachCompare.mjs';
 // ─── THE COACHES TAB ("Coaches.") ────────────────────────────────────────────────────────────────
 // Owner, 2026-11-09, of three placements and three looks: "place-1" (a sixth tab in the member's nav,
 // Coaches, between Eat and Chat) in "look-B" (the Browse list), then option 1 of three filter
@@ -506,7 +505,7 @@ function MktDirCompareToggle({ card, right = 0, pal = null }) {
       aria-label={c.on ? tr('marketplace:compare.removeAria', { defaultValue: 'Remove {name} from compare', name: card.name }) : tr('marketplace:compare.addAria', { defaultValue: 'Add {name} to compare', name: card.name })}
       style={{ position: 'absolute', bottom: 6, right, minHeight: 44, padding: 0, border: 0, background: 'transparent', cursor: c.can ? 'pointer' : 'default', opacity: c.can ? 1 : 0.5 }}>
       <span style={{ display: 'inline-flex', alignItems: 'center', height: 28, padding: '0 11px', borderRadius: 999, border: `1px solid ${c.on ? teal : (pal ? `rgba(${pal.inkRGB},0.22)` : bsDashA(t.INK, 0.16))}`, color: c.on ? teal : (pal ? pal.INK_SOFT : t.INK70), fontFamily: t.DISPLAY, fontSize: 12, fontWeight: 650, whiteSpace: 'nowrap' }}>
-        {c.on ? tr('marketplace:compare.on', { defaultValue: '✓ Comparing' }) : c.can ? tr('marketplace:compare.add', { defaultValue: '＋ Compare' }) : tr('marketplace:compare.full', { defaultValue: 'Compare holds {count}', count: BS_COMPARE_MAX })}
+        {c.on ? tr('marketplace:compare.on', { defaultValue: '✓ Comparing' }) : c.can ? tr('marketplace:compare.add', { defaultValue: '＋ Compare' }) : tr('marketplace:compare.full', { defaultValue: 'Compare holds {count}', count: c.max || 3 })}
       </span>
     </button>
   );
@@ -557,19 +556,9 @@ function MktDirCompareSheet({ cmp }) {
   const teal = D.mark.teal;
   const [diffOnly, setDiffOnly] = useState(false);
   const cards = cmp.cards;
-  const dash = '—';
-  const rowsIn = [
-    { key: 'price', label: tr('marketplace:compare.rowPrice', { defaultValue: 'Price' }), text: (c) => mktDirPriceText(tr, c.price) || tr('marketplace:compare.onPage', { defaultValue: 'On their page' }), rank: bsComparePriceRank(cards, (c) => c.price) },
-    { key: 'rating', label: tr('marketplace:compare.rowRating', { defaultValue: 'Rating' }), text: (c) => (c.score ? tr('marketplace:compare.score', { defaultValue: '{score}/10', score: Number(c.score).toFixed(1) }) : tr('marketplace:rating.new', { defaultValue: 'New' })), rank: (c) => (c.score ? Number(c.score) : null) },
-    { key: 'years', label: tr('marketplace:compare.rowYears', { defaultValue: 'Experience' }), text: (c) => (c.years ? tr('marketplace:compare.years', { defaultValue: '{count, plural, one {# year} other {# years}}', count: c.years }) : dash), rank: (c) => c.years },
-    { key: 'meet', label: tr('marketplace:filters.meet', { defaultValue: 'How you meet' }), text: (c) => (c.meet === 'both' ? tr('marketplace:compare.meetBoth', { defaultValue: 'In person + remote' }) : tr('marketplace:meet.remote', { defaultValue: 'Remote' })) },
-    { key: 'city', label: tr('marketplace:compare.rowCity', { defaultValue: 'City' }), text: (c) => c.city || tr('marketplace:compare.onPage', { defaultValue: 'On their page' }) },
-    { key: 'next', label: tr('marketplace:compare.rowNext', { defaultValue: 'Next open' }), text: (c) => (c.next ? c.next.text : tr('marketplace:compare.onPage', { defaultValue: 'On their page' })) },
-    { key: 'intro', label: tr('marketplace:compare.rowIntro', { defaultValue: 'Free intro' }), text: (c) => (c.introOpen ? tr('marketplace:compare.yes', { defaultValue: 'Yes' }) : tr('marketplace:compare.no', { defaultValue: 'No' })) },
-    { key: 'verified', label: tr('marketplace:compare.rowVerified', { defaultValue: 'Verified by Shape' }), text: (c) => (c.verified ? tr('marketplace:compare.verifiedYes', { defaultValue: '✓ Yes' }) : tr('marketplace:compare.notYet', { defaultValue: 'Not yet' })) },
-    { key: 'creds', label: tr('marketplace:compare.rowCreds', { defaultValue: 'Credentials' }), text: (c) => c.creds || dash },
-  ];
-  const rows = bsCompareRows(cards, rowsIn).map((r, i) => ({ ...r, label: rowsIn[i].label }));
+  // The rows as the marketplace module reads them (coachCompare.mjs there): each with its words, `same`
+  // and `best`. This only draws them.
+  const rows = cmp.rows || [];
   const sameCount = rows.filter((r) => r.same).length;
   const shown = rows.filter((r) => !(diffOnly && r.same));
   const cols = `repeat(${cards.length}, minmax(0, 1fr))`;
