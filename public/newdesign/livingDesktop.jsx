@@ -2178,12 +2178,16 @@ function DesktopProfile({ direction = "terrain", persona = "client", variant = "
   // editor repaints it at once. A coach's look is their own page's (coachProfileWeb.jsx), not this one's.
   const plibLook = (typeof window !== "undefined" && window.ShapeProfileLib) || null;
   const look = (!coach && !locked && plibLook && plibLook.bsProfileLook) ? plibLook.bsProfileLook(custom && custom.look) : null;
-  const kit = useDkKit(!!(look && (look.paper || look.accent)));
+  // The climb background picked in Edit profile (profile_custom.climbBg): the kit's wash over the page's
+  // paper, as a coach's page lays it (coachProfileWeb.jsx cpwPageGround). None is the paper as before.
+  const climbKey = (!coach && !locked && custom && typeof custom.climbBg === "string") ? custom.climbBg : "";
+  const kit = useDkKit(!!(look && (look.paper || look.accent)) || !!climbKey);
   const pageColors = React.useMemo(() => dkPageColors(look, kit), [look && look.paper, look && look.accent, kit]);
+  const climbWash = climbKey && kit && typeof kit.bsClimbWash === "function" ? kit.bsClimbWash(climbKey) : null;
 
   return (
     <DkPageContext.Provider value={pageColors}>
-    <div data-dk-page={pageColors.painted ? look.paper : undefined} style={{ position: "relative", minHeight: "100vh", background: pageColors.BG_FILL, color: pageColors.INK, fontFamily: dSans, overflow: "hidden" }}>
+    <div data-dk-page={pageColors.painted ? look.paper : undefined} data-dk-climb-bg={climbWash ? climbKey : undefined} style={{ position: "relative", minHeight: "100vh", background: climbWash ? `${climbWash}, ${pageColors.BG_FILL}` : pageColors.BG_FILL, color: pageColors.INK, fontFamily: dSans, overflow: "hidden" }}>
       {/* atmosphere */}
       <div aria-hidden="true" style={{ position: "absolute", inset: 0, pointerEvents: "none", background: `radial-gradient(90% 50% at 78% -4%, ${dHexA(c, 0.28)}, transparent 60%), radial-gradient(80% 50% at 0% 12%, ${dHexA(c, 0.12)}, transparent 55%)` }} />
       <div style={{ position: "relative" }}>

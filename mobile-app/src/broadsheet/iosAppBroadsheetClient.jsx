@@ -38,6 +38,7 @@ import { bsProfileStreak, bsProfileWeek, bsProfileTrajectory, bsProfileLifts, bs
 import { BS_PREF_OPTIONS, bsPrefOptionLabel, bsPrefOptionDisplay, bsPrefOptionToken, bsGoalKind } from '../services/prefOptions.mjs';
 import { bsFirstRunStage, bsFirstRunNeedsSeed } from '../services/firstRun.mjs';
 import { bsUserGoalsRevHook, bsAnnounceUserGoals, BS_ACCOUNT_SETUP_KINDS, BS_PROFILE_KINDS, bsOnReturnToApp } from '../services/userGoalsRefresh.mjs';
+import { bsClimbWash } from '../services/coachPagePalette.mjs';
 import { bsLiveEffort, BS_EFFORT_RAMP, BS_EFFORT_HRMAX } from '../services/liveEffort.mjs';
 import { bsAssignWeekLine, bsAssignDayLine, bsWeekUnits, bsWeekSpan } from '../services/planOutline.mjs';
 import { BS_BATCH_KEY, bsReadBatch, bsWriteBatch } from '../services/cookBatchResume.mjs';
@@ -16546,6 +16547,10 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
   const look = bsProfileLook(lookDoc && lookDoc.look) || {};
   const tTheme = React.useMemo(() => bsMemberTheme(tReader, look), [tReader, look.paper, look.accent]);
   const BG = tTheme.PAPER_BG, INK = tTheme.INK;
+  // The climb background picked in Customize or the website's Edit profile (profile_custom.climbBg): the
+  // kit's wash over the page's paper, as the coach page lays it (coachProfileKit.mjs bsClimbWash), behind
+  // the whole page (BSPage's backdrop). None is the paper as before.
+  const climbWash = bsClimbWash(lookDoc && lookDoc.climbBg);
   const points = isSelf
     ? (Number.isFinite(Number(selfScore.total)) ? Number(selfScore.total) : null)
     : (live && Number.isFinite(live.points) ? live.points : null);
@@ -16997,7 +17002,7 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
     // 2026-10-18: "make sure this mast head stays present when i scroll down on
     // profile page on app like all the other pages"). BSPage also pads for the
     // tab bar, so the page keeps no bottom spacer of its own.
-    <BSPage><div style={{ color: INK, fontFamily: SANS, WebkitFontSmoothing: 'antialiased', display: 'flex', flexDirection: 'column', minHeight: '100%' }}>
+    <BSPage backdrop={climbWash ? <div data-member-climb-bg={lookDoc.climbBg} aria-hidden style={{ position: 'absolute', inset: 0, background: `${climbWash}, ${BG}` }} /> : null}><div style={{ color: INK, fontFamily: SANS, WebkitFontSmoothing: 'antialiased', display: 'flex', flexDirection: 'column', minHeight: '100%' }}>
       {isSelf && <input ref={fileRef} type="file" accept="image/*" onChange={onPick} style={{ display: 'none' }} />}
       {/* ── THE HEAD, IN THE COACH PROFILE'S LOOK (owner, 2026-10-31: "member profile needs to match
           similar design to coaches, in terms of overall look, but keep same basic features"; asked, they

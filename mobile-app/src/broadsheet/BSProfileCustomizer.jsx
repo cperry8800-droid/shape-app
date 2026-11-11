@@ -13,6 +13,7 @@ import {
   bsProfileCustomWrite,
 } from '../services/profileCustom.mjs';
 import { bsDialogRef } from '../services/dialogBack.mjs';
+import { BS_CLIMB_BGS, bsClimbWash } from '../services/coachPagePalette.mjs';
 // ─── CUSTOMIZE · THE PROFILE EDITOR ──────────────────────────────────────────────────────────────
 // What a member (or a coach, `coach`) edits their public profile in: opened from the profile's ✎ and
 // Edit profile, and from Settings → Customize. Moved out of iosAppBroadsheetClient.jsx when it was
@@ -151,6 +152,8 @@ export function bsCustFormOf(init, { filmKey, promptOpts }) {
     film: (init[filmKey] && init[filmKey].url) ? { url: init[filmKey].url, caption: (init[filmKey].caption || '') } : null,
     biz: { name: (init.bizCard && init.bizCard.name) || '', where: (init.bizCard && init.bizCard.where) || '', hours: (init.bizCard && init.bizCard.hours) || '', handle: (init.bizCard && init.bizCard.handle) || '' },
     pins: Array.isArray(init.pinnedReviews) ? init.pinnedReviews.slice(0, BS_PINNED_REVIEWS_MAX) : [],
+    // The climb background (a BS_CLIMB_BGS key, the website editor's): '' is Paper, none.
+    climbBg: bsClimbWash(init.climbBg) ? init.climbBg : '',
   };
 }
 
@@ -283,7 +286,7 @@ export function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coac
   const filmRef = useRef(null);
   // A field's setter, taking a value or an updater as useState's does.
   const setF = (k) => (v) => setForm((p) => ({ ...p, [k]: typeof v === 'function' ? v(p[k]) : v }));
-  const { bio, songUrl, songLabel, links, prompts, coverUrl, pick, focusPick, pinKind, pinTitle, pinNote, pinMetric, heroStats, line, startTitle, startDate, wall, shelf, film, biz, pins } = form;
+  const { bio, songUrl, songLabel, links, prompts, coverUrl, pick, focusPick, pinKind, pinTitle, pinNote, pinMetric, heroStats, line, startTitle, startDate, wall, shelf, film, biz, pins, climbBg } = form;
   const setBio = setF('bio'), setSongUrl = setF('songUrl'), setSongLabel = setF('songLabel'), setLinks = setF('links'), setPrompts = setF('prompts');
   const setCoverUrl = setF('coverUrl'), setPinKind = setF('pinKind'), setPinTitle = setF('pinTitle'), setPinNote = setF('pinNote');
   // The look, as the website editor reads it (#2611): the pick (a tap), else the saved look, else the
@@ -292,6 +295,9 @@ export function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coac
   const look = { ...initLook, paper: (pick && pick.paper) || initLook.paper || seedPaper, accent: (pick && pick.accent) || initLook.accent || seedAccent };
   const setLook = (next) => setForm((p) => ({ ...p, pick: { paper: next.paper, accent: next.accent } }));
   const pickChanged = !!pick && (pick.paper !== initLook.paper || pick.accent !== initLook.accent);
+  // The climb background, picked under the colours as on the website's Edit profile: a wash over the page.
+  const setClimbBg = setF('climbBg');
+  const climbChanged = climbBg !== (bsClimbWash(saved.climbBg) ? saved.climbBg : '');
   // What stays in view in a member's cover (look.focus, #2611's member crop map, BS_MEMBER_FOCUS): set on
   // Photos & film under the cover, by the same rule as the pick. The page crops to the middle until one is
   // saved, so a tap on the crop it already has is no change. A coach's page here reads no crop.
@@ -439,7 +445,7 @@ export function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coac
   const uploading = wallBusy || coverBusy || filmBusy;
   const areaDirty = (key) => {
     if (!key || key === 'signal') return false;
-    if (key === 'colors') return pickChanged;
+    if (key === 'colors') return pickChanged || climbChanged;
     if (key === 'photos' && focusChanged) return true;
     if (key === 'photos' && uploading) return true;
     const was = key === 'practice' ? { ...base, pins: basePins } : base;
@@ -478,6 +484,8 @@ export function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coac
       // look holds; an untouched panel writes none. The old `accent` hex and `climbBg` ride through
       // `...base` as the doc has them.
       if (key === 'colors' && pickChanged) doc.look = { ...(bsProfileLook(base.look) || {}), paper: pick.paper, accent: pick.accent };
+      // The climb background only when picked here; Paper is null, as the website stores it.
+      if (key === 'colors' && climbChanged) doc.climbBg = climbBg || null;
       // The crop, the same way: over the stored look, its paper and accent kept.
       // A position dragged on the website (pos) gives way to the stop picked here.
       if (key === 'photos' && focusChanged) { const { pos: _dragged, ...kept } = bsProfileLook(base.look) || {}; doc.look = { ...kept, focus: focusPick }; }
@@ -690,6 +698,22 @@ export function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coac
       <p style={{ ...noteS, margin: '-4px 0 4px' }}>{tr('profile:mine.colorsSub', { defaultValue: 'Pick from Shape’s papers and accents. Your whole page follows.' })}</p>
       <div data-cust-look="" style={{ margin: '0 -12px' }}>
         <BSLookPicker tr={tr} look={look} setLook={setLook} />
+      </div>
+      {head(tr('profile:editor.climbBg.title', { defaultValue: 'Climb background' }))}
+      <p style={{ ...noteS, margin: '-4px 0 8px' }}>{tr('profile:editor.climbBg.sub', { defaultValue: 'A wash of colour over your page’s paper.' })}</p>
+      <div data-cust-climb-bgs="" role="group" aria-label={tr('profile:editor.climbBg.title', { defaultValue: 'Climb background' })} style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 8 }}>
+        {['', ...Object.keys(BS_CLIMB_BGS)].map((k) => {
+          const on = climbBg === k;
+          const wash = k ? BS_CLIMB_BGS[k] : null;
+          return (
+            <button key={k || 'paper'} type="button" data-cust-climb-bg={k || 'paper'} aria-pressed={on} className="bs-cust-btn" onClick={() => setClimbBg(k)}
+              style={{ display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'stretch', padding: 6, borderRadius: 12, cursor: 'pointer',
+                background: 'transparent', border: `1.5px solid ${on ? c : ink(0.14)}`, color: INK, fontFamily: BS_CLEAN_SANS, fontSize: 12, fontWeight: 600 }}>
+              <span aria-hidden style={{ display: 'block', height: 34, borderRadius: 8, background: wash ? `${wash}, ${paletteOf(look.paper).PAPER}` : paletteOf(look.paper).PAPER, border: `1px solid ${ink(0.1)}` }} />
+              <span>{tr(`profile:editor.climbBg.${k || 'paper'}`, { defaultValue: k ? k[0].toUpperCase() + k.slice(1) : 'Paper' })}</span>
+            </button>
+          );
+        })}
       </div>
     </div>
   );
@@ -1139,6 +1163,7 @@ export function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coac
     const uid = ownerUid || W.ShapeAuth?.getCachedState?.()?.user?.id || null;
     let draft = { ...saved };
     for (const k of TILES) if (k !== 'signal' && k !== 'colors') Object.assign(draft, areaFields(k, form));
+    if (climbChanged) draft.climbBg = climbBg || null;
     if (pickChanged || focusChanged) { const { pos: _dragged, ...kept } = bsProfileLook(saved.look) || {}; draft.look = { ...kept, ...(focusChanged ? {} : (_dragged ? { pos: _dragged } : {})), ...(pickChanged ? { paper: pick.paper, accent: pick.accent } : {}), ...(focusChanged ? { focus: focusPick } : {}) }; }
     // As a Save would store it (the wall, the cover and the film bound to the owner); a signed-out preview
     // has no owner, and the page drops what it can't bind as it renders.
