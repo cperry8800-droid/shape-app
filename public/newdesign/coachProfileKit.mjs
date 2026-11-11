@@ -110,6 +110,115 @@ export function bsOnColor(hex) {
   return rgb && lumOf(rgb) > 0.36 ? '#0b0d0c' : '#ffffff';
 }
 
+// ── The coach's look in public: their page and their marketplace card ──────────────────────────
+// ⚠ THE COACH'S OWN COLOURS REACH THE PUBLIC (owner, 2026-11-11: "coaches should be able to customize
+// how their page appears publicly. So the edits need to work. This should also effect the marketplace
+// card as well"). The paper and accent picked in Edit profile → Appearance (or the app's Make it
+// yours) paint the coach's page (coachProfileWeb.jsx) and their card on the Coaches page
+// (marketplace.jsx), from this one function. No pick is null, and both keep the Climb's dark look.
+
+// The Climb's own dark surfaces: the page's ground, its deep plates and stage, and a picked accent's
+// ground when no paper is picked.
+export const BS_CLIMB_GROUND = Object.freeze({
+  PAPER: '#0a0f17', PAPER2: '#0f1722', PAPER3: '#152030', PAPER_BG: '#06090f', INK: '#eef3f0', inkRGB: '238,243,240',
+  BG: '#06090f', DEEP: '#070b11', DEEP2: '#0c131d', DEEP3: '#060a10', DEEP4: '#0b1622',
+  RUST: '#ec8a70', GREEN: '#5fb16e',
+});
+// The climb backgrounds a coach picks (Edit profile → Appearance, livingDesktop.jsx DK_CLIMB_BGS, the
+// same gradients): a wash laid over the paper. '' (Paper) is none.
+export const BS_CLIMB_BGS = Object.freeze({
+  dawn: 'linear-gradient(165deg, rgba(224,165,68,0.30), rgba(224,100,75,0.12) 55%, rgba(224,165,68,0.04) 92%)',
+  dusk: 'linear-gradient(165deg, rgba(138,92,246,0.30), rgba(46,111,160,0.14) 60%, rgba(138,92,246,0.04) 92%)',
+  alpine: 'linear-gradient(180deg, rgba(94,200,224,0.28), rgba(52,214,197,0.10) 55%, rgba(94,200,224,0.04) 92%)',
+  forest: 'linear-gradient(165deg, rgba(123,191,90,0.28), rgba(47,107,58,0.12) 60%, rgba(123,191,90,0.04) 92%)',
+  ember: 'linear-gradient(165deg, rgba(224,81,138,0.26), rgba(224,100,75,0.14) 55%, rgba(224,81,138,0.04) 92%)',
+  storm: 'linear-gradient(165deg, rgba(91,141,249,0.28), rgba(33,40,52,0.16) 60%, rgba(91,141,249,0.05) 92%)',
+});
+/** The wash for a coach's `climbBg` (a BS_CLIMB_BGS key), or null. */
+export function bsClimbWash(key) {
+  return typeof key === 'string' && Object.prototype.hasOwnProperty.call(BS_CLIMB_BGS, key) ? BS_CLIMB_BGS[key] : null;
+}
+
+const hexOf = (rgb) => '#' + rgb.map((v) => Math.round(Math.max(0, Math.min(255, v))).toString(16).padStart(2, '0')).join('');
+const mixOf = (a, b, t) => { const x = rgbOf(a), y = rgbOf(b); return x && y ? hexOf(x.map((v, i) => v + (y[i] - v) * t)) : a; };
+const rgbText = (hex) => (rgbOf(hex) || [0, 0, 0]).join(',');
+/** The WCAG contrast of two #rrggbb colours; 1 when either does not parse. */
+export function bsContrast(a, b) {
+  const x = rgbOf(a), y = rgbOf(b);
+  return x && y ? contrastOf(x, y) : 1;
+}
+/**
+ * A colour stepped toward the ink, a tenth at a time, until it reads as text (4.5:1) on the paper, or
+ * on every one of a list of grounds (a page's paper, plates and stage are all one stock's tones).
+ */
+export function bsReadableOn(hex, paper, ink) {
+  const grounds = Array.isArray(paper) ? paper : [paper];
+  const low = (c) => Math.min(...grounds.map((g) => bsContrast(c, g)));
+  let c = hex;
+  for (let i = 1; i <= 10 && low(c) < 4.5; i++) c = mixOf(hex, ink, i / 10);
+  return c;
+}
+
+/**
+ * The coach's public colours from their look (profile_custom.look, through bsProfileLook), or null
+ * when they picked none: no paper (or the dark stock) and no accent (or the role's own, teal for a
+ * trainer and amber for a nutritionist, which the editors seed).
+ *   · A picked paper brings its stock: ground, plates and ink. A picked accent alone sits on the
+ *     Climb's dark ground (BS_CLIMB_GROUND).
+ *   · ACCENT is the accent stepped toward the ink until it reads as text (4.5:1) on every surface of
+ *     the stock (the paper, its plates, the stage). DRAW is the accent
+ *     as the kit paints it, for the drawing (the contours, the route, the summit), unless it would not
+ *     show on the ground (under 1.6:1); then it is ACCENT. ACCENT_DARK is for a dark plate on a photo.
+ *   · The booking keeps the role's colour on every paper (CTA: a trainer's rust, a nutritionist's
+ *     gold, a darker step of each on a light paper), and CTA_TEXT is its readable step. INK_SOFT and
+ *     INK_MUTED are the ink toward the paper, as far as each still reads on every surface.
+ *   · BG and DEEP..DEEP4 are the surfaces under the stock (the page's ground, the stage, the plates);
+ *     the `_RGB` fields are for translucent fills.
+ */
+export function bsCoachPagePalette(look, role = 'trainer') {
+  const lk = isObj(look) ? look : {};
+  const nutri = role === 'nutritionist';
+  const own = nutri ? 'amber' : 'teal';
+  const paper = lk.paper && lk.paper !== 'dark' && BS_COACH_PAPERS[lk.paper] ? lk.paper : null;
+  const accent = lk.accent && lk.accent !== own && BS_COACH_ACCENTS[lk.accent] ? lk.accent : null;
+  if (!paper && !accent) return null;
+  const kit = bsCoachPalette({ paper: paper || 'dark', accent: accent || own }, role);
+  const G = BS_CLIMB_GROUND;
+  const base = paper ? kit : G;
+  const isLight = !!(paper && kit.isLight);
+  const INK = base.INK, PAPER = base.PAPER;
+  const surf = !paper ? G
+    : isLight ? { BG: PAPER, DEEP: kit.PAPER2, DEEP2: kit.PAPER2, DEEP3: kit.PAPER3, DEEP4: kit.PAPER3 }
+      : { BG: mixOf(PAPER, '#000000', 0.35), DEEP: mixOf(PAPER, '#000000', 0.3), DEEP2: mixOf(PAPER, kit.PAPER2, 0.5), DEEP3: mixOf(PAPER, '#000000', 0.4), DEEP4: kit.PAPER2 };
+  // Every surface text sits on: the paper and its second tone, the ground, the plates and the stage.
+  const grounds = [PAPER, base.PAPER2, surf.BG, surf.DEEP, surf.DEEP2, surf.DEEP3];
+  const ACCENT = bsReadableOn(kit.ACCENT, grounds, INK);
+  // Text on an accent fill: white or near-black, whichever reads better (the app's onColor puts white
+  // on a mid-tone such as violet at under 3:1).
+  const onBest = (hex) => (bsContrast('#ffffff', hex) >= bsContrast('#0b0d0c', hex) ? '#ffffff' : '#0b0d0c');
+  const muted = (t0) => {
+    for (let t = t0; t > 0.001; t -= 0.02) { const c = mixOf(INK, PAPER, t); if (grounds.every((g) => bsContrast(c, g) >= 4.5)) return c; }
+    return INK;
+  };
+  const DRAW = (bsContrast(kit.ACCENT, surf.BG) >= 1.6 ? kit.ACCENT : ACCENT).toLowerCase();
+  // The accent on a dark plate laid over a photo (a card's badge, the summit's label): the accent's
+  // dark-stock value, readable on the Climb's ground, whatever the paper.
+  const ACCENT_DARK = bsReadableOn((isLight ? bsCoachPalette({ paper: 'dark', accent: accent || own }, role) : kit).ACCENT, G.BG, G.INK);
+  const CTA = nutri ? (isLight ? '#8a6420' : '#d8a23a') : (isLight ? '#a8331b' : '#c0533b');
+  return {
+    isLight, PAPER, PAPER2: base.PAPER2, PAPER3: base.PAPER3, PAPER_BG: paper ? kit.PAPER_BG : G.PAPER_BG, INK, inkRGB: base.inkRGB,
+    ACCENT, ACCENT_RGB: rgbText(ACCENT), ON_ACCENT: onBest(ACCENT), DRAW, DRAW_RGB: rgbText(DRAW),
+    ACCENT_DARK, ACCENT_DARK_RGB: rgbText(ACCENT_DARK),
+    CTA, CTA_RGB: rgbText(CTA), ON_CTA: nutri && !isLight ? '#16110a' : '#ffffff',
+    CTA_TEXT: bsReadableOn(nutri ? (isLight ? '#8a6420' : '#e6c373') : (isLight ? '#a8331b' : '#ec8a70'), grounds, INK),
+    INK_SOFT: muted(0.24), INK_MUTED: muted(0.36),
+    RUST: paper ? kit.RUST : G.RUST, GREEN: paper ? kit.GREEN : G.GREEN,
+    BG: surf.BG, BG_RGB: rgbText(surf.BG), DEEP: surf.DEEP, DEEP_RGB: rgbText(surf.DEEP), DEEP2: surf.DEEP2, DEEP3: surf.DEEP3, DEEP4: surf.DEEP4,
+    P1_RGB: rgbText(PAPER), HEAD: isLight ? INK : '#ffffff', ROUTE: isLight ? INK : '#effffc',
+    paperKey: paper, accentKey: accent,
+  };
+}
+
 // ── The words for a coach ────────────────────────────────────────────────────────────────────
 /** "Her day" / "Work with him", or by first name, and "My kitchen" (the app's `words`). */
 export function bsCoachWords(pron, first) {

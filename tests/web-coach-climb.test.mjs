@@ -578,7 +578,10 @@ test('the camps are the app\'s, in its order: Base, Book, the range, Proof, Word
 });
 
 // PARITY §2: the coach's accent tints the drawing, never the text or a button.
-test('the coach\'s accent tints the route, the contours, the summit ring and the full stop; labels and Book keep the role\'s colours', async () => {
+// The labels take the picked accent at the step that reads on the page (the kit's bsCoachPagePalette,
+// owner 2026-11-11: "coaches should be able to customize how their page appears publicly"); the booking
+// keeps the role's colour.
+test('the coach\'s accent tints the route, the contours, the summit ring and the full stop, and the labels at a readable step; Book keeps the role\'s colours', async () => {
   const rgb = (hex) => `rgb(${parseInt(hex.slice(1, 3), 16)}, ${parseInt(hex.slice(3, 5), 16)}, ${parseInt(hex.slice(5, 7), 16)})`;
   const stop = () => $('[data-name-stop]').style.color;
   const routeStroke = () => [...$('[data-terrain] svg').querySelectorAll('path')].map((x) => x.getAttribute('stroke')).filter((c) => c && c !== '#effffc');
@@ -591,8 +594,9 @@ test('the coach\'s accent tints the route, the contours, the summit ring and the
   assert.ok(routeStroke().length && routeStroke().every((c) => c === violet), 'the route and the contours');
   assert.match($('[data-summit-ring]').style.borderColor, /167, 139, 250/, 'the summit\'s ring');
   assert.match($('[data-camp="day"] .cpw-diamond').style.borderColor, /167, 139, 250/, 'the spine\'s diamonds');
-  assert.equal($('.cpw-eyebrow').style.color, rgb('#34d6c5'), 'a label keeps the teal');
-  assert.equal($('.cpw-camp-label').style.color, rgb('#34d6c5'));
+  const violetText = K.bsCoachPagePalette({ paper: 'dark', accent: 'violet' }, 'trainer').ACCENT;
+  assert.equal($('.cpw-eyebrow').style.color, rgb(violetText), 'a label takes the picked accent');
+  assert.equal($('.cpw-camp-label').style.color, rgb(violetText));
   assert.equal($('[data-dock-book]').style.background, rgb('#c0533b'), 'Book keeps the rust');
   await p.unmount();
   // The old customizer's hex, when there is no look accent.
@@ -614,8 +618,55 @@ test('the coach\'s accent tints the route, the contours, the summit ring and the
   await p.unmount();
   p = await mount({ ...LIVE, role: 'nutritionist', row: { ...NROW, custom: { look: { accent: 'rose' } } } });
   assert.equal(stop(), rgb(K.BS_COACH_ACCENTS.rose.dark));
-  assert.equal($('.cpw-eyebrow').style.color, rgb('#d8a23a'), 'the label keeps the gold');
+  assert.equal($('.cpw-eyebrow').style.color, rgb(K.bsCoachPagePalette({ accent: 'rose' }, 'nutritionist').ACCENT), 'the label takes the rose');
   assert.match($('[data-dock]').innerHTML, /216, 162, 58|#d8a23a/, 'the booking colour stays gold');
+  await p.unmount();
+});
+
+// Owner, 2026-11-11: "coaches should be able to customize how their page appears publicly. So the edits
+// need to work." The paper picked in Edit profile → Appearance paints the whole page through the
+// stylesheet's --cpw-* properties (the kit's bsCoachPagePalette); the climb background is a wash over it.
+test('a picked paper paints the whole page, ground, text and stylesheet; the climb background washes over it; no pick is the Climb', async () => {
+  const rgb = (hex) => `rgb(${parseInt(hex.slice(1, 3), 16)}, ${parseInt(hex.slice(3, 5), 16)}, ${parseInt(hex.slice(5, 7), 16)})`;
+  const root = () => $('[data-coach-profile]');
+  const vars = (name) => root().style.getPropertyValue(name);
+  WIDE = true; backend();
+  const look = { paper: 'light', accent: 'blue' };
+  const pal = K.bsCoachPagePalette(look, 'trainer');
+  let p = await mount({ ...LIVE, row: { ...ROW, custom: { ...ROW.custom, look, climbBg: 'dusk' } } });
+  assert.equal(root().getAttribute('data-paper'), 'light');
+  assert.ok(root().hasAttribute('data-light'));
+  assert.equal(vars('--cpw-bg'), pal.BG);
+  assert.equal(vars('--cpw-ink'), pal.INK);
+  assert.equal(vars('--cpw-ink-rgb'), pal.inkRGB);
+  assert.equal(vars('--cpw-head'), pal.INK, 'headings take the ink on a light paper');
+  assert.equal(vars('--cpw-deep'), pal.DEEP);
+  assert.equal(root().style.color, rgb(pal.INK));
+  assert.match(root().getAttribute('style'), /rgba\(138, ?92, ?246/, 'the dusk wash');
+  assert.match(root().getAttribute('style'), /rgb\(245, 240, 230\)|#f5f0e6/, 'over the paper');
+  assert.equal($('.cpw-eyebrow').style.color, rgb(pal.ACCENT), 'labels take the accent');
+  assert.equal($('[data-dock-book]').style.background, rgb('#a8331b'), 'Book keeps the rust, its darker step');
+  // The stylesheet draws in the properties, never the Climb's fixed ink.
+  const css = $('[data-coach-profile] style').textContent;
+  assert.match(css, /var\(--cpw-ink-rgb\)/);
+  assert.doesNotMatch(css, /rgba\(238,243,240,/, 'a fixed light ink left in the stylesheet');
+  // The route reads on the light ground.
+  const strokes = [...$('[data-terrain] svg').querySelectorAll('path')].map((x) => x.getAttribute('stroke')).filter(Boolean);
+  assert.ok(strokes.includes(pal.INK), 'the route is drawn in the ink on a light paper');
+  await p.unmount();
+  // No pick: the Climb's own dark page, no wash, no paper named.
+  for (const custom of [ROW.custom, { ...ROW.custom, look: { paper: 'dark', accent: 'teal' } }, { ...ROW.custom, climbBg: 'nope' }]) {
+    p = await mount({ ...LIVE, row: { ...ROW, custom } });
+    assert.ok(!root().hasAttribute('data-paper'), JSON.stringify(custom));
+    assert.equal(vars('--cpw-bg'), '#06090f');
+    assert.equal(vars('--cpw-head'), '#fff');
+    assert.doesNotMatch(root().getAttribute('style'), /linear-gradient/, 'a wash with no pick');
+    await p.unmount();
+  }
+  // An accent alone keeps the dark ground and names no paper.
+  p = await mount({ ...LIVE, row: { ...ROW, custom: { ...ROW.custom, look: { accent: 'violet' } } } });
+  assert.equal(root().getAttribute('data-paper'), 'climb');
+  assert.equal(vars('--cpw-bg'), '#06090f');
   await p.unmount();
 });
 

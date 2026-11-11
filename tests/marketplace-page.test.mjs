@@ -368,6 +368,78 @@ test('the page: an account\'s card shows the location written in Edit profile', 
   await m.unmount();
 });
 
+// Owner, 2026-11-11: "coaches should be able to customize how their page appears publicly ... This
+// should also effect the marketplace card as well". An account's card takes the look its coach set for
+// their page (get_public_profile.custom, through the kit): the paper and accent, the climb background's
+// wash, their own cover photo and the spot they dragged it to.
+test('the page: an account\'s card takes its coach\'s look: paper, accent, wash, cover and its spot', async () => {
+  const K = await import('../public/newdesign/coachProfileKit.mjs');
+  window.ShapeCoachKit = K;
+  const settle = () => React.act(async () => { await new Promise((r) => setTimeout(r, 30)); });
+  const { BS_SUPABASE_HOST } = await import('../public/newdesign/listingMedia.mjs');
+  const OWN = `https://${BS_SUPABASE_HOST}/storage/v1/object/public/community-photos/u-tess/cover.jpg`;
+  const OTHER = `https://${BS_SUPABASE_HOST}/storage/v1/object/public/community-photos/u-other/cover.jpg`;
+  const custom = { look: { paper: 'light', accent: 'blue', focus: 'bottom', pos: { x: 30, y: 70 } }, climbBg: 'dusk', cover: { image: OWN } };
+  const card = () => document.querySelector('[data-kind="live"]');
+  const prop = (name) => card().style.getPropertyValue(name);
+  try {
+    let m = await mountPage({ rows: [OWNED], profile: { user_id: OWNED.owner_id, can_view: true, custom } });
+    await settle();
+    assert.ok(card(), 'the account\'s card did not render');
+    const pal = K.bsCoachPagePalette(custom.look, 'trainer');
+    assert.equal(card().getAttribute('data-paper'), 'light');
+    assert.ok(card().hasAttribute('data-light'));
+    assert.equal(prop('--card'), pal.PAPER, 'the card is the coach\'s paper');
+    assert.equal(prop('--fg'), pal.INK);
+    assert.equal(prop('--fg-3'), pal.INK_MUTED);
+    assert.equal(prop('--teal'), pal.ACCENT, 'the card\'s accent');
+    assert.equal(prop('--draw'), pal.DRAW);
+    assert.equal(prop('--cv-acc'), pal.ACCENT_DARK, 'the badge on the photo keeps a readable accent');
+    assert.equal(prop('--role-text'), pal.CTA_TEXT);
+    assert.equal(prop('--card-wash'), K.BS_CLIMB_BGS.dusk, 'the climb background');
+    const img = card().querySelector('.mk-cover img');
+    assert.ok(img, 'the coach\'s cover');
+    assert.equal(img.getAttribute('src'), OWN);
+    assert.equal(img.style.objectPosition, '30% 70%', 'the spot the coach dragged it to');
+    assert.match(card().querySelector('.mk-topo').innerHTML, /var\(--draw, #34d6c5\)/, 'the drawing takes the card\'s accent');
+    assert.ok(card().querySelector('[data-book-intro]'), 'the booking is still there');
+    await m.unmount();
+    // A stop with no dragged spot is the stage's stop.
+    m = await mountPage({ rows: [OWNED], profile: { user_id: OWNED.owner_id, can_view: true, custom: { look: { focus: 'top' }, cover: { image: OWN } } } });
+    await settle();
+    assert.equal(card().querySelector('.mk-cover img').style.objectPosition, 'center 22%');
+    assert.ok(!card().hasAttribute('data-paper'), 'a stop alone is no colour pick');
+    await m.unmount();
+    // An accent alone keeps the Climb's dark card.
+    m = await mountPage({ rows: [OWNED], profile: { user_id: OWNED.owner_id, can_view: true, custom: { look: { accent: 'rose' } } } });
+    await settle();
+    assert.equal(card().getAttribute('data-paper'), 'climb');
+    assert.equal(prop('--card'), '', 'an accent alone changed the card\'s paper');
+    assert.equal(prop('--teal'), K.bsCoachPagePalette({ accent: 'rose' }, 'trainer').ACCENT);
+    await m.unmount();
+    // No pick (or the editor's seed), a locked card, another account's photo, a key that is no wash:
+    // the Climb's card.
+    for (const profile of [
+      { user_id: OWNED.owner_id, can_view: true, custom: { look: { paper: 'dark', accent: 'teal' } } },
+      { user_id: OWNED.owner_id, can_view: false, custom },
+      { user_id: OWNED.owner_id, can_view: true, custom: { cover: { image: OTHER } } },
+      { user_id: OWNED.owner_id, can_view: true, custom: { climbBg: '__proto__' } },
+      { user_id: OWNED.owner_id, can_view: true, custom: 'junk' },
+    ]) {
+      m = await mountPage({ rows: [OWNED], profile });
+      await settle();
+      const label = JSON.stringify(profile);
+      assert.ok(!card().hasAttribute('data-paper'), label);
+      assert.equal(card().getAttribute('style'), null, label);
+      const im = card().querySelector('.mk-cover img');
+      assert.ok(!(im && /u-other|u-tess/.test(im.getAttribute('src') || '')), `${label}: a cover the card may not show`);
+      await m.unmount();
+    }
+  } finally {
+    delete window.ShapeCoachKit;
+  }
+});
+
 // Codex on #2619: every account's times are read, not the first 24, and never more than six at once.
 test('open times are read for every account, six at a time', async () => {
   let live = 0; let peak = 0; const seen = [];
