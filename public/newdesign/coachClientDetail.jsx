@@ -588,6 +588,9 @@ function CoachClientDetailPage({ clientId: clientIdProp, role: roleProp, inShell
       actions={actions}
       eyebrow={typeof memberAge === "number" ? `CLIENT · AGE ${memberAge}` : "CLIENT"}
       title={data.client.name}
+      // One Hide for every client's page; a failed care-team read is its own, so hiding the care team
+      // never hides the warning that it didn't load.
+      introId={careTeamPartial ? "client-unread" : "client"}
       subtitle={careTeamPartial
         ? `Couldn't load this client's care team — that's a loading problem, not an empty one. Refresh to try again.`
         : counterparts.length ? `Care team of ${data.careTeam.length}` : `You are this client's only coach right now.`}

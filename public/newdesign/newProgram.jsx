@@ -197,6 +197,7 @@ function NewProgramPage() {
       payoutCard={trainerPayoutCard}
       eyebrow={<a href={dashShellHref("TrainerPrograms.html")} style={{ color: "rgba(242,237,228,0.55)" }}>← PROGRAMS</a>}
       title={isEditing ? "Manage program" : "New program"}
+      introId="program"
       subtitle="A reusable training block you sell once or via subscription. Sessions cascade to every client on the block — their history stays intact."
       actions={<>
         <a href={dashShellHref("TrainerPrograms.html")} style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer" }}>Cancel</a>

@@ -490,6 +490,7 @@ function ClientScorePage() {
       payoutCard={clientPayoutCard}
       eyebrow="SHAPE SCORE · UPDATED NIGHTLY"
       title={settling ? "—" : unread ? "—" : myPoints.toLocaleString()}
+      introId={unread ? "score-unread" : "score"}
       subtitle={settling ? "Reading your standing…"
         : unread ? "Couldn't read your score just now. Nothing has changed — reload to try again."
         : (!demo && myPoints === 0) ? "Your first logged workout, meal or habit opens this. Every point is written to the Record with the reason it was given."

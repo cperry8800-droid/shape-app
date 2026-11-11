@@ -200,6 +200,21 @@ function sampleRecipe(slug, note, i, catalog) {
   }, null);
 }
 
+// A sample plan's menu in the reduced shape the public sale-plan read hands out (planPreview.mjs's
+// header): `preview`, the day's meal count, and its first two meals as a coach writes a meal line
+// ("Breakfast: Greek yogurt power bowl · 520 kcal", which bsAssignMeal reads). The meals are one of the
+// kitchen's sample days, named as its plate notes name them.
+const mealSlot = (h) => (h < 11 ? 'Breakfast' : h < 15 ? 'Lunch' : h < 18 ? 'Snack' : 'Dinner');
+function samplePlanMenu(meals, di, kk, S) {
+  const lines = meals.map((m, mj) => {
+    const [h, , slug] = m;
+    const [name, kcal] = slug ? R[slug] : m.slice(3, 5);
+    const title = slug ? name : S(`mealName.${kk}.${di}.${mj}`, name);
+    return `${mealSlot(h)}: ${title}${kcal ? ` · ${kcal} kcal` : ''}`;
+  });
+  return { preview: true, perDay: false, blocksCount: lines.length, blocks: lines.slice(0, 2) };
+}
+
 const hash = (s) => { let h = 7; for (const ch of String(s || '')) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return h; };
 
 /** The kinds of practice a sample can have, for the tests. */
@@ -333,7 +348,10 @@ export function bsNutritionistDemo({ now = Date.now(), zone = null, kind = 'perf
     // 'meal', a kind of 'meal_plan'), with no provider id: a sample has no checkout, so the sheet shows
     // each one's price, not Buy (owner, 2026-11-01: "yes add the sample meal plans"; the sheet read
     // "Publish your first plan to list it here", left by #2545). The page words the weeks.
-    plans: k.plans.map(([name, price, weeks], i) => ({ id: `demo-meal-${kk}-${i}`, kind: 'meal_plan', category: 'meal', name: S(`plan.${kk}.${i}`, name), price, weeks })),
+    // Each carries its menu as a real plan's public read does (sale_plan_preview_detail: two meals and
+    // the count, never the whole menu), so its preview has a day to show (owner, 2026-11-11: "open up a
+    // preview of some of these meal plans"): one of the kitchen's own days, the first plan the first.
+    plans: k.plans.map(([name, price, weeks], i) => ({ id: `demo-meal-${kk}-${i}`, kind: 'meal_plan', category: 'meal', name: S(`plan.${kk}.${i}`, name), price, weeks, detail: samplePlanMenu(k.days[i % k.days.length], i % k.days.length, kk, S) })),
     // What the sample posted besides plate notes, for the page's activity feed (owner, 2026-10-30:
     // "there is also no activity feed on coaches profile"): a note on Sunday prep and a walk, as
     // the member profile's activity cards. The page puts the coach's name and tier on them.
