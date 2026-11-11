@@ -1102,6 +1102,7 @@ function CoachScoreBoard({ role }) {
       payoutCard={cfg.payout()}
       eyebrow={headline.eyebrow}
       title={headline.title}
+      introId="score"
       subtitle={coachStandingLine(role, standing)}
       actions={<CoachScoreActions view={view} onView={setView} />}
     >

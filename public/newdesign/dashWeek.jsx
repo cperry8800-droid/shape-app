@@ -973,6 +973,7 @@ function CoachWeekPage({ role }) {
         actions={actions}
         eyebrow={"END OF WEEK · REVIEW · " + rel.toUpperCase()}
         title={"Week of " + dwkFmt(weekOf)}
+        introId="week"
         subtitle="Every client's check-in in one table, what stands out across them, and the one you are reading beside it. Reply, mark it reviewed, and go on to the next."
       >
         {/* The layout lives in classes, not inline grids: pageShell's phone rules collapse any inline

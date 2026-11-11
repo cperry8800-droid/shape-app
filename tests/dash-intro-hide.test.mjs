@@ -8,7 +8,7 @@
 // name) reads the choice saved for the page it became; the client's page keeps one choice for every client.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 
@@ -94,4 +94,42 @@ test('a page that becomes another without remounting reads the choice of the pag
 test('the client\'s page keeps one choice for every client, and a failed care-team read its own', () => {
   const src = readFileSync(ND('coachClientDetail.jsx'), 'utf8');
   assert.match(src, /title=\{data\.client\.name\}[\s\S]{0,300}introId=\{careTeamPartial \? "client-unread" : "client"\}/);
+});
+
+// Codex P2 on #2700: a title that is data (the score, the week's date) keyed the choice to that data, so
+// a nightly score or a new week brought back a description the reader had hidden. Every DashPage on the
+// website whose title is not one fixed string passes a stable introId.
+test('every DashPage whose title is data passes a stable introId', () => {
+  const { parse } = require_('@babel/parser');
+  const dir = fileURLToPath(new URL('../public/newdesign/', import.meta.url));
+  const sources = [];
+  for (const f of readdirSync(dir).filter((x) => /\.(jsx|html)$/.test(x))) {
+    const src = readFileSync(dir + f, 'utf8');
+    if (!src.includes('<DashPage')) continue;
+    if (f.endsWith('.jsx')) sources.push([f, src]);
+    else if (f.endsWith('.html')) for (const m of src.matchAll(/<script[^>]*type="text\/babel"[^>]*>([\s\S]*?)<\/script>/g)) if (m[1].includes('<DashPage')) sources.push([f, m[1]]);
+  }
+  const sites = [];
+  const walk = (n, f) => {
+    if (!n || typeof n.type !== 'string') return;
+    if (n.type === 'JSXOpeningElement' && n.name && n.name.name === 'DashPage') {
+      const attr = (k) => n.attributes.find((a) => a.type === 'JSXAttribute' && a.name.name === k);
+      const t = attr('title');
+      const v = t && t.value;
+      const fixed = !t || (v && v.type === 'StringLiteral') || (v && v.type === 'JSXExpressionContainer' && v.expression.type === 'StringLiteral');
+      sites.push({ at: `${f}:${n.loc.start.line}`, fixed, introId: !!attr('introId') });
+    }
+    for (const k of Object.keys(n)) {
+      if (k === 'loc' || k === 'start' || k === 'end') continue;
+      const c = n[k];
+      if (Array.isArray(c)) c.forEach((x) => walk(x, f)); else if (c && typeof c === 'object') walk(c, f);
+    }
+  };
+  for (const [f, src] of sources) walk(parse(src, { sourceType: 'module', plugins: ['jsx'], errorRecovery: true }).program, f);
+  assert.ok(sites.length >= 30, `the call sites were found (${sites.length})`);
+  const loose = sites.filter((s) => !s.fixed && !s.introId).map((s) => s.at);
+  assert.deepEqual(loose, [], 'a DashPage whose title is data, with no introId');
+  for (const [f, id] of [['clientScore.jsx', 'introId={unread ? "score-unread" : "score"}'], ['coachGoalScore.jsx', 'introId="score"'], ['dashWeek.jsx', 'introId="week"']]) {
+    assert.ok(readFileSync(ND(f), 'utf8').includes(id), f + ' ' + id);
+  }
 });

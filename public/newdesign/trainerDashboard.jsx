@@ -336,8 +336,10 @@ function DashPage({ navItems, payoutCard, eyebrow, title, subtitle, actions, chi
   // each dashboard page hideable so the schedule sits higher on page as well as other dashboard sections"):
   // Hide folds it away and the page's content moves up; an ⓘ beside the title brings it back. Remembered per
   // page on this browser, read before the first paint so a hidden one never shows and then jumps away.
-  // The page is its path and its title, or `introId` where the title is the record's own (a client's
-  // name): one choice for every client, not one per name.
+  // The page is its path and its title, or its `introId`. ⚠ A title that is data (a client's name, the
+  // score, the week's date) passes a stable `introId`, or the choice would end when the data changed: one
+  // choice for every client, every night's score, every week (tests/dash-intro-hide.test.mjs holds every
+  // call site to it).
   const introKey = "shape.dash.intro:" + (typeof window !== "undefined" && window.location ? window.location.pathname : "") + ":"
     + (typeof introId === "string" && introId ? introId : typeof title === "string" ? title : "");
   const readIntro = (k) => { try { return window.localStorage.getItem(k) === "hidden"; } catch (e) { return false; } };
