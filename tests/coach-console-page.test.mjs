@@ -212,6 +212,14 @@ test('nutritionist console: a plan or note that didn\'t load says so, never "Not
   assert.match(document.querySelector('[data-console-plan-unread]').textContent, /Today's plan didn't load/)
   assert.ok(!document.querySelector('[data-console-plan]'), 'no plan list is drawn')
   assert.match(document.querySelector('[data-console-grocery-unread]').textContent, /grocery note didn't load/)
+  // Neither action runs on what didn't load (Codex P2 on #2693): Send would save over or clear an unseen
+  // note, and Add could repeat a meal already on the plan.
+  assert.equal(button('Send').disabled, true)
+  assert.equal(button("+ Add to today's plan").disabled, true)
+  await React.act(async () => typeInto(document.querySelector('input[placeholder="e.g. Salmon bowl + greens"]'), 'Oats'))
+  await React.act(async () => { button("+ Add to today's plan").click(); button('Send').click() })
+  await React.act(flush)
+  assert.deepEqual(ui.posts, [], 'nothing is sent')
   await React.act(async () => ui.root.unmount())
 })
 

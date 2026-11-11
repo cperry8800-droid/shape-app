@@ -52,7 +52,7 @@ function fakeDb(tables, { fail = null, failWrite = null, onClient = true } = {})
       if (call.write) {
         if (failWrite && failWrite(call)) return { data: null, error: { message: 'refused' } }
         writes.push({ table, ...call.write, ops: call.ops })
-        return { data: single ? { id: 'new-item' } : null, error: null }
+        return { data: single ? { id: 'new-item', sent_at: '2026-11-10T03:00:01.000Z' } : null, error: null }
       }
       if (fail && fail(call)) return { data: null, error: { message: 'timeout' } }
       let out = (tables[table] ?? []).filter((r) => keep(r, call.ops))
@@ -317,6 +317,9 @@ test('nutritionist console: a grocery note is saved before the old one is set as
     assert.ok(older.ops.some(([op, c, x]) => op === 'eq' && c === col && String(x) === String(v)), `the update is held to ${col}`)
   }
   assert.ok(older.ops.some(([op, c, x]) => op === 'neq' && c === 'id' && x === 'new-item'), 'the new note is kept')
+  // Only notes sent before this one (Codex P2 on #2693): two Sends that overlap each set aside the older
+  // rows, never the other's new one, so the later note is left.
+  assert.ok(older.ops.some(([op, c, x]) => op === 'lt' && c === 'sent_at' && x === '2026-11-10T03:00:01.000Z'), 'held to rows sent before the new note, by the database\'s clock')
 
   const refused = fakeDb(world('nutritionist'), { failWrite: (c) => c.write.kind === 'insert' })
   const no = await post('nutritionist', refused, { clientId: A, action: 'groceryNote', text: 'Buy oats' })
@@ -328,6 +331,7 @@ test('nutritionist console: a grocery note is saved before the old one is set as
   assert.equal(empty.status, 200)
   assert.deepEqual(cleared.writes.map((w) => w.kind), ['update'], 'clearing marks the note removed')
   assert.ok(!cleared.writes[0].ops.some(([op]) => op === 'neq'))
+  assert.ok(cleared.writes[0].ops.some(([op, c, x]) => op === 'lt' && c === 'sent_at' && typeof x === 'string' && !Number.isNaN(Date.parse(x))), 'a clear sets aside what was sent before it was asked for')
 
   const long = fakeDb(world('nutritionist'))
   const over = await post('nutritionist', long, { clientId: A, action: 'groceryNote', text: 'x'.repeat(1001) })

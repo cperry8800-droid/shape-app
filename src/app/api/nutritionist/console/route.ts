@@ -412,19 +412,26 @@ export async function POST(req: Request) {
     // THE OLD ONES MARKED REMOVED. This deleted every note and then inserted, ignoring the delete's error
     // and with no role filter, so a refused insert (the live kind check refused every one: left by #2686)
     // lost the note that was there and still answered ok. An empty text clears the note.
+    // ⚠ ONLY NOTES SENT BEFORE THIS ONE ARE SET ASIDE (Codex P2 on #2693). "Every other live note" let two
+    // Sends that overlapped (two console tabs) each remove the other's new row, leaving no note while both
+    // answered ok. Each now sets aside the rows sent before its own (sent_at, the database's clock), so
+    // the later Send's note is the one left. A clear sets aside what was sent before it was asked for.
     const text = String(body?.text ?? '').trim();
+    const askedAt = new Date().toISOString();
     if (text.length > GROCERY_NOTE_MAX) {
       return NextResponse.json({ error: `Keep the grocery note to ${GROCERY_NOTE_MAX} characters or fewer.` }, { status: 400 });
     }
     let keep: string | null = null;
+    let before = askedAt;
     if (text) {
       const { data, error } = await supabase
         .from('coach_pushed_items')
         .insert({ provider_role: ROLE, provider_id: providerId, client_id: clientId, kind: 'grocery_note', payload: { text } })
-        .select('id')
+        .select('id, sent_at')
         .single();
       if (error) return dbError(error, 'nutritionist console write', 400);
       keep = String(data.id);
+      if (typeof data.sent_at === 'string' && data.sent_at) before = data.sent_at;
     }
     let older = supabase
       .from('coach_pushed_items')
@@ -433,7 +440,8 @@ export async function POST(req: Request) {
       .eq('provider_id', providerId)
       .eq('client_id', clientId)
       .eq('kind', 'grocery_note')
-      .is('removed_at', null);
+      .is('removed_at', null)
+      .lt('sent_at', before);
     if (keep) older = older.neq('id', keep);
     const { error: olderErr } = await older;
     // The new note is saved and is the newest, so it is the one the member reads; an old row left
