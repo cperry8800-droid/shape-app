@@ -103,7 +103,7 @@ test('a free account and a member are both in the app; ShapeCanChat is true for 
   assert.equal(free.canChat, true, 'messaging a coach is free');
   assert.equal(free.paid, false);
   // The shell: a session with no account meets the welcome; every account falls through to <App>.
-  const app = MAIN.slice(MAIN.indexOf("{stage === 'app' && ("), MAIN.indexOf('{noraDoor && !noraSheet'));
+  const app = MAIN.slice(MAIN.indexOf("{stage === 'app' && ("), MAIN.indexOf('{noraHere && noraSheet'));
   assert.ok(app.indexOf(') : !accountAllowed ? (') > 0 && app.indexOf(') : !accountAllowed ? (') < app.indexOf('<BSWelcome'), 'only a session with no account meets the welcome');
   assert.equal((app.match(/<App onLogout=/g) || []).length, 1, 'one app, for every account: no preview copy of it');
   assert.doesNotMatch(app, /memberAllowed|BSPaywall/, 'no membership wall in front of the app');
@@ -503,7 +503,8 @@ test('community channels are free: a free account (ShapePaid false) opens the ch
   const none = drive(BSMessageComposer, { value: 'Hello channel', onChange() {}, onSend() {}, mag: true });
   assert.ok(none.nodes().some((n) => typeof n.type === 'function' && n.type.name === 'BSSignInToSend'));
   // And the free lists name channels, never the membership's.
-  assert.match(MAIN, /\['training', 'nutrition', 'coaches', 'channels', 'score', 'byo'\]\.map\(\(k\) => tr\('paywall\.feat\.' \+ k\)\)/);
+  // The welcome's chips (redrawn 2026-11-11): channels among the free parts, each read through its own key.
+  assert.match(MAIN, /\['training', 'nutrition', 'coaches', 'score', 'channels', 'byo'\]\.map\(\(k\) => tr\('paywall\.feat\.' \+ k\)\)/);
   for (const loc of LOCALES) {
     assert.ok(String(cat(loc, 'onboarding')['paywall.feat.channels'] || '').trim(), `${loc}: paywall.feat.channels`);
     assert.ok(String(cat(loc, 'common')['paid.freeWithAccount'] || '').trim(), `${loc}: paid.freeWithAccount`);

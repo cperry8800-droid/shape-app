@@ -1109,3 +1109,33 @@ test('Home holds the picked day: the strip hands it up, and Team reads that day\
   // The morning panel stays today's: Your move reads selIdx, which is today.
   assert.match(client, /const selIdx = todayIdx;/);
 });
+
+// ── One check-in on Home (owner, 2026-11-11: "why are there 2 checkins for a signed in account") ───
+// The Weekly check-in is the coach's form: a line on Team naming who it is for, only with a coach, where it
+// was a second check-in row under the morning panel that every signed-in account saw.
+test('Team: the Weekly check-in is a line under the coaches it is for, and only when there is a coach', () => {
+  let opened = 0;
+  const one = drive(T.BSHomeTeamView, TEAM({ coaches: [JORDAN], notes: [], weekly: { onOpen: () => { opened += 1; } } }));
+  const line = one.nodes().find((n) => n.type === 'button' && n.props['data-team-weekly'] != null);
+  assert.ok(line, 'the line is drawn');
+  assert.match(textOf(line), /Weekly check-in due\s*For Jordan\s*2 min/);
+  assert.equal(line.props['aria-label'], 'Weekly check-in due · For Jordan · 2 min');
+  line.props.onClick();
+  assert.equal(opened, 1, 'it opens the check-in');
+  const two = drive(T.BSHomeTeamView, TEAM({ weekly: { onOpen: () => {} } }));
+  assert.match(textOf(two.nodes().find((n) => n.props && n.props['data-team-weekly'] != null)), /For your coaches/);
+  // No coach: nothing to send it to, so no line (Settings and Your first 30 days still open the form).
+  const none = drive(T.BSHomeTeamView, TEAM({ coaches: [], notes: [], showFindCoach: true, weekly: { onOpen: () => {} } }));
+  assert.equal(none.nodes().some((n) => n.props && n.props['data-team-weekly'] != null), false);
+  // Not due: no line.
+  const notDue = drive(T.BSHomeTeamView, TEAM({ weekly: null }));
+  assert.equal(notDue.nodes().some((n) => n.props && n.props['data-team-weekly'] != null), false);
+  // Home: no second check-in row, the line rides Team signed in only, and only a sent check-in clears it.
+  const client = readFileSync(join(ROOT, 'mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx'), 'utf8');
+  assert.doesNotMatch(client, /BSHomeBulletin|home:bulletin\.weeklyCheckin/, 'no weekly row beside the morning panel');
+  // Whenever it is due, the engine's check-in week included: Home's lead never asks for it (Codex P2 on #2709).
+  assert.match(client, /weekly=\{!sample && checkinDue && checkinPrefOn \? \{ onOpen: \(\) => setCheckinPage\(true\) \} : null\}/);
+  assert.match(client, /function bsCheckinLeadSuppressed\(engineFlag\) \{\s*return !!engineFlag && engineFlag\.lever === 'checkin';\s*\}/, 'no weekly check-in in Home\'s lead');
+  assert.doesNotMatch(client, /home:lead\.checkin\./, 'the lead has no check-in move to draw');
+  assert.match(client, /<BSWeeklyCheckin onBack=\{\(\) => setCheckinPage\(false\)\} onSent=\{\(\) => \{ setCheckinDue\(false\); setCheckinPage\(false\); \}\} \/>/, 'a Back without sending keeps the line');
+});

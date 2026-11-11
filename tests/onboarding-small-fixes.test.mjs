@@ -579,12 +579,13 @@ test('L3: the phone create needs a name, offers a handle, and claims it once the
 
 test('L3: the profile editor claims the account\'s username when it has none; a taken one saves nothing', () => {
   const client = read('mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx');
-  const save = client.slice(client.indexOf('const saveEdit  = async () => {'), client.indexOf('const cancelEdit = () => setEditing(false);'));
+  const save = client.slice(client.indexOf('const saveEditFields = async () => {'), client.indexOf('const cancelEdit = () =>'));
   const claim = save.indexOf('await window.ShapeAuth.claimUsername(want);');
   assert.ok(claim > 0, 'the claim');
   assert.ok(claim < save.indexOf('await bsSaveIdentity(patch);'), 'before the profile is written');
   assert.match(save, /if \(touched\.has\('handle'\) && typed && !accountUsername && window\.ShapeAuth\?\.claimUsername\) \{/);
-  assert.match(save, /if \(!claimed\) \{ window\.__bsToast\?\.\([^;]*'err'\); return; \}/);
+  // Said on the page, over Save (toasts are a no-op app-wide): saveEdit shows the line it returns.
+  assert.match(save, /if \(!claimed\) return tr\('onboarding:login\.err\.usernameTaken'/);
   // The cached username is from launch: read fresh before claiming, and claim nothing on a failed read (Fable).
   assert.match(save, /const r = sb && uid \? await sb\.from\('profiles'\)\.select\('username'\)\.eq\('id', uid\)\.maybeSingle\(\) : null;\s*accountUsername = r && !r\.error \? \(r\.data\?\.username \|\| null\) : 'unknown';/);
   assert.ok(save.indexOf("select('username')") < save.indexOf('await window.ShapeAuth.claimUsername(want);'));

@@ -40,16 +40,18 @@ test('the app forms follow the app screens: every key one the screen sets, every
   assert.ok(FORMS.app_apply_trainer.steps.find((s) => s.name === 'Specialty').fields[0].options.includes('Marathon'));
 });
 
-// The paywall had the door too, until the owner's call (2026-10-18: "remove the nora bubble in top right").
-test('sign-in and the application get a labelled door, the paywall none; the tap loads the bundle her sheet lives in', () => {
+// No door of her own on these screens (owner, 2026-11-11: "that nora box in top right needs to be removed",
+// as the paywall's went on 2026-10-18). The application's own Ask Nora sends shape:openNora, which the
+// pre-account shell hears on sign-in and the application only.
+test('sign-in and the application draw no Nora door; the shell opens her sheet on the application\'s ask', () => {
   const shell = between(MAIN, '// ── Nora before there is an account', 'const askNora');
-  assert.match(shell, /const noraDoor = stage === 'login' \|\| stage === 'apply';/);
-  assert.doesNotMatch(shell, /paywallUp|'Join Shape'|nora\.pageJoin/, 'no door, and no Nora page name, for the paywall');
-  assert.match(shell, /if \(!noraDoor\) setNoraSheet\(false\);/, 'the sheet goes when the screen it was opened over does');
+  assert.match(shell, /const noraHere = stage === 'login' \|\| stage === 'apply';/);
+  assert.doesNotMatch(MAIN, /BSAskNoraDoor|data-nora-door|tr\('nora\.ask'\)/, 'no top-right door on any screen');
+  assert.match(shell, /if \(!noraHere\) setNoraSheet\(false\);/, 'the sheet goes when the screen it was opened over does');
   assert.match(MAIN, /const askNora = \(\) => \{ loadClientBundle\(\)\.then\(\(\) => setNoraSheet\(true\)\)\.catch\(\(\) => \{\}\); \};/);
-  assert.match(MAIN, /\{noraDoor && !noraSheet && <BSAskNoraDoor onAsk=\{askNora\} \/>\}/);
-  assert.match(MAIN, /\{noraDoor && noraSheet && window\.BSNoraSheet \? <window\.BSNoraSheet onClose=\{\(\) => setNoraSheet\(false\)\} \/> : null\}/);
-  assert.match(between(MAIN, 'function BSAskNoraDoor(', 'function BSWireHold('), /\{tr\('nora\.ask'\)\}/);
+  const listen = between(MAIN, 'const askNora = ', '// The wire beat holds');
+  assert.match(listen, /if \(!noraHere\) return undefined;\s*window\.addEventListener\('shape:openNora', askNora\);/, 'heard only before there is an account, where no app shell listens');
+  assert.match(MAIN, /\{noraHere && noraSheet && window\.BSNoraSheet \? <window\.BSNoraSheet onClose=\{\(\) => setNoraSheet\(false\)\} \/> : null\}/);
   assert.match(shell, /return window\.bsNoraOpen\(\{ page: noraWhere\[0\], label: noraWhere\[1\] \}\);/, 'she is told the screen, and the chip names it in their language');
 });
 
