@@ -145,3 +145,18 @@ test("a coach's row and pick take their look: the paper under a scrim over their
   assert.equal(plain.props['data-mkt-look'], undefined);
   assert.equal(plain.props.style.background, undefined);
 });
+
+test("on a coach's paper, a program's price and Start here's All posts read at 4.5:1; the Climb keeps its own (Codex on #2708)", { skip: !climb }, () => {
+  const { bsClimbTheme } = climb;
+  const cl = fs.readFileSync(join(ROOT, 'mobile-app/src/broadsheet/BSCoachClimb.jsx'), 'utf8');
+  assert.match(cl, /data-climb-price="" style=\{\{ padding: '6px 8px', background: CLIMB\.picked \? CLIMB\.BG : 'rgba\(0,0,0,0\.35\)'/, 'the price on a fixed black well');
+  assert.match(cl, /data-climb-all-posts=""[^\n]*color: CLIMB\.picked \? ACC : \(nutri \? CLIMB\.GOLD : '#e0785f'\)/, 'All posts in the dark Climb\'s rust on a light paper');
+  for (const paper of Object.keys(kit.BS_COACH_PAPERS)) for (const accent of Object.keys(kit.BS_COACH_ACCENTS)) for (const role of ['trainer', 'nutritionist']) {
+    const P = bsCoachPagePalette({ paper, accent }, role);
+    if (!P) continue;
+    const th = bsClimbTheme(P);
+    const at = `${paper}/${accent}/${role}`;
+    assert.ok(kit.bsContrast(th.INK, th.BG) >= 4.5, `${at}: the price on its well`);
+    for (const ground of [P.PAPER, th.BG, th.PANEL]) assert.ok(kit.bsContrast(th.accFor(role === 'nutritionist'), ground) >= 4.5, `${at}: All posts on ${ground}`);
+  }
+});

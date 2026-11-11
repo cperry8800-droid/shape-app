@@ -602,7 +602,7 @@ export function BSClimbRange({ programs, nutri = false, onOpen, onStart = null, 
                 {facts ? <span style={{ display: 'block', marginTop: 4, fontSize: 13, color: CLIMB.MUTED }}>{facts}</span> : null}
                 {p.desc ? <span data-studio-desc="" style={{ display: '-webkit-box', marginTop: 6, fontSize: 13.5, lineHeight: 1.4, color: CLIMB.INK, WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{p.desc}</span> : null}
               </span>
-              {p.price ? <span data-climb-price="" style={{ padding: '6px 8px', background: 'rgba(0,0,0,0.35)', ...numFace(17) }}>{p.price}</span> : <span />}
+              {p.price ? <span data-climb-price="" style={{ padding: '6px 8px', background: CLIMB.picked ? CLIMB.BG : 'rgba(0,0,0,0.35)', ...numFace(17) }}>{p.price}</span> : <span />}
             </div>
             {/* The card opens the program; Start sits beside it, never inside the same button. */}
             <div style={{ display: 'flex', gap: 8, padding: '0 14px 14px' }}>
@@ -783,7 +783,7 @@ export function BSClimbStart({ highlight = null, film = null, videos = [], photo
         <div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 }}>
             <span style={mono(9, CLIMB.DIM)}>{tr('profile:climb.highlights', { defaultValue: 'Highlights' })}</span>
-            {allPosts ? <button type="button" data-climb-all-posts="" onClick={allPosts.onClick} style={{ minHeight: 44, padding: 0, border: 0, background: 'transparent', color: nutri ? CLIMB.GOLD : '#e0785f', fontSize: 13.5, fontWeight: 700, cursor: 'pointer' }}>{allPosts.label} →</button> : null}
+            {allPosts ? <button type="button" data-climb-all-posts="" onClick={allPosts.onClick} style={{ minHeight: 44, padding: 0, border: 0, background: 'transparent', color: CLIMB.picked ? ACC : (nutri ? CLIMB.GOLD : '#e0785f'), fontSize: 13.5, fontWeight: 700, cursor: 'pointer' }}>{allPosts.label} →</button> : null}
           </div>
           <div className="bs-hide-scroll" style={{ display: 'flex', gap: 10, overflowX: 'auto', paddingBottom: 2 }}>
             {videos.map((v) => (
