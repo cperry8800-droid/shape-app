@@ -11,7 +11,7 @@ import {
   BS_FILM_CAPTION_MAX, BS_BIZ_NAME_MAX, BS_BIZ_WHERE_MAX, BS_BIZ_HOURS_MAX, BS_BIZ_HANDLE_MAX, BS_PINNED_REVIEWS_MAX,
   BS_PIN_TITLE_MAX, BS_PIN_NOTE_MAX, BS_PIN_METRIC_MAX, BS_SONG_LABEL_MAX, BS_HERO_STATS_MAX, BS_COACH_FILM_MAX_MB, BS_PIN_KINDS,
   bsProfileFilm, bsProfileBizCard, bsProfilePinnedReviews, bsProfilePinned, bsProfileSong, bsSpotifyEmbed, bsPinKindLabel,
-  BS_PUBLIC_STATS, bsProfilePublicStats,
+  BS_PUBLIC_STATS, bsProfilePublicStats, bsLookPos,
 } from '../services/profileCustom.mjs';
 import { BS_COACH_STATS, bsCoachHeadlineKeys } from '../services/coachWork.mjs';
 import { bsFocusWordLabel, bsStudioForLabel } from './BSCoachStudio.jsx';
@@ -1712,7 +1712,17 @@ export function BSMakeItYours({ role = 'trainer', demo = false, ownerUid = null,
   // A floor plan saved before (`studio`) is never edited here, so it is always the doc's own.
   const withChanges = (base) => {
     const doc = { ...base };
-    if (lookChanged) doc.look = { paper: look.paper, accent: look.accent, focus: look.focus };
+    // A position dragged on the website (look.pos) rides through unless the crop stop changed here,
+    // where the stop picked is the newer word on what stays in view. A stop not changed here is the
+    // doc's as read at save time, with its spot: one dragged on the website since this opened is kept
+    // (Codex, #2704).
+    if (lookChanged) {
+      const was = base && base.look && typeof base.look === 'object' ? base.look : null;
+      const keepStop = look.focus === seed.look.focus;
+      const focus = keepStop && was && was.focus ? was.focus : look.focus;
+      const pos = keepStop ? bsLookPos(was && was.pos) : null;
+      doc.look = { paper: look.paper, accent: look.accent, focus, ...(pos ? { pos } : {}) };
+    }
     // An emptied kitchen drops the key (the normalizer keeps none with nothing in it).
     if (kitchenChanged) doc.kitchen = { plate: kitchen.plate, rules: kitchen.rules, staples: kitchen.staples, recipes: kitchen.recipes };
     // An emptied About, set of questions or socials drops its key (the normalizer keeps none empty).

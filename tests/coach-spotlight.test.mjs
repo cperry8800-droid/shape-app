@@ -530,3 +530,34 @@ test('Make it yours → View live preview opens the coach\'s page with a draft o
     await m.unmount();
   } finally { window.ShapeFollows = hadFollows; delete window.BSTrainerProfile; }
 });
+
+// A cover spot dragged on the website (look.pos, owner 2026-11-11: "create option to drag this image around
+// for background image so i can adjust positioning") rides through an app save while the crop stop stays,
+// and goes when the coach picks another stop here, since that stop is the newer word on what shows.
+test('Make it yours keeps a cover spot dragged on the website, and drops it when the stop changes', async () => {
+  const look = { paper: 'bone', accent: 'rust', focus: 'top', pos: { x: 30, y: 20 } };
+  reset({ stored: { look } });
+  let m = await mount(editor());
+  await click($('[data-paper="dark"]'));
+  await click($('[data-save-mine]'));
+  assert.deepEqual(world.saved.d.look, { paper: 'dark', accent: 'rust', focus: 'top', pos: { x: 30, y: 20 } }, 'a new paper lost the dragged spot');
+  await m.unmount();
+
+  // Dragged again on the website while this was open: the save keeps the newer spot and its stop,
+  // read at save time, not the one this opened with (Codex, #2704).
+  reset({ stored: { look } });
+  m = await mount(editor());
+  world.stored = { look: { ...look, focus: 'bottom', pos: { x: 70, y: 88 } } };
+  await click($('[data-paper="dark"]'));
+  await click($('[data-save-mine]'));
+  assert.deepEqual(world.saved.d.look, { paper: 'dark', accent: 'rust', focus: 'bottom', pos: { x: 70, y: 88 } }, 'the save put back the spot this opened with');
+  await m.unmount();
+
+  reset({ stored: { look } });
+  m = await mount(editor());
+  await editorTab('Wall photo');
+  await click([...$$('[role="group"][aria-label="Keep in view"] button')].find((b) => b.textContent === 'Bottom'));
+  await click($('[data-save-mine]'));
+  assert.deepEqual(world.saved.d.look, { paper: 'bone', accent: 'rust', focus: 'bottom' }, 'a new stop kept the old spot over it');
+  await m.unmount();
+});

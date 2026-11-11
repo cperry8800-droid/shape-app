@@ -168,9 +168,10 @@ function LiveProfilePage({ extras = null, demoRole = null, shell = null }) {
 
   const cl = () => (window.shapeDb && window.shapeDb.client) || null;
   // The own profile reads again when Nora's account setup (or its Undo) changes the name, goal or
-  // units from the chat over this page (chatWidget.jsx).
+  // units from the chat over this page (chatWidget.jsx), and when Edit profile saves the name, handle,
+  // location, pronouns or photo (shape:identity, livingDesktop.jsx's ProfileCustomizer).
   const [setupRev, setSetupRev] = React.useState(0);
-  React.useEffect(() => { const again = () => setSetupRev((n) => n + 1); window.addEventListener("shape:accountSetup", again); return () => window.removeEventListener("shape:accountSetup", again); }, []);
+  React.useEffect(() => { const again = () => setSetupRev((n) => n + 1); window.addEventListener("shape:accountSetup", again); window.addEventListener("shape:identity", again); return () => { window.removeEventListener("shape:accountSetup", again); window.removeEventListener("shape:identity", again); }; }, []);
   const applyStats = (d) => { if (d) setFollow({ followers: +d.followers || 0, following: +d.following || 0, isFollowing: !!d.is_following, isPending: !!d.is_pending }); };
   React.useEffect(() => {
     let on = true;

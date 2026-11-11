@@ -430,6 +430,9 @@ function useLiveCoaches() {
           const row = Array.isArray(r && r.data) ? r.data[0] : (r && r.data);
           if (row && row.avatar && !c.photo) c.photo = row.avatar;
           if (row && Number.isFinite(Number(row.points)) && row.points != null) c.points = Number(row.points);
+          // The place the coach wrote in Edit profile (get_public_profile.location, under can_view): the
+          // card's city, which a listing row has none of (Codex, #2704).
+          if (row && typeof row.location === "string" && row.location.trim()) c.city = row.location.trim().slice(0, 80);
         } catch (e) { /* keep initials */ }
       }));
       // Every account's times, six reads at a time: a cap left the coaches past it with no times, so

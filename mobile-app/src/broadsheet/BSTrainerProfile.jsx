@@ -1,7 +1,7 @@
 import React from 'react';
 import { bsUserGoalsRevHook } from '../services/userGoalsRefresh.mjs';
 import { createPortal } from 'react-dom';
-import { bsProfileLook, bsProfileStudio, bsProfileCover, bsProfileKitchen, bsProfileAbout, bsProfilePrompts, bsProfileFocus, bsProfilePicks, bsProfileDescriptions, bsProfileProgramFor, bsProfileLinkable, bsProfileLinkHref, bsProfileLinkText, bsPromptLabel, BS_PROFILE_LINK_KEYS, BS_PROFILE_LINK_GLYPHS } from '../services/profileCustom.mjs';
+import { bsProfileLook, bsLookPosition, bsProfileStudio, bsProfileCover, bsProfileKitchen, bsProfileAbout, bsProfilePrompts, bsProfileFocus, bsProfilePicks, bsProfileDescriptions, bsProfileProgramFor, bsProfileLinkable, bsProfileLinkHref, bsProfileLinkText, bsPromptLabel, BS_PROFILE_LINK_KEYS, BS_PROFILE_LINK_GLYPHS } from '../services/profileCustom.mjs';
 import { bsProfileFilm, bsProfileBizCard, bsProfilePinnedReviews, bsProfilePinned, bsProfileSong, bsSpotifyEmbed, bsPinKindLabel, bsCleanText, BS_FILM_CAPTION_MAX, BS_PINNED_REVIEWS_MAX } from '../services/profileCustom.mjs';
 import { STUDIO_WORDS } from '../services/studioKit.mjs';
 import { bsCoachPrograms, bsWorkoutVideos, bsStudioModel, bsWorkPaid, bsWorkPrice, bsPlateNoteDays, energySplit, bsCoachStatFigures, bsCoachHeadline } from '../services/coachWork.mjs';
@@ -293,9 +293,10 @@ function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = fal
   const avatarShown = avatar && avatar !== brokenAvatar ? avatar : null;
   const initials = W.bsInitials ? W.bsInitials(name) : String(name).split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
   const online = isSelf ? (W.bsAmLive ? W.bsAmLive() : false) : (W.bsIsUserOnline ? W.bsIsUserOnline(person.userId) : false);
-  // As members read it (get_public_profile: the line in Settings → Edit profile), as the Signal
-  // profile does.
-  const bio = (!isPrivate && ((live && live.goal) || (live && live.bio) || person.bio)) || '';
+  // The Bio written in the website's Edit profile (profile_custom.bio, as the member profile reads it),
+  // else as members read it (get_public_profile: the line in Settings → Edit profile).
+  const customBio = custom && typeof custom.bio === 'string' ? custom.bio.trim() : '';
+  const bio = (!isPrivate && (customBio || (live && live.goal) || (live && live.bio) || person.bio)) || '';
 
   // ── Their listing (provider row): open times, prices, verified, photos ──
   const [provider, setProvider] = React.useState(() => (selfDemo ? selfDemo.provider : null));
@@ -370,7 +371,8 @@ function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = fal
   // A nutritionist's kitchen has no floor plan (owner, 2026-10-31: "i dont think this concept makes
   // sense for nutritionist profiles", of the numbered fridge, pantry and stove lit by her recipes; it
   // was added 2026-10-30). A layout already saved stays in profile_custom.studio, read by nothing.
-  const where = isPrivate ? '' : ((custom && custom.bizCard && custom.bizCard.where) || (studio && studio.where) || person.city || '');
+  // The account's own place (Edit profile's Location, get_public_profile) before the directory row's city.
+  const where = isPrivate ? '' : ((custom && custom.bizCard && custom.bizCard.where) || (studio && studio.where) || (live && live.location) || person.city || '');
   const specialty = (!isPrivate && ((listed && (provider.specialty || provider.specialty_type)) || (sample && person.category))) || '';
   const business = !isPrivate && custom && custom.bizCard && custom.bizCard.name;
   // The words under the name: the coach's focus when they chose some (Make it yours → About me, owner,
@@ -1056,7 +1058,7 @@ function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = fal
     <BSPage>
       <div ref={pageRef} data-coach-page="">
         {canPickPhoto && photoHook.fileRef ? <input ref={photoHook.fileRef} type="file" accept="image/*" onChange={photoHook.onPick} style={{ display: 'none' }} /> : null}
-        <BSCoachClimb nutri={nutri} isSelf={isSelf} isPrivate={isPrivate} who={who} accent={isPrivate ? null : bsClimbAccent(look.accent, nutri ? 'nutritionist' : 'trainer')} detailTitle={meMode ? '' : name} wall={isPrivate ? null : wall} wallAlt={tr('profile:trainer.wallAlt', { defaultValue: "{name}'s wall photo", name: first })} focus={FOCUS_POS[look.focus] || FOCUS_POS.center} mast={mast}
+        <BSCoachClimb nutri={nutri} isSelf={isSelf} isPrivate={isPrivate} who={who} accent={isPrivate ? null : bsClimbAccent(look.accent, nutri ? 'nutritionist' : 'trainer')} detailTitle={meMode ? '' : name} wall={isPrivate ? null : wall} wallAlt={tr('profile:trainer.wallAlt', { defaultValue: "{name}'s wall photo", name: first })} focus={bsLookPosition(look, FOCUS_POS)} mast={mast}
           onPickPhoto={canPickPhoto ? () => { if (photoHook.fileRef?.current) photoHook.fileRef.current.click(); } : null}
           onAddWall={isSelf && !wall && editReady ? () => openEdit('wall') : null}
           rating={!isPrivate && reviews && reviews.count > 0 ? { avg: reviews.avg, count: reviews.count } : null} ratingNew={!isPrivate && !!reviews && !(reviews.count > 0)} onRating={() => setSheet({ kind: 'reviews' })}
