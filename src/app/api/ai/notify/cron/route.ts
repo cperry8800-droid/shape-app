@@ -2,10 +2,12 @@
 // session): a scheduler (Vercel Cron / Supabase cron) hits this on an interval.
 // For each active user it re-runs the SAME engine + decision layer over the
 // snapshot their app last sent (/api/ai/notify stores it), and for a coach with
-// both listings over each role's roster (notifyKind). The engine's
-// TIME-BASED rules recompute against now, so a check-in that has since gone
-// overdue, or a goal whose ETA has slipped, fires as a genuinely-new real event
-// — with dedup preventing re-nags, and prefs/quiet-hours fully honored.
+// both listings over each role's roster (notifyKind). A member's record is read
+// against now, so a check-in that has since gone due nudges them as a genuinely
+// new event; a coach's roster is read as of its save (rosterClock, notify-core.ts:
+// its dates never move, so a later clock invented gaps for clients who were active),
+// with their dismissals and tuning read fresh. Both count days in the person's own
+// zone. Dedup prevents re-nags, and prefs/quiet-hours are fully honored.
 //
 // Auth: header `x-notify-secret: <NOTIFY_CRON_SECRET>` OR Vercel Cron's
 // `Authorization: Bearer <CRON_SECRET>`. Runs as the service role (acts for many
@@ -130,7 +132,7 @@ async function evaluateSnapshot(admin: ReturnType<typeof createAdminClient>, use
   // The reader's language: a member's notices, and a coach's alert titles and digest.
   const copy = memberCopy(localeDoc, settings);
 
-  const { audience, candidates, coachSeen } = candidatesFor(snapshot, { tone: prefs.tone, lastSeverity: (last.coachClients as Record<string, string>) || {}, now, habitContext, checkinOptedOut, thresholds, copy, coachContext });
+  const { audience, candidates, coachSeen } = candidatesFor(snapshot, { tone: prefs.tone, lastSeverity: (last.coachClients as Record<string, string>) || {}, now, habitContext, checkinOptedOut, thresholds, copy, coachContext, zone: prefs.tz });
   // The pushes decided are claimed under the person's cap before anything is sent (decideAndClaim).
   const { decided, claim } = await decideAndClaim(admin, userId, { candidates, last, prefs, now, audience, checkinOptedOut, pushedToday, tr: copy?.tr, coachSeen }, prefs.capTz);
   const { send, digest, nextState } = decided;

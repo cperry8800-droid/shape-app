@@ -193,13 +193,20 @@ export async function readCoachToday(sb, uid, opts = {}) {
       if (!group.length) continue;
       let feed = [];
       // The coach's dismissals (this role's) and reviews ride on each record (attachCoachContext), as on Today.
-      try { feed = engine.getTriageFeed(role, engine.attachCoachContext(group.map((x) => recordFor(x, role)), ctx, role), now, resolveFor(thresholds, role) || undefined) || []; } catch { feed = []; }
+      // On the coach's own day (F2, the engine audit): the server's clock is UTC, and a Los Angeles
+      // coach's week turned over at 4 pm Sunday.
+      try { feed = engine.inZone(zone, now, (at) => engine.getTriageFeed(role, engine.attachCoachContext(group.map((x) => recordFor(x, role)), ctx, role), at, resolveFor(thresholds, role) || undefined)) || []; } catch { feed = []; }
       for (const r of feed) {
         if (!r || !rank[r.severity]) continue;
         const id = r.client && r.client.profile && r.client.profile.id;
-        // The verdict and its reason, never the directive's action: that line is the
-        // client's ("log a meal today"), and this answer is for the coach.
-        const why = clip([r.directive && r.directive.verdict, r.directive && r.directive.reason].filter(Boolean).join(': '), 280) || clip((r.reasons || []).join('; '), 280) || 'flagged';
+        // ⚠ THE ROW'S LEAD, AS TODAY AND THE PUSH SAY IT (F3, the engine audit): the directive weighs
+        // every flag, the other coach's and the context ones too, so she answered "Tighten nutrition:
+        // No food logs in 8 days" beside this coach's move "Ease the load". The directive's verdict and
+        // reason only when the row has no lead; never its action, which is the client's line.
+        const lead = r.lead && r.lead.reason ? r.lead : null;
+        const why = clip(lead ? [engine.leadVerdict(lead.key), lead.reason].filter(Boolean).join(': ') : '', 280)
+          || clip([r.directive && r.directive.verdict, r.directive && r.directive.reason].filter(Boolean).join(': '), 280)
+          || clip((r.reasons || []).join('; '), 280) || 'flagged';
         // The coach's own move for them (COACH_ACTIONS through the row's lead), so she can say what to do.
         const move = r.lead && r.lead.action && r.lead.action.label ? r.lead.action.label : null;
         const prev = flaggedById.get(id);

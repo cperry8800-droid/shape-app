@@ -1949,9 +1949,13 @@ function bsRowFromTriage(row, role, t) {
     || [...rawReasons, ...flagReasons].filter(Boolean)[0];
   const nut = role === 'nutritionist';
   const obNext = sev === 'new' ? bsOnboardingNext(bsOnboardingFor(rec, role), role) : null;
+  // 'unknown': the overview answered with nothing dated in the last two weeks (the engine's
+  // progressStatus), which the website reads "Insufficient recent data": never "On plan".
   const directive = sev === 'new'
     ? (obNext ? coachTr('coach:onboard.dirNext', { defaultValue: 'New · {step}', step: obNext }) : coachTr('coach:onboard.dirNew', { defaultValue: 'New client — open their first 30 days.' }))
-    : reason || (sev === 'green' ? (nut ? coachTr('coach:roster.dirOnTrackNutri', { defaultValue: 'Logging on plan — nothing needed.' }) : coachTr('coach:roster.dirOnTrack', { defaultValue: 'On plan — nothing needed.' })) : coachTr('coach:roster.dirNeedsAttention', { defaultValue: 'Needs your attention this week.' }));
+    : reason || (sev === 'green' ? (nut ? coachTr('coach:roster.dirOnTrackNutri', { defaultValue: 'Logging on plan — nothing needed.' }) : coachTr('coach:roster.dirOnTrack', { defaultValue: 'On plan — nothing needed.' }))
+      : sev === 'unknown' ? coachTr('coach:roster.dirNoRecent', { defaultValue: 'Nothing logged in two weeks — check in with them.' })
+      : coachTr('coach:roster.dirNeedsAttention', { defaultValue: 'Needs your attention this week.' }));
   // The week's figure is the coach's own measure: training adherence for a trainer, days logged for a
   // nutritionist (the roster row labels it so, 2026-10-31), each falling back to the other. Which one
   // it is rides with it (adhSrc), so a fallback is labelled as what it is (Codex on #2532).
@@ -1987,7 +1991,7 @@ function bsRowFromTriage(row, role, t) {
     active: true,
     // `lead` (P2): the flag behind the line, its episode and the coach action for it (COACH_ACTIONS),
     // which the case file's YOUR MOVE reads instead of searching the line's words.
-    _sig: { sev, rank, label: sev === 'green' ? coachTr('coach:roster.labelOnTrack', { defaultValue: 'ON TRACK' }) : sev === 'new' ? coachTr('coach:sev.new', { defaultValue: 'NEW' }) : coachTr('coach:roster.labelNeedsYou', { defaultValue: 'NEEDS YOU' }), directive, routed, lead },
+    _sig: { sev, rank, label: sev === 'green' ? coachTr('coach:roster.labelOnTrack', { defaultValue: 'ON TRACK' }) : sev === 'new' ? coachTr('coach:sev.new', { defaultValue: 'NEW' }) : sev === 'unknown' ? coachTr('coach:roster.labelNoRecent', { defaultValue: 'NO RECENT DATA' }) : coachTr('coach:roster.labelNeedsYou', { defaultValue: 'NEEDS YOU' }), directive, routed, lead },
   };
 }
 // Severity for a roster row — prefers the live engine `_sig` when present, else

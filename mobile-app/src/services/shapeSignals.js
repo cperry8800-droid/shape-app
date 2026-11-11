@@ -119,6 +119,10 @@ function fromOverview(c, ov) {
   if (!ov || typeof ov !== 'object' || !e || typeof e.recordFromOverview !== 'function') return null;
   const rec = call(e.recordFromOverview, { id: c.id, name: c.name, isNew: c.isNew, joinedAt: c.joinedAt, paymentRetrying: c.paymentRetrying }, ov);
   if (!rec) return null;
+  // ⚠ THE OVERVIEW ANSWERED, SO THE ENGINE JUDGES ITS DATES (F9, the engine audit), as the website's
+  // record does: without this mark it took the record as current, and a client with nothing in two
+  // weeks read "On plan — nothing needed" here and "Insufficient recent data" on the website.
+  rec.progressRead = { state: 'ready', checkedAt: new Date().toISOString() };
   // What the app's rows show beside the engine's inputs: the retrying mark on the profile (as the
   // rollup path sets it) and the six-week workout count (get_client_lifts, on the overview too).
   if (c.paymentRetrying === true) rec.profile.paymentRetrying = true;

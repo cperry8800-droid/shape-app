@@ -175,6 +175,38 @@ test('a coach with both listings: each client is read under the role they subscr
   assert.equal(n.needsYou.items.length, 1);
 });
 
+// ── The engine audit of 2026-11-11 ─────────────────────────────────────────
+// F3: her "why" is the row's lead, the flag this coach owns that Today and the push lead with, never
+// the directive's, which weighs the other coach's flags too and paired "Tighten nutrition: No food
+// logs…" with this trainer's move "Ease the load".
+test('her reason is the coach\'s own lead, beside the move it goes with, not a flag routed to the other coach (F3)', async () => {
+  // Priya: no food logged all week (the nutritionist's, routed to a trainer as context) and her sleep
+  // low (the trainer's own).
+  const sb = fakeSupabase(fixture({
+    tables: { daily_health_snapshot: lowSleep('c1', 5) },
+    rpcs: { get_client_stats: ({ p_user_id }) => ({ c1: { daysLogged7d: 0, sessionsCompleted: 4, sessionsPlanned: 4 }, c2: { daysLogged7d: 6, sessionsCompleted: 4, sessionsPlanned: 4 } }[p_user_id] || null) },
+  }));
+  const t = await readCoachToday(sb, 'coach-1', { now: NOW, zone: 'UTC', role: 'trainer' });
+  const priya = t.needsYou.items.find((i) => i.name === 'Priya Shah');
+  assert.ok(priya, 'her sleep flags her');
+  assert.match(priya.why, /^Sleep is the lever: Averaging 5h sleep/, 'the lead this trainer owns, headed as the directive heads its own');
+  assert.doesNotMatch(priya.why, /food|nutrition/i, 'not the food gap routed to the nutritionist');
+  assert.equal(priya.move, 'Ease the load');
+});
+
+// F2: the triage counts the coach's own days. 23:30 UTC on Sunday is already Monday in Sydney, where
+// a check-in last filed for the week of Sep 28 is two weeks late; in UTC that week has one to go.
+test('the triage reads the week on the coach\'s own clock (F2)', async () => {
+  const sunday = new Date('2026-10-11T23:30:00Z');
+  const sb = () => fakeSupabase(fixture({ rpcs: { get_client_checkins: ({ p_user_id }) => [{ week_of: p_user_id === 'c2' ? '2026-09-28' : '2026-10-05' }] } }));
+  const sam = async (zone) => (await readCoachToday(sb(), 'coach-1', { now: sunday, zone, role: 'trainer' })).needsYou.items.find((i) => i.name === 'Sam Lee');
+  const utc = await sam('UTC');
+  const sydney = await sam('Australia/Sydney');
+  assert.equal(utc.severity, 'amber', 'UTC is still on Sunday the 11th: one check-in due');
+  assert.equal(sydney.severity, 'red');
+  assert.match(sydney.why, /No check-in for 2 weeks/, 'Sydney is on Monday the 12th, a week further on');
+});
+
 // ── Fix 4 (client-onboarding review, M13 / L8): Nora's Today flags what the app's and the website's do ──
 test('a client who never checked in is flagged; a new one is New, not "No logs 7d+"', async () => {
   const day = (n) => new Date(NOW.getTime() - n * 864e5).toISOString();

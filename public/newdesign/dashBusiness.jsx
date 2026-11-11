@@ -147,7 +147,7 @@ const DBZ_DEMO_CHURN = [
 // clients 10". Each row is now a roster client, found by the id their row carries
 // (buildMockClients' "demo-N") and named at render, lazily as the origin list is, because the
 // roster reads `new Date()` and dashSignals may not be up at load. With no roster there are no
-// rows of it. A row fits its persona: the new client (Tess B., five days in), the one three weeks
+// rows of it. A row fits its persona: the new client (Tess B., five days in), the one two weeks
 // without a check-in and the one at 64% adherence are on no 30-day list, the stalled weight
 // (Marcus T.) is not a weight loss, and the one eating over target (Deandre K.) gained. A
 // person's weight change is one fact, so both roles' previews read the same one.

@@ -117,7 +117,8 @@ The rules and the code map. Every session loads it: when a rule changes, replace
 - **Free account, paid membership:** routes take `requireAccount` (free) or `requireMembership`
   (paid; assistant Nora included, with no free week); past due is free (`paidRefusal`).
 - **Own radio station:** `services/station`, the engine's `NORA_MODE=station`, `radio/rotation.mjs`.
-- **Time zones:** one per account (`profiles.timezone`, `/api/me/timezone`); print through `shapeZone.mjs`.
+- **Time zones:** one per account (`profiles.timezone`, `/api/me/timezone`); print through `shapeZone.mjs`;
+  the server runs the engine inside `DashSignals.inZone(zone, now, fn)`, or its days are UTC's.
 - ⚠ **A screen holding a copy of a `user_goals` doc** reads it again when something else writes
   it: `services/userGoalsRefresh.mjs`'s hook in its read's deps (`tests/user-goals-refresh.test.mjs`
   holds every broadsheet reader to it); website pages listen for `shape:accountSetup`.

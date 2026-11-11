@@ -200,7 +200,7 @@ test("the mock personas hit their designed severities", () => {
   assert.equal(by["Sam R."].severity, "red");
   assert.equal(by["Jonah W."].severity, "red");
   // Red is two areas: Marcus's missed sessions and his short sleep (the food gap is the
-  // nutritionist's, the score drop context); Sam's missed sessions and quiet thread; Jonah's three
+  // nutritionist's, the score drop context); Sam's missed sessions and quiet thread; Jonah's two
   // missed check-ins alone.
   assert.deepEqual(keys(by["Marcus T."]), ["food_gap", "missed_sessions", "score_drop", "sleep_low"]);
   // Marcus (5/9), Sam (9/14) and Jonah (10/14) are the missed-sessions cases (P2): booked sessions in
@@ -219,7 +219,7 @@ test("flags carry short pill labels in the spec format", () => {
   const labels = (r) => r.flags.map((f) => f.label).sort();
   assert.deepEqual(labels(by["Marcus T."]), ["Missed 4", "No logs 5d", "Score ↓23%", "Sleep low"]);
   assert.deepEqual(labels(by["Sam R."]), ["Missed 5", "Quiet 7d"]);
-  assert.deepEqual(labels(by["Jonah W."]), ["Check-in 3w late", "Missed 4"]);
+  assert.deepEqual(labels(by["Jonah W."]), ["Check-in 2w late", "Missed 4"]);
   assert.deepEqual(labels(by["Elena R."]), ["Score ↓23%"]);
   assert.deepEqual(labels(by["Nadia P."]), ["Goal ETA +15d"]);
   for (const r of feed) for (const f of r.flags) assert.ok(f.label && f.label.length <= 18, f.key + " label fits a pill");

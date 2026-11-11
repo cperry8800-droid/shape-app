@@ -2,9 +2,9 @@
 // app-driven route (/api/ai/notify) and the cron (/api/ai/notify/cron). Given a
 // SNAPSHOT (the real record/roster the user's app last sent) it runs the SAME
 // engine (AI2 buildDirective / AI4 getTriageFeed) and returns candidates for the
-// pure decision layer. The engine's time-based rules (check-in overdue, goal-ETA
-// slip) recompute against `now`, so the cron surfaces genuinely-new, real events
-// from a stored snapshot without the app being open. No data is mutated.
+// pure decision layer. A member's record is read against `now`, so a check-in that has since gone
+// due nudges them without the app open; a coach's roster is read as of its save (rosterClock). Both
+// count days in the person's own zone (inZone). No data is mutated.
 
 import * as NotifyLayer from '@/lib/ai/notifications.mjs';
 import { memberLocaleCode } from '@/lib/ai/memberTranslator.mjs';
@@ -174,6 +174,7 @@ const engine = DashSignals as unknown as {
   buildDirective: (record: unknown, now?: Date, role?: string) => Directive;
   evaluateClient: (record: unknown, now?: Date, role?: string) => { flags: Flag[]; severity: string };
   getTriageFeed: (role: string, clients: unknown[], now?: Date, thresholds?: Record<string, number>) => TriageRow[];
+  inZone: <T>(zone: string | null | undefined, now: Date, fn: (at: Date) => T) => T;
   resolveThresholds: (o: unknown, role?: string) => { thresholds: Record<string, number>; applied: Record<string, number>; refused: { key: string; why: string }[] };
 };
 
@@ -190,6 +191,20 @@ export function coachRecordId(c: unknown): string | null {
 // review made since the snapshot was posted (src/lib/ai/coachContext.mjs, which Nora reads too).
 export async function loadCoachContext(client: SupabaseClient, userId: string): Promise<CoachContext> {
   return (await loadCoachContextMjs(client, userId)) as CoachContext;
+}
+
+// ⚠ A STORED ROSTER IS READ AS OF ITS SAVE, NEVER AGAINST A LATER CLOCK (F1, the engine audit of
+// 2026-11-11). A coach's roster is posted only when they open the website or the app, and the hourly
+// run read it against the hour it ran, for up to 14 days: the dates in it (the last food log, the
+// last message, the last check-in) never moved, so a client who logged every day read "No food logs
+// in 3 days" two days on and red "No food logs in 8 days · No contact in 7 days" a week on, and the
+// coach was pushed both. Read as of its save, the roster says only what was true when it was posted;
+// what changes after waits for the coach's next visit, which posts a fresh one. Rebuilding each
+// client on the server would need the coach's own sign-in, which the run has not got (War Room).
+// A clock ahead of the run's, or a snapshot with no time on it, reads at the run's own clock.
+export function rosterClock(snapshot: Snapshot, now: Date): Date {
+  const at = snapshot && snapshot.at;
+  return typeof at === 'number' && Number.isFinite(at) && at < now.getTime() ? new Date(at) : now;
 }
 
 // Snapshot → candidates + audience. `lastSeverity` (coach) suppresses re-nags.
@@ -218,6 +233,9 @@ export function candidatesFor(
     copy?: MemberCopy | null;
     // The coach's dismissals and reviews, read fresh (loadCoachContext). Omitted: the snapshot's own.
     coachContext?: CoachContext | null;
+    // The person's own zone (loadPrefs' `tz`), so the engine counts their days, not the server's UTC
+    // ones (F2). Omitted: the zone the snapshot was posted with.
+    zone?: string | null;
   },
 ): { audience: 'client' | 'coach'; candidates: Candidate[]; coachSeen?: Record<string, string> } {
   const role = snapshot.role || '';
@@ -225,7 +243,8 @@ export function candidatesFor(
     const raw = Array.isArray(snapshot.clients) ? snapshot.clients : [];
     // The dismissals of this role only: a coach with both listings sets a reason aside per role.
     const clients = opts.coachContext ? engine.attachCoachContext(raw, opts.coachContext, role) : raw;
-    const rows = engine.getTriageFeed(role, clients, opts.now, opts.thresholds || undefined).map((r) => ({
+    const zone = opts.zone || snapshot.tz || null;
+    const rows = engine.inZone(zone, rosterClock(snapshot, opts.now), (at) => engine.getTriageFeed(role, clients, at, opts.thresholds || undefined)).map((r) => ({
       clientId: coachRecordId(r.client) as string,
       clientName: (r.client.profile && r.client.profile.name) || 'A client',
       severity: r.severity,
@@ -245,11 +264,14 @@ export function candidatesFor(
   const candidates: Candidate[] = [];
   const record = snapshot.record;
   if (record && typeof record === 'object') {
-    const directive = engine.buildDirective(record, opts.now, 'client');
+    // On the member's own day (F2), as their Home reads it on the phone.
+    const { directive, flags } = engine.inZone(opts.zone || snapshot.tz || null, opts.now, (at) => ({
+      directive: engine.buildDirective(record, at, 'client'),
+      flags: engine.evaluateClient(record, at, 'client').flags,
+    }));
     const copy = opts.copy || null;
     // Home's lead, in the member's words (memberMoveLine); the engine's English line without a copy.
     const line = Notify.memberMoveLine(directive, { tr: copy?.tr, locale: copy?.locale, metric: copy?.metric, tone: opts.tone });
-    const { flags } = engine.evaluateClient(record, opts.now, 'client');
     candidates.push(...Notify.clientCandidates({
       directive: { ...directive, line },
       flags,
