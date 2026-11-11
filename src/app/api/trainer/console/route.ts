@@ -23,8 +23,8 @@ import { readJson, dbError } from '@/lib/request-utils';
 import { profileNames } from '@/lib/client-names';
 import { normalizeZone } from '@/lib/time';
 import { memberDay, shiftDay } from '@/lib/workout-days';
-import { exerciseReadSince, pushedExerciseOf } from '@/lib/coach-exercises';
 import { readAllById, ROW_PAGE } from '@/lib/read-all-by-id';
+import { exerciseReadSince, pushedExerciseOf } from '@/lib/coach-exercises';
 import { OPEN_SUB_STATUSES } from '../../../../lib/coach-trajectory.mjs';
 
 export const dynamic = 'force-dynamic';
@@ -55,6 +55,22 @@ function dailyShapeScore(row: Record<string, unknown>): number {
   if (Number(row.calories ?? 0) > 0) s += 2;
   return s;
 }
+
+// One daily_health_snapshot row of the 90-day trajectory read; `id` is the walk's cursor only.
+type SnapRow = {
+  id: string;
+  user_id: string;
+  snapshot_date: string;
+  weight_lb: number | null;
+  sleep_hours: number | null;
+  resting_hr: number | null;
+  stress: number | null;
+  calories: number | null;
+  protein_g: number | null;
+  hrv_ms: number | null;
+  recovery_score: number | null;
+  workout_minutes: number | null;
+};
 
 type PushedItemRow = {
   id: string;
@@ -174,6 +190,8 @@ export async function GET(request: Request) {
   // today's. `todayUnread` says the read failed, which is not "nothing logged".
   const todayByClient: Record<string, { date: string; calories: number | null; protein_g: number | null }> = {};
   let todayUnread = false;
+  // The 90-day trajectory read failed: the chart and the latest row are unread, not empty.
+  let trajectoryUnread = false;
   // ⚠ A FAILED ZONE READ IS UNREAD, NOT UTC (Codex P2 on #2686). A client with no zone on file counts
   // in UTC; a client whose zone could not be read does not, or near midnight their today's log (and the
   // trainer's session list) is read on the wrong date and shown as nothing. src/lib/roster-days.ts falls
@@ -190,16 +208,24 @@ export async function GET(request: Request) {
     const nearDays = [shiftDay(utcToday, -1), utcToday, shiftDay(utcToday, 1)];
 
     const [snapRes, profRes, todayRes] = await Promise.all([
-      supabase
-        .from('daily_health_snapshot')
-        // `calories` here is calories EATEN, read from dietary_kcal under the name the
-        // score below and the live console's snapshotByClient already use; the
-        // snapshot's own `calories` column is a device's burn. `workout_minutes` is
-        // the score's 10 points (dailyShapeScore), which it scored but never read.
-        .select('user_id, snapshot_date, weight_lb, sleep_hours, resting_hr, stress, calories:dietary_kcal, protein_g, hrv_ms, recovery_score, workout_minutes')
-        .in('user_id', clientIds)
-        .gte('snapshot_date', since)
-        .order('snapshot_date', { ascending: true }),
+      // ⚠ EVERY ROW, A PAGE AT A TIME (left by #2686). One select stops at 1,000 rows with no error,
+      // and oldest first that cut the NEWEST days: 12 clients logging daily pass it in 90 days, and the
+      // chart and snapshotByClient (the latest row) went stale. readAllById walks it on id; the rows
+      // are put back in date order below.
+      readAllById<SnapRow>((after) => {
+        let q = supabase
+          .from('daily_health_snapshot')
+          // `calories` here is calories EATEN, read from dietary_kcal under the name the
+          // score below and the live console's snapshotByClient already use; the
+          // snapshot's own `calories` column is a device's burn. `workout_minutes` is
+          // the score's 10 points (dailyShapeScore), which it scored but never read.
+          .select('id, user_id, snapshot_date, weight_lb, sleep_hours, resting_hr, stress, calories:dietary_kcal, protein_g, hrv_ms, recovery_score, workout_minutes')
+          .in('user_id', clientIds)
+          .gte('snapshot_date', since);
+        if (after) q = q.gt('id', after);
+        // capped-read-ok: one page of a cursor walk over every row (readAllById), not a cap.
+        return q.order('id', { ascending: true }).limit(ROW_PAGE);
+      }),
       supabase
         .from('client_profiles')
         .select('user_id, data, timezone')
@@ -223,10 +249,18 @@ export async function GET(request: Request) {
     // daily_health_snapshot: walk ascending so the LAST row per client is
     // the latest snapshot. Also accumulate per-metric series for trajectory,
     // including a cumulative Shape Score derived per-day.
+    // A failed or over-long walk is no trajectory, never a short one (`trajectoryUnread`).
+    if (snapRes.error) {
+      trajectoryUnread = true;
+      console.warn('[shape-app] trainer console: trajectory read failed — the chart renders as unread:', snapRes.error.message);
+    }
+    const snapRows = (snapRes.data ?? []).slice().sort((a, b) => String(a.snapshot_date).localeCompare(String(b.snapshot_date)));
     const cumScoreByClient: Record<string, number> = {};
-    for (const row of snapRes.data ?? []) {
+    for (const row of snapRows) {
       const uid = row.user_id as string;
-      snapshotByClient[uid] = row as Record<string, unknown>;
+      const { id: _id, ...latest } = row;
+      void _id;
+      snapshotByClient[uid] = latest as Record<string, unknown>;
       const s = (seriesByClient[uid] ??= { weight: [], sleep: [], hr: [], stress: [], protein: [], score: [] });
       s.weight.push(row.weight_lb != null ? Number(row.weight_lb) : null);
       s.sleep.push(row.sleep_hours != null ? Number(row.sleep_hours) : null);
@@ -323,6 +357,7 @@ export async function GET(request: Request) {
     snapshotByClient,
     todayByClient,
     todayUnread,
+    trajectoryUnread,
     seriesByClient,
     profileByClient,
   });

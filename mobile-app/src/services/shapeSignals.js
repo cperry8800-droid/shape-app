@@ -263,10 +263,14 @@ window.ShapeSignals = {
     return call(e.getTriageFeed, role, records) || [];
   },
   // Coach: clients flagged in BOTH training + nutrition, with a co-coach on the other side → one joint note.
+  // ⚠ THE VIEWER'S OWN SIDE AT THEIR OWN TUNING, as the website reads it (dashData's joint): the
+  // co-coach's side reads at the co-coach's (the overview's flagLines, #2691), so a house-line own side
+  // had a trainer who moved MISSED_SESSIONS to 6 find a joint case at the house 3 that their
+  // nutritionist, reading the trainer's 6, did not (Codex on #2691). Unread tuning is the house line.
   async jointAttention(role) {
     const e = engine(); if (!e) return [];
-    const records = await coachRecords(role);
-    return call(e.findJointAttention, records.length ? records : (call(e.buildMockClients) || []), undefined, null, role) || [];
+    const [records, thresholds] = await Promise.all([coachRecords(role), coachThresholds(role)]);
+    return call(e.findJointAttention, records.length ? records : (call(e.buildMockClients) || []), undefined, thresholds || null, role) || [];
   },
 
   // Dismiss (until the reason changes: `until` null) or snooze (until an ISO time) one reason on one
