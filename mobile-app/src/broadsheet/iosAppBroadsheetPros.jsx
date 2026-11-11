@@ -4605,7 +4605,7 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
   const _allClear = _sig.sev === 'green' || _sig.sev === 'past';
   const _lead = _sig && _sig.lead ? _sig.lead : null;
   const _act = _lead && _lead.action ? _lead.action : null;
-  const _LEAD_GROUP = { checkin_overdue: 'check-in-due', checkin_waiting: 'check-in-due', missed_sessions: 'missed-sessions', no_booking: 'missed-sessions', workouts_missed: 'workouts-missed', completion_drop: 'workouts-missed', not_started: 'new-intake', food_gap: 'nutrition-slip', food_logging: 'nutrition-slip', ledger_blown: 'nutrition-slip', protein_under: 'nutrition-slip', hunger_high: 'nutrition-slip', plan_due: 'program-stall', program_ending: 'program-stall' };
+  const _LEAD_GROUP = { checkin_overdue: 'check-in-due', checkin_waiting: 'check-in-due', missed_sessions: 'missed-sessions', no_booking: 'missed-sessions', workouts_missed: 'workouts-missed', completion_drop: 'workouts-missed', not_started: 'new-intake', food_gap: 'nutrition-slip', food_logging: 'nutrition-slip', ledger_blown: 'nutrition-slip', protein_under: 'nutrition-slip', hunger_high: 'nutrition-slip', weight_unsafe: 'nutrition-slip', weight_fast: 'nutrition-slip', slow_start: 'nutrition-slip', gain_fast: 'nutrition-slip', gain_stalled: 'nutrition-slip', glp1_protein: 'nutrition-slip', weighin_gap: 'check-in-due', plan_due: 'program-stall', program_ending: 'program-stall' };
   const _DEMO_GROUP = { missed: role === 'nutritionist' ? 'nutrition-slip' : 'check-in-due', 'review form': 'check-in-due', 'deload soon': 'program-stall' };
   const _dirKind = _allClear ? 'all-clear'
     : _sig.sev === 'new' ? 'new-intake' // a fresh client → reach out with the intake (no program exists yet)
@@ -5326,8 +5326,10 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
             const condLine = [(Array.isArray(h.conditionTags) ? h.conditionTags.join(' · ') : ''), (h.conditions || '')].filter(Boolean).join(' — ') || null;
             const allergyLine = h.allergies === 'yes' ? (h.allergyDetails || tr('coach:case.yesNotListed', { defaultValue: 'Yes — not listed' })) : h.allergies === 'no' ? tr('coach:case.noneReported', { defaultValue: 'None reported' }) : null;
             const pregLine = h.pregnancy === 'yes' ? tr('coach:case.pregnancyYes', { defaultValue: 'Yes — pregnant or ≤6 months postpartum' }) : null;
+            const glp1Line = h.glp1 === 'yes' ? tr('coach:case.glp1Yes', { defaultValue: 'Yes — the weight alerts use its own lines' }) : h.glp1 === 'no' ? tr('coach:case.glp1No', { defaultValue: 'No' }) : null;
             const rows = [
               [tr('coach:case.rowRx', { defaultValue: 'Prescription medication' }), rxLine],
+              [tr('coach:case.rowGlp1', { defaultValue: 'GLP-1 medication' }), glp1Line],
               [tr('coach:case.rowAllergies', { defaultValue: 'Allergies' }), allergyLine],
               [tr('coach:case.rowPregnancy', { defaultValue: 'Pregnancy / postpartum' }), pregLine],
               [tr('coach:case.rowConditions', { defaultValue: 'Medical conditions' }), condLine],

@@ -150,7 +150,8 @@ test('the screening speaks every language the app does (M2)', () => {
       }
     }
   }
-  assert.equal(Object.keys(want).length, 54);
+  // 57 with the GLP-1 question's label, question and note (the coach-alerts plan, PR 2).
+  assert.equal(Object.keys(want).length, 57);
   assert.equal(Object.keys(want).filter((k) => k.startsWith('health.parq.')).length, 7, 'all seven PAR-Q questions');
   for (const loc of ['de', 'en', 'es', 'fr', 'ha', 'id', 'it', 'pcm', 'pt-BR', 'ru', 'tr', 'uk', 'vi']) {
     const cat = JSON.parse(read(`mobile-app/src/i18n/catalogs/${loc}/onboarding.json`));
