@@ -327,9 +327,10 @@ test('the app preview offers each move\'s demo behind one control, one open at a
 // ⚠ A MEMBER WITH NO PROGRAM STILL SEES WHAT THEIR TRAINER ADDED TODAY (Codex P1 on #2686). Train returns
 // the Build-your-week door (or "your coach is preparing your plan") before it draws BSTrainDay, and the
 // trainer's additions were only BSTrainDay's; a client before a program is assigned is often here, and
-// the "New exercise from your coach" notice opens Train. The section (BSCoachExercises.jsx, which reads
-// for itself) is mounted on that path and on a plan read that failed, as today.
-const coachExercises = (d) => d.nodes().filter((n) => typeof n.type === 'function' && n.type.name === 'BSCoachExercises');
+// the "New exercise from your coach" notice opens Train. The section (BSCoachExercises.jsx's view, off the
+// page's one read since Train runs today's in its session) is mounted on that path and on a plan read that
+// failed, as today, with its own Start these (no session to join).
+const coachExercises = (d) => d.nodes().filter((n) => typeof n.type === 'function' && n.type.name === 'BSCoachExercisesView');
 test('Train with no program, coached or not, and with a failed plan read, mounts the trainer\'s additions for today', async () => {
   const todayIdx = (new Date().getDay() + 6) % 7;
   globalThis.window.ShapeAuth = { getCachedState: () => ({ user: { id: 'member-a' } }) };
@@ -344,7 +345,10 @@ test('Train with no program, coached or not, and with a failed plan read, mounts
     assert.equal(trainDay(d), undefined, 'setup: no program, so no BSTrainDay');
     const section = coachExercises(d);
     assert.equal(section.length, 1, `the additions are on the no-program page (${training.coaching ? 'coached' : 'no coach'})`);
-    assert.deepEqual({ dayIdx: section[0].props.dayIdx, today: section[0].props.today }, { dayIdx: todayIdx, today: true });
+    assert.equal(section[0].props.today, true)
+    assert.equal(section[0].props.inSession, undefined, 'standing alone, it keeps its own Start these')
+    assert.equal(typeof section[0].props.onRetry, 'function')
+    assert.match(String(section[0].props.date), /^\d{4}-\d{2}-\d{2}$/, `today's date (weekday ${todayIdx})`)
   }
   globalThis.window.ShapePlan = { get: async () => null };
   const failed = drive(BSClientTrain, { onProfile() {} });
