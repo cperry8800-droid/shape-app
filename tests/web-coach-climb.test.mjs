@@ -780,3 +780,72 @@ test('followers and following are on the stage under the name, public even on a 
   const src = read('public/newdesign/coachProfileWeb.jsx');
   assert.doesNotMatch(src, /\.cpw-counts|\.cpw-follow\{[^}]*display:none/);
 });
+
+// Owner, 2026-11-11, with a screenshot of the Posts camp: "Posts - need to match current activity feed". The
+// camp drew its own rows (a type line, a title, three stat tiles). Each post is now the activity feed's own
+// card (communityFeed.jsx's CfPostCard, which the feed's FeedItem draws with too): the byline, the record
+// plate with its figure, the stat grid, read by the feed's own mapper (cfMapPost). A sample's posts too.
+test('the Posts camp draws each post as the activity feed draws it, a sample\'s too', async () => {
+  // The feed module, as the page loads it: its faces and inks are pageShell.jsx's globals.
+  const shell = read('public/newdesign/pageShell.jsx');
+  for (const k of ['PAPER', 'INK', 'TEAL', 'TEAL_BRIGHT', 'serif', 'sans', 'mono']) {
+    const m = new RegExp(`^const ${k} = ("[^"]*");`, 'm').exec(shell);
+    assert.ok(m, `pageShell.jsx no longer declares ${k}`);
+    globalThis[k] = JSON.parse(m[1]);
+  }
+  await loadRealModule(join(ROOT, 'public/newdesign/communityFeed.jsx'));
+  assert.equal(typeof window.CfPostCard, 'function', 'the feed module does not publish its card');
+  try {
+    // One run with its stats and one note, as the app writes them.
+    const RUN = { id: 51, title: 'Easy run, zone 2', note: 'Conversational pace.', activity_type: 'run', privacy: 'public', created_at: new Date(Date.now() - 864e5).toISOString(),
+      metrics: { kind: 'workout', workoutStats: [{ label: 'Distance', value: '5.2 mi' }, { l: 'Avg pace', v: '8:44/mi' }, { label: 'Time', value: '45:24' }] } };
+    const NOTE = { id: 52, title: 'Deload week', note: 'Two-thirds of your top sets.', activity_type: 'note', privacy: 'public', created_at: new Date(Date.now() - 3 * 864e5).toISOString(), metrics: { kind: 'note' } };
+    // A link post keeps its link (the old rows drew it), https only.
+    const LINK = { id: 53, title: 'Why tempo', note: '', activity_type: 'note', privacy: 'public', created_at: new Date(Date.now() - 4 * 864e5).toISOString(), metrics: { kind: 'link', link: { url: 'https://example.test/tempo', title: 'Read: tempo work' } } };
+    const BAD = { id: 54, title: 'Not a link', note: '', activity_type: 'note', privacy: 'public', created_at: new Date(Date.now() - 5 * 864e5).toISOString(), metrics: { kind: 'link', link: { url: 'javascript:alert(1)', title: 'x' } } };
+    WIDE = true; backend({ posts: [RUN, NOTE, LINK, BAD] });
+    const p = await mount(LIVE);
+    await React.act(async () => $('[data-camp-tab="posts"]').click());
+    const feed = $('[data-camp="posts"] [data-activity-feed]');
+    assert.ok(feed, 'the Posts camp is not drawn with the feed\'s card');
+    const cards = [...feed.querySelectorAll('[data-feed-card]')];
+    assert.equal(cards.length, 4);
+    assert.equal(feed.querySelectorAll('article').length, 0, 'the old rows are still drawn');
+    const links = [...feed.querySelectorAll('[data-cf-link]')];
+    assert.deepEqual(links.map((a) => [a.getAttribute('href'), a.textContent.trim()]), [['https://example.test/tempo', '↗ Read: tempo work']], 'a link post lost its link, or a javascript: one was drawn');
+    assert.equal(links[0].getAttribute('rel'), 'noopener noreferrer');
+    // The byline: who wrote it, the role in its colour, when.
+    assert.match(cards[0].textContent, /^MOMaya OkaforTrainer1d/);
+    // The run's record plate: the pill names the measure and its figure, the title takes the stop, and the
+    // grid holds every stat, both of the app's spellings.
+    assert.match(cards[0].textContent, /Distance · 5\.2 mi/);
+    assert.match(cards[0].textContent, /Easy run, zone 2\./);
+    assert.ok(cards[0].querySelector('[data-cf-evidence-grid]'), 'no stat grid');
+    assert.match(cards[0].querySelector('[data-cf-evidence-grid]').textContent, /Distance5\.2 miAvg pace8:44\/miTime45:24/);
+    assert.match(cards[0].textContent, /Session details · full activity/);
+    assert.match(cards[1].textContent, /Deload week\.Two-thirds of your top sets\./);
+    // The card reads the page's ink, so it shows on the coach's own paper.
+    assert.match(feed.getAttribute('style'), /--sh-ink: #eef3f0; --sh-ink-rgb: 238,243,240;/);
+    await p.unmount();
+    // A sample's posts are written as rows for the same card, dated by their "1d".
+    const q = await mount({ mode: 'sample', role: 'trainer', name: 'Jordan Reyes', sampleKey: 'Jordan Reyes', follow: null });
+    await React.act(async () => $('[data-camp-tab="posts"]').click());
+    const sample = [...document.querySelectorAll('[data-camp="posts"] [data-feed-card]')];
+    assert.equal(sample.length, 2, 'a sample\'s posts are not the feed\'s card');
+    assert.match(sample[0].textContent, /^JRJordan ReyesTrainer1d/);
+    assert.match(sample[0].textContent, /Easy run, zone 2\./);
+    await q.unmount();
+    // The feed's own card draws with the same byline and body, so the two cannot drift.
+    const FEED = read('public/newdesign/communityFeed.jsx');
+    const item = FEED.slice(FEED.indexOf('function FeedItem({ p: stored'), FEED.indexOf('function PostComposer'));
+    assert.match(item, /<CfPostHead p=\{p\} wall=\{wall\} talk=\{talk\} \/>/);
+    assert.match(item, /<CfPostBody p=\{p\} wall=\{wall\} wallTitle=\{wallTitle\} talk=\{talk\}/);
+    // Every page that shows a coach's profile loads the feed's card ahead of it.
+    for (const f of ['MemberProfile', 'TrainerProfile', 'NutritionistProfile', 'TrainerApp', 'NutritionistApp']) {
+      const h = read(`public/newdesign/${f}.html`);
+      assert.ok(h.indexOf('src="communityFeed.jsx') > 0 && h.indexOf('src="communityFeed.jsx') < h.indexOf('src="coachProfileWeb.jsx'), `${f}.html does not load the feed's card before the coach page`);
+    }
+  } finally {
+    delete window.CfPostCard; delete window.cfLoadUnits; delete window.CommunityFeed;
+  }
+});

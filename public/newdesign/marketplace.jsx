@@ -815,13 +815,8 @@ function MkHero({ f, set, counts, bookable, budgetMax, cities, onFind }) {
           </div>
         </div>
         <form className="mk-matcher" aria-label="Find a coach" onSubmit={(e) => { e.preventDefault(); onFind(); }}>
-          <label className="mk-mf"><span className="lbl">Goal</span>
-            <span className="v sel">{goal ? <MkIcon name={goal.icon} size={18} /> : null}
-              <select value={goal ? goal.id : ""} onChange={(e) => set({ goals: e.target.value ? [e.target.value] : [] })} aria-label="Goal">
-                <option value="">Any goal</option>
-                <optgroup label="Training">{MK_GOALS.filter((g) => !g.nu).map((g) => <option key={g.id} value={g.id}>{g.label}</option>)}</optgroup>
-                <optgroup label="Nutrition">{MK_GOALS.filter((g) => g.nu).map((g) => <option key={g.id} value={g.id}>{g.label}</option>)}</optgroup>
-              </select><MkCaret /></span></label>
+          <div className="mk-mf"><span className="lbl">Goal</span>
+            <MkGoalPick value={goal ? goal.id : ""} onPick={(id) => set({ goals: id ? [id] : [] })} /></div>
           <label className="mk-mf"><span className="lbl">Budget</span>
             <span className="v">{f[bKey] == null ? "Any" : "Up to $" + bVal} <small>/ {perMonth ? "month" : "session"}</small></span>
             <input className="mk-range" type="range" min={Math.min(30, bMax)} max={bMax} step="5" value={bVal} aria-label={"Budget per " + (perMonth ? "month" : "session")}
@@ -906,31 +901,34 @@ function MkOpt({ on, label, n, onClick, radio }) {
 function MkToggle({ on, label, n, onClick }) {
   return <button type="button" role="switch" aria-checked={on} className={"mk-tg" + (on ? " on" : "")} onClick={onClick}><span>{label}{n != null ? <span className="n"> {n}</span> : null}</span><span className={"mk-toggle" + (on ? " on" : "")} /></button>;
 }
-// The city picker: Shape's own list in place of the browser's, whose open list always drew a scrollbar
-// (owner, 9 Nov: "remove the scroll toggle bar that appears when i click on location list"). The list
-// scrolls with no bar; the keys work as a select's do (↑ ↓, Home, End, Enter, Esc, and typing a city's first
-// letters jumps to it: Codex P2 on #2658), and a click away closes it.
-function MkCityPick({ value, cities, onPick, hero = false }) {
+// The page's list picker: Shape's own list in place of the browser's select, whose open list always drew a
+// scrollbar (owner, 9 Nov, of the city: "remove the scroll toggle bar that appears when i click on location
+// list"; 11 Nov, of the matcher's Goal: the dropdown stays, "just the scroll bar" goes). The list scrolls with
+// no bar; the keys work as a select's do (↑ ↓, Home, End, Enter, Esc, and typing an item's first letters jumps
+// to it: Codex P2 on #2658), and a click away closes it.
+// `items`: [{ value, label, group, icon }] in order. Items with a `group` sit under its heading, as a select's
+// optgroup (a listbox group, the heading not an option). `icon`: the button's icon, else the picked item's own.
+function MkListPick({ id, label, value, items, onPick, hero = false, icon = null, className = "" }) {
   const [open, setOpen] = useS(false);
   const [hi, setHi] = useS(0);
   const box = useR(null), list = useR(null), typed = useR({ text: "", at: 0 });
-  const all = ["Anywhere", ...cities];
-  const id = hero ? "mk-city-hero" : "mk-city-rail";
+  const at = items.findIndex((it) => it.value === value);
+  const cur = at >= 0 ? items[at] : null;
   useE(() => {
     if (!open) return undefined;
-    setHi(Math.max(0, all.indexOf(value)));
+    setHi(Math.max(0, at));
     const away = (e) => { if (box.current && !box.current.contains(e.target)) setOpen(false); };
     document.addEventListener("mousedown", away);
     document.addEventListener("touchstart", away);
     return () => { document.removeEventListener("mousedown", away); document.removeEventListener("touchstart", away); };
   }, [open]);
   useE(() => {
-    const el = open && list.current ? list.current.children[hi] : null;
+    const el = open && list.current ? list.current.querySelector('[data-i="' + hi + '"]') : null;
     if (el && el.scrollIntoView) el.scrollIntoView({ block: "nearest" });
   }, [open, hi]);
-  const pick = (c) => { onPick(c); setOpen(false); };
+  const pick = (it) => { onPick(it.value); setOpen(false); };
   // Type-ahead, as a select's: letters typed within 700ms build a prefix; one letter pressed again moves on to
-  // the next city with it. Open, it moves the highlight; closed, it picks, as a closed select does.
+  // the next item with it. Open, it moves the highlight; closed, it picks, as a closed select does.
   const typeAhead = (ch) => {
     const now = Date.now(), t = typed.current;
     t.text = now - t.at > 700 ? ch : t.text + ch;
@@ -938,11 +936,11 @@ function MkCityPick({ value, cities, onPick, hero = false }) {
     const q = t.text.toLowerCase();
     const repeat = q.length > 1 && q.split("").every((c) => c === q[0]);
     const prefix = repeat ? q[0] : q;
-    const from = open ? hi : Math.max(0, all.indexOf(value));
-    const order = all.map((_, i) => (from + (repeat || q.length === 1 ? 1 : 0) + i) % all.length);
-    const i = order.find((j) => all[j].toLowerCase().startsWith(prefix));
+    const from = open ? hi : Math.max(0, at);
+    const order = items.map((_, i) => (from + (repeat || q.length === 1 ? 1 : 0) + i) % items.length);
+    const i = order.find((j) => items[j].label.toLowerCase().startsWith(prefix));
     if (i == null) return;
-    if (open) setHi(i); else onPick(all[i]);
+    if (open) setHi(i); else onPick(items[i].value);
   };
   const onKey = (e) => {
     const k = e.key;
@@ -950,29 +948,57 @@ function MkCityPick({ value, cities, onPick, hero = false }) {
     if (k === "ArrowDown" || k === "ArrowUp") {
       e.preventDefault();
       if (!open) { setOpen(true); return; }
-      setHi((h) => Math.max(0, Math.min(all.length - 1, h + (k === "ArrowDown" ? 1 : -1))));
-    } else if (open && (k === "Home" || k === "End")) { e.preventDefault(); setHi(k === "Home" ? 0 : all.length - 1); }
-    else if (open && (k === "Enter" || k === " ")) { e.preventDefault(); pick(all[hi]); }
+      setHi((h) => Math.max(0, Math.min(items.length - 1, h + (k === "ArrowDown" ? 1 : -1))));
+    } else if (open && (k === "Home" || k === "End")) { e.preventDefault(); setHi(k === "Home" ? 0 : items.length - 1); }
+    else if (open && (k === "Enter" || k === " ")) { e.preventDefault(); pick(items[hi]); }
     else if (open && (k === "Escape" || k === "Tab")) { if (k === "Escape") e.preventDefault(); setOpen(false); }
   };
+  const option = (it, i) => (
+    <li key={i} id={id + "-" + i} data-i={i} role="option" aria-selected={i === at} className={(i === hi ? "hi" : "") + (i === at ? " on" : "")}
+      onMouseEnter={() => setHi(i)} onMouseDown={(e) => e.preventDefault()} onClick={() => pick(it)}>
+      <span>{it.label}</span>{i === at ? <span aria-hidden="true">✓</span> : null}
+    </li>
+  );
+  // Runs of items: the ungrouped as plain options, each group under its heading.
+  const runs = [];
+  items.forEach((it, i) => {
+    const last = runs[runs.length - 1];
+    if (last && last.group === (it.group || null)) last.rows.push([it, i]);
+    else runs.push({ group: it.group || null, rows: [[it, i]] });
+  });
+  const shownIcon = icon || (cur && cur.icon) || null;
   return (
-    <div className={"mk-city" + (hero ? " hero" : "")} ref={box}>
-      <button type="button" role="combobox" className="mk-city-b" aria-label="City" aria-haspopup="listbox" aria-expanded={open} aria-controls={id}
+    <div className={"mk-city" + (hero ? " hero" : "") + (className ? " " + className : "")} ref={box}>
+      <button type="button" role="combobox" className="mk-city-b" aria-label={label} aria-haspopup="listbox" aria-expanded={open} aria-controls={id}
         aria-activedescendant={open ? id + "-" + hi : undefined} onClick={() => setOpen((o) => !o)} onKeyDown={onKey}>
-        <MkIcon name="pin" size={hero ? 17 : 15} /><span className="v">{value}</span><MkCaret up={open} />
+        {shownIcon ? <MkIcon name={shownIcon} size={hero ? 17 : 15} /> : null}<span className="v">{cur ? cur.label : String(value)}</span><MkCaret up={open} />
       </button>
       {open ? (
-        <ul className="mk-city-l" id={id} role="listbox" aria-label="City" ref={list}>
-          {all.map((c, i) => (
-            <li key={c} id={id + "-" + i} role="option" aria-selected={c === value} className={(i === hi ? "hi" : "") + (c === value ? " on" : "")}
-              onMouseEnter={() => setHi(i)} onMouseDown={(e) => e.preventDefault()} onClick={() => pick(c)}>
-              <span>{c}</span>{c === value ? <span aria-hidden="true">✓</span> : null}
+        <ul className="mk-city-l" id={id} role="listbox" aria-label={label} ref={list}>
+          {runs.map((r, n) => (r.group ? (
+            <li key={"g" + n} role="group" aria-labelledby={id + "-g" + n} className="mk-lg">
+              <span id={id + "-g" + n} role="presentation" className="mk-lg-h">{r.group}</span>
+              <ul role="none">{r.rows.map(([it, i]) => option(it, i))}</ul>
             </li>
-          ))}
+          ) : r.rows.map(([it, i]) => option(it, i))))}
         </ul>
       ) : null}
     </div>
   );
+}
+// The city: Anywhere, then the cities the listings name.
+function MkCityPick({ value, cities, onPick, hero = false }) {
+  const items = useM(() => ["Anywhere", ...cities].map((c) => ({ value: c, label: c })), [cities]);
+  return <MkListPick id={hero ? "mk-city-hero" : "mk-city-rail"} label="City" value={value} items={items} onPick={onPick} hero={hero} icon="pin" />;
+}
+// The matcher's Goal: Any goal, then every goal, training and nutrition apart, as the select's optgroups were.
+const MK_GOAL_ITEMS = [
+  { value: "", label: "Any goal" },
+  ...MK_GOALS.filter((g) => !g.nu).map((g) => ({ value: g.id, label: g.label, icon: g.icon, group: "Training" })),
+  ...MK_GOALS.filter((g) => g.nu).map((g) => ({ value: g.id, label: g.label, icon: g.icon, group: "Nutrition" })),
+];
+function MkGoalPick({ value, onPick }) {
+  return <MkListPick id="mk-goal-hero" label="Goal" value={value} items={MK_GOAL_ITEMS} onPick={onPick} hero className="mk-goalpick" />;
 }
 function MkFilters({ f, set, counts, budgetMax, cities, specs, onReset }) {
   const [open, setOpen] = useS({ coach: true, goal: true, spec: true, budget: true, meet: true, trust: true });
@@ -1493,9 +1519,6 @@ function Marketplace() {
         .mk-mf .v{position:relative;display:flex;align-items:center;gap:8px;font-weight:600;font-size:15px;white-space:nowrap;min-width:0}
         .mk-mf .v svg{color:var(--teal)}
         .mk-mf .v small{font-weight:500;font-size:12.5px;color:var(--fg-3)}
-        .mk-mf .v.sel select{appearance:none;-webkit-appearance:none;flex:1;min-width:0;background:transparent;border:0;color:var(--fg);font:600 15px var(--sans);padding:2px 18px 2px 0;cursor:pointer}
-        .mk-mf .v.sel select option{background:#0c131d;color:#eef3f0}
-        .mk-mf .v.sel .mk-car{position:absolute;right:0;top:50%;margin-top:-2px}
         .mk-range{-webkit-appearance:none;appearance:none;width:100%;height:18px;background:transparent;margin:2px 0 0;cursor:pointer}
         .mk-range::-webkit-slider-runnable-track{height:4px;border-radius:2px;background:linear-gradient(90deg,var(--teal-d),var(--teal) var(--p,60%),rgba(255,255,255,.12) var(--p,60%))}
         .mk-range::-moz-range-track{height:4px;border-radius:2px;background:linear-gradient(90deg,var(--teal-d),var(--teal) var(--p,60%),rgba(255,255,255,.12) var(--p,60%))}
@@ -1602,6 +1625,10 @@ function Marketplace() {
         .mk-city-l li{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:34px;padding:0 10px;border-radius:6px;font-size:13px;color:var(--fg-2);cursor:pointer}
         .mk-city-l li.hi{background:rgba(255,255,255,.06);color:var(--fg)}
         .mk-city-l li.on{color:var(--teal);font-weight:600}
+        .mk-city-l li[role="group"]{display:block;min-height:0;padding:0;cursor:default}
+        .mk-city-l ul{margin:0;padding:0;list-style:none}
+        .mk-lg-h{display:block;padding:10px 10px 4px;font-family:var(--num);font-weight:700;font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:var(--fg-3);font-variation-settings:'ROND' 30}
+        .mk-city.mk-goalpick .mk-city-l{min-width:240px;max-height:360px}
         .mk-resbar{position:sticky;top:72px;z-index:20;margin:0 -12px;padding:10px 12px 12px;background:rgba(6,9,15,.9);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-bottom:1px solid var(--line-2)}
         .mk-res-head{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
         .mk-res-head h2{display:flex;align-items:center;gap:12px;font-family:var(--disp);font-weight:500;font-variation-settings:'wdth' 90;font-size:28px;line-height:1;margin:0;color:var(--fg)}

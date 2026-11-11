@@ -1328,7 +1328,7 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
     if (k === "find") return (
       <CpwAboutTab T={T} K={K} part="find" about={null} prompts={[]} links={aboutLinks} certs={[]} gallery={aboutGallery} onEdit={canEdit ? () => setEditing(true) : null} biz={biz} song={null} />
     );
-    if (k === "posts") return <CpwActivityTab T={T} cards={activity} failed={postsFailed} onRetry={posts.retry} />;
+    if (k === "posts") return <CpwActivityTab T={T} cards={activity} rows={postRows} author={{ name, role, uid: live ? uid : null }} failed={postsFailed} onRetry={posts.retry} />;
     if (k === "summit") return (
       <div data-summit-camp="">
         {wide && !isPrivate ? (
@@ -3220,8 +3220,71 @@ function CpwReplaySheet({ T, r, i, setI, avatar, onClose, onWork }) {
 // ── Activity ─────────────────────────────────────────────────────────────────────────────────
 // What they posted that the other tabs don't show (notes, photos, links, their own runs), newest
 // first. On their own page, Log activity opens the composer.
-function CpwActivityTab({ T, cards, failed = false, onRetry }) {
+// Each post as the activity feed draws it (owner, 2026-11-11: "Posts - need to match current activity
+// feed"): the feed's own card (communityFeed.jsx's CfPostCard: the byline, the record plate with its
+// figure, the stat grid, Session details) over the post's row, read by the feed's own mapper, in the
+// reader's units. The app's Posts camp draws its feed's card as well (BSActivityCard, as the member profile
+// does: BSTrainerProfile's ActivityFeed). A
+// sample's posts are written as rows for it. The card reads the page's ink, so it shows on the coach's
+// own paper. Without the feed module (a page that does not load it), the plain rows below stand in.
+// The camp shows the posts the other camps don't (activity: not the replays, videos or plate notes).
+const CPW_AGO_MS = { m: 60e3, h: 3600e3, d: 86400e3, w: 7 * 86400e3 };
+// A sample post as a community_posts row, dated by its "1d" so the card reads the same time.
+function cpwSampleRow(c, author, now) {
+  const ago = /^(\d+)\s*([mhdw])$/i.exec(String(c.ago || "").trim());
+  const at = now - (ago ? Number(ago[1]) * CPW_AGO_MS[ago[2].toLowerCase()] : 0);
+  const kind = c.kind === "note" ? "note" : c.kind === "meal" ? "meal" : "workout";
+  const stats = (Array.isArray(c.stats) ? c.stats : []).filter((r) => Array.isArray(r) && r[0] && r[1] != null && String(r[1]).trim());
+  const video = c.video && typeof c.video === "object" ? c.video.url : c.video;
+  return {
+    id: null, title: c.title || "", note: c.body || "", activity_type: c.activityType || (kind === "workout" ? "workout" : "note"),
+    photo_url: c.photo || null, created_at: new Date(at).toISOString(),
+    author_name: author.name || "", author_role: author.role || "", author_id: null,
+    metrics: { kind, ...(stats.length ? { workoutStats: stats.map(([l, v]) => ({ label: String(l), value: String(v) })) } : {}), ...(video ? { video_url: video } : {}),
+      ...(c.link && c.link.url ? { link: { url: c.link.url, title: c.link.title || "" } } : {}) },
+  };
+}
+// The reader's units for the feed's card, once: theirs when signed in, else the defaults.
+function useCpwFeedUnits(on) {
+  const [units, setUnits] = React.useState(null);
+  React.useEffect(() => {
+    const load = typeof window !== "undefined" ? window.cfLoadUnits : null;
+    if (!on || typeof load !== "function") return undefined;
+    let live = true;
+    const auth = window.shapeDb && window.shapeDb.client && window.shapeDb.client.auth;
+    Promise.resolve().then(() => (auth && typeof auth.getSession === "function" ? auth.getSession() : null))
+      .then((r) => !!(r && r.data && r.data.session), () => false)
+      .then((signedIn) => load(signedIn))
+      .then((u) => { if (live && u) setUnits(u); }, () => {});
+    return () => { live = false; };
+  }, [on]);
+  return units;
+}
+function CpwActivityTab({ T, cards, rows = [], author = {}, failed = false, onRetry }) {
   const { pal, ACC, INK, ink, isSelf, first } = T;
+  const FeedCard = typeof window !== "undefined" && typeof window.CfPostCard === "function" ? window.CfPostCard : null;
+  const units = useCpwFeedUnits(!!FeedCard && cards.length > 0);
+  // Each card's row: a live post's own (with who wrote it, which the page's read leaves out), a sample's
+  // written for it. A card with no row keeps the plain drawing.
+  const feedRows = React.useMemo(() => {
+    if (!FeedCard) return null;
+    const byId = new Map((Array.isArray(rows) ? rows : []).filter((r) => r && r.id != null).map((r) => [String(r.id), r]));
+    const who = { author_name: author.name || "", author_role: author.role || "", author_id: author.uid || null };
+    const now = Date.now();
+    return cards.map((c) => {
+      if (c && c.postId != null) { const r = byId.get(String(c.postId)); return r ? { ...r, ...who } : null; }
+      return c && c.real === false ? cpwSampleRow(c, author, now) : null;
+    });
+  }, [FeedCard, cards, rows, author.name, author.role, author.uid]);
+  // The feed's card reads the site's ink (--sh-ink); here it is the page's, so it shows on any paper. On a
+  // light paper the role colours are the app's light ones.
+  const feedVars = {
+    "--sh-ink": pal.INK, "--sh-ink-rgb": pal.inkRGB, "--sh-ink2": `rgba(${pal.inkRGB},0.66)`, "--sh-ink3": `rgba(${pal.inkRGB},0.5)`,
+    ...(pal.isLight ? {
+      "--sh-heat-trainer": "#c0533b", "--sh-heat-trainer-rgb": "192,83,59", "--sh-heat-nutri": "#a07a2e", "--sh-heat-nutri-rgb": "160,122,46",
+      "--sh-heat-client": "#0a8f87", "--sh-heat-client-rgb": "10,143,135", "--sh-accent": "#0a8f87", "--sh-accent2": "#0a8f87",
+    } : null),
+  };
   return (
     <section data-activity="" style={{ paddingTop: 20 }}>
       {/* No heading: the tab is already named Activity (owner, as the app's #2562: it read "{name}'s
@@ -3232,24 +3295,30 @@ function CpwActivityTab({ T, cards, failed = false, onRetry }) {
         </div>
       ) : null}
       {failed ? <CpwReadFailed ink={ink} ACC={ACC} tag="posts" what={isSelf ? "Couldn't read your posts just now." : `Couldn't read ${first}'s posts just now.`} onRetry={onRetry} /> : null}
-      {cards.length ? cards.slice(0, 30).map((a, i) => {
-        const stats = (Array.isArray(a.stats) && a.stats.length ? a.stats : Array.isArray(a.statsRow) ? a.statsRow : []).slice(0, 3);
-        return (
-          <article key={a.key || i} data-activity-card="" style={{ padding: "16px 0", borderTop: `1px solid ${ink(0.12)}`, maxWidth: 720 }}>
-            <span style={{ fontFamily: CPW_MONO, fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: ACC }}>{[a.typeLabel, a.ago].filter(Boolean).join(" · ")}</span>
-            {a.title ? <span style={{ display: "block", marginTop: 4, fontFamily: CPW_DISPLAY, fontWeight: 600, fontSize: 18 }}>{a.title}</span> : null}
-            {a.body ? <p style={{ margin: "4px 0 0", fontSize: 15, lineHeight: 1.5, color: ink(0.8), whiteSpace: "pre-wrap" }}>{a.body}</p> : null}
-            {a.photo ? <img src={a.photo} alt={a.title || "Post photo"} loading="lazy" style={{ display: "block", width: "100%", maxHeight: 420, aspectRatio: "4 / 3", objectFit: "cover", marginTop: 10, background: pal.PAPER2 }} /> : null}
-            {a.video ? <a href={typeof a.video === "string" ? a.video : a.video.url} target="_blank" rel="noopener noreferrer" style={{ ...cpwLink(ACC), marginTop: 8 }}>▶ Watch</a> : null}
-            {a.link && a.link.url ? <a href={a.link.url} target="_blank" rel="noopener noreferrer" style={{ ...cpwLink(ACC), marginTop: 8 }}>↗ {a.link.title || "Open link"}</a> : null}
-            {stats.length ? (
-              <div style={{ display: "flex", gap: 8, marginTop: 10, maxWidth: 480 }}>
-                {stats.map((s, k) => <div key={k} style={{ flex: 1, padding: "9px 6px", textAlign: "center", background: pal.PAPER2 }}><div style={{ fontFamily: CPW_DISPLAY, fontSize: 16, fontWeight: 600 }}>{s[1]}</div><div style={{ fontFamily: CPW_MONO, fontSize: 8.5, letterSpacing: "0.08em", textTransform: "uppercase", color: ink(0.5), marginTop: 3 }}>{s[0]}</div></div>)}
-              </div>
-            ) : null}
-          </article>
-        );
-      }) : failed ? null : <CpwHint ink={ink}>Nothing posted yet. Log a run, a note or a photo, and members see it here.</CpwHint>}
+      {cards.length ? (
+        <div data-activity-feed={FeedCard ? "" : undefined} style={{ ...(FeedCard ? feedVars : null), display: "flex", flexDirection: "column", gap: FeedCard ? 14 : 0, maxWidth: FeedCard ? 640 : 720, color: INK }}>
+          {cards.slice(0, 30).map((a, i) => {
+            const row = feedRows ? feedRows[i] : null;
+            if (row) return <div key={a.key || i} data-activity-card="" data-feed-card=""><FeedCard row={row} units={units} /></div>;
+            const stats = (Array.isArray(a.stats) && a.stats.length ? a.stats : Array.isArray(a.statsRow) ? a.statsRow : []).slice(0, 3);
+            return (
+              <article key={a.key || i} data-activity-card="" style={{ padding: "16px 0", borderTop: `1px solid ${ink(0.12)}`, maxWidth: 720 }}>
+                <span style={{ fontFamily: CPW_MONO, fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: ACC }}>{[a.typeLabel, a.ago].filter(Boolean).join(" · ")}</span>
+                {a.title ? <span style={{ display: "block", marginTop: 4, fontFamily: CPW_DISPLAY, fontWeight: 600, fontSize: 18 }}>{a.title}</span> : null}
+                {a.body ? <p style={{ margin: "4px 0 0", fontSize: 15, lineHeight: 1.5, color: ink(0.8), whiteSpace: "pre-wrap" }}>{a.body}</p> : null}
+                {a.photo ? <img src={a.photo} alt={a.title || "Post photo"} loading="lazy" style={{ display: "block", width: "100%", maxHeight: 420, aspectRatio: "4 / 3", objectFit: "cover", marginTop: 10, background: pal.PAPER2 }} /> : null}
+                {a.video ? <a href={typeof a.video === "string" ? a.video : a.video.url} target="_blank" rel="noopener noreferrer" style={{ ...cpwLink(ACC), marginTop: 8 }}>▶ Watch</a> : null}
+                {a.link && a.link.url ? <a href={a.link.url} target="_blank" rel="noopener noreferrer" style={{ ...cpwLink(ACC), marginTop: 8 }}>↗ {a.link.title || "Open link"}</a> : null}
+                {stats.length ? (
+                  <div style={{ display: "flex", gap: 8, marginTop: 10, maxWidth: 480 }}>
+                    {stats.map((s, k) => <div key={k} style={{ flex: 1, padding: "9px 6px", textAlign: "center", background: pal.PAPER2 }}><div style={{ fontFamily: CPW_DISPLAY, fontSize: 16, fontWeight: 600 }}>{s[1]}</div><div style={{ fontFamily: CPW_MONO, fontSize: 8.5, letterSpacing: "0.08em", textTransform: "uppercase", color: ink(0.5), marginTop: 3 }}>{s[0]}</div></div>)}
+                  </div>
+                ) : null}
+              </article>
+            );
+          })}
+        </div>
+      ) : failed ? null : <CpwHint ink={ink}>Nothing posted yet. Log a run, a note or a photo, and members see it here.</CpwHint>}
     </section>
   );
 }
