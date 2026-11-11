@@ -131,3 +131,42 @@ test("a coach's public page scales with a short desktop window and is unchanged 
   assert.ok((Number(name[2]) * 899) / 100 >= 93, 'at 899px tall the name is under the 93px it is at 1440 wide');
   assert.ok((Number(name[2]) * 706) / 100 <= 76, "at the owner's 706px window the name is still over 76px");
 });
+
+test("the dashboard's own profile scales with a short window too, and is unchanged from 900px tall", () => {
+  // Owner, 2026-11-11: "make sure profile page on dashboard size and fitting is reviewed as well, looks big
+  // on page" (a 1460x730 window: the stage ran 131-653px, under the dashboard's bars).
+  const CPW = readFileSync('public/newdesign/coachProfileWeb.jsx', 'utf8');
+  const blocks = [...CPW.matchAll(/@media \(min-width:1000px\) and \(max-height:899px\)\{([\s\S]*?)\n    \}/g)].map((m) => m[1]);
+  assert.equal(blocks.length, 2, 'the public and dashboard short-window blocks');
+  const css = blocks[1];
+  for (const line of css.trim().split('\n')) {
+    assert.match(line.trim(), /^\.cpw(\.cpw)?\[data-in-dash\] /, `a dashboard short-window rule reaches the public page: ${line.trim()}`);
+  }
+  // Each clamp(MIN, Kvh, MAX) meets the dashboard's fixed size by 899px, so a 900px window does not jump.
+  const base = /\.cpw\[data-in-dash\] \.cpw-stage-grid\{[^}]*min-height:(\d+)px\}/.exec(CPW);
+  assert.ok(base, "the dashboard's stage height moved");
+  const checks = [
+    [/\.cpw-stage-grid\{[^}]*min-height:clamp\((\d+)px,([\d.]+)vh,(\d+)px\)\}/, 'the stage height', Number(base[1])],
+    [/\.cpw-chips\{margin-top:clamp\((\d+)px,([\d.]+)vh,(\d+)px\)\}/, 'the chips gap', 18],
+    [/\.cpw-follow\{margin-top:clamp\((\d+)px,([\d.]+)vh,(\d+)px\)\}/, 'the follow row gap', 12],
+    [/\.cpw-follow-n\{font-size:clamp\((\d+)px,([\d.]+)vh,(\d+)px\)\}/, 'the follow figures', 24],
+    [/\.cpw-plates\{padding-top:clamp\((\d+)px,([\d.]+)vh,(\d+)px\)\}/, 'the plates gap', 26],
+    [/\.cpw-stat-n\{font-size:clamp\((\d+)px,([\d.]+)vh,(\d+)px\)\}/, 'the plate figures', 28],
+  ];
+  for (const [re, label, old] of checks) {
+    const m = re.exec(css);
+    assert.ok(m, `the dashboard's short-window block lost ${label}`);
+    const [min, k, max] = [Number(m[1]), Number(m[2]), Number(m[3])];
+    assert.equal(max, old, `${label}: the cap is not the dashboard's ${old}px`);
+    assert.ok(min < max && (k * 899) / 100 >= max - 0.5, `${label}: at 899px tall it is under ${max}px, so a 900px window jumps`);
+    assert.ok((k * 730) / 100 < max, `${label}: at the owner's 730px window it does not shrink`);
+  }
+  // The portrait column and the name: the dashboard's own values at 899px, smaller at 730.
+  assert.match(css, /grid-template-columns:clamp\(200px,min\(max\(230px,19vw\),33\.4vh\),300px\)/);
+  assert.ok((33.4 * 899) / 100 >= 300 && (33.4 * 730) / 100 < 250);
+  const name = /\.cpw-h1\{font-size:max\(34px,min\(([\d.]+)vh,78px,/.exec(css);
+  assert.ok(name, "the dashboard's name lost its height cap");
+  assert.ok((Number(name[1]) * 899) / 100 >= 78 && (Number(name[1]) * 730) / 100 < 66);
+  // The block follows the public one, which the test above reads as the first.
+  assert.ok(CPW.indexOf(blocks[0]) < CPW.indexOf(blocks[1]));
+});

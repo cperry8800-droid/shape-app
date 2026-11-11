@@ -1543,6 +1543,22 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
       .cpw:not([data-in-dash]) .cpw-stat-n{font-size:clamp(28px,4.4vh,40px)}
       .cpw.cpw:not([data-in-dash]) .cpw-camp-title{font-size:clamp(32px,min(4.2vw,6.4vh),58px) !important}
     }
+    /* ⚠ THE DASHBOARD'S PROFILE ON A SHORT WINDOW SCALES WITH ITS HEIGHT TOO (owner, 2026-11-11: "make sure
+       profile page on dashboard size and fitting is reviewed as well, looks big on page", a 1460x730
+       window at 125%: the stage ran 131-653px, the whole screen under the bars). The block above is the
+       public page's; this is the dashboard's own scale (data-in-dash) following 100vh to a floor. Each
+       size meets its value above at 899px, so a window 900px or taller is unchanged. */
+    @media (min-width:1000px) and (max-height:899px){
+      .cpw[data-in-dash] .cpw-bar{padding:10px 0 8px}
+      .cpw[data-in-dash] .cpw-stage-grid{grid-template-columns:clamp(200px,min(max(230px,19vw),33.4vh),300px) minmax(0,1fr);padding:clamp(18px,3.12vh,28px) 28px clamp(16px,2.9vh,26px);min-height:clamp(400px,57.9vh,520px)}
+      .cpw.cpw[data-in-dash] .cpw-h1{font-size:max(34px,min(8.7vh,78px,calc(min(620px,100cqi) / (var(--cpw-l,8) * 0.76)))) !important}
+      .cpw[data-in-dash] .cpw-chips{margin-top:clamp(10px,2.01vh,18px)}
+      .cpw[data-in-dash] .cpw-follow{margin-top:clamp(6px,1.34vh,12px)}
+      .cpw[data-in-dash] .cpw-follow-n{font-size:clamp(19px,2.67vh,24px)}
+      .cpw[data-in-dash] .cpw-quote{margin-top:clamp(10px,1.78vh,16px);font-size:clamp(14.5px,1.78vh,16px)}
+      .cpw[data-in-dash] .cpw-plates{padding-top:clamp(14px,2.9vh,26px)}
+      .cpw[data-in-dash] .cpw-stat-n{font-size:clamp(22px,3.12vh,28px)}
+    }
     @media (prefers-reduced-motion: reduce){
       .cpw-wire-run{animation:none}
       .cpw-wire-dup{display:none}
