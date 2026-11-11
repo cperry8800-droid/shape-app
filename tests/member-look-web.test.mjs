@@ -75,10 +75,13 @@ const sameColor = (a, b) => { const p = document.createElement('i'); p.style.col
 
 function backend() {
   const writes = [];
-  window.shapeDb = { client: { auth: { getUser: async () => ({ data: { user: { id: 'u1' } } }) }, from: () => ({ upsert: async (row) => { writes.push(row); return {}; } }) } };
+  // The save reads the doc as stored first (it merges onto it): here, the doc the editor opened with.
+  window.shapeDb = { getUserGoals: async (kind) => (kind === 'profile_custom' ? JSON.parse(JSON.stringify(opened)) : null),
+    client: { auth: { getUser: async () => ({ data: { user: { id: 'u1' } } }) }, from: () => ({ upsert: async (row) => { writes.push(row); return {}; } }) } };
   return writes;
 }
-const editor = (props) => React.createElement(ProfileCustomizer, { initial: {}, c: '#d8a23a', coach: false, ownerUid: 'u1', onClose() {}, onSave() {}, ...props });
+let opened = {};
+const editor = (props) => { opened = (props && props.initial) || {}; return React.createElement(ProfileCustomizer, { initial: {}, c: '#d8a23a', coach: false, ownerUid: 'u1', onClose() {}, onSave() {}, ...props }); };
 
 test('a member\'s editor: Your colors in place of the swatches, a pick saved as the look, its crop kept', async () => {
   const writes = backend();
@@ -182,5 +185,30 @@ test('a save in the editor repaints the member\'s own page at once', async () =>
   await click(byLabel('Oxblood look'));
   await click([...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Save profile'));
   assert.equal(rootDiv().getAttribute('data-dk-page'), 'oxblood');
+  await React.act(async () => root.unmount()); root = null;
+});
+
+// Parity with the app (owner, 2026-11-11): the page reads its person again (an edit made in the app, seen on a
+// return to the tab: livingProfilePage.jsx's visibilitychange), and the page takes the new doc; it held the one
+// it opened with until a reload. Not while Edit profile is open over it, and a read that landed while it was
+// open never undoes that editor's save.
+test("the member's own page takes a doc read again, and an editor's save outlives a read made while it was open", async () => {
+  backend();
+  const prof = (custom) => React.createElement(DesktopProfile, { direction: 'terrain', persona: 'client', variant: 'own', person: { ...shared.LV_PEOPLE.client, uid: 'u1', custom }, chrome: false, onMessage() {}, onFollow() {} });
+  opened = {};
+  await mount(prof({}));
+  assert.equal(rootDiv().getAttribute('data-dk-page'), null);
+  // The app changed the paper; the page read it again.
+  await React.act(async () => root.render(prof({ look: { paper: 'oxblood' } })));
+  assert.equal(rootDiv().getAttribute('data-dk-page'), 'oxblood', 'the page kept the doc it opened with');
+  // Edit profile open; a read lands under it (plum); the editor saves forest.
+  await click([...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Edit profile'));
+  await React.act(async () => root.render(prof({ look: { paper: 'plum' } })));
+  assert.equal(rootDiv().getAttribute('data-dk-page'), 'oxblood', 'a read repainted the page under the open editor');
+  opened = { look: { paper: 'plum' } };
+  await click(tab('Appearance'));
+  await click(byLabel('Forest look'));
+  await click([...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Save profile'));
+  assert.equal(rootDiv().getAttribute('data-dk-page'), 'forest', "the older read undid the editor's save");
   await React.act(async () => root.unmount()); root = null;
 });

@@ -37,7 +37,7 @@ import { bsGoalVerdict, bsGoalPct, bsGoalRemaining } from '../services/goalContr
 import { bsProfileStreak, bsProfileWeek, bsProfileTrajectory, bsProfileLifts, bsProfileDisciplines } from '../services/profileSignals.mjs';
 import { BS_PREF_OPTIONS, bsPrefOptionLabel, bsPrefOptionDisplay, bsPrefOptionToken, bsGoalKind } from '../services/prefOptions.mjs';
 import { bsFirstRunStage, bsFirstRunNeedsSeed } from '../services/firstRun.mjs';
-import { bsUserGoalsRevHook, bsAnnounceUserGoals, BS_ACCOUNT_SETUP_KINDS } from '../services/userGoalsRefresh.mjs';
+import { bsUserGoalsRevHook, bsAnnounceUserGoals, BS_ACCOUNT_SETUP_KINDS, BS_PROFILE_KINDS, bsOnReturnToApp } from '../services/userGoalsRefresh.mjs';
 import { bsLiveEffort, BS_EFFORT_RAMP, BS_EFFORT_HRMAX } from '../services/liveEffort.mjs';
 import { bsAssignWeekLine, bsAssignDayLine, bsWeekUnits, bsWeekSpan } from '../services/planOutline.mjs';
 import { BS_BATCH_KEY, bsReadBatch, bsWriteBatch } from '../services/cookBatchResume.mjs';
@@ -255,9 +255,27 @@ function bsHydrateIdentity() {
   const gen = window.__bsSessionGen || 0;
   return window.shapeDb.getUserGoals('client_identity').then((d) => {
     if (gen !== (window.__bsSessionGen || 0)) return; // stale: captured under the prior session
+    // A read that failed (null) keeps the cache: it is read again on each return to the app
+    // (bsOnReturnToApp below), and a dropped connection must not blank every avatar and name.
+    // Signing out resets the cache itself (the signedOut sweep).
+    if (d == null) return;
     try { window.ShapeIdentity = (d && typeof d === 'object' && Object.keys(d).length) ? { ...d } : {}; } catch (e) {}
     try { window.dispatchEvent(new Event('shape:identity')); } catch (e) {}
   }).catch(() => {});
+}
+// Back in the app after being away: the website may have changed the identity or the profile doc
+// (Edit profile), so the cache is read again and every mounted reader of either reads again
+// (services/userGoalsRefresh.mjs). Installed once per window, for every role's shell.
+if (typeof window !== 'undefined' && typeof document !== 'undefined' && !window.__bsProfileReturnRefresh) {
+  window.__bsProfileReturnRefresh = bsOnReturnToApp(() => {
+    if (!window.ShapeAuth?.getCachedState?.()?.user?.id) return;
+    bsHydrateIdentity();
+    // The name lives in profiles.full_name too (the identity trigger copies a website edit there),
+    // which bsMyName() reads from the auth cache: read the row again, as the account setup's refresh
+    // does (Codex on #2707).
+    try { Promise.resolve(window.ShapeAuth?.reloadProfile?.()).catch(() => {}); } catch (e) {}
+    bsAnnounceUserGoals(BS_PROFILE_KINDS);
+  });
 }
 // Serialized identity writer — both the edit form and the photo picker call this,
 // so concurrent saves can't race: each merges its patch over the FRESHEST stored
@@ -14441,6 +14459,15 @@ function useBSProfilePhoto(person, isSelf) {
     if (isSelf) { try { window.shapeDb?.getUserGoals?.('client_identity').then((d) => { if (d && d.photo) setPhoto(d.photo); }).catch(() => {}); } catch (e) {} }
     else if (person.photo) setPhoto(person.photo);
   }, [isSelf, person.userId]);
+  // Their own photo follows the identity cache when it is read again (a return to the app after a website
+  // edit, Nora's account setup, a save elsewhere): shape:identity carries the account's photo, or none
+  // when it was removed (Codex on #2707).
+  React.useEffect(() => {
+    if (!isSelf) return undefined;
+    const again = () => { try { const id = window.ShapeIdentity; if (id && typeof id === 'object') setPhoto(id.photo || null); } catch (e) {} };
+    window.addEventListener('shape:identity', again);
+    return () => window.removeEventListener('shape:identity', again);
+  }, [isSelf]);
   const onPick = (e) => {
     const f = e.target.files && e.target.files[0];
     if (!f) return;

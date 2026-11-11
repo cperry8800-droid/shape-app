@@ -27,6 +27,8 @@ const { ShapeVideoPlayer } = createMobileVideoComponents(React);
 // Nora's account setup announces the documents it changed (services/userGoalsRefresh.mjs).
 const useBSUserGoalsRev = bsUserGoalsRevHook(React);
 const BS_OWN_PROFILE_KINDS = ['profile_custom'];
+const BS_SELF_CARD_KINDS = ['client_identity', 'profile_custom'];
+const BS_NO_KINDS = [];
 
 // ─── THE COACH PROFILE: TRAINERS AND NUTRITIONISTS ───────────────────────────────────────────
 // Owner, 2026-11-09 ("for coaches profile lets complete full buildout of 'the climb'"): every coach's
@@ -198,13 +200,20 @@ export function BSTrainerProfile(props) {
   });
   const [live, setLive] = React.useState(null);
   const [own, setOwn] = React.useState(null);
+  // The coach's own page reads its public card again when their identity or profile doc changed
+  // elsewhere (the website's Edit profile, seen on a return to the app, or Nora's account setup): the
+  // name, photo, pronouns and place it prints come from it. The card on screen stays until the new one
+  // lands; another coach's page is read once, as it opens.
+  const liveRev = useBSUserGoalsRev(isSelf ? BS_SELF_CARD_KINDS : BS_NO_KINDS);
+  const liveFor = React.useRef(null);
   React.useEffect(() => {
-    setLive(null);
+    const key = `${person.userId || ''}|${demoOn ? 1 : 0}`;
+    if (liveFor.current !== key) { liveFor.current = key; setLive(null); }
     if (demoOn || !person.userId || !window.ShapeProfiles?.getPublicProfile) return undefined;
     let on = true;
     window.ShapeProfiles.getPublicProfile(person.userId).then((d) => { if (on && d) setLive(d); }).catch(() => {});
     return () => { on = false; };
-  }, [person.userId, demoOn]);
+  }, [person.userId, demoOn, liveRev]);
   // Whether the coach's own doc has been read. Make it yours opens only on that doc, never on the
   // defaults, which a save would write over their look, studio and wall photo (Codex P1 on #2484).
   const [ownState, setOwnState] = React.useState('loading');
@@ -286,7 +295,12 @@ function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = fal
   // #2486): the hook is asked as for a visitor, which reads nothing and offers no picker.
   const photoHook = W.useBSProfilePhoto ? W.useBSProfilePhoto(person, isSelf && !demo) : { photo: person.photo || null, fileRef: null, onPick: null };
   const avatar = selfDemo ? ((W.bsMyPhoto && W.bsMyPhoto()) || null)
-    : (isSelf && W.ShapeIdentity?.avatarMode === 'initials') ? null : (photoHook.photo || (live && live.avatar) || person.photo || null);
+    : (isSelf && W.ShapeIdentity?.avatarMode === 'initials') ? null
+    // Their own photo is the one on their account (client_identity.photo, set in the app or the website's
+    // Edit profile), as the website's coach page shows it (row.avatar, then the listing portrait): another
+    // coach's page takes it from their public card before the listing portrait the card was opened with.
+    : isSelf ? (photoHook.photo || (live && live.avatar) || person.photo || null)
+    : ((live && live.avatar) || photoHook.photo || person.photo || null);
   const canPickPhoto = isSelf && !demo;
   // A photo that fails to load shows the initials, not an empty circle.
   const [brokenAvatar, setBrokenAvatar] = React.useState(null);
