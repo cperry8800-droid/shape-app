@@ -528,7 +528,7 @@ test('the notify routes say a member\'s notices in their language and units, and
     // run) or the clients the scope check refused (revokedClients, the live route): Codex and
     // CodeRabbit on #2705.
     assert.match(src, /candidatesFor\(snapshot, \{.*\bthresholds, copy, coachContext, zone: prefs\.tz, memberPaused(?:, (?:rosterAccess|revokedClients))? \}\)/, rel);
-    assert.match(src, /decideAndClaim\([^;{]*\{[^}]*tr: copy\?\.tr, coachSeen \}/, rel);
+    assert.match(src, /decideAndClaim\([^;{]*\{[^}]*tr: copy\?\.tr, coachSeen, coachAway \}/, rel);
   }
   // The server bundles a catalog for exactly the languages the app ships.
   const cats = fs.readFileSync(path.join(ROOT, 'src/lib/ai/memberCatalogs.ts'), 'utf8');

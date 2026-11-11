@@ -23,7 +23,7 @@ import { bsUnitsMetric } from '../../../mobile-app/src/services/leadReason.mjs';
 
 export type Candidate = { type: string; title: string; body: string; route: string; data: Record<string, unknown>; priority: string };
 export type DecideResult = { send: Candidate[]; digest: Candidate | null; nextState: Record<string, unknown>; suppressed: { type: string; reason: string }[] };
-export type DecideInput = { candidates: Candidate[]; last: Record<string, unknown>; prefs: Record<string, unknown>; now: Date; audience: string; checkinOptedOut?: boolean; memberPaused?: boolean; pushedToday?: number | null; tr?: Translate; coachSeen?: Record<string, string> | null };
+export type DecideInput = { candidates: Candidate[]; last: Record<string, unknown>; prefs: Record<string, unknown>; now: Date; audience: string; checkinOptedOut?: boolean; memberPaused?: boolean; pushedToday?: number | null; tr?: Translate; coachSeen?: Record<string, string> | null; coachAway?: Record<string, string[]> | null };
 // The coach's own context the engine reads (P2): their dismissals (coach_signal_dismissals rows) and
 // their check-in reviews (the coach_week_reviews doc). Each is null when it could not be read.
 export type CoachContext = { dismissals: unknown[] | null; reviews: Record<string, unknown> | null };
@@ -169,7 +169,7 @@ export function memberCopy(localeDoc: Record<string, unknown>, settings: Record<
 type Directive = { verdict: string; reason: string; action: { label: string; kind: string } | null; read: { summary30d: string; oneThingNow: string }; cited?: string[] };
 type Flag = { key: string; label: string; reason: string; owned?: boolean; discipline?: string };
 type Lead = { key: string; reason: string; label?: string; sig?: string | null; action?: { kind: string; label: string } | null };
-type TriageRow = { client: { userId?: string; id?: string; profile?: { id?: string; name?: string } }; severity: string; flags: Flag[]; reasons: string[]; lead?: Lead | null };
+type TriageRow = { client: { userId?: string; id?: string; profile?: { id?: string; name?: string } }; severity: string; flags: Flag[]; reasons: string[]; lead?: Lead | null; pause?: { state?: string; fresh?: boolean } | null };
 const engine = DashSignals as unknown as {
   attachCoachContext: (records: unknown[], ctx: CoachContext, role?: string) => unknown[];
   buildDirective: (record: unknown, now?: Date, role?: string) => Directive;
@@ -379,7 +379,7 @@ export function candidatesFor(
     // held for them is dropped, and they are forgotten (coachSeen 'clear').
     revokedClients?: string[];
   },
-): { audience: 'client' | 'coach'; candidates: Candidate[]; coachSeen?: Record<string, string> } {
+): { audience: 'client' | 'coach'; candidates: Candidate[]; coachSeen?: Record<string, string>; coachAway?: Record<string, string[]> } {
   const role = snapshot.role || '';
   if (isCoachRole(role)) {
     const saved = Array.isArray(snapshot.clients) ? snapshot.clients : [];
@@ -403,7 +403,16 @@ export function candidatesFor(
     // …each snooze held to the run's own clock (liveDismissals).
     const clients = liveDismissals(opts.coachContext ? engine.attachCoachContext(raw, opts.coachContext, role) : raw, opts.now);
     const zone = opts.zone || snapshot.tz || null;
-    const rows = engine.inZone(zone, rosterClock(snapshot, opts.now), (at) => engine.getTriageFeed(role, clients, at, opts.thresholds || undefined)).map((r) => ({
+    const feed = engine.inZone(zone, rosterClock(snapshot, opts.now), (at) => engine.getTriageFeed(role, clients, at, opts.thresholds || undefined));
+    // The clients away or just back (pauseOf), each with the reasons their row still carries, so an alert
+    // held from before the break for a reason it silences is dropped (decideNotifications coachAway).
+    const coachAway: Record<string, string[]> = {};
+    for (const r of feed) {
+      const p = r && r.pause;
+      const id = r && coachRecordId(r.client);
+      if (id && p && (p.state === 'paused' || p.fresh)) coachAway[id] = (Array.isArray(r.flags) ? r.flags : []).map((f) => String(f && f.key));
+    }
+    const rows = feed.map((r) => ({
       clientId: coachRecordId(r.client) as string,
       clientName: (r.client.profile && r.client.profile.name) || 'A client',
       severity: r.severity,
@@ -419,6 +428,7 @@ export function candidatesFor(
       // Who this run saw clear, so the alert memory forgets them (settleCoachMemory), and those the coach
       // no longer has, so an alert held for them is dropped (decideNotifications).
       coachSeen: { ...Object.fromEntries([...revoked].map((id) => [id, 'clear'])), ...Notify.coachSeen(rows) },
+      coachAway,
     };
   }
   const candidates: Candidate[] = [];

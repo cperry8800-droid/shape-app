@@ -642,7 +642,7 @@ export function pushCount({ send = [], digest = null } = {}) {
 // on the person's date today (loadPushedToday, notify-core.ts), this engine's included; the cap
 // reads the larger of the two, so nothing is counted twice. Null (the read failed) keeps the
 // engine's own count, as before. The digest is held to it too (below).
-export function decideNotifications({ candidates = [], last = {}, prefs = {}, now = new Date(), audience = 'client', checkinOptedOut = false, memberPaused = false, pushedToday = null, tr, coachSeen: seen = null }) {
+export function decideNotifications({ candidates = [], last = {}, prefs = {}, now = new Date(), audience = 'client', checkinOptedOut = false, memberPaused = false, pushedToday = null, tr, coachSeen: seen = null, coachAway = null }) {
   const P = { ...DEFAULT_PREFS, ...prefs, matrix: { ...(prefs.matrix || {}) } };
   // The engine's own count resets on the cap's day (P.capTz, the habit cron's zone), the day the
   // other senders' pushes are counted on; quiet hours below stay on P.tz.
@@ -682,6 +682,21 @@ export function decideNotifications({ candidates = [], last = {}, prefs = {}, no
     // One that eased from red to amber may go red again: that red is news, so its old stamp goes.
     const prev = last.coachClients && typeof last.coachClients === 'object' ? last.coachClients : {};
     for (const id of Object.keys(seen)) if (seen[id] === 'amber' && prev[id] === 'red') delete state.types[`client_red:${id}`];
+  }
+  // ⚠ A CLIENT ON A BREAK IS NOT ALERTED ABOUT FROM BEFORE IT (Codex on #2705). Only a client seen clear
+  // had their held alert dropped, and one away or just back whose row stays amber on a flag the break
+  // leaves (a plan or program ending, or the welcome back itself) is not clear, so an alert held
+  // for their absence ("No food logs") went out with the next digest, mid-break. `coachAway` names those
+  // clients, each with the reasons their row still carries (candidatesFor); a held alert for one of them
+  // whose reason the row no longer carries is dropped, and one it still carries goes as held.
+  if (audience === 'coach' && coachAway && typeof coachAway === 'object') {
+    state.pendingDigest = state.pendingDigest.filter((i) => {
+      if (!(i && (i.type === 'client_red' || i.type === 'client_amber'))) return true;
+      const still = Object.prototype.hasOwnProperty.call(coachAway, i.key) ? coachAway[i.key] : null;
+      if (!Array.isArray(still)) return true;
+      const reason = i.data && typeof i.data === 'object' ? i.data.reasonKey : null;
+      return typeof reason === 'string' && still.includes(reason);
+    });
   }
   if (checkinOptedOut) {
     const kept = [];

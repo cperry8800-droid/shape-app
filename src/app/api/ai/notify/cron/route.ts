@@ -150,9 +150,9 @@ async function evaluateSnapshot(admin: ReturnType<typeof createAdminClient>, use
   // The reader's language: a member's notices, and a coach's alert titles and digest.
   const copy = memberCopy(localeDoc, settings);
 
-  const { audience, candidates, coachSeen } = candidatesFor(snapshot, { tone: prefs.tone, lastSeverity: (last.coachClients as Record<string, string>) || {}, now, habitContext, checkinOptedOut, thresholds, copy, coachContext, zone: prefs.tz, memberPaused, rosterAccess });
+  const { audience, candidates, coachSeen, coachAway } = candidatesFor(snapshot, { tone: prefs.tone, lastSeverity: (last.coachClients as Record<string, string>) || {}, now, habitContext, checkinOptedOut, thresholds, copy, coachContext, zone: prefs.tz, memberPaused, rosterAccess });
   // The pushes decided are claimed under the person's cap before anything is sent (decideAndClaim).
-  const { decided, claim } = await decideAndClaim(admin, userId, { candidates, last, prefs, now, audience, checkinOptedOut, pushedToday, memberPaused, tr: copy?.tr, coachSeen }, prefs.capTz);
+  const { decided, claim } = await decideAndClaim(admin, userId, { candidates, last, prefs, now, audience, checkinOptedOut, pushedToday, memberPaused, tr: copy?.tr, coachSeen, coachAway }, prefs.capTz);
   const { send, digest, nextState } = decided;
   const items = digest ? [...send, digest] : send;
   let delivered = 0;

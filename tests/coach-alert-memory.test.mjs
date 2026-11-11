@@ -152,7 +152,7 @@ test('the route reads the id where a record carries it, and the role only when t
   for (const rel of ['src/app/api/ai/notify/route.ts', 'src/app/api/ai/notify/cron/route.ts']) {
     const src = read(rel);
     assert.match(src, /loadCoachContext\(/, rel + ' does not read the dismissals and reviews fresh');
-    assert.match(src, /tr: copy\?\.tr, coachSeen \}/, rel + ' does not settle the alert memory');
+    assert.match(src, /tr: copy\?\.tr, coachSeen, coachAway \}/, rel + ' does not settle the alert memory');
   }
   // The app posts the engine's snapshot, with the id the route reads.
   assert.match(read('mobile-app/src/services/shapeBackend.js'), /records\.map\(\(r\) => E\.engineSnapshot\(r\)\)\.filter\(Boolean\)/);

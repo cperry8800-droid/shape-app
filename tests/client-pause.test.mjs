@@ -365,6 +365,27 @@ test('the hourly run says "Back from a break" for a break over since the roster 
   // The break only as the roster was saved, not read at the run: away, as of the 18th.
   assert.deepEqual(sent('2026-11-21T09:00:00Z', null), []);
 });
+test('an alert held for a client\'s absence is dropped once they go away, though another flag keeps their row amber (Codex on #2705)', () => {
+  // p1 and p3 are away, their plan ending in three days (amber, and a break leaves it); p4 is back today
+  // (amber: the welcome back); p2 is here, red on absence.
+  const ending = (id, pause) => ({ userId: id, ...away(pause, { profile: { id, name: 'Client ' + id, joinedAt: '2026-08-01T00:00:00Z' }, payments: { cancelAtPeriodEnd: true, periodEndsAt: '2026-11-14T12:00:00' } }) });
+  const snap = { role: 'trainer', at: +NOW, clients: [ending('p1', { until: '2026-11-20' }), ending('p3', { until: '2026-11-20' }), { userId: 'p4', ...away({ until: '2026-11-10' }, { profile: { id: 'p4', name: 'Client p4', joinedAt: '2026-08-01T00:00:00Z' } }) }, { userId: 'p2', ...away(undefined, { profile: { id: 'p2', name: 'Client p2', joinedAt: '2026-08-01T00:00:00Z' } }) }] };
+  const r = core.candidatesFor(snap, { tone: 'neutral', lastSeverity: { p1: 'red', p2: 'red', p3: 'red', p4: 'red' }, now: NOW });
+  assert.deepEqual([r.coachSeen.p1, r.coachSeen.p3, r.coachSeen.p4, r.coachSeen.p2], ['amber', 'amber', 'amber', 'red'], 'away or just back, amber, not clear');
+  assert.deepEqual(r.coachAway, { p1: ['plan_ending'], p3: ['plan_ending'], p4: ['pause_ended'] }, 'who is away or just back, with what their rows still say');
+  // Held from before the break: p1 for their food logs, p3 for the plan ending, p2 for their food logs.
+  const held = (key, reasonKey, body) => ({ type: 'client_red', key, sig: 'red:' + body, title: 'Client ' + key, body, route: 'client', data: { providerRole: 'trainer', clientId: key, reasonKey }, priority: 'high', channels: { push: true }, at: +NOW - 3600000 });
+  const last = { date: 'never', coachClients: { p1: 'red', p2: 'red', p3: 'red', p4: 'red' }, pendingDigest: [held('p1', 'food_gap', 'p1 no food logs'), held('p3', 'plan_ending', 'p3 plan ending'), held('p4', 'contact_gap', 'p4 no contact'), held('p2', 'food_gap', 'p2 no food logs')] };
+  const decide = (coachAway) => JSON.stringify(NOTIFY.decideNotifications({ candidates: r.candidates, last, prefs: { ...NOTIFY.DEFAULT_PREFS, tz: 'UTC', capTz: 'UTC' }, now: NOW, audience: 'coach', coachSeen: r.coachSeen, coachAway }));
+  const out = decide(r.coachAway);
+  assert.ok(!out.includes('p1 no food logs'), 'the absence alert of a client away is neither sent nor kept');
+  assert.ok(!out.includes('p4 no contact'), 'nor of one back today');
+  assert.ok(out.includes('p3 plan ending'), 'a reason the break leaves still goes');
+  assert.ok(out.includes('p2 no food logs'), 'a client who is here is untouched');
+  assert.ok(decide(null).includes('p1 no food logs'), 'without it, the stale alert went out mid-break');
+  // Both routes hand it on.
+  for (const f of ['src/app/api/ai/notify/route.ts', 'src/app/api/ai/notify/cron/route.ts']) assert.match(read(f), /const \{ audience, candidates, coachSeen, coachAway \} = candidatesFor\(/, f);
+});
 test('a member on a break is sent nothing held from before it began; a coach\'s held alert stays (Codex on #2705)', () => {
   const at = new Date('2026-11-11T15:00:00Z');
   const prefs = { ...NOTIFY.DEFAULT_PREFS, tz: 'UTC', capTz: 'UTC' };
@@ -380,7 +401,7 @@ test('a member on a break is sent nothing held from before it began; a coach\'s 
   // A coach's own run is untouched by a member's break.
   assert.deepEqual(items(NOTIFY.decideNotifications({ candidates: [], last, prefs, now: at, audience: 'coach', memberPaused: true })), ['client_amber', 'directive']);
   // Both routes hand it on.
-  for (const f of ['src/app/api/ai/notify/route.ts', 'src/app/api/ai/notify/cron/route.ts']) assert.match(read(f), /\{ candidates, last, prefs, now, audience, checkinOptedOut, pushedToday, memberPaused, tr: copy\?\.tr, coachSeen \}/, f);
+  for (const f of ['src/app/api/ai/notify/route.ts', 'src/app/api/ai/notify/cron/route.ts']) assert.match(read(f), /\{ candidates, last, prefs, now, audience, checkinOptedOut, pushedToday, memberPaused, tr: copy\?\.tr, coachSeen, coachAway \}/, f);
 });
 
 // ── the Score and prep-reminder crons ───────────────────────────────────────
