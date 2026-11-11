@@ -1,4 +1,4 @@
--- 2026-11-10 — A nutritionist's grocery note can be saved, and its notice says what it is.
+-- 2026-11-11 — A nutritionist's grocery note can be saved, and its notice says what it is.
 --
 -- The nutritionist Live console (public/newdesign/NutritionistLiveConsole.html) saves a note on the
 -- client's grocery list as a coach_pushed_items row of kind 'grocery_note' (payload { text }), and the

@@ -137,7 +137,7 @@ export function triggerCopy(row) {
     // notify_grocery_list, notify_on_pushed_item (2026-06-07-grocery-*.sql).
     case 'grocery': {
       if (title === 'New meal + grocery items') return { title: np('grocery.items.title') };
-      // A nutritionist's grocery note (2026-11-10-coach-grocery-note.sql): the body is the coach's own words.
+      // A nutritionist's grocery note (2026-11-11-coach-grocery-note.sql): the body is the coach's own words.
       if (title === 'Note on your grocery list') return { title: np('grocery.note.title') };
       if (title !== 'Grocery list ready') return null;
       const m = GROCERY.exec(body);

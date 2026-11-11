@@ -326,7 +326,7 @@ test('nutritionist console: a grocery note is saved before the old one is set as
 })
 
 test('the grocery-note migration lets a note save, and files it as a grocery notice, not an exercise', () => {
-  const sql = readFileSync(join(ROOT, 'supabase-migrations/2026-11-10-coach-grocery-note.sql'), 'utf8').replace(/--.*$/gm, '')
+  const sql = readFileSync(join(ROOT, 'supabase-migrations/2026-11-11-coach-grocery-note.sql'), 'utf8').replace(/--.*$/gm, '')
   assert.match(sql, /drop constraint if exists coach_pushed_items_kind_check/)
   assert.match(sql, /check \(kind in \('exercise', 'meal', 'cue', 'grocery_note'\)\)/)
   assert.match(sql, /create or replace function public\.notify_on_pushed_item\(\)/)

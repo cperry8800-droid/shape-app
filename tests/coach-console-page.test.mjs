@@ -210,7 +210,7 @@ test('nutritionist console: a meal is listed only once saved, and a failed add k
 test('nutritionist console: a plan or note that didn\'t load says so, never "Nothing on today\'s plan"', async () => {
   const ui = await mount('Nutritionist', roster('Nutritionist', { itemsUnread: true, groceryNoteUnread: true }))
   assert.match(document.querySelector('[data-console-plan-unread]').textContent, /Today's plan didn't load/)
-  assert.equal(document.querySelector('[data-console-plan]'), null)
+  assert.ok(!document.querySelector('[data-console-plan]'), 'no plan list is drawn')
   assert.match(document.querySelector('[data-console-grocery-unread]').textContent, /grocery note didn't load/)
   await React.act(async () => ui.root.unmount())
 })
