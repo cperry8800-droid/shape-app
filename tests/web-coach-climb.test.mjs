@@ -278,6 +278,11 @@ test('the kitchen shows all of itself at once, its recipes from the website\'s c
   assert.equal(cards[0].querySelector('[data-recipe-facts]').textContent, '65min500kcal30g protein2servings', 'time, energy, protein, servings');
   assert.match(cards[0].querySelector('[data-energy-split]').textContent, /30 g protein50 g carbs20 g fat/);
   assert.ok(cards[0].querySelector('[data-recipe-note]').textContent.length > 10, 'the coach\'s note on it');
+  // A recipe with no photo shows its initial on the paper's second tone, in the page's heading colour
+  // (the ink on a light paper, white on a dark one): never a fixed white (Codex on #2706).
+  const initial = cards[0].querySelector('[data-recipe-initial]');
+  assert.ok(initial, 'a recipe with no photo shows its initial');
+  assert.equal(initial.style.color, 'var(--cpw-head)', 'the initial takes the page\'s heading colour');
   await React.act(async () => cards[0].click());
   const sheet = $('[data-recipe-sheet]').textContent;
   assert.deepEqual($$('[data-recipe-sheet] [data-recipe-ing]').map((g) => [...g.children].map((c) => c.textContent)), [['7 oz', 'extra-firm tofu, cubed'], ['1 tbsp', 'cornstarch']],

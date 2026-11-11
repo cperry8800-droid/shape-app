@@ -2754,7 +2754,7 @@ function CpwKitchenTab({ T, K, kitchen, gallery, onRecipe }) {
         return (
           <button key={r.id} type="button" data-recipe={r.id} onClick={() => onRecipe(r)} className="cpw-card cpw-recipe-card" style={{ padding: 0, overflow: "hidden", color: INK, textAlign: "left", cursor: "pointer", fontFamily: CPW_BODY, display: "flex", flexDirection: "column" }}>
             {r.photo ? <img src={r.photo} alt="" loading="lazy" style={{ display: "block", width: "100%", height: 132, objectFit: "cover" }} />
-              : <span aria-hidden="true" style={{ display: "flex", alignItems: "flex-end", height: 72, padding: "0 16px 10px", background: `linear-gradient(120deg, ${cpwA(ACC, 0.42)}, rgba(var(--cpw-p1-rgb),0) 75%), var(--cpw-p2)`, fontFamily: CPW_DISPLAY, fontWeight: 850, fontSize: 30, color: "rgba(255,255,255,.9)" }}>{String(r.t || "?").trim().charAt(0).toUpperCase()}</span>}
+              : <span aria-hidden="true" data-recipe-initial="" style={{ display: "flex", alignItems: "flex-end", height: 72, padding: "0 16px 10px", background: `linear-gradient(120deg, ${cpwA(ACC, 0.42)}, rgba(var(--cpw-p1-rgb),0) 75%), var(--cpw-p2)`, fontFamily: CPW_DISPLAY, fontWeight: 850, fontSize: 30, color: "var(--cpw-head)" }}>{String(r.t || "?").trim().charAt(0).toUpperCase()}</span>}
             <span style={{ display: "flex", flexDirection: "column", gap: 8, padding: "14px 16px 16px", flex: 1 }}>
               <span style={{ fontFamily: CPW_DISPLAY, fontWeight: 700, fontSize: 17.5, lineHeight: 1.2 }}>{r.t}</span>
               {facts.length ? (
