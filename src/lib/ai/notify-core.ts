@@ -207,6 +207,26 @@ export function rosterClock(snapshot: Snapshot, now: Date): Date {
   return typeof at === 'number' && Number.isFinite(at) && at < now.getTime() ? new Date(at) : now;
 }
 
+// ⚠ A SNOOZE ENDS ON THE RUN'S CLOCK, NOT THE SAVE'S (Codex on #2703). The roster is read as of its
+// save (rosterClock), and a snooze compared with that moment never ended: one set at 10:00 until noon
+// kept its flag hidden at the 1 pm run and every run after, until the coach's next visit. A snooze that
+// has ended by the run's own clock is dropped here, so the flag the roster held at its save comes back.
+// A dismissal with no end, and a snooze still running, hold as before; an end that can't be read is an
+// ended one, as isDismissed reads it.
+export function liveDismissals(records: unknown[], now: Date): unknown[] {
+  return records.map((r) => {
+    const list = r && typeof r === 'object' ? (r as { dismissals?: unknown }).dismissals : undefined;
+    if (!Array.isArray(list)) return r;
+    const kept = list.filter((d) => {
+      const until = d && typeof d === 'object' ? (d as { until?: unknown }).until : null;
+      if (until == null || until === '') return true;
+      const t = Date.parse(String(until));
+      return Number.isFinite(t) && t > now.getTime();
+    });
+    return { ...(r as Record<string, unknown>), dismissals: kept };
+  });
+}
+
 // Snapshot → candidates + audience. `lastSeverity` (coach) suppresses re-nags.
 export function candidatesFor(
   snapshot: Snapshot,
@@ -242,7 +262,8 @@ export function candidatesFor(
   if (isCoachRole(role)) {
     const raw = Array.isArray(snapshot.clients) ? snapshot.clients : [];
     // The dismissals of this role only: a coach with both listings sets a reason aside per role.
-    const clients = opts.coachContext ? engine.attachCoachContext(raw, opts.coachContext, role) : raw;
+    // …each snooze held to the run's own clock (liveDismissals).
+    const clients = liveDismissals(opts.coachContext ? engine.attachCoachContext(raw, opts.coachContext, role) : raw, opts.now);
     const zone = opts.zone || snapshot.tz || null;
     const rows = engine.inZone(zone, rosterClock(snapshot, opts.now), (at) => engine.getTriageFeed(role, clients, at, opts.thresholds || undefined)).map((r) => ({
       clientId: coachRecordId(r.client) as string,

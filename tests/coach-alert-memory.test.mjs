@@ -316,6 +316,25 @@ test('the hourly run reads a roster as of its save: a client active then is not 
   assert.deepEqual(delivered, [], 'and the next hour reads the same: no re-nag');
 });
 
+// Codex on #2703: the roster is read as of its save, but a snooze ends on the run's own clock, so a
+// flag the coach snoozed comes back when the snooze is over, not at their next visit.
+test('a snooze on a stored roster ends on the run\'s clock, not the save\'s', () => {
+  const saved = Date.now() - 7 * DAY;
+  const s1 = asOfSave('s1', saved, 4);
+  const sig = E.getTriageFeed('nutritionist', [s1], new Date(saved))[0].flags.find((f) => f.key === 'food_gap').sig;
+  const snap = { role: 'nutritionist', at: saved, clients: [s1] };
+  const until = (ms) => new Date(ms).toISOString();
+  const sent = (u) => core.candidatesFor(snap, { tone: 'neutral', lastSeverity: {}, now: new Date(),
+    coachContext: { reviews: null, dismissals: [{ client_id: 's1', reason_key: 'food_gap', reason_sig: sig, until: u, provider_role: 'nutritionist' }] } }).candidates.map((c) => c.key);
+  assert.deepEqual(sent(until(saved + 2 * 3600e3)), ['s1'], 'snoozed for two hours after the save: over by the run');
+  assert.deepEqual(sent(until(Date.now() + DAY)), [], 'a snooze still running holds');
+  assert.deepEqual(sent(null), [], 'a dismissal with no end holds');
+  assert.deepEqual(sent('not a time'), ['s1'], 'an end that can\'t be read has ended');
+  // A record's own snooze, from the device, is held to the same clock.
+  const own = { ...snap, clients: [{ ...s1, dismissals: [{ key: 'food_gap', sig, until: until(saved + 3600e3) }] }] };
+  assert.deepEqual(core.candidatesFor(own, { tone: 'neutral', lastSeverity: {}, now: new Date() }).candidates.map((c) => c.key), ['s1']);
+});
+
 test('the roster clock: the save, never a later clock; a clock ahead of the run, or no time, is the run\'s', () => {
   const now = new Date('2026-11-11T12:00:00Z');
   assert.equal(+core.rosterClock({ at: +now - 3 * DAY }, now), +now - 3 * DAY);
