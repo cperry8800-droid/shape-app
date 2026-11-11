@@ -400,7 +400,18 @@
     var day;
     if (backAt) {
       var at = instantNow(now);
-      if (at.getTime() < backAt.getTime()) return { state: "paused", until: p.until, by: by };
+      if (at.getTime() < backAt.getTime()) {
+        // ⚠ A BREAK READ AFTER THE ROSTER WAS SAVED, AND OVER BY THEN (Codex on #2705). The hourly run reads
+        // a coach's stored roster as of its save (notify-core rosterClock) and lays each break over it as
+        // read at the run (`readAt`). One that ended after the save read as still under way, so the coach's
+        // "Back from a break" waited for their next visit. Over by the read, the welcome back speaks for its
+        // PAUSE_BACK_DAYS, counted to the read; the roster knows nothing of the days since they came back,
+        // so nothing that reads their absence speaks, then or after.
+        var readAt = typeof p.readAt === "string" ? parseDate(p.readAt) : null;
+        var readDay = readAt && readAt.getTime() >= backAt.getTime() ? daysBetween(backAt, readAt) : -1;
+        if (readDay >= 0 && readDay < PAUSE_BACK_DAYS) return { state: "back", until: p.until, since: iso(back), day: readDay, fresh: true, by: by };
+        return { state: "paused", until: p.until, by: by };
+      }
       day = daysBetween(backAt, at);
     } else {
       if (iso(now) <= p.until) return { state: "paused", until: p.until, by: by };

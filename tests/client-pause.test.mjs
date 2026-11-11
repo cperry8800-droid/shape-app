@@ -349,6 +349,22 @@ test('the hourly run reads each client\'s break fresh, over the roster the coach
   assert.match(live, /revokedClients = clients\.map\(\(c, i\) => \(checks\[i\] === null \? coachRecordId\(c\) : null\)\)\.filter\(\(v\): v is string => !!v\);/);
   assert.match(live, /zone: prefs\.tz, memberPaused, revokedClients \}\);/);
 });
+test('the hourly run says "Back from a break" for a break over since the roster was saved (Codex on #2705)', () => {
+  // Saved on Nov 18 while Pat was away until the 20th; a member in Los Angeles is back at 08:00Z on the 21st.
+  const brk = { until: '2026-11-20', by: 'member', backAt: '2026-11-21T08:00:00.000Z' };
+  const snap = { role: 'trainer', at: +new Date('2026-11-18T12:00:00Z'), clients: [E.engineSnapshot(away(brk))] };
+  const sent = (iso, breaks = new Map([['p1', brk]])) => core.candidatesFor(snap, { tone: 'neutral', lastSeverity: {}, now: new Date(iso), zone: 'UTC', rosterAccess: { coached: new Set(['p1']), breaks } })
+    .candidates.map((c) => c.type + ':' + c.body);
+  // Still away at the run: nothing.
+  assert.deepEqual(sent('2026-11-21T07:00:00Z'), []);
+  // Back since their midnight: the welcome back, that day and for the next two, though the roster is the 18th's.
+  assert.match(sent('2026-11-21T09:00:00Z').join(), /^client_amber:[^,]*Back from a break today/);
+  assert.match(sent('2026-11-23T09:00:00Z').join(), /^client_amber:[^,]*Back from a break since 2026-11-21/);
+  // Three days back: the roster knows nothing of the days since, so none of the absence it holds speaks.
+  assert.deepEqual(sent('2026-11-24T09:00:00Z'), []);
+  // The break only as the roster was saved, not read at the run: away, as of the 18th.
+  assert.deepEqual(sent('2026-11-21T09:00:00Z', null), []);
+});
 test('a member on a break is sent nothing held from before it began; a coach\'s held alert stays (Codex on #2705)', () => {
   const at = new Date('2026-11-11T15:00:00Z');
   const prefs = { ...NOTIFY.DEFAULT_PREFS, tz: 'UTC', capTz: 'UTC' };

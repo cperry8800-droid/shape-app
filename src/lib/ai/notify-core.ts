@@ -374,10 +374,14 @@ export function candidatesFor(
     const revoked = new Set((Array.isArray(opts.revokedClients) ? opts.revokedClients : []).filter((v) => typeof v === 'string' && v));
     if (access) for (const c of saved) { const id = coachRecordId(c); if (id && !access.coached.has(id)) revoked.add(id); }
     const fresh = access ? access.breaks : null;
+    // Each break as read at this run (`readAt`), so one over since the save says "Back from a break"
+    // (pauseOf), though the rest of the roster is read as of its save.
+    const readAt = opts.now.toISOString();
     const raw = !fresh ? kept : kept.map((c) => {
       const id = coachRecordId(c);
       if (!id || !fresh.has(id) || !c || typeof c !== 'object') return c;
-      return { ...(c as Record<string, unknown>), pause: fresh.get(id) ?? null };
+      const b = fresh.get(id);
+      return { ...(c as Record<string, unknown>), pause: b ? { ...b, readAt } : null };
     });
     // The dismissals of this role only: a coach with both listings sets a reason aside per role.
     // …each snooze held to the run's own clock (liveDismissals).
