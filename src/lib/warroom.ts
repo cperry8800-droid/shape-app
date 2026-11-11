@@ -658,6 +658,19 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
       ],
     },
     {
+      section: 'Coach profile on the website: each tab opens its camp as its own page, the tabs under the wire; a meal plan opens its preview (#2700). No migration',
+      items: [
+        { label: 'Owner, 2026-11-11, with screenshots of the meal plan cards and of the gap under the wire: "when you open these meal plans, it shouldn\'t bring you down to bottom of the page, it should open up a preview of some of these meal plans in separate pop up", then "move this nav bar somewhere in the area i attached in second image. Also again don\'t, have each section just scroll down, have it open its own page, if you will ... Similar to the app"', status: 'done' },
+        { label: '#2700 coachProfileWeb.jsx: one camp shows at a time, the one picked from the tabs (a phone\'s Sections bar), the first on landing; the others stay mounted and hidden, so a camp keeps its own state. A camp picked from below the pinned tabs opens at its top, under them; picked with the stage in view, the page stays put. The tabs are a tab list (role tab and tabpanel, the arrows, Home and End). The scroll-spy is gone', status: 'done' },
+        { label: '#2700 The tabs (and the phone\'s bar) moved back under the wire, over the camps, pinned under the header from there (#2698 had them over the stage). Links between camps open the camp: Work with and a referral link open the Summit with the storefront in view, All N posts opens Posts, Pick a time opens Book', status: 'done' },
+        { label: '#2700 A meal plan\'s Open shows its preview (CpwMealPlanSheet, the app\'s BSPlanPreviewSheet from the same bsPlanPreview, now in coachProfileKit.mjs): the weeks, the meals a day (a week\'s counts by day when menus vary), the two meals the public read carries, how many more, the description or note; Start is lvBuyPlan with the code box under the storefront\'s rule, else Work with. It opened the storefront at the foot of the page', status: 'done' },
+        { label: '#2700 nutritionistDemo.mjs: each sample meal plan carries one of its kitchen\'s days in the public read\'s shape (two meals and the count), so its preview has a day to show, in the app\'s sheet too. The range\'s lead no longer speaks of peaks (removed 2026-11-09)', status: 'done' },
+        { label: 'Checked in Chromium on the sample trainer and nutritionist at 1440, 1280 and 390: one camp shown, a camp opened from deep in another lands at its top under the tabs, Work with opens the Summit at the storefront, the meal plan preview as a dialog and as a phone sheet; no sideways scroll, no page errors', status: 'done' },
+        { label: 'Owner, 2026-11-11, of the Kitchen and Plate notes camps: "we also need to really improve these sections and that data/information that is shown on them". The next PR; the website\'s sample kitchen also shows no recipes (the catalog is the app\'s; the website\'s copy, recipes.jsx, isn\'t loaded on the profile)', status: 'pending' },
+        { label: 'OWNER: on the live site, a coach\'s page on a computer (a tab opens its section on its own) and on a phone (Sections, then a section); a nutritionist\'s meal plan, Open', status: 'manual' },
+      ],
+    },
+    {
       section: 'Coach profile on the website: the camps as tabs at the top on a desktop, and the phone\'s Sections bar in the same place (#2698). No migration',
       items: [
         { label: 'Owner, 2026-11-11, with a screenshot of the spine (Camp 1 Book, Camp 2 Programs): "on the webiste public profiles, can we make each of these sections appear as tabs towards the top so users dont have to scroll so far down to get to certain sections of trainer profile", then "make sure the mobile website formatting and everything has been updated"', status: 'done' },

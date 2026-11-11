@@ -57,7 +57,7 @@ const tomorrow = new Date(Date.now() + 864e5);
 function backend({ reviews = { reviews: [], avg: 9.9, count: 284, locked: true }, posts = [POST], plans = [PLAN], listing = LISTING, hours = true, holdWeek = false } = {}) {
   const calls = [];
   const q = (table) => {
-    const rows = table === 'trainers' ? (listing ? [listing] : []) : table === 'community_posts' ? posts : [];
+    const rows = table === 'trainers' || table === 'nutritionists' ? (listing ? [listing] : []) : table === 'community_posts' ? posts : [];
     const o = { select: () => o, eq: () => o, in: () => o, order: () => o, limit: () => o, maybeSingle: async () => ({ data: rows[0] || null, error: null }), then: (r, j) => Promise.resolve({ data: rows, error: null }).then(r, j) };
     return o;
   };
@@ -94,17 +94,8 @@ const $$ = (s) => [...document.querySelectorAll(s)];
 // What the page says, without its stylesheet.
 const text = () => { const c = $('[data-coach-profile]').cloneNode(true); c.querySelectorAll('style').forEach((x) => x.remove()); return c.textContent; };
 const camps = () => $$('[data-camp]').map((c) => c.getAttribute('data-camp'));
-// The page as a visitor sees it on landing: the stage in view, every camp below the fold (jsdom lays
-// nothing out, so each camp would read as reached).
-function onTheStage() {
-  const was = window.Element.prototype.getBoundingClientRect;
-  window.Element.prototype.getBoundingClientRect = function () {
-    const top = this.hasAttribute('data-camp') ? 3000 : 0;
-    return { top, bottom: top, left: 0, right: 0, width: 0, height: 0, x: 0, y: top };
-  };
-  Object.defineProperty(document.documentElement, 'scrollHeight', { configurable: true, get: () => 9000 });
-  return () => { window.Element.prototype.getBoundingClientRect = was; Reflect.deleteProperty(document.documentElement, 'scrollHeight'); };
-}
+// The camp shown: one at a time, the others mounted and hidden (owner, 2026-11-11: "have it open its own page").
+const shown = () => $$('[data-camp]').filter((c) => !c.hidden).map((c) => c.getAttribute('data-camp'));
 const before = (a, b) => !!(a.compareDocumentPosition(b) & window.Node.DOCUMENT_POSITION_FOLLOWING);
 
 test('a real coach\'s Climb is their own data, never the sample', async () => {
@@ -267,16 +258,16 @@ test('a nutritionist climbs in gold, with Meal plans, the kitchen and plate note
 });
 
 // Owner, 2026-11-09: "need a new way to organize these on coaches profile, no side scrolling".
-test('on a phone the camps pin as one bar naming where you are; a tap opens them all as a grid, and each scrolls to its camp', async () => {
+test('on a phone the camps pin as one bar naming the camp shown; a tap opens them all as a grid, and a camp opens on its own', async () => {
   WIDE = false; backend();
-  const undo = onTheStage();
   const p = await mount(LIVE);
   const nav = $('[data-camp-nav]');
   const pick = nav.querySelector('[data-camp-pick]');
   const grid = nav.querySelector('[data-camp-grid]');
   assert.ok(!$('[data-camp-tabs]'), 'not the desktop tabs as well');
-  assert.ok(before($('[data-crumbs]'), nav) && before(nav, $('.cpw-stage')), 'under the bar, above the stage, as the desktop tabs (owner, 2026-11-11)');
-  assert.equal($('[data-camp-here]').textContent, 'Sections', 'no camp is named while the stage is in view');
+  assert.ok(before($('.cpw-stage'), nav) && before(nav, $('.cpw-camps')), 'under the stage and the wire, over the camps, as the desktop tabs (owner, 2026-11-11)');
+  assert.deepEqual(shown(), [camps()[0]], 'the first camp shows on landing, alone');
+  assert.equal($('[data-camp-here]').textContent, 'Base', 'the bar names it');
   assert.equal(grid.hidden, true, 'the camps are closed at first');
   assert.equal(pick.getAttribute('aria-expanded'), 'false');
   assert.doesNotMatch(pick.textContent, /\d+ \/ \d+/, 'no count beside the camp: Base is not a numbered camp, so it read one ahead');
@@ -289,13 +280,10 @@ test('on a phone the camps pin as one bar naming where you are; a tap opens them
   await React.act(async () => pick.click());
   assert.equal(grid.hidden, false, 'a tap opens them');
   assert.equal(pick.getAttribute('aria-expanded'), 'true');
-  let scrolled = null;
-  const was = window.Element.prototype.scrollIntoView;
-  window.Element.prototype.scrollIntoView = function () { scrolled = this.getAttribute('data-camp'); };
   $('[data-camp-link="words"]').focus();
   await React.act(async () => $('[data-camp-link="words"]').click());
   assert.equal(document.activeElement === pick, true, 'focus is back on the bar (Codex, #2664)');
-  assert.equal(scrolled, 'words');
+  assert.deepEqual(shown(), ['words'], 'Words opens on its own');
   assert.equal($('[data-camp-link="words"]').getAttribute('aria-current'), 'true');
   assert.match($('[data-camp-here]').textContent, /Words/, 'the bar names it');
   assert.equal(grid.hidden, true, 'a camp closes the grid');
@@ -304,48 +292,99 @@ test('on a phone the camps pin as one bar naming where you are; a tap opens them
   await React.act(async () => { document.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); });
   assert.equal(grid.hidden, true, 'Escape closes it');
   assert.equal(document.activeElement === pick, true, 'and hands focus back to the bar');
+  assert.deepEqual(shown(), ['words'], 'and opens nothing');
   await React.act(async () => pick.click());
   await React.act(async () => { document.body.dispatchEvent(new window.Event('pointerdown', { bubbles: true })); });
   assert.equal(grid.hidden, true, 'a tap off the bar closes it');
-  window.Element.prototype.scrollIntoView = was;
   await p.unmount();
-  undo();
   WIDE = true;
 });
 
 // Owner, 2026-11-11: "can we make each of these sections appear as tabs towards the top so users dont have
-// to scroll so far down to get to certain sections of trainer profile".
-test('on a desktop every camp is a tab under the bar, above the stage: pinned, lit for the camp in view, a click scrolls to it', async () => {
+// to scroll so far down to get to certain sections of trainer profile", then "move this nav bar" to the gap
+// under the wire, and "don't, have each section just scroll down, have it open its own page ... Similar to
+// the app".
+test('on a desktop every camp is a tab under the wire: each opens its camp as its own page, the tab selected', async () => {
   WIDE = true; backend();
-  const undo = onTheStage();
   const p = await mount(LIVE);
   const nav = $('[data-camp-tabs]');
   assert.ok(nav, 'the tabs are there');
   assert.ok(!$('[data-camp-nav]'), 'not the phone bar as well');
-  assert.deepEqual($$('[data-camp-tab]').map((b) => b.getAttribute('data-camp-tab')), camps(), 'a tab for every camp, in its order');
-  assert.ok(before($('[data-crumbs]'), nav) && before(nav, $('.cpw-stage')), 'under the bar, above the stage');
-  assert.equal($$('[data-camp-tab][aria-current]').length, 0, 'nothing lit while the stage is in view');
-  let scrolled = null;
-  const was = window.Element.prototype.scrollIntoView;
-  window.Element.prototype.scrollIntoView = function () { scrolled = this.getAttribute('data-camp'); };
+  assert.ok(before($('.cpw-stage'), nav) && before(nav, $('.cpw-camps')), 'under the stage and the wire, over the camps');
+  const tabs = $$('[data-camp-tab]');
+  assert.deepEqual(tabs.map((b) => b.getAttribute('data-camp-tab')), camps(), 'a tab for every camp, in its order');
+  assert.equal(nav.querySelector('[role="tablist"]').contains(tabs[0]), true);
+  assert.ok(tabs.every((b) => b.getAttribute('role') === 'tab' && b.getAttribute('aria-controls') === 'camp-' + b.getAttribute('data-camp-tab')));
+  const selected = () => $$('[data-camp-tab][aria-selected="true"]').map((b) => b.getAttribute('data-camp-tab'));
+  assert.deepEqual(selected(), [camps()[0]], 'the first camp is open on landing');
+  assert.deepEqual(shown(), [camps()[0]], 'and shows alone');
+  assert.equal($(`[data-camp="${camps()[0]}"]`).getAttribute('role'), 'tabpanel');
   await React.act(async () => $('[data-camp-tab="words"]').click());
-  window.Element.prototype.scrollIntoView = was;
-  assert.equal(scrolled, 'words', 'a click scrolls to its camp');
-  assert.deepEqual($$('[data-camp-tab][aria-current]').map((b) => b.getAttribute('data-camp-tab')), ['words'], 'and lights it alone');
+  assert.deepEqual(selected(), ['words'], 'a click selects its tab alone');
+  assert.deepEqual(shown(), ['words'], 'and opens its camp in place of the last');
+  assert.ok($('[data-camp="base"]').hidden && $('[data-camp="base"]').textContent.length > 0, 'the others stay mounted, hidden');
+  // The arrows move between the tabs, each opening its camp.
+  const i = camps().indexOf('words');
+  await React.act(async () => { $('[data-camp-tab="words"]').dispatchEvent(new window.KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true })); });
+  assert.deepEqual(shown(), [camps()[i + 1]], 'ArrowRight opens the next camp');
+  assert.equal(document.activeElement, $(`[data-camp-tab="${camps()[i + 1]}"]`), 'and focuses its tab');
+  await React.act(async () => { document.activeElement.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Home', bubbles: true })); });
+  assert.deepEqual(shown(), [camps()[0]], 'Home opens the first');
+  // A link to another camp opens it: the Base's "All N posts".
+  await React.act(async () => $('[data-all-posts]').click());
+  assert.deepEqual(shown(), ['posts'], 'All posts opens Posts');
   const src = read('public/newdesign/coachProfileWeb.jsx');
   const rules = [...src.matchAll(/\.cpw-camptabs[^{]*\{[^}]*\}/g)].map((m) => m[0]).join('\n');
   assert.match(src, /\.cpw-camptabs\{position:sticky;/, 'it pins under the header');
   assert.match(rules, /\.cpw-camptabs-row\{[^}]*flex-wrap:wrap/, 'a narrow dashboard wraps it');
   assert.doesNotMatch(rules, /overflow-x/, 'it never scrolls sideways');
   assert.match(rules, /\.cpw-camptabs button\{[^}]*min-height:48px/, 'a 44px target at least');
-  assert.match(src, /\.cpw-camp-mark\{position:sticky;top:\$\{headH \+ pinH \+ 28\}px/, 'the spine marks pin under the tabs');
+  assert.match(src, /\.cpw-camp\[hidden\]\{display:none\}/, 'a hidden camp is hidden (.cpw-camp is a grid)');
+  assert.match(src, /\.cpw-camp-mark\{position:sticky;top:\$\{headH \+ pinH \+ 28\}px/, 'the spine mark pins under the tabs');
   assert.match(src, /stickyTop=\{headH \+ pinH\}/, 'and so does the studio row');
   await p.unmount();
-  // A private profile is one camp: no tabs.
+  // A private profile is one camp: no tabs, and it shows.
   const q = await mount({ ...LIVE, row: { ...ROW, is_public: false, can_view: false } });
   assert.ok(!$('[data-camp-tabs]'));
+  assert.deepEqual(shown(), camps());
   await q.unmount();
-  undo();
+});
+
+// Owner, 2026-11-11, with a screenshot of the meal plan cards: "when you open these meal plans, it shouldn't
+// bring you down to bottom of the page, it should open up a preview of some of these meal plans in separate pop up".
+test('a meal plan opens its preview: the weeks, the meals a day, a day\'s first meals and how many more; Start buys it', async () => {
+  WIDE = true;
+  const MEAL = { id: 'm1', kind: 'meal_plan', name: 'Train-day fuel', price: 49, category: 'meal', provider_id: 7, provider_role: 'nutritionist', description: 'Fuel around four lifting days.',
+    detail: { preview: true, perDay: false, blocksCount: 4, weeks: 4, blocks: ['Breakfast: Greek yogurt power bowl · 480 kcal', 'Lunch: One-pan chicken and rice · 640 kcal'] } };
+  const calls = backend({ plans: [MEAL] });
+  const p = await mount({ mode: 'live', role: 'nutritionist', uid: 'coach-1', row: { ...ROW, role: 'nutritionist' }, verified: true });
+  await React.act(async () => $('[data-camp-tab="range"]').click());
+  assert.deepEqual(shown(), ['range']);
+  await React.act(async () => $('[data-camp="range"] [data-program-open]').click());
+  assert.deepEqual(shown(), ['range'], 'the page stays on the meal plans: no trip to the storefront');
+  const sheet = $('[data-meal-plan-sheet]');
+  assert.ok(sheet, 'the preview opens');
+  assert.match(sheet.querySelector('[data-meal-plan-plates]').textContent, /4Weeks4Meals a day/);
+  assert.deepEqual([...sheet.querySelectorAll('[data-meal-plan-meal]')].map((m) => m.textContent), ['BREAKFASTGreek yogurt power bowl480 kcal', 'LUNCHOne-pan chicken and rice640 kcal']);
+  assert.match(sheet.querySelector('[data-meal-plan-locked]').textContent, /＋2 more meals · unlocked when you buy/);
+  assert.match(sheet.querySelector('[data-meal-plan-desc]').textContent, /Fuel around four lifting days\./);
+  assert.ok(sheet.querySelector('[data-meal-plan-ask]'), 'Ask the coach');
+  assert.match(sheet.querySelector('[data-meal-plan-buy]').textContent, /Start · \$49/);
+  await React.act(async () => sheet.querySelector('[data-meal-plan-buy]').click());
+  await settle();
+  const post = calls.find((c) => c.url === '/api/stripe/checkout-session');
+  assert.equal(post.body.item.planId, 'm1');
+  assert.deepEqual(post.body.coach, { provider_id: 7, provider_role: 'nutritionist' });
+  await p.unmount();
+  // A sample's plans have a day to show, and sell nothing: Work with in place of Start.
+  backend({ listing: null, plans: [] });
+  const q = await mount({ mode: 'sample', role: 'nutritionist', name: 'Rae Lindqvist', sampleKey: 'Rae Lindqvist', follow: null });
+  await React.act(async () => $('[data-camp="range"] [data-program-open]').click());
+  const s2 = $('[data-meal-plan-sheet]');
+  assert.equal(s2.querySelectorAll('[data-meal-plan-meal]').length, 2, 'two of the day\'s meals');
+  assert.match(s2.querySelector('[data-meal-plan-locked]').textContent, /more meals? in the plan$/, 'a sample sells nothing, so no "when you buy"');
+  assert.ok(!s2.querySelector('[data-meal-plan-buy]') && s2.querySelector('[data-meal-plan-work]'));
+  await q.unmount();
 });
 
 test('the house rules: no coloured emoji, no ● in a pill, the wire still for reduced motion, Saira for figures', () => {
