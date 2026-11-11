@@ -302,16 +302,26 @@ test('the overview reads a trainer\'s own assigned workouts and runs, and the ef
 test('the overview gives a nutritionist the trainers\' workouts through the shared read', async () => {
   const subs = [{ client_id: A, provider_role: 'nutritionist', provider_id: 3, status: 'active', current_period_end: null }];
   const me = { trainerId: null, nutritionistId: 3, userId: COACH };
-  const ov = await overview({}, { me, subs, rpcs: { get_shared_client_workouts: () => [{ scheduled_date: utcDay(3), runs: [{}] }, { scheduled_date: utcDay(1), runs: [] }] } });
+  // The care team: one trainer account, read in full (get_my_shared_clients).
+  const cp = (uid, id, name) => ({ counterpart_user_id: uid, counterpart_role: 'trainer', counterpart_provider_id: id, counterpart_name: name });
+  const one1 = { get_my_shared_clients: () => [cp('u-alex', 9, 'Alex')] };
+  const ov = await overview({}, { me, subs, rpcs: { ...one1, get_shared_client_workouts: () => [{ scheduled_date: utcDay(3), runs: [{}] }, { scheduled_date: utcDay(1), runs: [] }] } });
   assert.deepEqual(ov.assignedWorkouts.days.map((d) => d.done), [true, false]);
   assert.ok(!('trainingLoad' in ov), 'the trainer\'s effort stays the trainer\'s');
-  const failed = await overview({}, { me, subs, fail: ['rpc:get_shared_client_workouts'] });
+  const failed = await overview({}, { me, subs, rpcs: one1, fail: ['rpc:get_shared_client_workouts'] });
   assert.ok(!('assignedWorkouts' in failed));
   // Two trainers' workouts never make one series (Codex on #2717): unknown, not blamed on one of them.
-  const two = await overview({}, { me, subs, rpcs: { get_shared_client_workouts: () => [{ scheduled_date: utcDay(3), runs: [], trainer_name: 'Alex' }, { scheduled_date: utcDay(1), runs: [], trainer_name: 'Bo' }] } });
+  const rows = (a, b) => () => [{ scheduled_date: utcDay(3), runs: [], trainer_name: a }, { scheduled_date: utcDay(1), runs: [{}], trainer_name: b }];
+  const two = await overview({}, { me, subs, rpcs: { ...one1, get_shared_client_workouts: rows('Alex', 'Bo') } });
   assert.ok(!('assignedWorkouts' in two));
-  const one = await overview({}, { me, subs, rpcs: { get_shared_client_workouts: () => [{ scheduled_date: utcDay(3), runs: [], trainer_name: 'Alex' }, { scheduled_date: utcDay(1), runs: [{}], trainer_name: 'Alex' }] } });
+  const one = await overview({}, { me, subs, rpcs: { ...one1, get_shared_client_workouts: rows('Alex', 'Alex') } });
   assert.deepEqual(one.assignedWorkouts.days.map((d) => d.done), [false, true]);
+  // Two trainer accounts of the same name (Codex on #2717, again): the care team says two, so unknown.
+  const twoAlex = { get_my_shared_clients: () => [cp('u-alex', 9, 'Alex'), cp('u-alex-2', 11, 'Alex')] };
+  assert.ok(!('assignedWorkouts' in await overview({}, { me, subs, rpcs: { ...twoAlex, get_shared_client_workouts: rows('Alex', 'Alex') } })));
+  // A care team read short is not a known one trainer; nor is no trainer on it.
+  assert.ok(!('assignedWorkouts' in await overview({}, { me, subs, rpcs: { ...one1, get_shared_client_workouts: rows('Alex', 'Alex') }, fail: ['rpc:get_client_coaches'] })));
+  assert.ok(!('assignedWorkouts' in await overview({}, { me, subs, rpcs: { get_shared_client_workouts: rows('Alex', 'Alex') } })));
 });
 
 test('the overview reads 42 days of snapshots for the activity, and the client\'s last message', async () => {

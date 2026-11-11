@@ -699,12 +699,17 @@ export async function buildSharedOverview(supabase: OverviewClient, { clientId, 
   } else if (mine.nutritionist != null) {
     const { data: sharedRows, error: sharedErr } = await supabase.rpc('get_shared_client_workouts', { p_client_id: clientId });
     if (sharedErr) console.error('[shared-overview] shared workouts read failed:', sharedErr.message);
-    // ⚠ ONE TRAINER'S, OR NONE (Codex on #2717): the shared read holds every trainer's workouts with
-    // only their name, and one series would blame the co-coach joint attention names for another
-    // trainer's misses. With more than one trainer's workouts in it, the leg is left out (unknown).
+    // ⚠ ONE TRAINER'S, OR NONE (Codex on #2717, twice): the shared read holds every trainer's workouts
+    // with only their name, and one series would blame the co-coach joint attention names for another
+    // trainer's misses. Names are not unique, so the care team decides: the leg is kept only when it was
+    // read in full and holds exactly one trainer account (by user id), and the rows name one trainer.
+    // Otherwise it is left out (unknown).
     const shared = (sharedRows ?? []) as Array<{ trainer_name?: unknown }>;
     const trainersIn = new Set(shared.map((r) => String(r?.trainer_name ?? '')));
-    assignedWorkouts = sharedErr || trainersIn.size > 1 ? undefined : bsAssignedWorkoutsLeg(shared as unknown[], null, workoutToday);
+    const teamTrainers = careTeam.filter((m) => m.role === 'trainer');
+    const teamTrainerIds = new Set(teamTrainers.map((m) => m.userId));
+    const oneTrainer = !careTeamPartial && teamTrainers.length > 0 && teamTrainers.every((m) => typeof m.userId === 'string' && m.userId) && teamTrainerIds.size === 1;
+    assignedWorkouts = sharedErr || trainersIn.size > 1 || !oneTrainer ? undefined : bsAssignedWorkoutsLeg(shared as unknown[], null, workoutToday);
   }
   // The program: what the caller put on the client's calendar (bsWorkoutProgramLeg), else an
   // assignment row (the program-tools route's, which keeps its paused rule in bsProgramLeg).
