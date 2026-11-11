@@ -2004,6 +2004,10 @@ function bsRowSeverity(c, role) {
 // resolves. The coach Today card + both Clients pages all read this, so they're
 // always in agreement. triageLive is cached per-role so they share one fetch.
 function bsProNeedsAttention(sig) { return ['red', 'amber', 'new'].includes(sig?.sev); }
+// Nothing dated in two weeks (the engine's 'unknown', NO RECENT DATA): never On track (Codex on #2703).
+// Clients lists them under Needs you in a group of their own, as the website's roster keeps "Progress
+// unknown" apart; Today's Needs you card stays red, amber and new.
+function bsProNoRecent(sig) { return sig?.sev === 'unknown'; }
 
 // The one roster client a name names (a booking with no client id), or null: two of a name, or none,
 // open nothing rather than the wrong client's file.
@@ -2142,8 +2146,8 @@ function BSProRosterView({ status = 'ready', onRetry, role = 'trainer', clients,
   // In PAST mode `clients` holds past records (all sev 'past') — they'd be dropped by
   // both the needs and on-track filters, so route them to their own list instead.
   const pastMode = roster === 'past';
-  const needsRows = pastMode ? [] : rows.filter((r) => bsProNeedsAttention(r.sig));
-  const onTrackRows = pastMode ? [] : rows.filter((r) => !bsProNeedsAttention(r.sig) && r.sig.sev !== 'past');
+  const needsRows = pastMode ? [] : rows.filter((r) => bsProNeedsAttention(r.sig) || bsProNoRecent(r.sig));
+  const onTrackRows = pastMode ? [] : rows.filter((r) => !bsProNeedsAttention(r.sig) && !bsProNoRecent(r.sig) && r.sig.sev !== 'past');
   const pastRows = pastMode ? rows : [];
   // Every current client in one list (owner, 2026-10-31: "client page should include a tab or
   // section that shows total current clients"): the views split them by what they need, this is all.
@@ -2158,6 +2162,7 @@ function BSProRosterView({ status = 'ready', onRetry, role = 'trainer', clients,
     { sev: 'red', label: tr('coach:roster.groupRed', { defaultValue: 'Reach out today' }) },
     { sev: 'amber', label: tr('coach:roster.groupAmber', { defaultValue: 'This week' }) },
     { sev: 'new', label: tr('coach:roster.groupNew', { defaultValue: 'New clients' }) },
+    { sev: 'unknown', label: tr('coach:roster.groupNoRecent', { defaultValue: 'Nothing recent' }) },
   ];
   const pickTab = {
     needs: () => { setExpanded(false); setView('needs'); if (pastMode) setRoster('active'); },

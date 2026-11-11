@@ -1324,6 +1324,7 @@
   "roster.everyoneElse": "Остальные идут по графику.",
   "roster.groupAmber": "На этой неделе",
   "roster.groupNew": "Новые клиенты",
+  "roster.groupNoRecent": "Ничего нового",
   "roster.groupRed": "Связаться сегодня",
   "roster.messageAria": "Написать: {name}",
   "roster.nobodyNeeds": "Сейчас вы никому не нужны.",

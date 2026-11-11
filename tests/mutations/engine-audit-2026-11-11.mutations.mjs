@@ -105,6 +105,12 @@ export default {
     // ── F9: the app ────────────────────────────────────────────────────────────
     { name: 'the app\'s overview records carry no read mark', file: APP,
       find: "  rec.progressRead = { state: 'ready', checkedAt: new Date().toISOString() };\n", replace: '' },
+    { name: 'a no-data client is counted On track again (Codex on #2703)', file: PROS,
+      find: "  const onTrackRows = pastMode ? [] : rows.filter((r) => !bsProNeedsAttention(r.sig) && !bsProNoRecent(r.sig) && r.sig.sev !== 'past');", replace: "  const onTrackRows = pastMode ? [] : rows.filter((r) => !bsProNeedsAttention(r.sig) && r.sig.sev !== 'past');" },
+    { name: 'a no-data client is in no Clients group', file: PROS,
+      find: '  const needsRows = pastMode ? [] : rows.filter((r) => bsProNeedsAttention(r.sig) || bsProNoRecent(r.sig));', replace: '  const needsRows = pastMode ? [] : rows.filter((r) => bsProNeedsAttention(r.sig));' },
+    { name: 'the Nothing recent group is gone', file: PROS,
+      find: "    { sev: 'unknown', label: tr('coach:roster.groupNoRecent', { defaultValue: 'Nothing recent' }) },\n", replace: '' },
     { name: 'the app\'s roster calls a no-data client on plan', file: PROS,
       find: "      : sev === 'unknown' ? coachTr('coach:roster.dirNoRecent', { defaultValue: 'Nothing logged in two weeks — check in with them.' })\n", replace: '' },
   ],

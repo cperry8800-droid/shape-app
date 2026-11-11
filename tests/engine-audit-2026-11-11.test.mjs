@@ -184,8 +184,14 @@ test('in the app a client with nothing in two weeks is "no recent data", as on t
   const pros = read('mobile-app/src/broadsheet/iosAppBroadsheetPros.jsx');
   assert.match(pros, /sev === 'unknown' \? coachTr\('coach:roster\.dirNoRecent'/);
   assert.match(pros, /sev === 'unknown' \? coachTr\('coach:roster\.labelNoRecent'/);
+  // …and never under On track (Codex on #2703): Clients gives them a group of their own in Needs you.
+  assert.match(pros, /function bsProNoRecent\(sig\) \{ return sig\?\.sev === 'unknown'; \}/);
+  assert.match(pros, /const needsRows = pastMode \? \[\] : rows\.filter\(\(r\) => bsProNeedsAttention\(r\.sig\) \|\| bsProNoRecent\(r\.sig\)\);/);
+  assert.match(pros, /const onTrackRows = pastMode \? \[\] : rows\.filter\(\(r\) => !bsProNeedsAttention\(r\.sig\) && !bsProNoRecent\(r\.sig\) && r\.sig\.sev !== 'past'\);/);
+  assert.match(pros, /\{ sev: 'unknown', label: tr\('coach:roster\.groupNoRecent'/);
+  assert.match(pros, /function bsProNeedsAttention\(sig\) \{ return \['red', 'amber', 'new'\]\.includes\(sig\?\.sev\); \}/, 'Today\'s Needs you card is unchanged');
   for (const loc of ['de', 'en', 'es', 'fr', 'ha', 'id', 'it', 'pcm', 'pt-BR', 'ru', 'tr', 'uk', 'vi']) {
     const cat = JSON.parse(read(`mobile-app/src/i18n/catalogs/${loc}/coach.json`));
-    assert.ok(cat['roster.dirNoRecent'] && cat['roster.labelNoRecent'], loc);
+    assert.ok(cat['roster.dirNoRecent'] && cat['roster.labelNoRecent'] && cat['roster.groupNoRecent'], loc);
   }
 });

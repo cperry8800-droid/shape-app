@@ -1324,6 +1324,7 @@
   "roster.everyoneElse": "Everyone else is on track.",
   "roster.groupAmber": "This week",
   "roster.groupNew": "New clients",
+  "roster.groupNoRecent": "Nothing recent",
   "roster.groupRed": "Reach out today",
   "roster.messageAria": "Message {name}",
   "roster.nobodyNeeds": "Nobody needs you right now.",
