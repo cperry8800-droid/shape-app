@@ -563,8 +563,10 @@ test('the edit page is the lit panel: plates, lit cells, fields in the slot\'s w
   const pane = editPane();
   // Every control cell in the form is a lit slot as a radio; every text box sits in the slot's well.
   const lines = pane.split('\n').filter(l => l.includes('<button '));
-  assert.equal(lines.length, 2, `expected the two cell rows (avatar source, pronouns), found ${lines.length} <button> lines`);
-  for (const l of lines) assert.match(l, /style=\{(cell\(on\)|\{ \.\.\.cell\(on\))/, `a control in the form is not a Settings cell: ${l.trim().slice(0, 80)}`);
+  // The two cell rows (avatar source, pronouns), and Change photo · Reposition photo under the avatar
+  // (owner, 2026-11-11: "need to be able to drag and reposition profile pic on avatar"), unlit cells.
+  assert.equal(lines.length, 4, `expected the two cell rows and the two photo cells, found ${lines.length} <button> lines`);
+  for (const l of lines) assert.match(l, /style=\{(cell\(on\)|cell\(false\)|\{ \.\.\.cell\(on\))/, `a control in the form is not a Settings cell: ${l.trim().slice(0, 80)}`);
   const cellAt = pane.indexOf('const cell = ');
   assert.ok(cellAt > 0, 'the cell style is gone');
   assert.match(pane.slice(cellAt, cellAt + 400), /\.\.\.led\(sTealInk, on\)/, 'the cell is not a lit slot');
@@ -584,7 +586,8 @@ test('the edit page is the lit panel: plates, lit cells, fields in the slot\'s w
   assert.match(pane, /\.\.\.led\(slotInk\(settingsTierC\)\)/, 'the tier is not in its lit slot, held to 4.5:1 on its paper');
   // Cancel · Save are the page's two buttons, Save filled.
   assert.equal(pane.split('<PassportBtn ').length - 1, 2, 'Cancel and Save are not PassportBtn');
-  assert.match(pane, /<PassportBtn label=\{tr\('settings:edit\.saveChanges'[^\n]*onClick=\{saveEdit\} fill \/>/, 'Save is not the filled PassportBtn');
+  // Saving… while it runs (owner, 2026-11-11: "save changes button not working"; it said nothing).
+  assert.match(pane, /<PassportBtn label=\{editSave\.busy \? tr\('profile:log\.saving'[^\n]*tr\('settings:edit\.saveChanges'[^\n]*onClick=\{saveEdit\} fill busy=\{editSave\.busy\} \/>/, 'Save is not the filled PassportBtn');
   // The root's profile plate carries the two actions, each half of its foot.
   assert.ok(src.indexOf('const sub = [handleKnown ? identity.handle') > 0, 'the byline is gone');
   assert.match(ROOT_SRC, /<button type="button" onClick=\{onEdit\} style=\{\{ flex: 1/, 'Edit profile is not half the plate\'s foot');
@@ -605,7 +608,7 @@ test('the draft is seeded from what the member has, never from the demo persona'
   assert.match(clean, /const \[draft, setDraft\] = useStateBSC\(seedDraft\(\)\);/, 'the initial draft is not seeded');
   // The invariant, not the line: startEdit seeds through seedDraft (it also clears the
   // touched set since the Codex round — pinned in its own test below).
-  assert.match(clean, /const startEdit = \(\) => \{[^}]*setDraft\(seedDraft\(\)\);[^}]*setEditing\(true\);/, 'startEdit seeds from identity again');
+  assert.match(clean, /const startEdit = \(\) => \{[^\n]*setDraft\(seedDraft\(\)\);[^\n]*setEditing\(true\);/, 'startEdit seeds from identity again');
   // Both entries: the card's button and the public profile's Edit.
   assert.match(clean, /setShowPublicProfile\(false\); startEdit\(\); \}\}/, 'the public profile’s Edit skips startEdit, so a cancelled draft comes back');
   assert.match(clean, /const \[bioKnown, setBioKnown\] = useStateBSC\(false\);/, 'bioKnown is gone');
@@ -620,7 +623,8 @@ test('saveEdit writes only the keys the member touched — Codex P1 and P2 on #2
   // One rule closes both: only a TOUCHED key is written, and a touched handle is
   // written whatever its value.
   const clean = stripComments(src);
-  const i = clean.indexOf('const saveEdit  = async () => {');
+  // saveEdit holds the page's state (Saving…, the line over Save); saveEditFields is the write.
+  const i = clean.indexOf('const saveEditFields = async () => {');
   assert.ok(i > 0, 'saveEdit is gone');
   const body = clean.slice(i, clean.indexOf('const cancelEdit = ', i));
   assert.ok(body.length > 400 && body.length < 4000, `saveEdit span is ${body.length} chars`);
@@ -639,7 +643,8 @@ test('saveEdit writes only the keys the member touched — Codex P1 and P2 on #2
   assert.match(body, /if \(touched\.has\('bio'\)\) setBioKnown\(!!bio\.trim\(\)\);/, 'bioKnown moves on an untouched save');
   // Of `fields`, never of `patch`: the cached photo rides every patch, so a check on the
   // patch never fires — driven on the first cut, an untouched Save wrote one document.
-  assert.match(body, /if \(!Object\.keys\(fields\)\.length\) return;/, 'an untouched save still round-trips the store (or the check asks the patch, which the photo always fills)');
+  // Nothing touched closes the page without a write (owner, 2026-11-11: Save did nothing at all).
+  assert.match(body, /if \(!Object\.keys\(fields\)\.length\) \{ try \{ await _bsIdentitySaveChain; \} catch \(e\) \{\} setEditing\(false\); return ''; \}/, 'an untouched save still round-trips the store (or the check asks the patch, which the photo always fills)');
   assert.match(body, /bsSaveIdentity\(patch\);/, 'saveEdit no longer persists through the serialized writer');
 });
 
@@ -656,7 +661,7 @@ test('an open draft takes the saved values of its untouched keys when the identi
   assert.ok(!/if \(initialPage === 'edit-profile'\) setDraft/.test(hydrate), 'the refresh is gated on the deep link again — a root-opened form never learns its saved values');
   assert.match(clean, /const touchedRef = React\.useRef\(new Set\(\)\);/, 'touchedRef is gone');
   assert.match(clean, /const edit = \(k, v\) => \{ touchedRef\.current\.add\(k\); setDraft\(prev => \(\{ \.\.\.prev, \[k\]: v \}\)\); \};/, 'edit() no longer records the key it changes');
-  assert.match(clean, /const startEdit = \(\) => \{ touchedRef\.current = new Set\(\); setDraft\(seedDraft\(\)\); setEditing\(true\); \};/, 'startEdit does not clear the touched set, so a cancelled edit still counts as touched');
+  assert.match(clean, /const startEdit = \(\) => \{ touchedRef\.current = new Set\(\); setDraft\(seedDraft\(\)\); setEditSave\(\{ busy: false, err: '' \}\); setEditing\(true\); \};/, 'startEdit does not clear the touched set, so a cancelled edit still counts as touched');
 });
 
 test('every control on the edit page writes through edit(), so nothing edited can go unwritten', () => {

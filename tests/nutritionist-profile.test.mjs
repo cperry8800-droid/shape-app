@@ -80,6 +80,16 @@ const camp = (k) => document.querySelector(`[data-climb-camp="${k}"]`);
 const campTitle = (k) => { const el = document.querySelector(`#climb-camp-${k}`); return el ? el.textContent : null; };
 const campKeys = () => [...document.querySelectorAll('[data-climb-camp]')].map((el) => el.getAttribute('data-climb-camp'));
 const goCamp = async (k) => { assert.ok(camp(k), `the ${k} camp`); const b = document.querySelector(`[data-climb-camp-tab="${k}"]`); if (b) await click(b); };
+// The Summit, the one place to buy (owner, 2026-11-11): one of its parts (coaching, meal-plans).
+const summitPart = (k) => camp('summit').querySelector(`[data-summit-part="${k}"]`);
+// Where a door climbs to: the page scrolls to the camp whose box it measures, and jsdom lays nothing out,
+// so each camp's box notes that it was read.
+const watchClimb = () => {
+  const read = [];
+  assert.ok(document.querySelector('.bs-scroll [data-climb]'), 'the page is in its scroller');
+  for (const el of document.querySelectorAll('[data-climb-camp]')) el.getBoundingClientRect = () => { read.push(el.getAttribute('data-climb-camp')); return { top: 0, bottom: 0, left: 0, right: 0, width: 0, height: 0, x: 0, y: 0 }; };
+  return read;
+};
 const CLIMB_BG = (() => { const d = document.createElement('div'); d.style.background = '#0a0e11'; return d.style.background; })();
 // Types into an input or textarea as React sees typing.
 const type = async (el, text) => {
@@ -123,7 +133,8 @@ window.ShapeCoachListing = {
 };
 window.ShapeCoachAvailability = { get: async (role) => { world.roles.push(['hours', role]); return { slots: world.slots, booked: [], busy: world.busy, rules: world.rules, timezone: ZONE, atCapacity: world.atCapacity }; } };
 window.ShapeCoachReviews = { forOwner: async () => ({ reviews: [], avg: 0, count: 0 }) };
-window.ShapeCoachPlans = { salePlansByUser: async () => world.plans || [] };
+window.ShapeCoachPlans = { salePlansByUser: async () => world.plans || [], buy: async (a) => { world.bought = a; return 'https://checkout.stripe.test/c/9'; } };
+window.bsOpenCheckout = (u) => { world.checkout = u; };
 window.ShapeFollows = { stats: async () => ({ isFollowing: false, isPending: false }), toggle: async () => ({ isFollowing: true }), getCached: () => null };
 window.ShapeCommunity = { listByAuthor: async () => ({ data: world.posts }), uploadPhoto: async (f) => { world.uploaded = f; if (world.uploadGate) await world.uploadGate; return world.uploadUrl; } };
 window.shapeDb = {
@@ -133,7 +144,9 @@ window.shapeDb = {
 window.ShapeBookings = { submitConsultationBooking: async (a) => { world.booked = a; return { ok: true }; } };
 window.bsProfileCardFromPost = (p) => p;
 window.useBSCoachCommerce = ({ person, isNutri }) => ((world.commerceSeen = person.commerce), (world.isNutriSeen = isNutri), { commerce: person.commerce, commerceCoach: person.commerce && person.commerce.coach, atCapacity: false, wl: null });
-window.BSCoachCoachingBlock = ({ cm, isNutri, salePlans }) => (world.blockNutri = isNutri, world.blockPlans = salePlans, React.createElement('div', { 'data-coaching-block': '' }, ((cm.commerce && cm.commerce.packages) || []).map((p) => `${p.name} ${p.price}`).join(' ')));
+// The storefront as a probe: it records what the page hands it (its plan list is the Summit's to leave out).
+window.BSCoachCoachingBlock = ({ cm, isNutri, salePlans, noPlans, noMonthly }) => (world.blockNutri = isNutri, world.blockPlans = salePlans, world.blockNoPlans = noPlans, world.blockNoMonthly = noMonthly,
+  React.createElement('div', { 'data-coaching-block': '' }, noMonthly ? '' : ((cm.commerce && cm.commerce.packages) || []).map((p) => `${p.name} ${p.price}`).join(' ')));
 
 
 const nadia = { userId: 'u-nadia', who: 'Nadia Rahman', kind: 'NUTRI' };
@@ -197,10 +210,12 @@ test('a nutritionist\'s page reads, sells and books as a nutritionist, and start
   assert.equal(document.querySelector('[data-climb-book]').style.background, probe.style.background, 'Book in gold');
   assert.equal(document.querySelector('[data-climb]').getAttribute('data-climb-role'), 'nutritionist');
   assert.equal(campTitle('day'), 'Her day.');
+  const climbed = watchClimb();
   await click(button(/^Work with her$/));
-  assert.equal(document.querySelector('[data-coaching-block]').textContent, 'Monthly nutrition coaching $140');
-  assert.equal(world.blockNutri, true, 'the storefront block files plans as a nutritionist\'s (Codex P1 on #2497)');
-  await click(button(/^Close$/));
+  assert.deepEqual(climbed, ['summit'], 'Work with climbs to the Summit, the one place to buy');
+  assert.equal(summitPart('coaching').querySelector('[data-coaching-block]').textContent, 'Monthly nutrition coaching $140');
+  assert.equal(world.blockNutri, true, 'the storefront block is told it is a nutritionist\'s (Codex P1 on #2497)');
+  assert.equal(world.blockNoPlans, true, 'with no price list: her meal plans are their cards');
   await click(camp('day').querySelectorAll('[role="group"] button')[1]);
   assert.match(document.querySelector('[data-busy-time]').textContent, /With a client/, 'busy time, said as a nutritionist\'s');
   await click(document.querySelector('[data-open-time]'));
@@ -211,19 +226,32 @@ test('a nutritionist\'s page reads, sells and books as a nutritionist, and start
   await m.unmount();
 });
 
-test('with no monthly price but meal plans to sell, the plans-only storefront files them as a nutritionist\'s', async () => {
-  // The second storefront block (Codex P2 on #2545): a listed nutritionist with no monthly price
-  // and a paid meal plan. Its plans are filed under Meals, Diets and Coaching only when it is told
-  // it is a nutritionist's.
-  reset({ provider: { ...world.provider, price: 0 }, plans: [{ id: 'mp1', kind: 'meal_plan', name: 'Cut in 8', price: 59, provider_role: 'nutritionist', provider_id: 9 }] });
-  world.blockNutri = undefined; world.blockPlans = undefined;
+test('with no monthly price but meal plans to sell, the Summit sells them as a nutritionist\'s', async () => {
+  // The second storefront block (Codex P2 on #2545): a listed nutritionist with no monthly price and a
+  // paid meal plan. The block keeps its capacity states, told it is a nutritionist's; the plan is its
+  // card in the Summit (owner, 2026-11-11), bought through the storefront's checkout.
+  reset({ provider: { ...world.provider, price: 0 }, plans: [{ id: 'mp1', kind: 'meal_plan', name: 'Cut in 8', price: 59, providerRole: 'nutritionist', providerId: 9 }] });
+  world.blockNutri = undefined; world.blockPlans = undefined; world.bought = undefined;
   const m = await mount(page());
   try {
-    await click(button(/^Work with her$/));
-    assert.ok(document.querySelector('[data-coaching-block]'), 'the plans-only storefront is drawn');
-    assert.deepEqual((world.blockPlans || []).map((pl) => pl.id), ['mp1'], 'with the meal plan');
-    assert.equal(world.blockNutri, true, 'and files it as a nutritionist\'s');
+    assert.ok(summitPart('coaching').querySelector('[data-coaching-block]'), 'the plans-only storefront is drawn');
+    assert.equal(world.blockNoMonthly, true, 'without the monthly offer');
+    assert.equal(world.blockNoPlans, true, 'and without the price list');
+    assert.equal(world.blockNutri, true, 'told it is a nutritionist\'s');
+    assert.doesNotMatch(summitPart('coaching').textContent, /hasn't listed prices/, 'not told there are no prices beside her plan');
+    const card = summitPart('meal-plans').querySelector('[data-climb-program="mp1"]');
+    assert.match(card.textContent, /Cut in 8.*\$59/);
+    await click(card.querySelector('[data-climb-start]'));
+    assert.deepEqual(world.bought, { plan: { id: 'mp1', name: 'Cut in 8', price: 59 }, providerRole: 'nutritionist', providerId: 9 });
+    assert.equal(world.checkout, 'https://checkout.stripe.test/c/9');
   } finally { await m.unmount(); reset(); }
+  // No live listing: her plan is shown, never sold (Codex P1 on 196314b).
+  reset({ provider: null, plans: [{ id: 'mp1', kind: 'meal_plan', name: 'Cut in 8', price: 59, providerRole: 'nutritionist', providerId: 9 }] });
+  const m2 = await mount(page());
+  try {
+    assert.ok(summitPart('meal-plans').querySelector('[data-climb-program="mp1"]'));
+    assert.ok(!document.querySelector('[data-climb-start]'), 'no Start without a live listing');
+  } finally { await m2.unmount(); reset(); }
 });
 
 test('a nutritionist has their kitchen and plate notes, never the studio or replays; a trainer never the kitchen', async () => {
@@ -942,8 +970,10 @@ test('a sample nutritionist\'s page reads in the reader\'s language: rules, stap
     await goCamp('plates');
     assert.ok(m.text().includes(de['sample.nutri.mealName.plant.0.2']) || m.text().includes(de['sample.nutri.meal.plant.0.0']), 'the plate notes in German');
     await click(button(/^Work with Rae$/));
-    assert.deepEqual(world.blockPlans.map((p) => p.name), [de['sample.nutri.plan.plant.0'], de['sample.nutri.plan.plant.1']], 'its meal plans in German');
-    await click(button(/^Close$/));
+    const plans = [...summitPart('meal-plans').querySelectorAll('[data-climb-program]')].map((c) => c.textContent);
+    assert.equal(plans.length, 2);
+    for (const [i, k] of ['sample.nutri.plan.plant.0', 'sample.nutri.plan.plant.1'].entries()) assert.ok(plans[i].includes(de[k]), `its meal plans in German: ${de[k]}`);
+    assert.ok(!document.querySelector('[data-climb-start]'), 'nothing sold on a sample');
     await m.unmount();
   } finally { window.ShapeI18n.t = hadT; }
 });
@@ -1021,12 +1051,17 @@ test('signed out, the nutritionist app\'s own page is the sample, and Make it yo
   const m = await mount(page({ person: { who: 'Dr. Maya Patel', kind: 'NUTRI' }, isSelf: true }));
   assert.match(m.text(), /Sports nutrition · Second Helping Nutrition/);
   assert.match(m.text(), /Food that fits your training and your week/);
-  // The Work-with sheet lists the sample's own meal plans, their weeks said and no checkout (owner,
-  // 2026-11-01: "yes add the sample meal plans"; it read "Publish your first plan to list it here").
+  // Ways to work with climbs to the Summit, where the sample's own meal plans are cards, their weeks
+  // said and no checkout (owner, 2026-11-01: "yes add the sample meal plans"; the Work-with sheet read
+  // "Publish your first plan to list it here"; 2026-11-11: the Summit is the one place to buy).
+  const climbed = watchClimb();
   await click(button(/^Ways to work with /));
-  assert.deepEqual(world.blockPlans.map((p) => [p.name, p.category, p.kind, p.meta, p.price, p.providerId ?? null]),
-    [['Train-day fuel', 'meal', 'meal_plan', '4 weeks', 49, null], ['Race week', 'meal', 'meal_plan', '1 week', 29, null]])
-  await click(button(/^Close$/));
+  assert.deepEqual(climbed, ['summit']);
+  const plans = [...summitPart('meal-plans').querySelectorAll('[data-climb-program]')].map((c) => c.textContent);
+  assert.equal(plans.length, 2);
+  assert.match(plans[0], /Train-day fuel\s*4 weeks/);
+  assert.match(plans[1], /Race week\s*1 week/);
+  assert.ok(!summitPart('meal-plans').querySelector('[data-climb-start], [data-climb-price]'), 'no price and no checkout on the demo');
   await goCamp('kitchen');
   assert.equal(document.querySelectorAll('[data-recipe]').length, 6);
   await click(button(/^Make it yours$/));

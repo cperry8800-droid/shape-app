@@ -20,7 +20,7 @@ function slice(src, from, to) {
   assert.ok(a >= 0 && b > a, from);
   return src.slice(a, b);
 }
-const client = (read('mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx') + '\n' + read('mobile-app/src/broadsheet/BSClientTrain.jsx'));
+const client = (read('mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx') + '\n' + read('mobile-app/src/broadsheet/BSClientTrain.jsx') + '\n' + read('mobile-app/src/broadsheet/BSWeeklyCheckin.jsx'));
 
 test('a part counts as read only when the read answered for it', () => {
   assert.equal(bsPlanPartRead(null, 'training'), false, 'the request failed (ShapePlan.get resolves null)');

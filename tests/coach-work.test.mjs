@@ -10,7 +10,7 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   bsCoachPrograms, bsProgramMoves, bsWorkoutVideos, bsPieceMoves, bsMovePieces, bsStudioWork, bsWorkPrice, bsWorkPaid,
-  BS_WORK_PROGRAMS_MAX, BS_WORK_VIDEOS_MAX, BS_WORK_MOVES_MAX,
+  bsSalePrograms, bsStudioModel, BS_WORK_PROGRAMS_MAX, BS_WORK_SALE_MAX, BS_WORK_VIDEOS_MAX, BS_WORK_MOVES_MAX,
 } from '../mobile-app/src/services/coachWork.mjs';
 import { bsStudioItem, bsProfileStudio, BS_STATION_PINS_MAX } from '../mobile-app/src/services/profileCustom.mjs';
 import { bsTrainerDemo, bsSampleEnglish, BS_SAMPLE_CLIPS, BS_SAMPLE_PROGRAM_IDS } from '../mobile-app/src/services/trainerDemo.mjs';
@@ -94,6 +94,27 @@ test('the coach\'s programs: never a meal plan, the one free video, its poster, 
   assert.deepEqual(bsCoachPrograms(null), []);
   assert.deepEqual([bsWorkPrice(null), bsWorkPrice(0), bsWorkPrice(''), bsWorkPrice(29), bsWorkPrice('$29')], [null, null, null, '$29', '$29']);
   assert.deepEqual(['Free', 0, '0', '', null, 29, '$29', '12.50'].map(bsWorkPaid), [false, false, false, false, false, true, true, true]);
+});
+
+test('the Summit sells every program the read returns (80 at most); the Studio still reads twelve', () => {
+  const many = Array.from({ length: 100 }, (_, i) => plan({ id: i, name: `P${i}` }));
+  assert.equal(bsCoachPrograms(many).length, BS_WORK_PROGRAMS_MAX, 'the Studio\'s count, by default');
+  assert.equal(BS_WORK_SALE_MAX, 80, 'get_coach_sale_plans_by_user returns 80 at most');
+  assert.equal(bsCoachPrograms(many, BS_WORK_SALE_MAX).length, BS_WORK_SALE_MAX);
+  assert.equal(bsCoachPrograms(many, 1000).length, BS_WORK_SALE_MAX, 'never past the read');
+  assert.deepEqual([bsCoachPrograms(many, 0).length, bsCoachPrograms(many, 'x').length], [0, 0]);
+  const programs = bsCoachPrograms(many.slice(0, 15), BS_WORK_SALE_MAX);
+  const model = bsStudioModel({ programs, videos: [], monthly: 0, descriptions: { 'p:0': 'My first block.' } });
+  assert.equal(model.programs.length, BS_WORK_PROGRAMS_MAX, 'the Studio reads twelve (profileCustom.mjs sizes the lines on it)');
+  const sale = bsSalePrograms(model, programs);
+  assert.deepEqual(sale.map((p) => p.id), programs.map((p) => p.id), 'all fifteen, in their order');
+  assert.equal(sale[0], model.programs[0], 'the Studio\'s rows as they are, with the coach\'s line');
+  assert.equal(sale[0].desc, 'My first block.');
+  assert.deepEqual([sale[14].key, sale[14].name, sale[14].price, sale[14].paid, sale[14].forWho], ['p:14', 'P14', '$49', true, null]);
+  assert.equal(sale[14].pr, programs[14], 'the row the storefront buys');
+  assert.deepEqual(bsSalePrograms(model, programs.concat(programs)).length, 15, 'one row a program');
+  assert.deepEqual(bsSalePrograms(null, null), []);
+  assert.deepEqual(bsSalePrograms(null, [null, { id: 3 }, { name: 'x' }]), [], 'a row with no id or name is no program');
 });
 
 test('the workouts on video: https only, a session\'s sets kept, a dozen at most', () => {

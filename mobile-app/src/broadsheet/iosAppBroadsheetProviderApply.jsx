@@ -528,7 +528,7 @@ function ApNoraCard({ t, onAsk, hint }) {
         border: `1px solid ${teal}`, background: 'transparent', color: teal,
         fontFamily: BS_CLEAN_SANS, fontSize: 14.5, fontWeight: 650, display: 'inline-flex', alignItems: 'center', gap: 7,
       }}><span aria-hidden="true">✦</span>{tr('onboarding:apply.nora.button', { defaultValue: 'Fill it in with Nora' })}</button>
-      {hint ? <p role="status" style={{ margin: '9px 0 0', fontFamily: BS_CLEAN_SANS, fontSize: 13, fontWeight: 500, lineHeight: 1.4, color: t.INK70 }}>{tr('onboarding:apply.nora.fallback', { defaultValue: 'Tap Ask Nora at the top of the screen to start.' })}</p> : null}
+      {hint ? <p role="status" style={{ margin: '9px 0 0', fontFamily: BS_CLEAN_SANS, fontSize: 13, fontWeight: 500, lineHeight: 1.4, color: t.INK70 }}>{tr('onboarding:apply.nora.unavailable', { defaultValue: 'Nora couldn’t open just now. Try again in a moment.' })}</p> : null}
     </div>
   );
 }
@@ -873,22 +873,20 @@ function BSProviderApplicationScreen({ initialRole = 'trainer', onBack }) {
   }, [focusKey, step]);
 
   // Nora's sheet with the starter in her composer: the client module's door when it is loaded (the
-  // member app), else the event its shell listens for. Where nothing answers (the sign-in route, whose
-  // sheet opens from Main's own "Ask Nora" door), that door is pressed; with no door either, a line says
-  // where to find her.
+  // member app), else the event every shell listens for, the sign-in route's included (Main opens her
+  // there: its top-right door is gone, owner 2026-11-11). Her bundle may still be loading on the sign-in
+  // route, so the line saying she could not open waits a few seconds for her sheet.
   const askNora = (text) => {
     setNoraHint(false);
     try {
       if (typeof window.bsAskNora === 'function') window.bsAskNora(text);
       else window.dispatchEvent(new window.CustomEvent('shape:openNora'));
-    } catch (e) { /* the fallback below says where she is */ }
+    } catch (e) { /* the fallback below says so */ }
     clearTimeout(noraTimer.current);
     noraTimer.current = setTimeout(() => {
       if (typeof document === 'undefined' || document.querySelector('[data-nora-sheet]')) return;
-      const door = document.querySelector('[data-nora-door]');
-      if (door) { try { door.click(); } catch (e) { setNoraHint(true); } return; }
       setNoraHint(true);
-    }, 450);
+    }, 4000);
   };
   const askNoraToFill = () => askNora(isTrainer
     ? tr('onboarding:apply.nora.starterTrainer', { defaultValue: 'Help me fill in my trainer application. Ask me one question at a time.' })
@@ -1106,7 +1104,7 @@ function BSProviderApplicationScreen({ initialRole = 'trainer', onBack }) {
           <button type="button" onClick={() => askNora('')} style={{ ...quietLink, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, width: '100%', marginTop: 4 }}>
             <span aria-hidden="true">✦</span>{tr('onboarding:apply.status.askNora', { defaultValue: 'Ask Nora a question' })}
           </button>
-          {noraHint ? <p role="status" style={{ ...caption, marginTop: 2 }}>{tr('onboarding:apply.nora.fallback', { defaultValue: 'Tap Ask Nora at the top of the screen to start.' })}</p> : null}
+          {noraHint ? <p role="status" style={{ ...caption, marginTop: 2 }}>{tr('onboarding:apply.nora.unavailable', { defaultValue: 'Nora couldn’t open just now. Try again in a moment.' })}</p> : null}
         </div>
       </>,
     );

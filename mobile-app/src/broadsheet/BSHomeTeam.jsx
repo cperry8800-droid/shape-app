@@ -68,7 +68,14 @@ export function BSHomeTeam(props) {
 //             activities on home page"); another day picked in This week reads by its date: its session
 //             opened as a preview, its meals in order (dayMeals [{ slot, time, title }]), nothing to log
 //             and no food left
-export function BSHomeTeamView({ coaches = [], notes = [], workout = null, meal = null, fuel = null, dayMeals = null, today = true, mealCoachId = null, unread = {}, next = null, dayLabel = '', showFindCoach = false, onFindCoach, onCoaches, onCalendar, tour }) {
+//   weekly    { onOpen } | null                              the Weekly check-in, due this week
+//
+// ⚠ THE WEEKLY CHECK-IN IS HERE, WITH THE COACHES IT IS FOR, NOT BESIDE THE MORNING CHECK-IN (owner,
+// 2026-11-11: "why are there 2 checkins for a signed in account"). It is the coach's form (the Morning
+// check-in review, 2026-10-19: "Weekly check-in · for your coach"); it sat under the morning panel as a
+// second check-in that only a signed-in account saw. So Home has one check-in, the morning's, and the weekly
+// one is a line on Team, naming who it is for, only while there is a coach to read it.
+export function BSHomeTeamView({ coaches = [], notes = [], workout = null, meal = null, fuel = null, dayMeals = null, today = true, mealCoachId = null, unread = {}, next = null, dayLabel = '', showFindCoach = false, onFindCoach, onCoaches, onCalendar, weekly = null, tour }) {
   const t = window.useBS();
   const tr = useShapeTr();
   const trainers = coaches.filter((c) => c.role !== 'nutritionist');
@@ -281,6 +288,26 @@ export function BSHomeTeamView({ coaches = [], notes = [], workout = null, meal 
           </div>
         );
       })}
+
+      {weekly && count ? (() => {
+        const firstName = (c) => String(c.name || '').trim().split(/\s+/)[0] || roleWord(c.role);
+        const forWhom = count === 1 ? tr('home:team.weeklyFor', { defaultValue: 'For {name}', name: firstName(coaches[0]) }) : tr('home:team.weeklyForCoaches', { defaultValue: 'For your coaches' });
+        const label = tr('home:bulletin.weeklyCheckin', { defaultValue: 'Weekly check-in due' });
+        const mins = tr('home:bulletin.weeklyCheckinDetail', { defaultValue: '2 min' });
+        const teal = t.isLight ? '#0a7a72' : '#34d6c5';
+        return (
+          <button type="button" data-team-weekly="" onClick={weekly.onOpen} aria-label={[label, forWhom, mins].join(' · ')}
+            style={{ marginTop: 12, width: '100%', minHeight: 52, display: 'flex', alignItems: 'center', gap: 10, padding: 0, border: 0, borderTop: `1px solid ${t.HAIR || t.RULE}`, background: 'transparent', cursor: 'pointer', textAlign: 'left', color: t.INK }}>
+            <span aria-hidden="true" style={{ flex: 'none', width: 7, height: 7, borderRadius: 999, background: teal }} />
+            <span style={{ flex: 1, minWidth: 0 }}>
+              <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 650, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
+              <span style={{ display: 'block', marginTop: 1, fontFamily: t.DISPLAY, fontSize: 12.5, color: t.INK70, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{forWhom}</span>
+            </span>
+            <span style={{ ...mono, color: teal }}>{mins}</span>
+            <span aria-hidden="true" style={{ color: t.INK50, fontSize: 20 }}>›</span>
+          </button>
+        );
+      })() : null}
 
       {next ? (
         <button type="button" data-team-next="" onClick={() => { if (typeof onCalendar === 'function') onCalendar(new Date(next.at)); }}

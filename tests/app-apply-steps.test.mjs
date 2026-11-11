@@ -309,7 +309,7 @@ test('Review marks a section that still needs something, and its Edit goes there
   } finally { await p.close(); delete W.ShapeApplications; }
 });
 
-test('"Fill it in with Nora" opens her with the starter line; where nothing answers, Main\'s door or a line says where she is', async () => {
+test('"Fill it in with Nora" opens her with the starter line; where her sheet does not open, a line says so', async () => {
   const asked = [];
   W.bsAskNora = (text) => asked.push(text);
   const p = await mount();
@@ -320,26 +320,28 @@ test('"Fill it in with Nora" opens her with the starter line; where nothing answ
     await p.click(byText('[role="radio"]', /^Nutritionist/, p.el));
     await p.click(p.q('[data-apply-ask-nora]'));
     assert.equal(asked[1], 'Help me fill in my nutritionist application. Ask me one question at a time.');
-    // Her sheet did not open (nothing here draws it), and there is no door: the line says where she is.
+    // Her bundle may still be loading on the sign-in route, so nothing is said at once.
     await wait(500);
-    assert.match(p.text(), /Tap Ask Nora at the top of the screen to start\./);
+    assert.doesNotMatch(p.text(), /Nora couldn’t open/);
+    // Her sheet did not open (nothing here draws it): after the wait the line says so. There is no door to
+    // press any more (owner, 2026-11-11: the top-right Nora box went).
+    await wait(3700);
+    assert.match(p.text(), /Nora couldn’t open just now\. Try again in a moment\./);
+    assert.doesNotMatch(p.text(), /at the top of the screen/);
   } finally { await p.close(); }
 
-  // The sign-in route: the client module's door has no shell listening, so Main's own door is pressed.
-  const door = document.createElement('button');
-  door.setAttribute('data-nora-door', '');
-  let pressed = 0;
-  door.addEventListener('click', () => { pressed += 1; });
-  document.body.appendChild(door);
+  // Her sheet opening in time says nothing.
+  const sheet = document.createElement('div');
+  sheet.setAttribute('data-nora-sheet', '');
+  document.body.appendChild(sheet);
   const q = await mount();
   try {
     await q.click(q.q('[data-apply-ask-nora]'));
-    await wait(500);
-    assert.equal(pressed, 1);
-    assert.doesNotMatch(q.text(), /Tap Ask Nora at the top/);
-  } finally { await q.close(); door.remove(); }
+    await wait(4200);
+    assert.doesNotMatch(q.text(), /Nora couldn’t open/);
+  } finally { await q.close(); sheet.remove(); }
 
-  // And with no client module at all, the event her shells listen for.
+  // And with no client module at all (the sign-in route), the event the pre-account shell listens for.
   delete W.bsAskNora;
   let heard = 0;
   const listen = () => { heard += 1; };

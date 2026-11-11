@@ -17,6 +17,10 @@
 import { bsPlanPreview, bsProgramLine } from './planPreview.mjs';
 
 export const BS_WORK_PROGRAMS_MAX = 12;
+// Every plan the sale read returns (get_coach_sale_plans_by_user stops at 80). The coach page's Summit is
+// the one place they are sold (owner, 2026-11-11), so it lists them all; the Studio reads the days and
+// the coach's lines of the first BS_WORK_PROGRAMS_MAX (profileCustom.mjs's BS_DESCS_MAX is sized on it).
+export const BS_WORK_SALE_MAX = 80;
 export const BS_WORK_VIDEOS_MAX = 12;
 // A program's days read for the Studio (its first week's): each a workout the coach can describe.
 export const BS_WORK_DAYS_MAX = 14;
@@ -74,14 +78,17 @@ export function bsProgramMoves(detail) {
 }
 
 /**
- * The coach's programs: every published plan that isn't a meal plan, in their order, each with
+ * The coach's programs: every published plan that isn't a meal plan, in their order, up to `max`
+ * (BS_WORK_PROGRAMS_MAX; at most BS_WORK_SALE_MAX), each with
  * { id, name, price, paid, plan, preview, video, poster, weeks, perWeek, moves }. `video` is the one the
  * preview gives free ({ url, type: 'video' }), `poster` its first image, `preview` bsPlanPreview's
  * model (the days and moves the program sheet lists), `plan` the row the storefront buys.
  */
-export function bsCoachPrograms(plans) {
+export function bsCoachPrograms(plans, max = BS_WORK_PROGRAMS_MAX) {
+  const cap = Math.min(BS_WORK_SALE_MAX, Math.max(0, Math.floor(Number(max)) || 0));
   const out = [];
-  for (const pl of (Array.isArray(plans) ? plans.slice(0, PLAN_SCAN) : [])) {
+  for (const pl of (Array.isArray(plans) ? plans.slice(0, Math.max(PLAN_SCAN, cap)) : [])) {
+    if (out.length >= cap) break;
     if (!isObj(pl) || pl.kind === 'meal_plan' || pl.id == null) continue;
     const name = clean(pl.name, 80);
     if (!name) continue;
@@ -103,7 +110,6 @@ export function bsCoachPrograms(plans) {
       perWeek: preview.sessionsPerWeek || null,
       moves: bsProgramMoves(pl.detail),
     });
-    if (out.length >= BS_WORK_PROGRAMS_MAX) break;
   }
   return out;
 }
@@ -211,6 +217,37 @@ function programDaysOf(pr) {
   return out;
 }
 
+// A program as the Studio lists it: its own note unless the coach wrote a line for it (desc), and who it
+// is for when the coach said.
+function studioProgramRow(pr, desc, f) {
+  const id = String(pr.id);
+  const note = isObj(pr.preview) && typeof pr.preview.note === 'string' ? clean(pr.preview.note, 140) : '';
+  return {
+    key: `p:${id}`, id, name: pr.name, price: pr.price || null, paid: !!pr.paid, weeks: pr.weeks || null, perWeek: pr.perWeek || null,
+    desc: desc || note,
+    forWho: isObj(f) && (typeof f.id === 'string' || typeof f.w === 'string') ? (f.id ? { id: f.id } : { w: clean(f.w, 40) }) : null,
+    pr,
+  };
+}
+
+/**
+ * Every program the coach sells, as the Studio's rows: the model's own (with the coach's line and who it
+ * is for), then the rest of `programs` (bsCoachPrograms(plans, BS_WORK_SALE_MAX)) past the Studio's
+ * BS_WORK_PROGRAMS_MAX, each reading its own note. The coach page's Summit lists these, so no plan the
+ * old price list sold goes unsold there (owner, 2026-11-11: the Summit "the one place to buy").
+ */
+export function bsSalePrograms(model, programs) {
+  const rows = isObj(model) && Array.isArray(model.programs) ? model.programs.slice(0, BS_WORK_SALE_MAX) : [];
+  const seen = new Set(rows.map((p) => p.id));
+  for (const pr of (Array.isArray(programs) ? programs.slice(0, BS_WORK_SALE_MAX) : [])) {
+    if (rows.length >= BS_WORK_SALE_MAX) break;
+    if (!isObj(pr) || pr.id == null || !pr.name || seen.has(String(pr.id))) continue;
+    seen.add(String(pr.id));
+    rows.push(studioProgramRow(pr, '', null));
+  }
+  return rows;
+}
+
 /**
  * The Studio tab's model from the profile's own reads: `programs` (bsCoachPrograms, or a sample's),
  * `videos` (bsWorkoutVideos), the listing's monthly price and offer, and the coach's doc's words
@@ -230,14 +267,7 @@ export function bsStudioModel({ programs, videos, monthly, offer, descriptions, 
   for (const pr of (Array.isArray(programs) ? programs.slice(0, BS_WORK_PROGRAMS_MAX) : [])) {
     if (!isObj(pr) || pr.id == null || !pr.name) continue;
     const id = String(pr.id);
-    const note = isObj(pr.preview) && typeof pr.preview.note === 'string' ? clean(pr.preview.note, 140) : '';
-    const f = fors[id];
-    progs.push({
-      key: `p:${id}`, id, name: pr.name, price: pr.price || null, paid: !!pr.paid, weeks: pr.weeks || null, perWeek: pr.perWeek || null,
-      desc: desc(`p:${id}`) || note,
-      forWho: isObj(f) && (typeof f.id === 'string' || typeof f.w === 'string') ? (f.id ? { id: f.id } : { w: clean(f.w, 40) }) : null,
-      pr,
-    });
+    progs.push(studioProgramRow(pr, desc(`p:${id}`), fors[id]));
     for (const d of programDaysOf(pr)) {
       days.push({ key: `d:${id}:${d.i}`, kind: 'day', label: d.label, title: d.title || d.label, moves: d.moves, more: d.more, focus: bsWorkFocus(d.moves),
         program: { id, name: pr.name }, desc: desc(`d:${id}:${d.i}`), pr });

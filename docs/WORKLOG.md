@@ -93,11 +93,16 @@ The rules and the code map. Every session loads it: when a rule changes, replace
   `studioKit`, `planPreview`, `planOutline`, `coachPronoun` and the demos live in
   `public/newdesign/`; `mobile-app/src/services/` only re-exports.
   Night-before prep: `services/prepAhead.mjs` (Eat and the cron), `services/mealDays.mjs`
-  (account-bound, compare-and-set), `BSPlanDay.jsx`.
+  (account-bound, compare-and-set), `BSPlanDay.jsx`. Check-ins: one on Home, the Morning check-in
+  (`BSCheckinCard.jsx`); the coach's Weekly check-in is a line on Team (`BSHomeTeam.jsx`), its page
+  `BSWeeklyCheckin.jsx`. A profile photo is placed before it is saved (`BSAvatarPositioner.jsx`,
+  `services/avatarCrop.mjs`): the 256px square in `client_identity.photo`, the photo as picked in
+  `client_photo_source` for Reposition.
 - ⚠ **Window globals** (`Object.assign(window, …)`): read one before its module defines it
   and React throws #130. `iosAppBroadsheetMain.jsx` loads feature modules before role
   modules, `loadProsBundle` the client bundle first.
 - **Sheets** portal into `#bs-phone-surface`, a dialog with `bsDialogRef`. No visible scrollbars.
+  ⚠ Toasts are a no-op (`BSToastHost`): a failure or a wait is said on the page itself.
 - **Pages** render in `BSPage`: a condensed masthead pins once its own scrolls away,
   reading ← and the title past a `BSDetailHeader`'s. A sticky row takes `top: useBSPinnedMastTop()`.
   ⚠ **One place for Back:** a ← ahead of the logo, in the row's `BSMastBackSlot`, which `BSBackRow`
