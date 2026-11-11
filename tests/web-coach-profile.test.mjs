@@ -683,3 +683,32 @@ test('a time taken on the profile is selected on the booking page, matched on th
   assert.match(html, /let wantedAt = params\.get\('at'\);/);
   assert.match(html, /const hit = Number\.isFinite\(want\) \? built\.find\(\(sl\) => sl\.ms === want\) : null;\n\s+wantedAt = null;/, 'once, and only a time that is still open');
 });
+
+// The page read the coach's doc once, as it opened: the living profile reads its row again on a return to the tab
+// after 3 s away (livingProfilePage.jsx), but the page kept the doc it opened with, so a Bio, a look or an About
+// changed in the app showed only after a reload. It takes the doc of each row read again now.
+test('a row read again brings its doc onto the page: a Bio changed in the app shows without a reload', async () => {
+  WIDE = true; backend();
+  const row = (custom) => ({ ...LIVE.row, custom });
+  const p = await mount({ ...LIVE, row: row({ bio: 'Written on the website.', about: { story: 'Ten years on the floor.' } }) });
+  assert.match(document.body.textContent, /Written on the website\./);
+  await React.act(async () => p.root.render(React.createElement(WebCoachProfile, { chrome: false, follow: { followers: 3, following: 2, canFollow: true }, onFollow() {}, onMessage() {}, ...LIVE, row: row({ bio: 'Changed in the app.', about: { story: 'Ten years on the floor.' } }) })));
+  await settle();
+  assert.match(document.body.textContent, /Changed in the app\./, 'the page kept the doc it opened with');
+  assert.doesNotMatch(document.body.textContent, /Written on the website\./);
+  // The living profile keeps the row it has when a read fails, so the same row again changes nothing.
+  await React.act(async () => p.root.render(React.createElement(WebCoachProfile, { chrome: false, follow: { followers: 3, following: 2, canFollow: true }, onFollow() {}, onMessage() {}, ...LIVE, row: row({ bio: 'Changed in the app.', about: { story: 'Ten years on the floor.' } }) })));
+  await settle();
+  assert.match(document.body.textContent, /Changed in the app\./);
+  await p.unmount();
+});
+
+test('the page takes a doc read again only while Edit profile is shut, and a save marks the older read seen', () => {
+  const src = read('public/newdesign/coachProfileWeb.jsx');
+  assert.match(src, /if \(!live \|\| editing \|\| seenRowCustom\.current === rowCustomKey\) return;/, 'a read lands under the open editor');
+  assert.match(src, /onSave=\{\(doc\) => \{ seenRowCustom\.current = rowCustomKey; setCustom\(doc\); setEditing\(false\); \}\}/, 'an older read undoes the editor\'s save');
+  // The read again on a return to the tab after 3 s is the living profile's, which keeps the row on a failed read.
+  const page = read('public/newdesign/livingProfilePage.jsx');
+  assert.match(page, /if \(away >= 3000\) setSetupRev\(\(n\) => n \+ 1\);/);
+  assert.match(page, /if \(again && rowFailed\) return;/);
+});
