@@ -150,6 +150,9 @@ test('filters chosen over the example roster are held to what the live listings 
     await s.flush();
     const f = s.dir().props.filters;
     assert.equal(f.applied.length, 0, 'a city or way of meeting the live listings do not carry stayed on');
+    // Remote, chosen over the examples, stays on: every live coach meets remotely.
+    f.meet.onChange('remote'); s.d.render();
+    assert.equal(s.dir().props.list.length, 2, 'Remote hid a live coach');
     assert.equal(s.dir().props.list.length, 2, 'and hid every live coach');
   } finally { liveWorldDone(); }
 });
@@ -173,9 +176,16 @@ test('a live listing: its reviews or New, its price with its unit, its own open 
     // The next open intro from her own calendar; none for a listing with no account behind it.
     assert.ok(leah.next && !leah.next.full && /\d/.test(leah.next.text), 'Leah\'s next open time');
     assert.equal(rae.next, null);
-    // No listing states a city or how it meets, so neither filter offers a match ("Not listed yet").
+    // No listing states a city, so City offers no match ("Not listed yet"). How you meet is there: every coach
+    // meets remotely (owner, 2026-11-11), so Remote keeps both live listings and In person keeps none (Codex on
+    // #2715: the control went with the live roster).
     assert.equal(filters.city, null);
-    assert.equal(filters.meet, null);
+    assert.ok(filters.meet, 'How you meet is gone once the live listings land');
+    filters.meet.onChange('remote'); s.d.render();
+    assert.deepEqual(s.dir().props.list.map((c) => c.name).sort(), [leah.name, rae.name].sort(), 'Remote left out a live coach');
+    s.dir().props.filters.meet.onChange('inperson'); s.d.render();
+    assert.equal(s.dir().props.list.length, 0, 'a live listing that states no format passed In person');
+    s.dir().props.filters.meet.onChange('either'); s.d.render();
     assert.equal(filters.openWeek.count, 1, 'only Leah has an open intro this week');
     // The head claims bookable coaches only when every one has an account.
     assert.equal(listKind, 'listed');

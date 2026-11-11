@@ -912,13 +912,16 @@ function bsmPass(c, f, role, q, now) {
 function bsmFiltersForRole(f, role, everyone, now) {
   const pool = (everyone || []).filter((c) => bsmPass(c, BSM_FILTERS0, role, '', now));
   const cities = new Set(pool.map(bsmCityOf).filter(Boolean));
-  // A way of meeting no listing states can't be chosen (the sheet hides it), so it can't stay on.
-  const meetKnown = pool.some((c) => c.format === 'In-person' || c.format === 'Remote' || c.format === 'Hybrid');
+  // Every coach meets remotely (owner, 2026-11-11), so How you meet is known whenever the role has a coach:
+  // a live listing that states no format is Remote (Codex on #2715: the control went with the live roster).
+  const meetKnown = pool.length > 0;
+  // In person stays on only while some coach meets in person; kept, it would hide every live coach (Codex on #2667).
+  const inPersonKnown = pool.some((c) => c.format === 'In-person' || c.format === 'Hybrid');
   return {
     ...f,
     goals: f.goals.filter((id) => bsmGoalFits(BSM_GOALS.find((g) => g.id === id) || {}, role)),
     city: f.city === 'Anywhere' || cities.has(f.city) ? f.city : 'Anywhere',
-    meet: meetKnown ? f.meet : 'either',
+    meet: !meetKnown || (f.meet === 'inperson' && !inPersonKnown) ? 'either' : f.meet,
     maxSession: role === 'Nutritionists' ? null : f.maxSession,
     maxMonth: role === 'Trainers' ? null : f.maxMonth,
   };
@@ -1168,7 +1171,8 @@ function BSMarketplaceScreen({ onBack = null, onProfile, initialRole, goChat, in
   // prices some listing states, so no filter offers a match nobody has.
   const rolePool = everyone.filter((c) => bsmPass(c, BSM_FILTERS0, pill, '', now));
   const cities = Array.from(new Set(rolePool.map(bsmCityOf).filter(Boolean))).sort((a, b) => a.localeCompare(b));
-  const meetKnown = rolePool.some((c) => c.format === 'In-person' || c.format === 'Remote' || c.format === 'Hybrid');
+  // How you meet: every coach is Remote (owner, 2026-11-11), so the control is there whenever the role has a coach.
+  const meetKnown = rolePool.length > 0;
   const priceRange = (per) => {
     const xs = rolePool.map(bsmPriceOf).filter((p) => p && p.per === per).map((p) => p.amount);
     if (!xs.length) return null;
