@@ -243,6 +243,8 @@ test('getPublicProfile keeps whether the profile is public and viewable, and the
   const at = BACKEND.indexOf('async function getPublicProfile(');
   const fn = BACKEND.slice(at, BACKEND.indexOf('\n}\n', at));
   assert.match(fn, /is_public: r\.is_public, can_view: r\.can_view, username: r\.username \|\| null/);
+  // The place written in Edit profile (2026-11-11-identity-name-location.sql; Codex, #2704).
+  assert.match(fn, /location: typeof r\.location === 'string' && r\.location\.trim\(\) \? r\.location\.trim\(\) : null/);
 });
 
 test('the trajectory\'s line is drawn to its end', () => {

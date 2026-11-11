@@ -115,7 +115,7 @@ test('About opens with You: the photo, name, handle, location and pronouns the a
   // An outside URL in the doc is no photo: it would load on everyone's device.
   account({ ...ME, photo: 'https://tracker.example/me.jpg' });
   await mount(editor());
-  assert.equal(document.querySelector('[data-dk-photo]'), null);
+  assert.ok(!document.querySelector('[data-dk-photo]'), 'still shown');
   assert.ok(button('Upload photo'));
 });
 
@@ -175,7 +175,7 @@ test('a picked photo is stored as the app stores it, a 256px JPEG; Remove clears
   acct = account(ME);
   await mount(editor());
   await click(button('Remove'));
-  assert.equal(document.querySelector('[data-dk-photo]'), null);
+  assert.ok(!document.querySelector('[data-dk-photo]'), 'still shown');
   await click(button('Save profile'));
   assert.equal(acct.docs.client_identity.photo, null);
   assert.equal(acct.docs.client_identity.handle, '@cperry');

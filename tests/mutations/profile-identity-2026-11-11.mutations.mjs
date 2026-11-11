@@ -10,9 +10,11 @@ const CPW = 'public/newdesign/coachProfileWeb.jsx';
 const LPP = 'public/newdesign/livingProfilePage.jsx';
 const APP = 'mobile-app/src/broadsheet/BSTrainerProfile.jsx';
 const MIY = 'mobile-app/src/broadsheet/BSMakeItYours.jsx';
+const MK = 'public/newdesign/marketplace.jsx';
+const BE = 'mobile-app/src/services/shapeBackend.js';
 
 export default {
-  test: 'node --test tests/identity-name-location-migration.test.mjs tests/cover-position.test.mjs tests/profile-identity-web.test.mjs tests/coach-spotlight.test.mjs tests/web-coach-climb.test.mjs tests/screenshot-fit.test.mjs',
+  test: 'node --test tests/identity-name-location-migration.test.mjs tests/cover-position.test.mjs tests/profile-identity-web.test.mjs tests/coach-spotlight.test.mjs tests/web-coach-climb.test.mjs tests/screenshot-fit.test.mjs tests/marketplace-page.test.mjs tests/coach-climb.test.mjs tests/member-profile-coach-look.test.mjs',
   timeoutMs: 300_000,
   mutations: [
     // The migration.
@@ -51,8 +53,8 @@ export default {
       find: '  if (p) return `${p.x}% ${p.y}%`;\n',
       replace: '' },
     { name: 'Reset keeps the old spot', file: DK,
-      find: '    else delete out.pos;\n',
-      replace: '' },
+      find: '    else { delete out.pos; if (fresh)',
+      replace: '    else { if (fresh)' },
     { name: 'a dragged spot leaves the old stop', file: DK,
       find: '    if (pos) { out.pos = pos; out.focus = plib && plib.bsLookFocusOf ? plib.bsLookFocusOf(pos) : out.focus; }',
       replace: '    if (pos) { out.pos = pos; }' },
@@ -78,6 +80,21 @@ export default {
     { name: 'a picked photo never holds Save', file: DK,
       find: '    setPhotoBusy(true);\n',
       replace: '' },
+    { name: 'a cover uploaded here keeps the old stop', file: DK,
+      find: '    else { delete out.pos; if (fresh) out.focus = "center"; }',
+      replace: '    else delete out.pos;' },
+    { name: 'an upload is never fresh', file: DK,
+      find: '      setCoverFresh(true);\n',
+      replace: '' },
+    { name: 'the card drops the account location', file: MK,
+      find: '          if (row && typeof row.location === "string" && row.location.trim()) c.city = row.location.trim().slice(0, 80);',
+      replace: '' },
+    { name: 'the app drops the account location', file: BE,
+      find: "    location: typeof r.location === 'string' && r.location.trim() ? r.location.trim() : null };",
+      replace: '    };' },
+    { name: 'the app page skips the account location', file: APP,
+      find: '(studio && studio.where) || (live && live.location) || person.city',
+      replace: '(studio && studio.where) || person.city' },
     { name: 'an oversized photo is accepted', file: DK,
       find: ' && v.length <= 400000 ? v : null;',
       replace: ' ? v : null;' },

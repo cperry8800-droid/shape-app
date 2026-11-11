@@ -139,10 +139,26 @@ test('the arrow keys move it too, Reset puts it back on its stop, and Remove cle
   await mount(editor({ initial: { cover: { image: COVER }, look: { pos: { x: 40, y: 30 }, focus: 'top' } } }));
   await click(tab('Appearance'));
   await click(button('Remove'));
-  assert.equal(frame().querySelector('img'), null);
+  assert.ok(!frame().querySelector('img'), 'the removed cover is still shown');
   await click(button('Save profile'));
   assert.equal(writes[0].data.cover, null);
   assert.deepEqual(writes[0].data.look, { focus: 'top' }, 'a removed cover left its spot behind');
+});
+
+test('a cover uploaded here starts centred, whatever stop the old one had (Codex, #2704)', async () => {
+  const writes = backend();
+  const NEW = `https://${HOST}/storage/v1/object/public/community-photos/u1/cover-1.jpg`;
+  window.shapeDb.client.storage = { from: () => ({ upload: async () => ({ error: null }), getPublicUrl: () => ({ data: { publicUrl: NEW } }) }) };
+  await mount(editor({ initial: { cover: { image: COVER }, look: { focus: 'top', pos: { x: 20, y: 10 } } } }));
+  await click(tab('Appearance'));
+  const input = document.querySelector('[data-dk-cover-file]');
+  Object.defineProperty(input, 'files', { value: [new window.File(['x'], 'new.jpg', { type: 'image/jpeg' })], configurable: true });
+  await React.act(async () => { input.dispatchEvent(new window.Event('change', { bubbles: true })); });
+  await React.act(async () => { await new Promise((r) => setTimeout(r, 5)); });
+  assert.ok(photo().getAttribute('src') === NEW, 'the new cover is not shown');
+  assert.equal(photo().style.objectPosition, '50% 50%', 'the new cover took the old stop');
+  await click(button('Save profile'));
+  assert.deepEqual(writes[0].data.look, { focus: 'center' }, 'the new cover kept the old crop');
 });
 
 test('an untouched cover saves the look as it was', async () => {

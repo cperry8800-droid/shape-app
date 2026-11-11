@@ -371,7 +371,8 @@ function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = fal
   // A nutritionist's kitchen has no floor plan (owner, 2026-10-31: "i dont think this concept makes
   // sense for nutritionist profiles", of the numbered fridge, pantry and stove lit by her recipes; it
   // was added 2026-10-30). A layout already saved stays in profile_custom.studio, read by nothing.
-  const where = isPrivate ? '' : ((custom && custom.bizCard && custom.bizCard.where) || (studio && studio.where) || person.city || '');
+  // The account's own place (Edit profile's Location, get_public_profile) before the directory row's city.
+  const where = isPrivate ? '' : ((custom && custom.bizCard && custom.bizCard.where) || (studio && studio.where) || (live && live.location) || person.city || '');
   const specialty = (!isPrivate && ((listed && (provider.specialty || provider.specialty_type)) || (sample && person.category))) || '';
   const business = !isPrivate && custom && custom.bizCard && custom.bizCard.name;
   // The words under the name: the coach's focus when they chose some (Make it yours → About me, owner,

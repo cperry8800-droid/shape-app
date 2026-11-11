@@ -1157,13 +1157,15 @@ function dkSquarePhoto(file) {
 }
 
 // The look a save writes: the doc's own, with the paper and accent picked (`pick`, or null) and the
-// cover's dragged spot (`pos`, null to clear it) when `posChanged`. Empty is null.
-function dkNextLook(initLook, pick, posChanged, pos, plib) {
+// cover's dragged spot (`pos`, null to clear it) when `posChanged`. A cover uploaded here (`fresh`)
+// with no spot dragged on it starts centred: the old photo's stop is not the new one's (Codex, #2704).
+// Empty is null.
+function dkNextLook(initLook, pick, posChanged, pos, plib, fresh) {
   const out = { ...(initLook || {}) };
   if (pick) { out.paper = pick.paper; out.accent = pick.accent; }
-  if (posChanged) {
+  if (posChanged || fresh) {
     if (pos) { out.pos = pos; out.focus = plib && plib.bsLookFocusOf ? plib.bsLookFocusOf(pos) : out.focus; }
-    else delete out.pos;
+    else { delete out.pos; if (fresh) out.focus = "center"; }
   }
   return Object.keys(out).length ? out : null;
 }
@@ -1475,8 +1477,10 @@ function ProfileCustomizer({ initial, c, onClose, onSave, coach = false, ownerUi
   const lookPos = (v) => (plib && plib.bsLookPos ? plib.bsLookPos(v) : null);
   const initPos = lookPos(initLook.pos);
   const [coverPos, setCoverPos] = React.useState(initPos);
+  // A cover uploaded in this editor: it starts centred, whatever stop the old photo had.
+  const [coverFresh, setCoverFresh] = React.useState(false);
   const posChanged = JSON.stringify(coverPos) !== JSON.stringify(initPos);
-  const coverStop = { top: { x: 50, y: 22 }, center: { x: 50, y: 50 }, bottom: { x: 50, y: 80 } }[initLook.focus] || { x: 50, y: 50 };
+  const coverStop = (coverFresh ? null : { top: { x: 50, y: 22 }, center: { x: 50, y: 50 }, bottom: { x: 50, y: 80 } }[initLook.focus]) || { x: 50, y: 50 };
   // Normalise on the way IN: a doc stored before the split carries English, and a
   // picker comparing tokens would match no chip and silently reset the member's pin.
   const [pinKind, setPinKind] = React.useState(dkPinKindToken((init.pinned && init.pinned.kind) || "") || dkPinKinds()[0].id);
@@ -1660,6 +1664,7 @@ function ProfileCustomizer({ initial, c, onClose, onSave, coach = false, ownerUi
       const { data: pub } = cl.storage.from("community-photos").getPublicUrl(path);
       setCoverUrl(pub.publicUrl);
       setCoverPos(null);
+      setCoverFresh(true);
     } catch (err) { alert((err && err.message) || "Could not upload cover."); }
     finally { setCoverBusy(false); }
   };
@@ -1682,7 +1687,7 @@ function ProfileCustomizer({ initial, c, onClose, onSave, coach = false, ownerUi
       // The look: the paper and accent only when picked here, the cover's spot only when dragged here;
       // whatever else the doc's look holds stays. The nearest of the app's three stops rides with the spot
       // (focus), so a build that reads only focus crops near it.
-      ...((pickChanged || posChanged) ? { look: dkNextLook(initLook, pickChanged ? pick : null, posChanged, coverPos, plib) } : {}),
+      ...((pickChanged || posChanged || coverFresh) ? { look: dkNextLook(initLook, pickChanged ? pick : null, posChanged, coverPos, plib, coverFresh) } : {}),
       climbBg: climbBg || null,
       pinned: pinTitle.trim() ? { kind: dkPinKindToken(pinKind), title: pinTitle.trim(), note: pinNote.trim(), metric: pinMetric.trim() } : null,
       heroStats: heroStats.slice(0, 3),
@@ -1822,7 +1827,7 @@ function ProfileCustomizer({ initial, c, onClose, onSave, coach = false, ownerUi
           <span style={label}>Cover image</span>
           <DkCoverFrame src={coverUrl} pos={coverPos} setPos={setCoverPos} fallback={coverStop}>
             {!coverUrl && <div aria-hidden="true" style={{ position: "absolute", inset: 0, background: `linear-gradient(135deg, ${dHexA(c, 0.4)}, ${dHexA(c, 0.08)})` }} />}
-            <input ref={coverRef} type="file" accept="image/*" onChange={onCoverFile} style={{ display: "none" }} />
+            <input ref={coverRef} data-dk-cover-file="" type="file" accept="image/*" onChange={onCoverFile} style={{ display: "none" }} />
             {coverUrl && <span data-dk-cover-hint="" style={{ position: "absolute", left: 10, top: 10, padding: "5px 9px", borderRadius: 999, background: "rgba(0,0,0,0.55)", color: LV_INK, fontFamily: dMono, fontSize: 9, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", pointerEvents: "none" }}>✥ Drag to position</span>}
             <div style={{ position: "absolute", ...(coverUrl ? { right: 10, bottom: 10 } : { inset: 0, justifyContent: "center", alignItems: "center" }), display: "flex", gap: 8 }}>
               <button onClick={() => !coverBusy && coverRef.current && coverRef.current.click()} disabled={coverBusy} style={{ padding: "8px 15px", borderRadius: 999, border: `1px solid ${dHexA(LV_INK, 0.6)}`, background: "rgba(0,0,0,0.5)", color: LV_INK, cursor: coverBusy ? "wait" : "pointer", fontFamily: dMono, fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase" }}>{coverBusy ? "Uploading…" : coverUrl ? "Replace" : "Upload cover"}</button>
