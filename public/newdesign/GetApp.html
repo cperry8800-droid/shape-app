@@ -165,7 +165,10 @@
   /* ⚠ THE PHONE COLUMN IS NOT STICKY, AND THAT IS STRUCTURAL RATHER THAN A
      CHOICE. The phone IS what makes a beat as tall as it is — 272px wide at
      600/1387 is 629px, against a 630px beat content box — so measured travel is
-     ONE PIXEL. Declaring `position: sticky` there would be an effect that
+     ONE PIXEL. On a window under ~870px tall the phone narrows (the width rule
+     below) and the beat's 600px min-height takes over: 480px of phone in a
+     495px content box at 720px tall (measured), 15px of travel, still nothing a reader
+     would see. Declaring `position: sticky` there would be an effect that
      cannot happen, which is worse than no effect: the next reader reads it as
      working.
      To make it real the beat would have to be taller than the phone, and this
