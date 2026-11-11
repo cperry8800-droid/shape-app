@@ -708,7 +708,7 @@ export async function buildSharedOverview(supabase: OverviewClient, { clientId, 
     const trainersIn = new Set(shared.map((r) => String(r?.trainer_name ?? '')));
     const teamTrainers = careTeam.filter((m) => m.role === 'trainer');
     const teamTrainerIds = new Set(teamTrainers.map((m) => m.userId));
-    const oneTrainer = !careTeamPartial && teamTrainers.length > 0 && teamTrainers.every((m) => typeof m.userId === 'string' && m.userId) && teamTrainerIds.size === 1;
+    const oneTrainer = !careTeamPartial && teamTrainers.every((m) => typeof m.userId === 'string' && m.userId) && teamTrainerIds.size === 1;
     assignedWorkouts = sharedErr || trainersIn.size > 1 || !oneTrainer ? undefined : bsAssignedWorkoutsLeg(shared as unknown[], null, workoutToday);
   }
   // The program: what the caller put on the client's calendar (bsWorkoutProgramLeg), else an
