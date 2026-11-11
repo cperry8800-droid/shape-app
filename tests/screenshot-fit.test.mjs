@@ -102,3 +102,32 @@ test('the card grids can shrink below their nowrap content', () => {
   assert.match(INDEX, /\.mo-grid,\.co-grid\{grid-template-columns:minmax\(0,1fr\)\}/, 'the stacked grids lost minmax(0,1fr)');
   assert.doesNotMatch(INDEX, /\.(mo|co)-grid[^{]*\{[^}]*grid-template-columns:(repeat\(\d,)?1fr/, 'a card grid has a bare 1fr track again');
 });
+
+test("a coach's public page scales with a short desktop window and is unchanged from 900px tall", () => {
+  // Owner, 2026-11-11: "the overall coaches profile page is looking a little large on smaller
+  // monitors" (a 1536x706 window: the 640px stage ran ~150px past the screen's foot).
+  const CPW = readFileSync('public/newdesign/coachProfileWeb.jsx', 'utf8');
+  const block = /@media \(min-width:1000px\) and \(max-height:899px\)\{([\s\S]*?)\n    \}/.exec(CPW);
+  assert.ok(block, "coachProfileWeb.jsx lost its short-window block");
+  const css = block[1];
+  // Public page only: the dashboard's own scale (data-in-dash) is a separate ruling.
+  for (const line of css.trim().split('\n')) {
+    assert.match(line.trim(), /^\.cpw(\.cpw)?:not\(\[data-in-dash\]\) /, `a short-window rule reaches the dashboard: ${line.trim()}`);
+  }
+  // Each height-driven size tops out at its old value by 899px, so a taller window is unchanged.
+  const vh = (re, label) => {
+    const m = re.exec(css);
+    assert.ok(m, `the short-window block lost ${label}`);
+    const [, min, k, max] = m.map(Number);
+    assert.ok(min < max, `${label}: the floor is not under the old size`);
+    assert.ok((k * 899) / 100 >= max - 0.5, `${label}: at 899px tall it is still under the old ${max}px, so a 900px window jumps`);
+    return { min, k, max };
+  };
+  vh(/\.cpw-stage\{min-height:clamp\((\d+)px,([\d.]+)vh,(\d+)px\)\}/, 'the stage height');
+  vh(/\.cpw-stage-grid\{grid-template-columns:clamp\((\d+)px,([\d.]+)vh,(\d+)px\)/, 'the portrait column');
+  vh(/\.cpw-stat-n\{font-size:clamp\((\d+)px,([\d.]+)vh,(\d+)px\)\}/, 'the plate figures');
+  const name = /\.cpw-h1\{font-size:max\((\d+)px,min\(([\d.]+)vh,/.exec(css);
+  assert.ok(name, 'the name lost its height cap');
+  assert.ok((Number(name[2]) * 899) / 100 >= 93, 'at 899px tall the name is under the 93px it is at 1440 wide');
+  assert.ok((Number(name[2]) * 706) / 100 <= 76, "at the owner's 706px window the name is still over 76px");
+});
