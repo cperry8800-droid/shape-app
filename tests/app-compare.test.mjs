@@ -196,3 +196,29 @@ test('a pick made on the example roster is cleared when the live listings land, 
     assert.equal(s.dir().props.compare.open, false);
   } finally { liveWorldDone(); }
 });
+
+test('every hook of the screen sits above its first early return, the roster ref included (Codex P1 on #2718)', async () => {
+  const { readFileSync } = await import('node:fs');
+  const src = readFileSync(join(DIR, 'iosAppBroadsheetMarketplace.jsx'), 'utf8');
+  const start = src.indexOf('function BSMarketplaceScreen(');
+  const body = src.slice(start, src.indexOf('\n}\n', start));
+  const firstReturn = body.search(/\n  if \([^\n]*\) \{?\s*\n?\s*return |\n  if \([^\n]*\) return /);
+  assert.ok(firstReturn > 0, 'no early return found');
+  const refAt = body.indexOf('const cmpRosterRef = React.useRef(');
+  assert.ok(refAt > 0 && refAt < firstReturn, 'the roster ref is declared after an early return: opening a coach changes the hook count');
+});
+
+test('removing a coach down to one closes the sheet for good: a second pick waits for the tray (Codex on #2718)', () => {
+  const s = screen();
+  const list = () => s.dir().props.list;
+  list()[0].compare.onToggle(); s.d.render();
+  list()[1].compare.onToggle(); s.d.render();
+  s.dir().props.compare.onOpen(); s.d.render();
+  assert.equal(s.dir().props.compare.open, true);
+  const second = s.dir().props.compare.cards[1].key;
+  s.dir().props.compare.onRemove(second); s.d.render();
+  assert.equal(s.dir().props.compare.open, false);
+  list()[2].compare.onToggle(); s.d.render();
+  assert.equal(s.dir().props.compare.cards.length, 2);
+  assert.equal(s.dir().props.compare.open, false, 'the sheet opened again on its own');
+});

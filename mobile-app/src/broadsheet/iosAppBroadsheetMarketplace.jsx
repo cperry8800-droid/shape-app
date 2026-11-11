@@ -1023,6 +1023,9 @@ function BSMarketplaceScreen({ onBack = null, onProfile, initialRole, goChat, in
   // while the list is filtered or a coach is opened, and the side-by-side sheet over the page.
   const [cmpKeys, setCmpKeys] = useStateBSM2([]);
   const [cmpOpen, setCmpOpen] = useStateBSM2(false);
+  // The roster the picks were made on (read below); a hook, so it sits with the others, above every early
+  // return (Codex on #2718: below them, opening a coach changed the hook count).
+  const cmpRosterRef = React.useRef(null);
   // The tapped coach's 1-based position in the list (LISTING Nº) — null from the
   // picks and the plan rail, which aren't numbered rows.
   const [openNo, setOpenNo] = useStateBSM2(null);
@@ -1305,7 +1308,6 @@ function BSMarketplaceScreen({ onBack = null, onProfile, initialRole, goChat, in
   // ones. Their ids share a shape (t1, n2…), so a pick made on one roster is cleared when the other lands,
   // never read as another person there (Codex on #2718).
   const cmpRoster = remoteCoaches ? 'live' : 'example';
-  const cmpRosterRef = React.useRef(cmpRoster);
   if (cmpRosterRef.current !== cmpRoster) { cmpRosterRef.current = cmpRoster; if (cmpKeys.length) { setCmpKeys([]); setCmpOpen(false); } }
   // The coaches picked to compare, in the order picked, from everyone (a filter that hides one keeps it).
   const cmpCoaches = (cmpRosterRef.current === cmpRoster ? cmpKeys : []).map((k) => everyone.find((c) => c.id === k)).filter(Boolean);
@@ -1398,7 +1400,8 @@ function BSMarketplaceScreen({ onBack = null, onProfile, initialRole, goChat, in
         cards: cmpCards, rows: cmpRows,
         open: cmpOpen && cmpCoaches.length > 1,
         onOpen: () => setCmpOpen(true), onClose: () => setCmpOpen(false),
-        onRemove: (key) => setCmpKeys((k) => k.filter((x) => x !== key)),
+        // Under two, the sheet closes for good: adding a second coach later waits for the tray's Compare (Codex on #2718).
+        onRemove: (key) => { const next = cmpKeys.filter((x) => x !== key); setCmpKeys(next); if (next.length < 2) setCmpOpen(false); },
         onClear: () => { setCmpKeys([]); setCmpOpen(false); },
       }} />
   );
