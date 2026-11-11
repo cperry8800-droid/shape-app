@@ -249,6 +249,15 @@ test('the profile page reads again when Edit profile saves the identity', () => 
   // And when the tab is shown again after 3 s or more away: an edit made in the app shows without a reload.
   assert.match(src, /document\.addEventListener\("visibilitychange", onVis\)/);
   assert.match(src, /if \(away >= 3000\) setSetupRev\(\(n\) => n \+ 1\);/);
+  // A read again that cannot complete leaves the profile on screen; only an answer replaces it (Codex on #2707):
+  // no client, a failed account read and a failed profile read keep it; a signed-out answer and no profile do not.
+  assert.match(src, /const again = loadedRef\.current;/);
+  assert.match(src, /if \(!c \|\| !c\.rpc\) \{ if \(on && !again\) setSt\(\{ loading: false, status: "unavailable" \}\); return; \}/);
+  assert.match(src, /if \(!uid\) \{ if \(on && !\(again && authFailed\)\) setSt\(\{ loading: false, status: "signin" \}\); return; \}/);
+  assert.match(src, /if \(again && rowFailed\) return;/);
+  assert.match(src, /catch \(e\) \{ authFailed = true; \}/);
+  assert.match(src, /catch \(e\) \{ rowFailed = true; \}/);
+  assert.match(src, /if \(row\) loadedRef\.current = true;\n\s+setSt\(\{ loading: false, status: row \? "ok" : "notfound"/);
   // The owner's row takes the identity doc's name, handle, pronouns and location (unchanged, and what makes the
   // re-read show the edit).
   assert.match(src, /for \(const key of \["handle","pronouns","location","link"\]\)/);

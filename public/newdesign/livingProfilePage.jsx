@@ -187,11 +187,16 @@ function LiveProfilePage({ extras = null, demoRole = null, shell = null }) {
     return () => document.removeEventListener("visibilitychange", onVis);
   }, []);
   const applyStats = (d) => { if (d) setFollow({ followers: +d.followers || 0, following: +d.following || 0, isFollowing: !!d.is_following, isPending: !!d.is_pending }); };
+  // Whether a profile is on screen: a read again (a return to the tab, Nora's account setup, an Edit profile
+  // save) that cannot complete (no client yet, the account or the profile could not be read) leaves it
+  // there, and only a read that answers replaces it (Codex on #2707).
+  const loadedRef = React.useRef(false);
   React.useEffect(() => {
     let on = true;
+    const again = loadedRef.current;
     (async () => {
       const c = cl();
-      if (!c || !c.rpc) { if (on) setSt({ loading: false, status: "unavailable" }); return; }
+      if (!c || !c.rpc) { if (on && !again) setSt({ loading: false, status: "unavailable" }); return; }
       const params = new URLSearchParams(window.location.search);
       const qid = params.get("u");
       const qname = params.get("name");
@@ -206,11 +211,14 @@ function LiveProfilePage({ extras = null, demoRole = null, shell = null }) {
         }
         return;
       }
-      let me = null; try { const r = await c.auth.getUser(); me = r && r.data ? r.data.user : null; } catch (e) {}
+      let me = null, authFailed = false;
+      try { const r = await c.auth.getUser(); if (r && r.error && !(r.data && r.data.user)) authFailed = true; me = r && r.data ? r.data.user : null; } catch (e) { authFailed = true; }
       const uid = qid || (me && me.id);
-      if (!uid) { if (on) setSt({ loading: false, status: "signin" }); return; }
-      let row = null; try { const res = await c.rpc("get_public_profile", { p_user_id: uid }); row = Array.isArray(res && res.data) ? res.data[0] : (res && res.data); } catch (e) {}
+      if (!uid) { if (on && !(again && authFailed)) setSt({ loading: false, status: "signin" }); return; }
+      let row = null, rowFailed = false;
+      try { const res = await c.rpc("get_public_profile", { p_user_id: uid }); if (res && res.error) rowFailed = true; row = Array.isArray(res && res.data) ? res.data[0] : (res && res.data); } catch (e) { rowFailed = true; }
       if (!on) return;
+      if (again && rowFailed) return;
       const isSelf = !!(me && me.id === uid);
       // The owner sees the same identity document edited in web/app Settings.
       // Query the explicit owner id; never fetch another member's private doc.
@@ -243,6 +251,7 @@ function LiveProfilePage({ extras = null, demoRole = null, shell = null }) {
         }
       }
       if (!on) return;
+      if (row) loadedRef.current = true;
       setSt({ loading: false, status: row ? "ok" : "notfound", row: row || null, isSelf, uid, verified, coachCerts });
       c.rpc("get_follow_stats", { p_user_id: uid }).then((r) => { if (!on || !r || r.error) return; applyStats(Array.isArray(r.data) ? r.data[0] : r.data); }).catch(() => {});
       if (isSelf) c.rpc("list_follow_requests").then((r) => { if (on && r && !r.error) setReqCount((r.data || []).length); }).catch(() => {});
