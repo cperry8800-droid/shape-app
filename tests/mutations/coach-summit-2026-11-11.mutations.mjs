@@ -40,7 +40,12 @@ export default {
     { name: 'page: a meal plan\'s preview sells what its card doesn\'t', file: PAGE,
       find: 'canBuy={!!(card && card.paid) && !isSelf}', replace: 'canBuy={!isSelf}' },
     { name: 'page: a meal plan\'s preview sells on the coach\'s own page', file: PAGE,
-      find: 'canBuy={!!(card && card.paid) && !isSelf}', replace: 'canBuy={!!(card && card.paid)}' },
+      find: 'canBuy={!!(card && card.paid) && !isSelf}', replace: 'canBuy={!!(card && card.paid)}',
+      // A no-op: the sheet draws its isSelf line ahead of Buy, so the coach's own view never has Buy
+      // (the next mutation, which drops that line, is killed). The page's !isSelf is a second guard.
+      expectSurvive: true },
+    { name: 'preview: the coach\'s own view offers Buy', file: PREVIEW,
+      find: '          {isSelf ? (\n', replace: '          {false ? (\n' },
     { name: 'page: a meal plan\'s preview Buy buys nothing', file: PAGE,
       find: 'onBuy={() => { setSheet(null); buyPlan(pl); }}', replace: 'onBuy={() => { setSheet(null); }}' },
     { name: 'page: a meal plan\'s preview Buy leaves the sheet open', file: PAGE,
