@@ -425,7 +425,35 @@ export function bsProfileLook(v) {
   if (BS_LOOK_PAPERS.includes(v.paper)) out.paper = v.paper;
   if (BS_LOOK_ACCENTS.includes(v.accent)) out.accent = v.accent;
   if (BS_LOOK_FOCUS.includes(v.focus)) out.focus = v.focus;
+  const pos = bsLookPos(v.pos);
+  if (pos) out.pos = pos;
   return Object.keys(out).length ? out : null;
+}
+
+// Where the cover photo sits in its frame, dragged into place in the website's editor (owner,
+// 2026-11-11: "create option to drag this image around for background image so i can adjust
+// positioning"): { x, y }, each a whole percentage 0-100, the CSS object-position of the photo.
+// `focus` (top / center / bottom, the app's three stops) stays beside it: a build that does not know
+// `pos` still crops near the dragged spot, because the editor writes the nearest stop with it.
+export function bsLookPos(v) {
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return null;
+  const x = Number(v.x), y = Number(v.y);
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+  return { x: Math.max(0, Math.min(100, Math.round(x))), y: Math.max(0, Math.min(100, Math.round(y))) };
+}
+// The stop a dragged position is nearest, for the builds that read only `focus`.
+export function bsLookFocusOf(pos) {
+  const p = bsLookPos(pos);
+  if (!p) return 'center';
+  return p.y < 36 ? 'top' : p.y > 65 ? 'bottom' : 'center';
+}
+// The CSS object-position a cover is drawn at: the dragged spot, else the surface's own stop for
+// `focus` (each surface keeps its own three, e.g. { top: 'center 22%', center: 'center 50%', ... }).
+export function bsLookPosition(look, stops) {
+  const p = look && bsLookPos(look.pos);
+  if (p) return `${p.x}% ${p.y}%`;
+  const map = stops || { top: 'center 22%', center: 'center 50%', bottom: 'center 80%' };
+  return (look && map[look.focus]) || map.center || '50% 50%';
 }
 
 // The wall photo (`cover`, { image }) loads on the device of everyone who opens the profile, so

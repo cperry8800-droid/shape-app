@@ -1,7 +1,7 @@
 import React from 'react';
 import { bsUserGoalsRevHook } from '../services/userGoalsRefresh.mjs';
 import { createPortal } from 'react-dom';
-import { bsProfileLook, bsProfileStudio, bsProfileCover, bsProfileKitchen, bsProfileAbout, bsProfilePrompts, bsProfileFocus, bsProfilePicks, bsProfileDescriptions, bsProfileProgramFor, bsProfileLinkable, bsProfileLinkHref, bsProfileLinkText, bsPromptLabel, BS_PROFILE_LINK_KEYS, BS_PROFILE_LINK_GLYPHS } from '../services/profileCustom.mjs';
+import { bsProfileLook, bsLookPosition, bsProfileStudio, bsProfileCover, bsProfileKitchen, bsProfileAbout, bsProfilePrompts, bsProfileFocus, bsProfilePicks, bsProfileDescriptions, bsProfileProgramFor, bsProfileLinkable, bsProfileLinkHref, bsProfileLinkText, bsPromptLabel, BS_PROFILE_LINK_KEYS, BS_PROFILE_LINK_GLYPHS } from '../services/profileCustom.mjs';
 import { bsProfileFilm, bsProfileBizCard, bsProfilePinnedReviews, bsProfilePinned, bsProfileSong, bsSpotifyEmbed, bsPinKindLabel, bsCleanText, BS_FILM_CAPTION_MAX, BS_PINNED_REVIEWS_MAX } from '../services/profileCustom.mjs';
 import { STUDIO_WORDS } from '../services/studioKit.mjs';
 import { bsCoachPrograms, bsWorkoutVideos, bsStudioModel, bsWorkPaid, bsWorkPrice, bsPlateNoteDays, energySplit, bsCoachStatFigures, bsCoachHeadline } from '../services/coachWork.mjs';
@@ -1056,7 +1056,7 @@ function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = fal
     <BSPage>
       <div ref={pageRef} data-coach-page="">
         {canPickPhoto && photoHook.fileRef ? <input ref={photoHook.fileRef} type="file" accept="image/*" onChange={photoHook.onPick} style={{ display: 'none' }} /> : null}
-        <BSCoachClimb nutri={nutri} isSelf={isSelf} isPrivate={isPrivate} who={who} accent={isPrivate ? null : bsClimbAccent(look.accent, nutri ? 'nutritionist' : 'trainer')} detailTitle={meMode ? '' : name} wall={isPrivate ? null : wall} wallAlt={tr('profile:trainer.wallAlt', { defaultValue: "{name}'s wall photo", name: first })} focus={FOCUS_POS[look.focus] || FOCUS_POS.center} mast={mast}
+        <BSCoachClimb nutri={nutri} isSelf={isSelf} isPrivate={isPrivate} who={who} accent={isPrivate ? null : bsClimbAccent(look.accent, nutri ? 'nutritionist' : 'trainer')} detailTitle={meMode ? '' : name} wall={isPrivate ? null : wall} wallAlt={tr('profile:trainer.wallAlt', { defaultValue: "{name}'s wall photo", name: first })} focus={bsLookPosition(look, FOCUS_POS)} mast={mast}
           onPickPhoto={canPickPhoto ? () => { if (photoHook.fileRef?.current) photoHook.fileRef.current.click(); } : null}
           onAddWall={isSelf && !wall && editReady ? () => openEdit('wall') : null}
           rating={!isPrivate && reviews && reviews.count > 0 ? { avg: reviews.avg, count: reviews.count } : null} ratingNew={!isPrivate && !!reviews && !(reviews.count > 0)} onRating={() => setSheet({ kind: 'reviews' })}

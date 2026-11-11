@@ -1603,7 +1603,7 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
               top of it, where the portrait and the summit are (the name and plates run on below it). */}
           <div className="cpw-stage-art">
           <div aria-hidden="true" className="cpw-stage-photo">
-            {wall ? <img src={wall} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: CPW_FOCUS[look.focus] || CPW_FOCUS.center }} /> : null}
+            {wall ? <img src={wall} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: (K.bsLookPosition ? K.bsLookPosition(look, CPW_FOCUS) : (CPW_FOCUS[look.focus] || CPW_FOCUS.center)) || CPW_FOCUS.center }} /> : null}
           </div>
           <div aria-hidden="true" className="cpw-stage-shade" />
           <CpwTerrain ACC={DRAW} seed={seed} sx={wide ? 0.79 : 0.8} sy={wide ? 0.44 : 0.42} pins={wide && !isSelf ? milestones : []} />

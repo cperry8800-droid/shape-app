@@ -13,7 +13,7 @@ export {
   bsCleanText, bsProfileLine, bsProfileWall, bsProfileShelf,
   bsValidStartDate, bsStartLineState, bsProfileStartLine,
   bsProfileFilm, bsProfileBizCard, bsProfilePinnedReviews, bsNormalizeProfileCustom,
-  BS_LOOK_PAPERS, BS_LOOK_ACCENTS, BS_LOOK_FOCUS, bsProfileLook, bsProfileCover,
+  BS_LOOK_PAPERS, BS_LOOK_ACCENTS, BS_LOOK_FOCUS, bsProfileLook, bsProfileCover, bsLookPos, bsLookFocusOf, bsLookPosition,
   BS_STUDIO_TYPES, BS_STUDIO_KINDS, BS_STUDIO_W, BS_STUDIO_H, BS_STUDIO_ITEMS_MAX, BS_STUDIO_STATIONS_MAX,
   BS_STUDIO_WHERE_MAX, BS_STUDIO_LABEL_MAX, BS_STATION_TITLE_MAX, BS_STATION_NOTE_MAX, BS_STATION_PINS_MAX, bsStudioItem, bsProfileStudio,
   BS_KITCHEN_RULES_MAX, BS_KITCHEN_RULE_MAX, BS_KITCHEN_STAPLES_MAX, BS_STAPLE_MAX, BS_STAPLE_GROUPS,
