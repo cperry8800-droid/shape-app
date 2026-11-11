@@ -94,6 +94,18 @@ const $$ = (s) => [...document.querySelectorAll(s)];
 // What the page says, without its stylesheet.
 const text = () => { const c = $('[data-coach-profile]').cloneNode(true); c.querySelectorAll('style').forEach((x) => x.remove()); return c.textContent; };
 const camps = () => $$('[data-camp]').map((c) => c.getAttribute('data-camp'));
+// The page as a visitor sees it on landing: the stage in view, every camp below the fold (jsdom lays
+// nothing out, so each camp would read as reached).
+function onTheStage() {
+  const was = window.Element.prototype.getBoundingClientRect;
+  window.Element.prototype.getBoundingClientRect = function () {
+    const top = this.hasAttribute('data-camp') ? 3000 : 0;
+    return { top, bottom: top, left: 0, right: 0, width: 0, height: 0, x: 0, y: top };
+  };
+  Object.defineProperty(document.documentElement, 'scrollHeight', { configurable: true, get: () => 9000 });
+  return () => { window.Element.prototype.getBoundingClientRect = was; Reflect.deleteProperty(document.documentElement, 'scrollHeight'); };
+}
+const before = (a, b) => !!(a.compareDocumentPosition(b) & window.Node.DOCUMENT_POSITION_FOLLOWING);
 
 test('a real coach\'s Climb is their own data, never the sample', async () => {
   WIDE = true; backend();
@@ -257,10 +269,14 @@ test('a nutritionist climbs in gold, with Meal plans, the kitchen and plate note
 // Owner, 2026-11-09: "need a new way to organize these on coaches profile, no side scrolling".
 test('on a phone the camps pin as one bar naming where you are; a tap opens them all as a grid, and each scrolls to its camp', async () => {
   WIDE = false; backend();
+  const undo = onTheStage();
   const p = await mount(LIVE);
   const nav = $('[data-camp-nav]');
   const pick = nav.querySelector('[data-camp-pick]');
   const grid = nav.querySelector('[data-camp-grid]');
+  assert.ok(!$('[data-camp-tabs]'), 'not the desktop tabs as well');
+  assert.ok(before($('[data-crumbs]'), nav) && before(nav, $('.cpw-stage')), 'under the bar, above the stage, as the desktop tabs (owner, 2026-11-11)');
+  assert.equal($('[data-camp-here]').textContent, 'Sections', 'no camp is named while the stage is in view');
   assert.equal(grid.hidden, true, 'the camps are closed at first');
   assert.equal(pick.getAttribute('aria-expanded'), 'false');
   assert.doesNotMatch(pick.textContent, /\d+ \/ \d+/, 'no count beside the camp: Base is not a numbered camp, so it read one ahead');
@@ -293,7 +309,43 @@ test('on a phone the camps pin as one bar naming where you are; a tap opens them
   assert.equal(grid.hidden, true, 'a tap off the bar closes it');
   window.Element.prototype.scrollIntoView = was;
   await p.unmount();
+  undo();
   WIDE = true;
+});
+
+// Owner, 2026-11-11: "can we make each of these sections appear as tabs towards the top so users dont have
+// to scroll so far down to get to certain sections of trainer profile".
+test('on a desktop every camp is a tab under the bar, above the stage: pinned, lit for the camp in view, a click scrolls to it', async () => {
+  WIDE = true; backend();
+  const undo = onTheStage();
+  const p = await mount(LIVE);
+  const nav = $('[data-camp-tabs]');
+  assert.ok(nav, 'the tabs are there');
+  assert.ok(!$('[data-camp-nav]'), 'not the phone bar as well');
+  assert.deepEqual($$('[data-camp-tab]').map((b) => b.getAttribute('data-camp-tab')), camps(), 'a tab for every camp, in its order');
+  assert.ok(before($('[data-crumbs]'), nav) && before(nav, $('.cpw-stage')), 'under the bar, above the stage');
+  assert.equal($$('[data-camp-tab][aria-current]').length, 0, 'nothing lit while the stage is in view');
+  let scrolled = null;
+  const was = window.Element.prototype.scrollIntoView;
+  window.Element.prototype.scrollIntoView = function () { scrolled = this.getAttribute('data-camp'); };
+  await React.act(async () => $('[data-camp-tab="words"]').click());
+  window.Element.prototype.scrollIntoView = was;
+  assert.equal(scrolled, 'words', 'a click scrolls to its camp');
+  assert.deepEqual($$('[data-camp-tab][aria-current]').map((b) => b.getAttribute('data-camp-tab')), ['words'], 'and lights it alone');
+  const src = read('public/newdesign/coachProfileWeb.jsx');
+  const rules = [...src.matchAll(/\.cpw-camptabs[^{]*\{[^}]*\}/g)].map((m) => m[0]).join('\n');
+  assert.match(src, /\.cpw-camptabs\{position:sticky;/, 'it pins under the header');
+  assert.match(rules, /\.cpw-camptabs-row\{[^}]*flex-wrap:wrap/, 'a narrow dashboard wraps it');
+  assert.doesNotMatch(rules, /overflow-x/, 'it never scrolls sideways');
+  assert.match(rules, /\.cpw-camptabs button\{[^}]*min-height:48px/, 'a 44px target at least');
+  assert.match(src, /\.cpw-camp-mark\{position:sticky;top:\$\{headH \+ pinH \+ 28\}px/, 'the spine marks pin under the tabs');
+  assert.match(src, /stickyTop=\{headH \+ pinH\}/, 'and so does the studio row');
+  await p.unmount();
+  // A private profile is one camp: no tabs.
+  const q = await mount({ ...LIVE, row: { ...ROW, is_public: false, can_view: false } });
+  assert.ok(!$('[data-camp-tabs]'));
+  await q.unmount();
+  undo();
 });
 
 test('the house rules: no coloured emoji, no ● in a pill, the wire still for reduced motion, Saira for figures', () => {
@@ -343,7 +395,7 @@ test('the camps are the app\'s, in its order: Base, Book, the range, Proof, Word
   const custom = { ...ROW.custom, pinnedReviews: [PIN], links: { instagram: '@maya.lifts' } };
   const p = await mount({ ...LIVE, row: { ...ROW, custom } });
   assert.deepEqual(camps(), ['base', 'day', 'range', 'proof', 'words', 'about', 'find', 'posts', 'summit']);
-  // The tab names (the phone's row) are the app's; the spine numbers the camps between Base and Summit.
+  // The tab names (the desktop's tabs, the phone's grid) are the app's; the spine numbers the camps between Base and Summit.
   assert.deepEqual($$('.cpw-camp-label').map((l) => l.textContent),
     ['Base · Start here', 'Camp 1 · Book', 'Camp 2 · Programs', 'Camp 3 · Proof', 'Camp 4 · Words', 'Camp 5 · About', 'Camp 6 · Find me', 'Camp 7 · Posts', 'Summit · Work with her']);
   assert.equal($('#camp-h-day').textContent, 'Her day.', 'the day keeps its title (words.day)');
