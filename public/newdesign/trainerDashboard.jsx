@@ -326,7 +326,7 @@ function DashFrame({ navItems, payoutCard, title, children }) {
 }
 
 // Inner-page shell: the frame + main w/ title bar + freeform children.
-function DashPage({ navItems, payoutCard, eyebrow, title, subtitle, actions, children, tourHero }) {
+function DashPage({ navItems, payoutCard, eyebrow, title, subtitle, actions, children, tourHero, introId = null }) {
   // The paper switch follows the account on every shell page. dashData.jsx loads
   // AFTER this file on every dashboard page and not at all on the print page, so
   // the read is a constant for the life of the page — never a hook called
@@ -336,10 +336,21 @@ function DashPage({ navItems, payoutCard, eyebrow, title, subtitle, actions, chi
   // each dashboard page hideable so the schedule sits higher on page as well as other dashboard sections"):
   // Hide folds it away and the page's content moves up; an ⓘ beside the title brings it back. Remembered per
   // page on this browser, read before the first paint so a hidden one never shows and then jumps away.
-  const introKey = "shape.dash.intro:" + (typeof window !== "undefined" && window.location ? window.location.pathname : "") + ":" + (typeof title === "string" ? title : "");
-  const [introHidden, setIntroHidden] = React.useState(() => { try { return window.localStorage.getItem(introKey) === "hidden"; } catch (e) { return false; } });
+  // The page is its path and its title, or `introId` where the title is the record's own (a client's
+  // name): one choice for every client, not one per name.
+  const introKey = "shape.dash.intro:" + (typeof window !== "undefined" && window.location ? window.location.pathname : "") + ":"
+    + (typeof introId === "string" && introId ? introId : typeof title === "string" ? title : "");
+  const readIntro = (k) => { try { return window.localStorage.getItem(k) === "hidden"; } catch (e) { return false; } };
+  const [intro, setIntroState] = React.useState(() => ({ key: introKey, hidden: readIntro(introKey) }));
+  // A page that becomes another without remounting ("Loading…", then the client's page) reads the choice
+  // saved for the page it became, in the same render, so a hidden description never shows and jumps away.
+  let introHidden = intro.hidden;
+  if (intro.key !== introKey) {
+    introHidden = readIntro(introKey);
+    setIntroState({ key: introKey, hidden: introHidden });
+  }
   const setIntro = (hide) => {
-    setIntroHidden(hide);
+    setIntroState({ key: introKey, hidden: hide });
     try { if (hide) window.localStorage.setItem(introKey, "hidden"); else window.localStorage.removeItem(introKey); } catch (e) {}
   };
   const showIntro = !!subtitle && !introHidden;
