@@ -498,10 +498,14 @@ function dashCoachActionGo(action, row, role) {
 // Priority: goal proximity + projected pace (the engine's goalBrief, e.g.
 // '2.8 lb to "Goal weight" · pace Jul 17') → check-in state → streak →
 // adherence. Records without goals[] fall back to the legacy distance line.
-function dashContextLine(rec, units) {
+// The house line where dashData.jsx (useCoachThresholds) is not loaded.
+function dashNoTuning() { return null; }
+// `thresholds`: the coach's resolved set (useCoachThresholds), so the goal's "(ETA +Nd this wk)" note
+// slips at their own Goal slip line, as the row's flag does (F10, the engine audit).
+function dashContextLine(rec, units, thresholds) {
   if (!rec) return null;
   const parts = [];
-  const brief = DashSignals.goalBrief ? DashSignals.goalBrief(rec, new Date()) : null;
+  const brief = DashSignals.goalBrief ? DashSignals.goalBrief(rec, new Date(), thresholds || undefined) : null;
   if (brief) {
     parts.push(dashGoalText(brief, units));
   } else if (rec.goal && rec.goal.target != null) {
@@ -569,13 +573,14 @@ function dashClientHref(rec, role) {
 function ExpandableSchedule({ schedule, clients, role, rosterUnread = false }) {
   const [openIdx, setOpenIdx] = React.useState(null);
   const units = useDashUnits();
+  const tuning = (typeof useCoachThresholds === "function" ? useCoachThresholds : dashNoTuning)(role);
   const actionStyle = { display: "inline-block", fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--sh-accent-ink, #2ee0c4)", background: "rgba(var(--sh-accent-rgb, 46,224,196),0.08)", border: "1px solid rgba(var(--sh-accent-rgb, 46,224,196),0.35)", borderRadius: 4, padding: "7px 11px", cursor: "pointer", textDecoration: "none" };
   return (
     <div>
       {schedule.map((s, i) => {
         const open = openIdx === i;
         const rec = dashFindRecord(clients, s.who);
-        const context = dashContextLine(rec, units);
+        const context = dashContextLine(rec, units, tuning && tuning.thresholds);
         const expandable = s.time !== "—"; // skip the "No sessions today" placeholder
         return (
           <div key={i} style={{ borderTop: i === 0 ? "none" : "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.06)" }}>
@@ -1972,9 +1977,10 @@ const DASH_NOW_EYEBROW = { fontFamily: "'JetBrains Mono', monospace", fontSize: 
 // is unread, never "No shared history yet".
 function DashUpNextCard({ rows, state, clients, role, unit, zone, single = false, unread = false, peek, rosterUnread = false }) {
   const units = useDashUnits();
+  const tuning = (typeof useCoachThresholds === "function" ? useCoachThresholds : dashNoTuning)(role);
   const { now, items, next } = state;
   const rec = next ? dashFindRecord(clients, next.who, next.clientId) : null;
-  const context = rec ? dashContextLine(rec, units) : "";
+  const context = rec ? dashContextLine(rec, units, tuning && tuning.thresholds) : "";
   const fileHref = rec ? dashClientHref(rec, role) : null;
   const lead = !next ? null
     : !rows ? "UP NEXT"

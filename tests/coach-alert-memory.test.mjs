@@ -289,6 +289,77 @@ test('the hourly run evaluates both rosters, each on its own memory: a client on
   assert.deepEqual(Object.keys(docOf(tables, 'notify_state:trainer').coachClients), ['t1']);
 });
 
+// ── The engine audit of 2026-11-11 ─────────────────────────────────────────
+// F1: a roster is posted only when the coach opens the website or the app, and the run read it against
+// the hour it ran, for up to 14 days. Its dates never moved, so a client who logged every day read "No
+// food logs in 3 days" two days on and red a week on. It is read as of its save now.
+const mondayOfDay = (ms) => { const d = new Date(ms); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return localDay(d); };
+const asOfSave = (id, saved, lastLogDaysBefore) => ({ userId: id, profile: { id, name: 'Client ' + id }, checkIn: { lastWeekOf: mondayOfDay(saved) }, progressRead: { state: 'ready' }, foodLogs: { lastLoggedOn: localDay(new Date(saved - lastLogDaysBefore * DAY)), daysLogged7d: 6 }, lastContact: { nutritionist: new Date(saved - DAY).toISOString() } });
+
+test('the hourly run reads a roster as of its save: a client active then is not alerted a week on (F1)', async () => {
+  const saved = Date.now() - 7 * DAY;
+  // When the coach last opened Shape, a1 had logged the day before, checked in that week and been
+  // written to the day before; s1 had logged nothing for four days.
+  const snapshot = { role: 'nutritionist', at: saved, clients: [asOfSave('a1', saved, 1), asOfSave('s1', saved, 4)] };
+  // Read against the run's clock, as it was, a1 is red: no food log in 8 days, no contact in 8.
+  const against = core.candidatesFor({ ...snapshot, at: Date.now() }, { tone: 'neutral', lastSeverity: {}, now: new Date() });
+  assert.ok(against.candidates.some((c) => c.type === 'client_red' && c.key === 'a1'), 'the fixture is the false alert the run sent');
+  const tables = { user_goals: [{ user_id: 'coach-9', kind: 'notify_snapshot:nutritionist', data: snapshot }] };
+  db = notifyDb(tables);
+  delivered.length = 0;
+  const first = await runCron();
+  assert.equal(first.evaluated, 1, 'the roster was read');
+  assert.deepEqual(delivered.map((n) => n.type + ':' + n.data.clientId), ['ai_client_amber:s1'], 'what the roster said at its save, and nothing it could not know');
+  assert.match(delivered[0].body, /No food logs in 4 days/, 'counted to the save, not to the run');
+  delivered.length = 0;
+  await runCron();
+  assert.deepEqual(delivered, [], 'and the next hour reads the same: no re-nag');
+});
+
+// Codex on #2703: the roster is read as of its save, but a snooze ends on the run's own clock, so a
+// flag the coach snoozed comes back when the snooze is over, not at their next visit.
+test('a snooze on a stored roster ends on the run\'s clock, not the save\'s', () => {
+  const saved = Date.now() - 7 * DAY;
+  const s1 = asOfSave('s1', saved, 4);
+  const sig = E.getTriageFeed('nutritionist', [s1], new Date(saved))[0].flags.find((f) => f.key === 'food_gap').sig;
+  const snap = { role: 'nutritionist', at: saved, clients: [s1] };
+  const until = (ms) => new Date(ms).toISOString();
+  const sent = (u) => core.candidatesFor(snap, { tone: 'neutral', lastSeverity: {}, now: new Date(),
+    coachContext: { reviews: null, dismissals: [{ client_id: 's1', reason_key: 'food_gap', reason_sig: sig, until: u, provider_role: 'nutritionist' }] } }).candidates.map((c) => c.key);
+  assert.deepEqual(sent(until(saved + 2 * 3600e3)), ['s1'], 'snoozed for two hours after the save: over by the run');
+  assert.deepEqual(sent(until(Date.now() + DAY)), [], 'a snooze still running holds');
+  assert.deepEqual(sent(null), [], 'a dismissal with no end holds');
+  assert.deepEqual(sent('not a time'), ['s1'], 'an end that can\'t be read has ended');
+  // A record's own snooze, from the device, is held to the same clock.
+  const own = { ...snap, clients: [{ ...s1, dismissals: [{ key: 'food_gap', sig, until: until(saved + 3600e3) }] }] };
+  assert.deepEqual(core.candidatesFor(own, { tone: 'neutral', lastSeverity: {}, now: new Date() }).candidates.map((c) => c.key), ['s1']);
+});
+
+test('the roster clock: the save, never a later clock; a clock ahead of the run, or no time, is the run\'s', () => {
+  const now = new Date('2026-11-11T12:00:00Z');
+  assert.equal(+core.rosterClock({ at: +now - 3 * DAY }, now), +now - 3 * DAY);
+  assert.equal(+core.rosterClock({ at: +now + DAY }, now), +now, 'a save stamped ahead of the run');
+  assert.equal(+core.rosterClock({}, now), +now, 'a snapshot with no time on it');
+  assert.equal(+core.rosterClock({ at: 'yesterday' }, now), +now);
+});
+
+// F2: the engine counted days on the server's clock, UTC. A Los Angeles coach's client last checked in
+// for the week of Nov 2: at 6 pm on Sunday Nov 15 there, the coach's own screen says the check-in is
+// due (amber); in UTC it was already Monday, and the push went red.
+test('the push counts the coach\'s own days: Sunday evening in Los Angeles is not Monday (F2)', () => {
+  const at = new Date('2026-11-16T02:00:00Z');
+  const c = { userId: 'z1', profile: { id: 'z1', name: 'Client z1' }, checkIn: { lastWeekOf: '2026-11-02' }, progressRead: { state: 'ready' }, foodLogs: { lastLoggedOn: '2026-11-15', daysLogged7d: 6 }, lastContact: { trainer: '2026-11-14T18:00:00Z' } };
+  const snap = { role: 'trainer', at: +at, clients: [c] };
+  const types = (zone) => core.candidatesFor(snap, { tone: 'neutral', lastSeverity: {}, now: at, zone }).candidates.map((x) => x.type);
+  assert.deepEqual(types('America/Los_Angeles'), ['client_amber']);
+  assert.deepEqual(types('UTC'), ['client_red'], 'the same instant in UTC');
+  assert.deepEqual(core.candidatesFor({ ...snap, tz: 'America/Los_Angeles' }, { tone: 'neutral', lastSeverity: {}, now: at }).candidates.map((x) => x.type), ['client_amber'], 'without a zone passed, the one the snapshot was posted with');
+  // A member's own record reads their day too.
+  const member = { profile: { id: 'm1', name: 'Me' }, checkIn: { lastWeekOf: '2026-11-02' }, progressRead: { state: 'ready' } };
+  const lines = (zone) => core.candidatesFor({ role: 'client', at: +at, record: member }, { tone: 'neutral', lastSeverity: {}, now: at, zone }).candidates.map((x) => x.body).join(' | ');
+  assert.notEqual(lines('America/Los_Angeles'), lines('UTC'), 'the member\'s week turns on their own Monday');
+});
+
 test('the run still reads the one snapshot from before the split, until that role posts its own', async () => {
   const legacyState = { coachClients: { t1: 'amber' }, pendingDigest: [{ type: 'client_amber', key: 'n7', sig: 'amber:x', data: { providerRole: 'nutritionist' } }, { type: 'client_amber', key: 't7', sig: 'amber:y', data: { providerRole: 'trainer' } },
     // A held member notice (the account is also a member): no provider role, so no coach role's (Codex on #2622).

@@ -1949,9 +1949,13 @@ function bsRowFromTriage(row, role, t) {
     || [...rawReasons, ...flagReasons].filter(Boolean)[0];
   const nut = role === 'nutritionist';
   const obNext = sev === 'new' ? bsOnboardingNext(bsOnboardingFor(rec, role), role) : null;
+  // 'unknown': the overview answered with nothing dated in the last two weeks (the engine's
+  // progressStatus), which the website reads "Insufficient recent data": never "On plan".
   const directive = sev === 'new'
     ? (obNext ? coachTr('coach:onboard.dirNext', { defaultValue: 'New · {step}', step: obNext }) : coachTr('coach:onboard.dirNew', { defaultValue: 'New client — open their first 30 days.' }))
-    : reason || (sev === 'green' ? (nut ? coachTr('coach:roster.dirOnTrackNutri', { defaultValue: 'Logging on plan — nothing needed.' }) : coachTr('coach:roster.dirOnTrack', { defaultValue: 'On plan — nothing needed.' })) : coachTr('coach:roster.dirNeedsAttention', { defaultValue: 'Needs your attention this week.' }));
+    : reason || (sev === 'green' ? (nut ? coachTr('coach:roster.dirOnTrackNutri', { defaultValue: 'Logging on plan — nothing needed.' }) : coachTr('coach:roster.dirOnTrack', { defaultValue: 'On plan — nothing needed.' }))
+      : sev === 'unknown' ? coachTr('coach:roster.dirNoRecent', { defaultValue: 'Nothing logged in two weeks — check in with them.' })
+      : coachTr('coach:roster.dirNeedsAttention', { defaultValue: 'Needs your attention this week.' }));
   // The week's figure is the coach's own measure: training adherence for a trainer, days logged for a
   // nutritionist (the roster row labels it so, 2026-10-31), each falling back to the other. Which one
   // it is rides with it (adhSrc), so a fallback is labelled as what it is (Codex on #2532).
@@ -1987,7 +1991,7 @@ function bsRowFromTriage(row, role, t) {
     active: true,
     // `lead` (P2): the flag behind the line, its episode and the coach action for it (COACH_ACTIONS),
     // which the case file's YOUR MOVE reads instead of searching the line's words.
-    _sig: { sev, rank, label: sev === 'green' ? coachTr('coach:roster.labelOnTrack', { defaultValue: 'ON TRACK' }) : sev === 'new' ? coachTr('coach:sev.new', { defaultValue: 'NEW' }) : coachTr('coach:roster.labelNeedsYou', { defaultValue: 'NEEDS YOU' }), directive, routed, lead },
+    _sig: { sev, rank, label: sev === 'green' ? coachTr('coach:roster.labelOnTrack', { defaultValue: 'ON TRACK' }) : sev === 'new' ? coachTr('coach:sev.new', { defaultValue: 'NEW' }) : sev === 'unknown' ? coachTr('coach:roster.labelNoRecent', { defaultValue: 'NO RECENT DATA' }) : coachTr('coach:roster.labelNeedsYou', { defaultValue: 'NEEDS YOU' }), directive, routed, lead },
   };
 }
 // Severity for a roster row — prefers the live engine `_sig` when present, else
@@ -2000,6 +2004,10 @@ function bsRowSeverity(c, role) {
 // resolves. The coach Today card + both Clients pages all read this, so they're
 // always in agreement. triageLive is cached per-role so they share one fetch.
 function bsProNeedsAttention(sig) { return ['red', 'amber', 'new'].includes(sig?.sev); }
+// Nothing dated in two weeks (the engine's 'unknown', NO RECENT DATA): never On track (Codex on #2703).
+// Clients lists them under Needs you in a group of their own, as the website's roster keeps "Progress
+// unknown" apart; Today's Needs you card stays red, amber and new.
+function bsProNoRecent(sig) { return sig?.sev === 'unknown'; }
 
 // The one roster client a name names (a booking with no client id), or null: two of a name, or none,
 // open nothing rather than the wrong client's file.
@@ -2138,8 +2146,8 @@ function BSProRosterView({ status = 'ready', onRetry, role = 'trainer', clients,
   // In PAST mode `clients` holds past records (all sev 'past') — they'd be dropped by
   // both the needs and on-track filters, so route them to their own list instead.
   const pastMode = roster === 'past';
-  const needsRows = pastMode ? [] : rows.filter((r) => bsProNeedsAttention(r.sig));
-  const onTrackRows = pastMode ? [] : rows.filter((r) => !bsProNeedsAttention(r.sig) && r.sig.sev !== 'past');
+  const needsRows = pastMode ? [] : rows.filter((r) => bsProNeedsAttention(r.sig) || bsProNoRecent(r.sig));
+  const onTrackRows = pastMode ? [] : rows.filter((r) => !bsProNeedsAttention(r.sig) && !bsProNoRecent(r.sig) && r.sig.sev !== 'past');
   const pastRows = pastMode ? rows : [];
   // Every current client in one list (owner, 2026-10-31: "client page should include a tab or
   // section that shows total current clients"): the views split them by what they need, this is all.
@@ -2154,6 +2162,7 @@ function BSProRosterView({ status = 'ready', onRetry, role = 'trainer', clients,
     { sev: 'red', label: tr('coach:roster.groupRed', { defaultValue: 'Reach out today' }) },
     { sev: 'amber', label: tr('coach:roster.groupAmber', { defaultValue: 'This week' }) },
     { sev: 'new', label: tr('coach:roster.groupNew', { defaultValue: 'New clients' }) },
+    { sev: 'unknown', label: tr('coach:roster.groupNoRecent', { defaultValue: 'Nothing recent' }) },
   ];
   const pickTab = {
     needs: () => { setExpanded(false); setView('needs'); if (pastMode) setRoster('active'); },

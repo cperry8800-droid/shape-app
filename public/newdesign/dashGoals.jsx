@@ -96,11 +96,13 @@ function dgoStateView(p) {
 // public/newdesign, so that renders as a blank page rather than a broken card.
 const dgoLbToKg = 0.45359237;
 
-function DashGoalCard({ goal, now, editable, onEdit, compact }) {
+// `slipLine`: the coach's own Goal slip days (dgoSlipLine), so the card marks a slip where the row's
+// goal_slip flag does (F10, the engine audit); without one, the house line.
+function DashGoalCard({ goal, now, editable, onEdit, compact, slipLine }) {
   const nowD = now || new Date();
   const p = DashSignals.projectGoal(goal, nowD);
   const slip = DashSignals.goalSlipDays(goal, nowD);
-  const slipped = slip != null && slip >= DashSignals.THRESHOLDS.GOAL_SLIP_DAYS;
+  const slipped = slip != null && slip >= (Number.isFinite(slipLine) ? slipLine : DashSignals.THRESHOLDS.GOAL_SLIP_DAYS);
   const view = dgoStateView(p);
   const accent = slipped ? DGO_AMBER : view.c;
   const unit = goal.unit ? " " + goal.unit : "";
@@ -220,7 +222,17 @@ function DashGoalEditor({ goal, role, onSave, onRemove, onClose }) {
 }
 
 // ── Drawer section — pros set goals here (roster + pulse drilldown) ─────────
+// The coach's Goal slip line for `role` (useCoachThresholds, dashData.jsx), or null for the house
+// line: the member's own page, signed out, nothing tuned, or a page without dashData.jsx.
+function dgoNoTuning() { return null; }
+function useDgoSlipLine(role) {
+  const tuning = (typeof useCoachThresholds === "function" ? useCoachThresholds : dgoNoTuning)(role);
+  const v = tuning && tuning.thresholds ? tuning.thresholds.GOAL_SLIP_DAYS : null;
+  return Number.isFinite(v) ? v : null;
+}
+
 function DashGoalsSection({ rec, role }) {
+  const slipLine = useDgoSlipLine(role);
   const isDemo = String(rec.profile.id || "").indexOf("demo-") === 0;
   const draftKey = "shape.dashGoals." + rec.profile.id;
   const [goals, setGoals] = React.useState(() => {
@@ -276,7 +288,7 @@ function DashGoalsSection({ rec, role }) {
     <div>
       {visible.map((g, i) => (
         <div key={g.id || i} style={{ border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)", borderRadius: 8, padding: "12px 14px", marginBottom: 10, background: "rgba(var(--sh-ink-rgb, 242,237,228),0.02)" }}>
-          <DashGoalCard goal={g} compact editable onEdit={() => setEditing(i)} />
+          <DashGoalCard goal={g} compact editable onEdit={() => setEditing(i)} slipLine={slipLine} />
         </div>
       ))}
       {!visible.length && (

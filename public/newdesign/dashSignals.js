@@ -54,8 +54,11 @@
   // ⚠ `THRESHOLDS` IS THE EFFECTIVE SET AND IT IS MUTABLE; `DEFAULT_THRESHOLDS` is the
   // house policy it starts from. A coach may tune the POLICY ones from their office
   // settings (see TUNABLES below) — mutated IN PLACE rather than reassigned, so the
-  // exported reference and every rule's closure keep seeing the same object, and
-  // `DashSignals.THRESHOLDS` always reads as what the engine is actually applying.
+  // exported reference and every rule's closure keep seeing the same object.
+  // ⚠ OUTSIDE AN ENTRY POINT'S SCOPE IT HOLDS THE HOUSE POLICY, NOT A COACH'S (F10, the engine
+  // audit): withThresholds puts the house values back when a call returns, and a React render never
+  // sits inside one. A surface that compares against a coach's line takes that coach's resolved set
+  // (useCoachThresholds on the website) rather than reading `DashSignals.THRESHOLDS`.
   var THRESHOLDS = {
     SCORE_DROP_PTS: 5,        // wk/wk Shape Score drop that flags on the MEMBER's own view (not a coach tunable)
     SCORE_DROP_PCT: 20,       // a coach's: wk/wk fall as a share of the week before, shown as context only
@@ -169,7 +172,10 @@
       help: "How long a client's message may wait for your reply before it flags." },
     { key: "PROGRAM_END_DAYS",   label: "Program ending",      unit: "days",  min: 1,  max: 21, step: 1,
       help: "Flag a program this many days before it ends when nothing is lined up next.",
-      byRole: { nutrition: { label: "Plan ending", help: "Flag a plan this many days before it ends when nothing is lined up next." } } },
+      // ⚠ NOT LIVE FOR A NUTRITIONIST YET, AND THE ROW SAYS SO (F8, the engine audit): their program
+      // leg reads coach_program_assignments, which no page writes (coach-client-legs.mjs), so the flag
+      // never fires on a live client. Reading published meal plans' end dates is a War Room item.
+      byRole: { nutrition: { label: "Plan ending", help: "Not live yet: Shape can't read when a meal plan ends, so this doesn't flag for now. Once it can, it flags a plan this many days before it ends when nothing is lined up next." } } },
     { key: "RECOVERY_LOW",       label: "Low recovery",        unit: "/100",  min: 10, max: 70, step: 1,
       help: "A wearable's recovery or readiness averaging at or under this over the week flags.",
       byRole: { nutrition: { help: "A wearable's recovery or readiness averaging at or under this over the week flags. The trainer's when one is on; yours when you're their only coach." } } },
@@ -264,10 +270,71 @@
   }
 
 
-  function toDate(v) {
+  // ── The reader's own day (F2, the engine audit of 2026-11-11) ─────────────
+  // Every rule reads days off the process's local clock (mondayOf, getDay, a "YYYY-MM-DD" read as
+  // local midnight). On a device that is the person's own zone; on the server it is UTC, so the push
+  // and Nora's Today counted a Los Angeles coach's week from 4 pm Sunday: red "No check-in for 2
+  // weeks" on Sunday evening while their screen read amber. inZone(zone, now, fn) runs `fn` on the
+  // zone's WALL CLOCK: `now` and every instant a rule parses (toDate of a time written with Z or an
+  // offset) are moved to a local Date that reads the zone's date and hour, so day counts, Mondays
+  // and weekdays come out as the person's own. A date with no time is a day already and stays put.
+  // ⚠ SYNCHRONOUS, AS withThresholds IS: one scope at a time, put back before anything else runs.
+  // ⚠ A FLAG'S SIGNATURE NEVER CARRIES A MOVED INSTANT (instantKey): a coach's dismissal is matched
+  // on the signature the device wrote, and a shifted one would let a dismissed flag push again.
+  // ⚠ AND ELAPSED TIME IS MEASURED BETWEEN REAL INSTANTS (Codex on #2703): the wall clock gains or
+  // loses an hour across a daylight-saving change, so a reply that had waited 2.5 hours on the
+  // fall-back night read 1.5 and a 2-hour alert never fired. A reply's hours and a snooze's end compare
+  // instants (instantNow, parseDate); only days, weeks and weekdays read the wall clock.
+  var _zone = null;
+  var _zoneAt = null;
+  var _zoneFmt = {};
+  function zoneFormatter(zone) {
+    if (typeof zone !== "string" || !zone) return null;
+    if (Object.prototype.hasOwnProperty.call(_zoneFmt, zone)) return _zoneFmt[zone];
+    var f = null;
+    try {
+      f = new Intl.DateTimeFormat("en-US", { timeZone: zone, hourCycle: "h23", year: "numeric", month: "numeric", day: "numeric", hour: "numeric", minute: "numeric", second: "numeric" });
+    } catch (e) { f = null; }
+    _zoneFmt[zone] = f;
+    return f;
+  }
+  // A local Date whose date and hour read what a clock in `zone` read at instant `d`.
+  function wallClock(d, zone) {
+    var f = zoneFormatter(zone);
+    if (!f || !(d instanceof Date) || isNaN(d.getTime())) return d;
+    var p = {};
+    var parts = f.formatToParts(d);
+    for (var i = 0; i < parts.length; i++) p[parts[i].type] = parts[i].value;
+    var x = new Date(+p.year, +p.month - 1, +p.day, +p.hour % 24, +p.minute, +p.second, d.getMilliseconds());
+    return isNaN(x.getTime()) ? d : x;
+  }
+  function inZone(zone, now, fn) {
+    var at = now instanceof Date && !isNaN(now.getTime()) ? now : new Date();
+    // Inside a scope already, or no zone this engine can read: the clock as it is.
+    if (_zone || !zoneFormatter(zone)) return fn(at);
+    _zone = zone;
+    _zoneAt = at;
+    try { return fn(wallClock(at, zone)); } finally { _zone = null; _zoneAt = null; }
+  }
+  // The real instant behind a scope's wall clock, for elapsed time; outside a scope, `now` itself.
+  function instantNow(now) { return _zone && _zoneAt ? _zoneAt : now; }
+  // A time written with its zone (Z or an offset): an instant, which a scope moves to the wall clock.
+  var EXPLICIT_ZONE = /(?:[zZ]|[+-]\d\d(?::?\d\d)?)$/;
+  function parseDate(v) {
     if (v == null) return null;
     var d = v instanceof Date ? v : new Date(String(v).length === 10 ? v + "T00:00:00" : v);
     return isNaN(d.getTime()) ? null : d;
+  }
+  function toDate(v) {
+    var d = parseDate(v);
+    if (!d || !_zone || v instanceof Date) return d;
+    var s = String(v);
+    return s.length > 10 && EXPLICIT_ZONE.test(s) ? wallClock(d, _zone) : d;
+  }
+  // An instant as a flag's signature carries it, the same in every zone and scope.
+  function instantKey(v) {
+    var d = parseDate(v);
+    return d ? d.toISOString() : String(v);
   }
   function daysBetween(a, b) { return Math.floor((b.getTime() - a.getTime()) / DAY); }
   // The calendar day `now` falls on in the account's `zone`, as a local Date that mondayOf and
@@ -490,7 +557,10 @@
 
   // One-line goal proximity for the pre-session context line / schedule rows:
   //   '2.8 lb to "Goal weight" · pace Jul 17'  (+ the slip when it moved)
-  function goalBrief(c, now) {
+  // `thresholds`: the coach's resolved set, so the "(ETA +Nd this wk)" note slips at their own Goal
+  // slip line (F10), as the row's goal_slip flag does. Without one, the house line.
+  function goalBrief(c, now, thresholds) {
+    if (thresholds && typeof thresholds === "object") return withThresholds(thresholds, function () { return goalBrief(c, now); });
     now = now || new Date();
     var gs = visibleGoals(c && c.goals);
     if (!gs.length) return null;
@@ -720,6 +790,12 @@
     if (!ci) return null;
     var thisMonday = mondayOf(now);
     var last = toDate(ci.lastWeekOf);
+    // ⚠ A CHECK-IN FROM BEFORE THEY HIRED THIS COACH IS NOT ONE (F4, the engine audit): check-ins are
+    // the member's, not per coach, so a client who joined on Monday after last checking in six weeks
+    // earlier read red "No check-in for 6 weeks" on day one. A week before the join week reads as no
+    // check-in yet, which keeps a new client's pass. The food-gap rule bounds its count the same way.
+    var joinDay = clientJoinDay(c);
+    if (last && joinDay && mondayOf(last) < mondayOf(joinDay)) last = null;
     if (!last) {
       if (c.profile && c.profile.isNew) return null; // new clients get a pass
       return { key: "checkin_overdue", missedWeeks: 99, label: "No first check-in", reason: "Hasn't completed a first check-in", figures: { first: true }, sig: "first" };
@@ -753,9 +829,11 @@
     if (disc === "training") ts = lc.trainer;
     else if (disc === "nutrition") ts = lc.nutritionist;
     else {
-      // Client view: most recent contact from ANY of their pros.
-      var a = toDate(lc.trainer), b = toDate(lc.nutritionist);
-      ts = a && b ? (a > b ? a : b) : (a || b);
+      // Client view: most recent contact from ANY of their pros (the value as written, for its signature).
+      // ⚠ THE LATER OF THE TWO BY REAL INSTANT (Codex on #2703): in the hour a fall-back repeats, 09:15Z
+      // reads 01:15 on a Los Angeles wall clock and 08:30Z reads 01:30, so wall clocks pick the older.
+      var a = parseDate(lc.trainer), b = parseDate(lc.nutritionist);
+      ts = a && b ? (a > b ? lc.trainer : lc.nutritionist) : (a ? lc.trainer : b ? lc.nutritionist : null);
     }
     var last = toDate(ts);
     if (!last) {
@@ -771,7 +849,7 @@
     }
     var gap = daysBetween(last, now);
     if (gap >= THRESHOLDS.CONTACT_GAP_DAYS) {
-      return { key: "contact_gap", label: "Quiet " + gap + "d", reason: "No contact in " + gap + " days", sig: "last:" + last.toISOString(), figures: { days: gap } };
+      return { key: "contact_gap", label: "Quiet " + gap + "d", reason: "No contact in " + gap + " days", sig: "last:" + instantKey(ts), figures: { days: gap } };
     }
     return null;
   }
@@ -791,8 +869,10 @@
     var n = c.nutrition;
     if (!n || n.avgCalories == null || n.targetCalories == null || !n.targetCalories) return null;
     if (!nutritionLogged(c)) return null;
+    // ⚠ THE LINE IS THE EXACT SHARE, NEVER THE ROUNDED ONE (F6, the engine audit), as ruleScoreDrop's:
+    // 2190 kcal on a 2000 target is 9.5% over, under a 10% line, though it prints as 10.
     var overPct = Math.round(((n.avgCalories - n.targetCalories) / n.targetCalories) * 100);
-    if (overPct >= THRESHOLDS.LEDGER_OVER_PCT) {
+    if ((n.avgCalories - n.targetCalories) * 100 >= THRESHOLDS.LEDGER_OVER_PCT * n.targetCalories) {
       return { key: "ledger_blown", label: "Ledger +" + overPct + "%", reason: "Averaging " + n.avgCalories + " kcal vs a " + n.targetCalories + " kcal target", sig: "target:" + n.targetCalories + "|wk:" + weekKey(now) };
     }
     return null;
@@ -802,8 +882,8 @@
     var n = c.nutrition;
     if (!n || n.avgProtein == null || n.targetProtein == null || !n.targetProtein) return null;
     if (!nutritionLogged(c)) return null;
-    var underPct = Math.round(((n.targetProtein - n.avgProtein) / n.targetProtein) * 100);
-    if (underPct >= THRESHOLDS.PROTEIN_UNDER_PCT) {
+    // The exact share, as the calorie line's (F6): 128 g on a 150 g target is 14.7% under a 15% line.
+    if ((n.targetProtein - n.avgProtein) * 100 >= THRESHOLDS.PROTEIN_UNDER_PCT * n.targetProtein) {
       return { key: "protein_under", label: "Protein low", reason: "Averaging " + n.avgProtein + "g protein vs a " + n.targetProtein + "g target", sig: "target:" + n.targetProtein + "|wk:" + weekKey(now) };
     }
     return null;
@@ -1062,9 +1142,9 @@
     if (!rw || typeof rw !== "object") return null;
     var disc = disciplineForRole(role);
     var own = disc === "training" ? "trainer" : disc === "nutrition" ? "nutritionist" : null;
-    var since = own ? toDate(rw[own]) : null;
+    var since = own ? parseDate(rw[own]) : null;
     if (!since) return null;
-    var hours = Math.floor((now.getTime() - since.getTime()) / 3600000);
+    var hours = Math.floor((instantNow(now).getTime() - since.getTime()) / 3600000);
     if (!(hours >= THRESHOLDS.REPLY_WAIT_HOURS)) return null;
     var said = hours >= 48 ? Math.floor(hours / 24) + " days" : hours + " hours";
     return { key: "reply_waiting", label: "Reply " + (hours >= 48 ? Math.floor(hours / 24) + "d" : hours + "h"), reason: "Their message has waited " + said + " for your reply", figures: { hours: hours }, sig: "since:" + since.toISOString() };
@@ -1292,12 +1372,12 @@
   // (Snooze). An unreadable `until` is an expired one: the flag comes back rather than vanishing.
   function isDismissed(dismissals, flag, now) {
     if (!flag || !Array.isArray(dismissals)) return false;
-    var at = (now instanceof Date ? now : new Date()).getTime();
+    var at = instantNow(now instanceof Date ? now : new Date()).getTime();
     for (var i = 0; i < dismissals.length; i++) {
       var d = dismissals[i];
       if (!d || d.key !== flag.key || typeof d.sig !== "string" || d.sig !== flag.sig) continue;
       if (d.until != null && d.until !== "") {
-        var u = toDate(d.until);
+        var u = parseDate(d.until);
         if (!u || u.getTime() <= at) continue;
       }
       return true;
@@ -1458,7 +1538,7 @@
   // each persona deterministically exercises specific rules (trainer · nutritionist):
   //   red:   Marcus T. (missed sessions + sleep low, the food gap and a 23% score drop as
   //          context · amber: the food gap; the joint-attention case), Sam R. (missed
-  //          sessions + quiet 7d · food gap + quiet 7d), Jonah W. (3 weeks no check-in — red
+  //          sessions + quiet 7d · food gap + quiet 7d), Jonah W. (2 weeks no check-in — red
   //          on its own)
   //   amber: Aisha K. (quiet 8d), Priya S. (green · protein under),
   //          Deandre K. (green · food gap + calories over: one area), Nadia P. (green ·
@@ -1644,10 +1724,11 @@
           { on: ago(5), kcal: 2430, protein: 140 },
         ],
       }),
-      // red — three weeks without a check-in (red on its own)
+      // red — two weeks without a check-in (red on its own). Eighteen days a client, so the last one is
+      // from his own weeks here: one from before he joined would be no check-in at all (F4).
       person(8, "Jonah W.", {
         payments: pay(18000, 13, 18, "marketplace"),
-        checkIn: { lastWeekOf: mondaysAgo(3) },
+        checkIn: { lastWeekOf: mondaysAgo(2) },
         trainingAdherence: { pct: 71, done: 10, planned: 14 }, bookedSessions: { trainer: { done: 10, planned: 14 }, nutritionist: null },
       }),
       // green + NEW — joined this week; no first check-in yet (new-client
@@ -1918,6 +1999,14 @@
       plan_due: "plan", reply_waiting: "reply", checkin_waiting: "review", missed_sessions: "sessions",
       program_ending: "program", payment_retrying: "billing", plan_ending: "renewal", recovery_low: "recovery",
     })[key] || null;
+  }
+
+  // The directive's headline for one flag ("Reply waiting", "Tighten nutrition"), or null: what Nora
+  // puts before a row's lead (coachToday.mjs), so her answer heads the coach's own flag the way the
+  // directive heads its top one.
+  function leadVerdict(key) {
+    var lever = directiveKeyToLever(key);
+    return lever && DIRECTIVE_VERDICTS[lever] ? DIRECTIVE_VERDICTS[lever] : null;
   }
 
   // The single directive must lead with the MOST URGENT flag, not whichever rule
@@ -3493,6 +3582,7 @@
     buildMilestones: buildMilestones,
     findJointAttention: findJointAttention,
     getTriageFeed: getTriageFeed,
+    inZone: inZone,
     progressStatus: progressStatus,
     buildProgrammingQueue: buildProgrammingQueue,
     buildMockClients: buildMockClients,
@@ -3538,6 +3628,7 @@
     goalDiscipline: goalDiscipline,
     coachActionFor: coachActionFor,
     coachLead: coachLead,
+    leadVerdict: leadVerdict,
     coachBrief: coachBrief,
     coachNeeds: coachNeeds,
     memberDraft: memberDraft,
@@ -3549,6 +3640,6 @@
     attachCoachContext: attachCoachContext,
     engineSnapshot: engineSnapshot,
     coCoachFor: coCoachFor,
-    _internals: { mondayOf: mondayOf, daysBetween: daysBetween, toDate: toDate, calDays: calDays },
+    _internals: { mondayOf: mondayOf, daysBetween: daysBetween, toDate: toDate, calDays: calDays, wallClock: wallClock },
   };
 });

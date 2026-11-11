@@ -2,9 +2,9 @@
 // app-driven route (/api/ai/notify) and the cron (/api/ai/notify/cron). Given a
 // SNAPSHOT (the real record/roster the user's app last sent) it runs the SAME
 // engine (AI2 buildDirective / AI4 getTriageFeed) and returns candidates for the
-// pure decision layer. The engine's time-based rules (check-in overdue, goal-ETA
-// slip) recompute against `now`, so the cron surfaces genuinely-new, real events
-// from a stored snapshot without the app being open. No data is mutated.
+// pure decision layer. A member's record is read against `now`, so a check-in that has since gone
+// due nudges them without the app open; a coach's roster is read as of its save (rosterClock). Both
+// count days in the person's own zone (inZone). No data is mutated.
 
 import * as NotifyLayer from '@/lib/ai/notifications.mjs';
 import { memberLocaleCode } from '@/lib/ai/memberTranslator.mjs';
@@ -174,6 +174,7 @@ const engine = DashSignals as unknown as {
   buildDirective: (record: unknown, now?: Date, role?: string) => Directive;
   evaluateClient: (record: unknown, now?: Date, role?: string) => { flags: Flag[]; severity: string };
   getTriageFeed: (role: string, clients: unknown[], now?: Date, thresholds?: Record<string, number>) => TriageRow[];
+  inZone: <T>(zone: string | null | undefined, now: Date, fn: (at: Date) => T) => T;
   resolveThresholds: (o: unknown, role?: string) => { thresholds: Record<string, number>; applied: Record<string, number>; refused: { key: string; why: string }[] };
 };
 
@@ -190,6 +191,40 @@ export function coachRecordId(c: unknown): string | null {
 // review made since the snapshot was posted (src/lib/ai/coachContext.mjs, which Nora reads too).
 export async function loadCoachContext(client: SupabaseClient, userId: string): Promise<CoachContext> {
   return (await loadCoachContextMjs(client, userId)) as CoachContext;
+}
+
+// ⚠ A STORED ROSTER IS READ AS OF ITS SAVE, NEVER AGAINST A LATER CLOCK (F1, the engine audit of
+// 2026-11-11). A coach's roster is posted only when they open the website or the app, and the hourly
+// run read it against the hour it ran, for up to 14 days: the dates in it (the last food log, the
+// last message, the last check-in) never moved, so a client who logged every day read "No food logs
+// in 3 days" two days on and red "No food logs in 8 days · No contact in 7 days" a week on, and the
+// coach was pushed both. Read as of its save, the roster says only what was true when it was posted;
+// what changes after waits for the coach's next visit, which posts a fresh one. Rebuilding each
+// client on the server would need the coach's own sign-in, which the run has not got (War Room).
+// A clock ahead of the run's, or a snapshot with no time on it, reads at the run's own clock.
+export function rosterClock(snapshot: Snapshot, now: Date): Date {
+  const at = snapshot && snapshot.at;
+  return typeof at === 'number' && Number.isFinite(at) && at < now.getTime() ? new Date(at) : now;
+}
+
+// ⚠ A SNOOZE ENDS ON THE RUN'S CLOCK, NOT THE SAVE'S (Codex on #2703). The roster is read as of its
+// save (rosterClock), and a snooze compared with that moment never ended: one set at 10:00 until noon
+// kept its flag hidden at the 1 pm run and every run after, until the coach's next visit. A snooze that
+// has ended by the run's own clock is dropped here, so the flag the roster held at its save comes back.
+// A dismissal with no end, and a snooze still running, hold as before; an end that can't be read is an
+// ended one, as isDismissed reads it.
+export function liveDismissals(records: unknown[], now: Date): unknown[] {
+  return records.map((r) => {
+    const list = r && typeof r === 'object' ? (r as { dismissals?: unknown }).dismissals : undefined;
+    if (!Array.isArray(list)) return r;
+    const kept = list.filter((d) => {
+      const until = d && typeof d === 'object' ? (d as { until?: unknown }).until : null;
+      if (until == null || until === '') return true;
+      const t = Date.parse(String(until));
+      return Number.isFinite(t) && t > now.getTime();
+    });
+    return { ...(r as Record<string, unknown>), dismissals: kept };
+  });
 }
 
 // Snapshot → candidates + audience. `lastSeverity` (coach) suppresses re-nags.
@@ -218,14 +253,19 @@ export function candidatesFor(
     copy?: MemberCopy | null;
     // The coach's dismissals and reviews, read fresh (loadCoachContext). Omitted: the snapshot's own.
     coachContext?: CoachContext | null;
+    // The person's own zone (loadPrefs' `tz`), so the engine counts their days, not the server's UTC
+    // ones (F2). Omitted: the zone the snapshot was posted with.
+    zone?: string | null;
   },
 ): { audience: 'client' | 'coach'; candidates: Candidate[]; coachSeen?: Record<string, string> } {
   const role = snapshot.role || '';
   if (isCoachRole(role)) {
     const raw = Array.isArray(snapshot.clients) ? snapshot.clients : [];
     // The dismissals of this role only: a coach with both listings sets a reason aside per role.
-    const clients = opts.coachContext ? engine.attachCoachContext(raw, opts.coachContext, role) : raw;
-    const rows = engine.getTriageFeed(role, clients, opts.now, opts.thresholds || undefined).map((r) => ({
+    // …each snooze held to the run's own clock (liveDismissals).
+    const clients = liveDismissals(opts.coachContext ? engine.attachCoachContext(raw, opts.coachContext, role) : raw, opts.now);
+    const zone = opts.zone || snapshot.tz || null;
+    const rows = engine.inZone(zone, rosterClock(snapshot, opts.now), (at) => engine.getTriageFeed(role, clients, at, opts.thresholds || undefined)).map((r) => ({
       clientId: coachRecordId(r.client) as string,
       clientName: (r.client.profile && r.client.profile.name) || 'A client',
       severity: r.severity,
@@ -245,11 +285,14 @@ export function candidatesFor(
   const candidates: Candidate[] = [];
   const record = snapshot.record;
   if (record && typeof record === 'object') {
-    const directive = engine.buildDirective(record, opts.now, 'client');
+    // On the member's own day (F2), as their Home reads it on the phone.
+    const { directive, flags } = engine.inZone(opts.zone || snapshot.tz || null, opts.now, (at) => ({
+      directive: engine.buildDirective(record, at, 'client'),
+      flags: engine.evaluateClient(record, at, 'client').flags,
+    }));
     const copy = opts.copy || null;
     // Home's lead, in the member's words (memberMoveLine); the engine's English line without a copy.
     const line = Notify.memberMoveLine(directive, { tr: copy?.tr, locale: copy?.locale, metric: copy?.metric, tone: opts.tone });
-    const { flags } = engine.evaluateClient(record, opts.now, 'client');
     candidates.push(...Notify.clientCandidates({
       directive: { ...directive, line },
       flags,

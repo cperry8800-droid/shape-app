@@ -322,7 +322,7 @@ test('the SERVER passes the coach’s tuning into the engine it imports', async 
   // promises both. Driven against the real module, not matched.
   const src = stripComments(CORE);
   assert.match(src, /export async function loadCoachThresholds/);
-  assert.match(src, /getTriageFeed\(role, clients, opts\.now, opts\.thresholds/,
+  assert.match(src, /getTriageFeed\(role, clients, at, opts\.thresholds/,
     'the server still calls the engine at house defaults');
   for (const route of ['src/app/api/ai/notify/route.ts', 'src/app/api/ai/notify/cron/route.ts']) {
     const r = stripComments(readFileSync(new URL('../' + route, import.meta.url), 'utf8'));
