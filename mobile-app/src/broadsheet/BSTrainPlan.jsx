@@ -2,6 +2,7 @@ import React from 'react';
 import { createPortal } from 'react-dom';
 import { bsCleanSheet } from './bsCleanType.jsx';
 import { bsTrapFocus } from './bsDialogFocus.mjs';
+import { bsDialogRef } from '../services/dialogBack.mjs';
 
 // ─── TRAIN · THE FULL PLAN ────────────────────────────────────────────────────────────────────
 // Owner, 2026-11-10: "the full plan and on deck just brings you to the monthly calendar page, there
@@ -81,7 +82,7 @@ export function BSTrainPlanSheet({ program = [], focusIdx = 0, weekLabel = '', c
 
   const sheet = (
     <div data-train-plan-scrim="" onClick={onClose} style={{ position: 'absolute', inset: 0, zIndex: 200, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
-      <div ref={panelRef} role="dialog" aria-modal="true" aria-label={title} tabIndex={-1} data-train-plan="" onClick={(e) => e.stopPropagation()}
+      <div ref={bsDialogRef(onClose, panelRef)} role="dialog" aria-modal="true" aria-label={title} tabIndex={-1} data-train-plan="" onClick={(e) => e.stopPropagation()}
         style={{ width: '100%', height: '92%', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', background: t.PAPER, color: t.INK, borderTopLeftRadius: 20, borderTopRightRadius: 20, borderTop: `1px solid ${t.RULE}`, outline: 'none' }}>
         {/* The head: phase and week, the title, Close; then the seven days to jump between. */}
         <div style={{ flex: 'none', padding: `16px ${t.padX}px 0` }}>

@@ -368,7 +368,7 @@ test('Settings names every page it draws, in the order it draws them, over its p
   assert.match(settings, /const \[detail, setDetail\] = useStateBSC\(startPane \|\| \(/);
 });
 
-test('Eat reopens a meal\'s preview on a Back; Home\'s has no door to record', () => {
+test('Eat reopens a meal\'s preview on a Back; Home\'s dead preview is gone', () => {
   const eat = between(CLIENT, 'function BSClientEat({', '\n}\n');
   assert.match(eat, /const eatAt = bsEatStart\(initialView\);\n\s+const \[view, setView\] = useStateBSC\(eatAt\.view\);/);
   assert.match(eat, /const \[previewMealId, setPreviewMealId\] = useStateBSC\(eatAt\.mealId\);/);
@@ -378,11 +378,17 @@ test('Eat reopens a meal\'s preview on a Back; Home\'s has no door to record', (
   assert.match(eat, /const eatDayRestored = React\.useRef\(eatAt\.day != null\);/);
   const planLoad = between(eat, 'const p = await window.ShapePlan?.get?.();', '} catch (e)');
   assert.match(planLoad, /setLiveMealDays\(p\.meals\.days\);[\s\S]*if \(!eatDayRestored\.current\) setDay\(bsWeekdayIdx\(\)\);/);
-  assert.equal([...eat.matchAll(/setDay\(bsWeekdayIdx\(\)\)/g)].length, 1, 'no other reset to today in Eat');
+  // The one other reset to today: a reminder for a recipe no longer in the kitchen lands on tonight's Eat.
+  const gone = between(eat, 'const prepGone = () => {', '\n  };\n');
+  assert.match(gone, /setDay\(bsWeekdayIdx\(\)\);/);
+  assert.equal([...eat.replace(gone, '').matchAll(/setDay\(bsWeekdayIdx\(\)\)/g)].length, 1, 'no other reset to today in Eat');
   assert.match(eat, /const eatNavSub = bsEatSub\(view, day, previewMealId\);\n\s+React\.useEffect\(\(\) => \{\n\s+window\.ShapeNav\?\.announce\?\.\(\{ sub: eatNavSub \}, 'eat'\);/);
   assert.ok(eat.indexOf('const eatNavSub') < eat.search(/\n  if \(/), 'above every early return');
-  // Home draws a meal's preview, but nothing opens it any more (previewMeal is only ever cleared), so
-  // there is nothing to record. A door added back would need recording like Eat's.
+  // Home drew a meal's preview that nothing had opened for a while (previewMeal was only ever cleared): the
+  // owner agreed to delete it, not to restore a door (War Room, left by #2689). A meal opens on Eat, where
+  // a Back reopens it. Home keeps no preview state and no early return drawing one.
   const home = between(CLIENT, 'function BSClientHome({', '\n}\n');
-  assert.deepEqual([...home.matchAll(/setPreviewMeal\(([^)]*)\)/g)].map((m) => m[1]).filter((a) => a !== 'null'), [], 'no door opens Home\'s meal preview');
+  assert.doesNotMatch(home, /previewMeal\b|setPreviewMeal/, 'Home still keeps a meal preview');
+  assert.doesNotMatch(home, /<BSMealPreview\b/, 'Home still draws a meal preview');
+  assert.ok((CLIENT.match(/<BSMealPreview\b/g) || []).length >= 2, 'Eat lost its meal preview');
 });

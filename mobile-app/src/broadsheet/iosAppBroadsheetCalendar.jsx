@@ -4,6 +4,7 @@ import { BS_CLIENT_WEEK_DEMO, BS_CLIENT_WORKOUTS } from './bsClientWeekDemo.js';
 import { BSCalendarWeeks, bsCalWeeksOf, bsCalIso } from './BSCalendarWeeks.jsx';
 import { zoneName as bsCalZoneName } from '../services/shapeZone.mjs';
 import { BSProDeck, BSProDeckGauges, bsProDeckTheme, bsDeckEyebrow, bsDeckTeal, bsProLedgerTop, BS_DECK_MONO, BS_GAUGE_FACE } from './BSProInstrument.jsx';
+import { bsDialogRef } from '../services/dialogBack.mjs';
 const _BS_CAL_KIND_ICON = { WORKOUT: '🏋', MEAL: '🍽', CHECKIN: '✅', CONSULT: '💬', REVIEW: '📋', PLAN: '🗺', REST: '😴', ADMIN: '✦' };
 // iosAppBroadsheetCalendar.jsx — Sheet overlay system + the calendar screen (Month | Weeks).
 // Newspaper-styled. Role-aware events (client / trainer / nutritionist).
@@ -92,7 +93,7 @@ function BSSheetHost({ children, onDismiss, z }) {
       position: 'absolute', inset: 0, zIndex: z, pointerEvents: 'auto',
       background: 'rgba(0,0,0,0.35)', opacity: mounted ? 1 : 0, transition: 'opacity 200ms ease',
     }} onClick={onDismiss}>
-      <div onClick={e => e.stopPropagation()} className="bs-hide-scroll" style={{
+      <div ref={bsDialogRef(onDismiss)} role="dialog" aria-modal="true" onClick={e => e.stopPropagation()} className="bs-hide-scroll" style={{
         position: 'absolute', left: 0, right: 0, bottom: 0, top: 0,
         background: t.PAPER, color: t.INK,
         transform: mounted ? 'translateY(0)' : 'translateY(20px)',
@@ -593,7 +594,7 @@ function BSCalAddSheet({ year, month, day, onClose, onSaved }) {
 
   return createPortal((
     <div onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(3px)', WebkitBackdropFilter: 'blur(3px)', zIndex: 100000, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
-      <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxWidth: 430, maxHeight: '92vh', overflowY: 'auto', background: t.PAPER, color: t.INK, borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: '10px 18px calc(20px + env(safe-area-inset-bottom, 0px))', boxShadow: '0 -24px 70px rgba(0,0,0,0.55)' }}>
+      <div ref={bsDialogRef(onClose)} role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxWidth: 430, maxHeight: '92vh', overflowY: 'auto', background: t.PAPER, color: t.INK, borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: '10px 18px calc(20px + env(safe-area-inset-bottom, 0px))', boxShadow: '0 -24px 70px rgba(0,0,0,0.55)' }}>
         <div style={{ display: 'flex', justifyContent: 'center', padding: '4px 0 12px' }}>
           <div style={{ width: 38, height: 4, borderRadius: 99, background: t.RULE }} />
         </div>

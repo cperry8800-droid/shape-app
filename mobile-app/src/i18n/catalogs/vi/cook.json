@@ -243,5 +243,9 @@
   "morningSwap.swap": "Đổi món",
   "morningSwap.keep": "Giữ nguyên",
   "morningSwap.done": "Đã đổi cho hôm nay: {recipe}.",
-  "morningSwap.failed": "Chưa lưu được món đổi. Thử lại."
+  "morningSwap.failed": "Chưa lưu được món đổi. Thử lại.",
+  "prep.goneEyebrow": "Sơ chế tối nay",
+  "prep.goneTitle": "Công thức này không còn trong bếp",
+  "prep.goneMessage": "Lời nhắc ghi một công thức mà bếp của Shape không còn nữa, nên không có gì để nấu. Các bữa tối nay ở đây, trong mục Ăn.",
+  "prep.goneOk": "Đã hiểu"
 }

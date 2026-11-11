@@ -243,5 +243,9 @@
   "morningSwap.swap": "Tukar",
   "morningSwap.keep": "Tetap",
   "morningSwap.done": "Ditukar untuk hari ini: {recipe}.",
-  "morningSwap.failed": "Penukaran tidak tersimpan. Coba lagi."
+  "morningSwap.failed": "Penukaran tidak tersimpan. Coba lagi.",
+  "prep.goneEyebrow": "Persiapan malam ini",
+  "prep.goneTitle": "Resep ini sudah tidak ada di dapur",
+  "prep.goneMessage": "Pengingat ini menyebut resep yang sudah tidak ada di dapur Shape, jadi tidak ada yang bisa dimasak darinya. Makanan malam ini ada di sini, di Makan.",
+  "prep.goneOk": "Mengerti"
 }

@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { BSFocusTitle } from './BSFocus.jsx';
 import { bsCleanSheet } from './bsCleanType.jsx';
 import { bsTrapFocus } from './bsDialogFocus.mjs';
+import { bsDialogRef } from '../services/dialogBack.mjs';
 
 // ─── EAT · COMING UP AND THE MEAL PLAN ────────────────────────────────────────────────────────
 // Owner, 2026-11-10, of Eat after Train's On deck and Full plan: "Smaller, app only: add a 'Coming up'
@@ -177,7 +178,7 @@ export function BSEatPlanSheet({ program = [], focusIdx = 0, weekOffset = 0, pla
 
   const sheet = (
     <div data-eat-plan-scrim="" onClick={onClose} style={{ position: 'absolute', inset: 0, zIndex: 200, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
-      <div ref={panelRef} role="dialog" aria-modal="true" aria-label={title} tabIndex={-1} data-eat-plan="" onClick={(e) => e.stopPropagation()}
+      <div ref={bsDialogRef(onClose, panelRef)} role="dialog" aria-modal="true" aria-label={title} tabIndex={-1} data-eat-plan="" onClick={(e) => e.stopPropagation()}
         style={{ width: '100%', height: '92%', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', background: t.PAPER, color: t.INK, borderTopLeftRadius: 20, borderTopRightRadius: 20, borderTop: `1px solid ${t.RULE}`, outline: 'none' }}>
         <div style={{ flex: 'none', padding: `16px ${t.padX}px 0` }}>
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>

@@ -178,7 +178,7 @@ export function BSTimezonePrompt({ account, device, coach = false, onClose }) {
   const title = tr('settings:timezone.askTitle', { defaultValue: 'This device is on another clock' });
   const sheet = (
     <div data-bs-timezone="ask" style={{ position: 'absolute', inset: 0, zIndex: 240, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
-      <div ref={panel} tabIndex={-1} role="dialog" aria-modal="true" aria-label={title}
+      <div ref={panel} tabIndex={-1} role="dialog" aria-modal="true" aria-label={title} data-bs-dialog="stay"
         style={{ width: '100%', boxSizing: 'border-box', outline: 'none', background: t.PAPER, color: t.INK, borderTopLeftRadius: 20, borderTopRightRadius: 20, borderTop: `1px solid ${t.RULE}`, padding: `20px ${t.padX}px calc(20px + env(safe-area-inset-bottom, 0px))` }}>
         <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.22em', textTransform: 'uppercase', color: teal }}>{tr('settings:timezone.row', { defaultValue: 'Time zone' })}</div>
         <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 21, fontWeight: 700, letterSpacing: '-0.02em', lineHeight: 1.2, color: t.INK }}>{title}</div>

@@ -21,6 +21,7 @@ import { heldCoachRoles, coachPlanSwitch, holdCoachPlan } from '../services/coac
 import { mayLeave } from '../services/leaveGuard.mjs';
 import { BS_CLEAN_SANS } from './bsCleanType.jsx';
 import { copyIndex } from '../../../src/lib/click-capture.mjs';
+import { bsDialogRef } from '../services/dialogBack.mjs';
 
 // Every call to Shape's server goes through the backend's ShapeApi.fetch: the API base in
 // front and the live sign-in token. A root-relative '/api/…' fetch reaches nothing in the
@@ -1419,7 +1420,7 @@ function BSPushAsk({ coach = false }) {
   const turnOn = async () => { setOpen(false); try { await window.ShapePush?.ask?.(); } catch (e) {} };
   const mono = `'JetBrains Mono', 'Cascadia Code', Consolas, monospace`;
   const sheet = (
-    <div role="dialog" aria-modal="true" aria-label={coach ? tr('settings:push.askTitleCoach') : tr('settings:push.askTitle')} style={{ position: 'absolute', inset: 0, zIndex: 60, display: 'flex', alignItems: 'flex-end', background: 'rgba(3,5,11,0.6)' }} onClick={later}>
+    <div ref={bsDialogRef(later)} role="dialog" aria-modal="true" aria-label={coach ? tr('settings:push.askTitleCoach') : tr('settings:push.askTitle')} style={{ position: 'absolute', inset: 0, zIndex: 60, display: 'flex', alignItems: 'flex-end', background: 'rgba(3,5,11,0.6)' }} onClick={later}>
       <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', boxSizing: 'border-box', padding: '22px 22px max(22px, calc(14px + env(safe-area-inset-bottom, 0px)))', background: '#0b161c', borderTop: '1px solid rgba(242,237,228,0.2)', color: '#f2ede4' }}>
         <div style={{ fontFamily: BS_LAUNCH_HEAD, fontSize: 22, fontWeight: 400, letterSpacing: '-0.02em', lineHeight: 1.15 }}>{coach ? tr('settings:push.askTitleCoach') : tr('settings:push.askTitle')}</div>
         <div style={{ marginTop: 10, fontSize: 14, lineHeight: 1.5, color: 'rgba(242,237,228,0.75)' }}>{coach ? tr('settings:push.askBodyCoach') : tr('settings:push.askBody')}</div>

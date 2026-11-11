@@ -243,5 +243,9 @@
   "morningSwap.swap": "Swap it",
   "morningSwap.keep": "Keep it",
   "morningSwap.done": "Swapped for today: {recipe}.",
-  "morningSwap.failed": "The swap was not saved. Try again."
+  "morningSwap.failed": "The swap was not saved. Try again.",
+  "prep.goneEyebrow": "Tonight's prep",
+  "prep.goneTitle": "This recipe is no longer in the kitchen",
+  "prep.goneMessage": "The reminder named a recipe Shape's kitchen no longer has, so there is nothing to cook from it. Tonight's meals are here on Eat.",
+  "prep.goneOk": "Got it"
 }

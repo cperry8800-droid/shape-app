@@ -92,7 +92,8 @@ rule changes, replace its line. **No changelog**: the PR description is the reco
 - ⚠ **Window globals** (`Object.assign(window, …)`): read one before its module defines it
   and React throws #130. `iosAppBroadsheetMain.jsx` loads feature modules before role
   modules, and `loadProsBundle` the whole client bundle first.
-- **Sheets** portal into `#bs-phone-surface`. No visible scrollbars (`index.html`).
+- **Sheets** portal into `#bs-phone-surface`. No visible scrollbars (`index.html`). Dialogs take
+  `bsDialogRef(close)` or `data-bs-dialog="stay"`.
 - **Pages** render in `BSPage`: a condensed masthead pins once the page's own scrolls away,
   reading ← and the title past a `BSDetailHeader`'s. A sticky row takes `top: useBSPinnedMastTop()`.
   ⚠ **One place for Back:** a ← ahead of the logo, in the row's `BSMastBackSlot`, which `BSBackRow`

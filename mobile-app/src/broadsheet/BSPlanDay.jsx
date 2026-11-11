@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { bsCookSlug } from '../services/cookable.mjs';
 import { bsRecipeMinutes } from '../services/prepAhead.mjs';
 import { BS_OWN_SLOTS } from '../services/mealDays.mjs';
+import { bsDialogRef } from '../services/dialogBack.mjs';
 // ─── EAT · THE MEMBER'S OWN DAY (night-before prep, Phase 2; 2026-11-01) ────────────────────────────
 // Two pieces Eat draws for the member's own changes to a day of meals (mealDays.mjs, user_goals
 // `client_meal_days`):
@@ -101,7 +102,7 @@ export function BSPlanMealSheet({ recipes = [], index = null, recipe = null, day
   const list = recipe ? [] : bsRecipesForSlot(recipes, slot, query).slice(0, 60);
   const sheet = (
     <div onClick={onClose} style={{ position: 'absolute', inset: 0, zIndex: 200, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
-      <div role="dialog" aria-label={tr('nutrition:planDay.kicker', { defaultValue: 'Plan a meal' })} onClick={(e) => e.stopPropagation()} className="bs-scroll"
+      <div ref={bsDialogRef(onClose)} role="dialog" aria-label={tr('nutrition:planDay.kicker', { defaultValue: 'Plan a meal' })} onClick={(e) => e.stopPropagation()} className="bs-scroll"
         style={{ width: '100%', boxSizing: 'border-box', background: t.PAPER, color: t.INK, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: `18px ${t.padX}px calc(20px + env(safe-area-inset-bottom, 0px))`, maxHeight: '84%', overflowY: 'auto', borderTop: `1px solid ${t.RULE}` }}>
         <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: teal, fontWeight: 800 }}>{tr('nutrition:planDay.kicker', { defaultValue: 'Plan a meal' })}</div>
         <div style={{ fontFamily: t.DISPLAY, fontSize: 20, fontWeight: 700, color: t.INK, marginTop: 4, letterSpacing: '-0.02em' }}>

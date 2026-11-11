@@ -2,6 +2,7 @@ import React from 'react';
 import { createPortal } from 'react-dom';
 import { hpWeek, hpMonth, hpStep, hpPeriodStart, hpCanGoBack, hpCanGoForward, hpWindowStart, hpLocalYmd } from './habitProgress.mjs';
 import { bsMpGlass } from './BSMemberBento.jsx';
+import { bsDialogRef } from '../services/dialogBack.mjs';
 // ─── HABIT TRACKER ──────────────────────────────────────────
 // A user-curated list of "Do daily" / "Don't do" items with optional
 // reminder times. Renders on Client + Trainer + Nutritionist home.
@@ -184,7 +185,7 @@ function BSHabitReminderSheet({ habit, reminder, accent, onClose, onSaved }) {
   const target = typeof document !== 'undefined' ? document.getElementById('bs-phone-surface') : null;
   const sheet = (
     <div onClick={onClose} style={{ position: 'absolute', inset: 0, zIndex: 90, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'flex-end' }}>
-      <div onClick={e => e.stopPropagation()} style={{ width: '100%', background: t.PAPER, borderTopLeftRadius: 18, borderTopRightRadius: 18, padding: '18px 18px 24px', borderTop: `1px solid ${t.RULE}` }}>
+      <div ref={bsDialogRef(onClose)} role="dialog" aria-modal="true" onClick={e => e.stopPropagation()} style={{ width: '100%', background: t.PAPER, borderTopLeftRadius: 18, borderTopRightRadius: 18, padding: '18px 18px 24px', borderTop: `1px solid ${t.RULE}` }}>
         <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: c }}>{tr('habits:reminder.title', { defaultValue: 'Habit reminder' })}</div>
         <div style={{ marginTop: 3, fontFamily: t.DISPLAY, fontSize: 21, fontWeight: 700, letterSpacing: '-0.02em', color: t.INK }}>{habit.name}</div>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 16, paddingBottom: 14, borderBottom: `1px solid ${t.HAIR}` }}>
@@ -277,7 +278,7 @@ function BSHabitShareSheet({ habit, accent, current, onClose, onSaved }) {
   const target = typeof document !== 'undefined' ? document.getElementById('bs-phone-surface') : null;
   const body = (
     <div onClick={onClose} style={{ position: 'absolute', inset: 0, zIndex: 90, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'flex-end' }}>
-      <div role="dialog" aria-label={tr('habits:share.title', { defaultValue: 'Who hears if you miss it' })} onClick={e => e.stopPropagation()} style={{ width: '100%', maxHeight: '86%', display: 'flex', flexDirection: 'column', background: t.PAPER, borderTopLeftRadius: 18, borderTopRightRadius: 18, padding: '18px 18px 24px', borderTop: `1px solid ${t.RULE}`, boxSizing: 'border-box' }}>
+      <div ref={bsDialogRef(onClose)} role="dialog" aria-label={tr('habits:share.title', { defaultValue: 'Who hears if you miss it' })} onClick={e => e.stopPropagation()} style={{ width: '100%', maxHeight: '86%', display: 'flex', flexDirection: 'column', background: t.PAPER, borderTopLeftRadius: 18, borderTopRightRadius: 18, padding: '18px 18px 24px', borderTop: `1px solid ${t.RULE}`, boxSizing: 'border-box' }}>
         <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: c }}>{tr('habits:share.title', { defaultValue: 'Who hears if you miss it' })}</div>
         <div style={{ marginTop: 3, fontFamily: t.DISPLAY, fontSize: 21, fontWeight: 700, letterSpacing: '-0.02em', color: t.INK }}>{habit.name}</div>
         <div style={{ marginTop: 8, fontFamily: t.BODY, fontSize: 13.5, lineHeight: 1.45, color: t.INK70 }}>{tr('habits:share.sub', { defaultValue: "At 8 pm your time, if it isn't checked off, the people you pick get a notification. They see the habit's name, nothing else." })}</div>
@@ -331,7 +332,7 @@ function BSHabitOptionsSheet({ habit, accent, reminder, watchers = null, onPick,
   const target = typeof document !== 'undefined' ? document.getElementById('bs-phone-surface') : null;
   const sheet = (
     <div onClick={onClose} style={{ position: 'absolute', inset: 0, zIndex: 90, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'flex-end' }}>
-      <div role="dialog" aria-label={tr('habits:options.title', { defaultValue: 'Habit options' })} onClick={e => e.stopPropagation()} style={{ width: '100%', boxSizing: 'border-box', background: t.PAPER, borderTopLeftRadius: 18, borderTopRightRadius: 18, padding: '18px 18px 24px', borderTop: `1px solid ${t.RULE}` }}>
+      <div ref={bsDialogRef(onClose)} role="dialog" aria-label={tr('habits:options.title', { defaultValue: 'Habit options' })} onClick={e => e.stopPropagation()} style={{ width: '100%', boxSizing: 'border-box', background: t.PAPER, borderTopLeftRadius: 18, borderTopRightRadius: 18, padding: '18px 18px 24px', borderTop: `1px solid ${t.RULE}` }}>
         <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: c }}>{tr('habits:options.title', { defaultValue: 'Habit options' })}</div>
         <div style={{ marginTop: 3, fontFamily: t.DISPLAY, fontSize: 21, fontWeight: 700, letterSpacing: '-0.02em', color: t.INK }}>{habit.name}</div>
         <div style={{ marginTop: 10, borderTop: `1px solid ${t.HAIR}` }}>
@@ -806,7 +807,7 @@ function BSHabitAddSheet({ type, accent, onClose, onCreate }) {
   const add = async () => { if (!canAdd || saving.current) return; saving.current = true; setPending(true); try { await onCreate({ name: name.trim(), type: isAvoid ? 'avoid' : 'do', pts, domain: domain || undefined }); } finally { saving.current = false; setPending(false); } };
   const sheet = (
     <div onClick={onClose} style={{ position: 'absolute', inset: 0, zIndex: 60, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end' }}>
-      <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', boxSizing: 'border-box', background: t.PAPER, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderTop: `1px solid ${t.RULE}`, padding: `10px ${t.padX}px 18px`, boxShadow: '0 -20px 50px rgba(0,0,0,0.4)' }}>
+      <div ref={bsDialogRef(onClose)} role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()} style={{ width: '100%', boxSizing: 'border-box', background: t.PAPER, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderTop: `1px solid ${t.RULE}`, padding: `10px ${t.padX}px 18px`, boxShadow: '0 -20px 50px rgba(0,0,0,0.4)' }}>
         <div style={{ width: 40, height: 4, borderRadius: 999, background: t.RULE, margin: '0 auto 14px' }} />
         <div style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: accent }}>{isAvoid ? tr('habits:add.newToDont', { defaultValue: 'New to-don’t' }) : tr('habits:add.newToDo', { defaultValue: 'New to-do' })}</div>
         <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 28, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK }}>{tr('habits:add.somethingTo', { defaultValue: 'Something to' })} <span style={{ fontStyle: 'italic', color: accent }}>{isAvoid ? tr('habits:add.emphAvoid', { defaultValue: 'avoid.' }) : tr('habits:add.emphDo', { defaultValue: 'do.' })}</span></div>

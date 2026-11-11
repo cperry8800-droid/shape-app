@@ -91,7 +91,7 @@ test('the module carries its own translator and imports only React, the portal a
   assert.match(view, /^function useShapeTr\(\) \{/m);
   assert.equal((view.match(/window\.ShapeI18n/g) || []).length, 1, 'window.ShapeI18n must be read only inside useShapeTr()');
   const imports = [...view.matchAll(/^import .* from '([^']+)';/gm)].map((m) => m[1]);
-  assert.deepEqual(imports, ['react', 'react-dom', './BSDash.jsx', './bsCleanType.jsx']);
+  assert.deepEqual(imports, ['react', 'react-dom', './BSDash.jsx', './bsCleanType.jsx', '../services/dialogBack.mjs']);
   assert.ok(!imports.some((s) => /iosAppBroadsheet/.test(s)), 'the module imports a host module back');
   // The clean type the coach pages use: the page swaps its faces (useBSClean) and hands them down.
   assert.match(view, /const t = useBSClean\(\);/);

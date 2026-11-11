@@ -87,8 +87,9 @@ test('the client imports both pages, declares none of what they draw, and publis
   assert.doesNotMatch(mealSrc + grocSrc, /__mealDetailLook|__groceryLook/, 'a design switch was left behind');
   assert.match(client, /Object\.assign\(window, \{ BSMealLogged, BSCookWithDoor, useBSLibrary, bsLibToggle, bsHouseholdQty, bsMealSchedTime, bsFmt12 \}\);/);
   assert.match(client, /Object\.assign\(window, \{ bsNormalizeGroceryList, bsGroceryAisleFor, useBSLibrary, bsLibToggle \}\);/);
-  // Where the pages are drawn did not move.
-  assert.equal((client.match(/<BSMealPreview meal=/g) || []).length, 3);
+  // Where the pages are drawn did not move: Eat's two (its own meal, a plan meal). Home's, which nothing
+  // opened, is gone (the War Room's App Back, left by #2689).
+  assert.equal((client.match(/<BSMealPreview meal=/g) || []).length, 2);
   assert.equal((client.match(/<BSGrocery list=\{activeGroceryList\}/g) || []).length, 1);
 });
 

@@ -21,6 +21,7 @@ import { BSMakeItYours, BS_STAT_WORDS } from './BSMakeItYours.jsx';
 import { bsReceivedGroceryList } from '../services/groceryShare.mjs';
 import { BSCoachClimb, BSClimbProgramSheet, BSClimbRange, BSClimbStart, BSClimbProof, BSClimbWords, BSClimbSummit, BSClimbEmpty, BSClimbReadError, CLIMB, CLIMB_PEAK_COLORS, bsClimbAccent } from './BSCoachClimb.jsx';
 import { bsSaveReceivedGroceryList } from './BSGroceryShare.jsx';
+import { bsDialogRef } from '../services/dialogBack.mjs';
 
 const { ShapeVideoPlayer } = createMobileVideoComponents(React);
 // Nora's account setup announces the documents it changed (services/userGoalsRefresh.mjs).
@@ -129,7 +130,7 @@ function Sheet({ t, onClose, label, children, dark = false }) {
   const el = (
     <div style={{ position: 'absolute', inset: 0, zIndex: 220 }}>
       <div onClick={onClose} aria-hidden style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.45)' }} />
-      <div role="dialog" aria-label={label} style={{ position: 'absolute', left: 0, right: 0, bottom: 0, maxHeight: '88%', overflowY: 'auto', overflowX: 'hidden', borderRadius: '22px 22px 0 0', background: dark ? '#0c0d0f' : t.PAPER, color: dark ? '#e8ebef' : t.INK, fontFamily: t.BODY, WebkitFontSmoothing: 'antialiased', padding: '10px 18px calc(22px + env(safe-area-inset-bottom))', boxShadow: '0 -16px 40px rgba(0,0,0,0.28)' }}>
+      <div ref={bsDialogRef(onClose)} role="dialog" aria-label={label} style={{ position: 'absolute', left: 0, right: 0, bottom: 0, maxHeight: '88%', overflowY: 'auto', overflowX: 'hidden', borderRadius: '22px 22px 0 0', background: dark ? '#0c0d0f' : t.PAPER, color: dark ? '#e8ebef' : t.INK, fontFamily: t.BODY, WebkitFontSmoothing: 'antialiased', padding: '10px 18px calc(22px + env(safe-area-inset-bottom))', boxShadow: '0 -16px 40px rgba(0,0,0,0.28)' }}>
         <div aria-hidden style={{ width: 40, height: 4, borderRadius: 99, background: dark ? 'rgba(232,235,239,0.25)' : t.RULE, margin: '0 auto 8px' }} />
         {children}
       </div>
@@ -1759,7 +1760,7 @@ function OwnRecipePage({ t, tr, ACC, ON_ACC, ink, DISPLAY, MONO, recipe: r, firs
   const canCook = !!window.BSCookMode && (steps.length > 0 || ings.length > 0);
   const host = sheetHost();
   const el = (
-    <div role="dialog" aria-label={r.t} data-own-recipe={r.id} style={{ position: 'absolute', inset: 0, zIndex: 230, background: t.PAPER, color: t.INK, overflowY: 'auto', overflowX: 'hidden', fontFamily: t.BODY, WebkitFontSmoothing: 'antialiased' }}>
+    <div ref={bsDialogRef(onClose)} role="dialog" aria-label={r.t} data-own-recipe={r.id} style={{ position: 'absolute', inset: 0, zIndex: 230, background: t.PAPER, color: t.INK, overflowY: 'auto', overflowX: 'hidden', fontFamily: t.BODY, WebkitFontSmoothing: 'antialiased' }}>
       <div style={{ position: 'relative' }}>
         {r.photo ? <img src={r.photo} alt="" style={{ display: 'block', width: '100%', height: 240, objectFit: 'cover' }} />
           : <div aria-hidden style={{ height: `calc(${window.BS_MAST_TOP_CSS || '44px'} + 110px)`, background: `linear-gradient(135deg, ${hexA(ACC, 0.6)}, ${t.PAPER2})` }} />}
@@ -2044,7 +2045,7 @@ function PlateNotesSheet({ t, tr, locale, day, i, setI, ACC, DISPLAY, MONO, firs
   const recipe = bsKitchenRecipe(m.recipeId);
   const host = sheetHost();
   const el = (
-    <div role="dialog" aria-label={tr('profile:nutri.tabPlateNotes', { defaultValue: 'Plate notes' })} style={{ position: 'absolute', inset: 0, zIndex: 230, background: '#0c0d0f', color: '#e8ebef', overflowY: 'auto', overflowX: 'hidden', fontFamily: t.BODY, WebkitFontSmoothing: 'antialiased' }}>
+    <div ref={bsDialogRef(onClose)} role="dialog" aria-label={tr('profile:nutri.tabPlateNotes', { defaultValue: 'Plate notes' })} style={{ position: 'absolute', inset: 0, zIndex: 230, background: '#0c0d0f', color: '#e8ebef', overflowY: 'auto', overflowX: 'hidden', fontFamily: t.BODY, WebkitFontSmoothing: 'antialiased' }}>
       <div style={{ padding: 'calc(10px + env(safe-area-inset-top)) 8px 0 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span style={{ fontFamily: MONO, fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', color: muted }}>{tr('profile:nutri.tabPlateNotes', { defaultValue: 'Plate notes' })} · {(() => { try { return Number.isFinite(day.at) ? new Date(day.at).toLocaleDateString(locale, { weekday: 'long' }) : ''; } catch (e) { return ''; } })()}</span>
         <CloseX onClose={onClose} color="#e8ebef" label={tr('profile:trainer.close', { defaultValue: 'Close' })} />
@@ -2159,7 +2160,7 @@ function ReplaySheet({ t, tr, r, i, setI, ACC, DISPLAY, MONO, first, avatar, isS
   const muted = 'rgba(232,235,239,0.6)';
   const host = sheetHost();
   const el = (
-    <div role="dialog" aria-label={r.title} style={{ position: 'absolute', inset: 0, zIndex: 230, background: '#0c0d0f', color: '#e8ebef', overflowY: 'auto', overflowX: 'hidden', fontFamily: t.BODY, WebkitFontSmoothing: 'antialiased' }}>
+    <div ref={bsDialogRef(onClose)} role="dialog" aria-label={r.title} style={{ position: 'absolute', inset: 0, zIndex: 230, background: '#0c0d0f', color: '#e8ebef', overflowY: 'auto', overflowX: 'hidden', fontFamily: t.BODY, WebkitFontSmoothing: 'antialiased' }}>
       <div style={{ padding: 'calc(10px + env(safe-area-inset-top)) 8px 0 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span style={{ fontFamily: MONO, fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', color: muted }}>{rows.length ? tr('profile:trainer.replay', { defaultValue: 'Replay' }) : tr('profile:trainer.workout', { defaultValue: 'Workout' })}{r.typeLabel ? ` · ${r.typeLabel}` : ''}{r.ago ? ` · ${bsShortAge(r.ago, tr)}` : ''}</span>
         <CloseX onClose={onClose} color="#e8ebef" label={tr('profile:trainer.close', { defaultValue: 'Close' })} />

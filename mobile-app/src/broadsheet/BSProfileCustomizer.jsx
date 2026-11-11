@@ -11,6 +11,7 @@ import {
   BS_FILM_CAPTION_MAX, BS_BIZ_NAME_MAX, BS_BIZ_WHERE_MAX, BS_BIZ_HOURS_MAX, BS_BIZ_HANDLE_MAX, BS_PINNED_REVIEWS_MAX,
   BS_PIN_KINDS, BS_PROFILE_PROMPTS, BS_COACH_PROMPTS, bsPinKindLabel, bsPinKindToken, bsPromptLabel, bsPromptToken,
 } from '../services/profileCustom.mjs';
+import { bsDialogRef } from '../services/dialogBack.mjs';
 // ─── CUSTOMIZE · THE PROFILE EDITOR ──────────────────────────────────────────────────────────────
 // What a member (or a coach, `coach`) edits their public profile in: opened from the profile's ✎ and
 // Edit profile, and from Settings → Customize. Moved out of iosAppBroadsheetClient.jsx when it was
@@ -1101,7 +1102,7 @@ export function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coac
   const discardSheet = asking ? (
     <div data-cust-discard="" onClick={keepEditing} style={{ position: 'absolute', inset: 0, zIndex: 10, background: 'rgba(8,7,6,0.55)', display: 'flex', alignItems: 'flex-end', padding: `0 ${Math.max(10, gutter - 8)}px calc(12px + env(safe-area-inset-bottom, 0px))`, boxSizing: 'border-box' }}>
       <BSCleanType t={tClean}>
-        <div role="alertdialog" aria-modal="true" aria-labelledby="bs-cust-leave-title" aria-describedby="bs-cust-leave-msg" onClick={(e) => e.stopPropagation()} className={motion ? 'bs-cust-in' : undefined}
+        <div ref={bsDialogRef(keepEditing)} role="alertdialog" aria-modal="true" aria-labelledby="bs-cust-leave-title" aria-describedby="bs-cust-leave-msg" onClick={(e) => e.stopPropagation()} className={motion ? 'bs-cust-in' : undefined}
           style={{ ...plate(), width: '100%', borderRadius: 24, padding: '20px 18px 18px' }}>
           <BSGlassEdge t={tTheme} />
           {tag(tr('profile:editor.leave.eyebrow', { defaultValue: 'Unsaved changes' }))}
@@ -1149,7 +1150,7 @@ export function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coac
     <>
       {/* Full-page takeover — the customizer owns the screen. The hub scrolls here; an area's page is a
           BSPage, which scrolls itself. Under the live preview it stays as it was, hidden and out of reach. */}
-      <div data-cust-root="" className={areaPage ? undefined : 'bs-scroll'} role="dialog" aria-modal="true"
+      <div ref={bsDialogRef(closeEditor)} data-cust-root="" className={areaPage ? undefined : 'bs-scroll'} role="dialog" aria-modal="true"
         {...(areaPage ? { 'aria-label': AREAS[area].name } : { 'aria-labelledby': 'bs-cust-title' })}
         aria-hidden={livePage ? true : undefined} inert={livePage ? true : undefined}
         style={{ position: 'absolute', inset: 0, zIndex: 220, background: BG, color: INK, overflowY: areaPage ? 'hidden' : 'auto', overflowX: 'hidden', visibility: livePage ? 'hidden' : undefined, '--cust-teal': TEAL, '--cust-glow': hexA(TEAL, 0.85), '--cust-well': wellIn, '--cust-ph': ink(0.42) }}>
@@ -1205,7 +1206,7 @@ export function bsLivePreviewLayer({ t = {}, tClean = null, tr, page, unsaved = 
     </div>
   );
   return (
-    <div data-cust-live="" role="dialog" aria-modal="true" aria-label={unsaved ? `${title} · ${unsavedWord}` : title} onClickCapture={liveGuard}
+    <div ref={bsDialogRef(onBack)} data-cust-live="" role="dialog" aria-modal="true" aria-label={unsaved ? `${title} · ${unsavedWord}` : title} onClickCapture={liveGuard}
       style={{ position: 'absolute', inset: 0, zIndex, background: paper || t.PAPER_BG || t.PAPER || '#0f0e0c', overflow: 'hidden', '--cust-teal': TEAL, '--cust-glow': hexA(TEAL, 0.85) }}>
       {page}
       <div data-cust-live-bar="" style={{ position: 'absolute', zIndex: 70, bottom: 'calc(12px + env(safe-area-inset-bottom, 0px))', left: edge, right: edge }}>

@@ -243,5 +243,9 @@
   "morningSwap.swap": "Değiştir",
   "morningSwap.keep": "Kalsın",
   "morningSwap.done": "Bugün için değiştirildi: {recipe}.",
-  "morningSwap.failed": "Değişiklik kaydedilmedi. Tekrar dene."
+  "morningSwap.failed": "Değişiklik kaydedilmedi. Tekrar dene.",
+  "prep.goneEyebrow": "Bu akşamın hazırlığı",
+  "prep.goneTitle": "Bu tarif artık mutfakta yok",
+  "prep.goneMessage": "Hatırlatıcı, Shape mutfağında artık olmayan bir tarifi gösteriyordu, bu yüzden pişirilecek bir şey yok. Bu akşamın yemekleri burada, Yemek bölümünde.",
+  "prep.goneOk": "Anladım"
 }

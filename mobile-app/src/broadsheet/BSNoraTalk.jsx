@@ -2,6 +2,7 @@ import React from 'react';
 import { createVoiceLoop } from '../../../public/newdesign/noraVoiceLoop.mjs';
 import { bsNoraPhotoError } from './noraFace.mjs';
 import { BSPaidLock, bsNoraLockRead, bsNoraLockFromCode, bsPaidSentence, bsPaidRefused } from './BSPaidLock.jsx';
+import { bsDialogRef } from '../services/dialogBack.mjs';
 // ─── TALK TO NORA (the Nora sheet's voice view) ──────────────────────────────
 // Owner, 2026-10-08: "a button in chat where you can initiate talking and her face
 // appears". The Talk button opens this view over the sheet: her face, a ring that moves
@@ -183,7 +184,7 @@ export function BSNoraTalk({ talk, t, tint, avatar }) {
     return { ...base, opacity: quiet ? 0.3 : 0.5, transform: `scaleY(${BAR_REST})` };
   };
   return (
-    <div data-nora-talk role="dialog" aria-label={tr('feed:support.voice.title', { defaultValue: 'Talking to Nora' })}
+    <div ref={bsDialogRef(talk.end)} data-nora-talk role="dialog" aria-label={tr('feed:support.voice.title', { defaultValue: 'Talking to Nora' })}
       style={{ position: 'absolute', inset: 0, zIndex: 3, overflow: 'hidden', background: DARK, color: LIGHT, display: 'flex', flexDirection: 'column', alignItems: 'center', padding: `22px ${t.padX}px calc(22px + env(safe-area-inset-bottom, 0px))`, textAlign: 'center' }}>
       <style>{KEYFRAMES}</style>
       {/* The room's light: a teal wash behind where her face sits. */}

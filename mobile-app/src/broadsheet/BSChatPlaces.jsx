@@ -2,6 +2,7 @@ import React from 'react';
 import { createPortal } from 'react-dom';
 import { bsWsAccent, bsWsHead, bsWsHexA } from './bsMagazine.mjs';
 import { bsWallRaised } from './BSWallTop.jsx';
+import { bsDialogRef } from '../services/dialogBack.mjs';
 // ─── CHAT · THE TITLE IS THE SWITCH ──────────────────────────────────────────────────────────────
 // Owner, 2026-10-26, on the Chat page's tab rows (Feed / Team / Channels over Wall / Client / Community
 // over the six types): "still dont love the look of this", "give me 3 new ideas", then "go with B". The
@@ -92,7 +93,7 @@ export function BSChatPlacesSheet({ places = [], current, onPick, onClose }) {
   const surface = (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || document.body;
   return createPortal(
     <div onClick={onClose} data-bs-chat-places="" style={{ position: 'absolute', inset: 0, zIndex: 220, display: 'flex', alignItems: 'flex-end', background: shown ? 'rgba(0,0,0,0.42)' : 'rgba(0,0,0,0)', transition: still ? 'none' : 'background 200ms ease' }}>
-      <div ref={panelRef} role="dialog" aria-modal="true" aria-label={tr('feed:places.goTo', { defaultValue: 'Go to' })} tabIndex={-1} onClick={(e) => e.stopPropagation()} className="bs-scroll"
+      <div ref={bsDialogRef(onClose, panelRef)} role="dialog" aria-modal="true" aria-label={tr('feed:places.goTo', { defaultValue: 'Go to' })} tabIndex={-1} onClick={(e) => e.stopPropagation()} className="bs-scroll"
         style={{ width: '100%', maxHeight: '82%', overflowY: 'auto', outline: 'none', background: t.PAPER, color: t.INK, borderTopLeftRadius: 14, borderTopRightRadius: 14, borderTop: `1px solid ${t.RULE}`,
           padding: `10px ${t.padX}px calc(28px + env(safe-area-inset-bottom, 0px))`, boxShadow: '0 -12px 30px rgba(0,0,0,0.22)',
           transform: shown || still ? 'translateY(0)' : 'translateY(100%)', transition: still ? 'none' : 'transform 240ms cubic-bezier(.2,.8,.2,1)' }}>

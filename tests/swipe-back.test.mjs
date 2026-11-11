@@ -92,6 +92,7 @@ class El extends globalThis.Element {
     this.listeners = {};
   }
   hasAttribute(n) { return n in this.attrs; }
+  getAttribute(n) { return n in this.attrs ? this.attrs[n] : null; }
   closest(sel) {
     for (let el = this; el; el = el.parentElement) {
       if (sel === '[data-bs-page]' && el.hasAttribute('data-bs-page')) return el;
@@ -102,9 +103,12 @@ class El extends globalThis.Element {
   }
   getClientRects() { return this.hidden ? [] : [{}]; }
   querySelectorAll(sel) {
-    assert.equal(sel, '[data-bs-back]');
+    // A marked Back, or a dialog (services/dialogBack.mjs: the sheet under a scrim a touch landed on).
+    const DIALOGS = '[role="dialog"], [role="alertdialog"]';
+    assert.ok(sel === '[data-bs-back]' || sel === DIALOGS, sel);
+    const hit = sel === DIALOGS ? (c) => ['dialog', 'alertdialog'].includes(c.getAttribute('role')) : (c) => c.hasAttribute('data-bs-back');
     const out = [];
-    const walkDom = (el) => { for (const c of el.children) { if (c.hasAttribute('data-bs-back')) out.push(c); walkDom(c); } };
+    const walkDom = (el) => { for (const c of el.children) { if (hit(c)) out.push(c); walkDom(c); } };
     walkDom(this);
     return out;
   }
@@ -410,6 +414,50 @@ test('a layer with no Back of its own (a sheet) still keeps every swipe', () => 
   touch('touchstart', inSheet, 6, 400);
   touch('touchend', inSheet, 200, 404);
   assert.equal(backs, 0);
+  assert.deepEqual(dispatched, []);
+});
+
+// The War Room's App Back, left by #2689: a sheet is a dialog, and a swipe on it, or on its scrim, closes it
+// (services/dialogBack.mjs), where before a layer with no marked Back kept every swipe. A left swipe on it is
+// never the next tab under it; one that must be answered keeps every swipe.
+test('a swipe on a sheet\'s scrim closes the sheet, never the page or the tab under it', async () => {
+  const { bsDialogRef } = await import('../mobile-app/src/services/dialogBack.mjs');
+  const { scroller, channel } = mountPage();
+  let pageBacks = 0;
+  let closes = 0;
+  channel.add({ fn: { current: () => { pageBacks++; } }, el: { current: new El() } });
+  const scrim = new El({ parent: scroller, style: { zIndex: '200', position: 'absolute' } });
+  const panel = new El({ parent: scrim, attrs: { role: 'dialog' } });
+  bsDialogRef(() => { closes++; })(panel);
+  dispatched.length = 0;
+  touch('touchstart', scrim, 140, 400);
+  touch('touchend', scrim, 300, 405);
+  assert.equal(closes, 1, 'a right swipe on the scrim closes the sheet');
+  const inPanel = new El({ parent: panel });
+  touch('touchstart', inPanel, 300, 400);
+  touch('touchend', inPanel, 120, 405);
+  assert.equal(closes, 1, 'a left swipe does not close it');
+  assert.equal(pageBacks, 0, 'the page behind it did not go back');
+  assert.deepEqual(dispatched, [], 'nor did the tab under it change');
+  // One that must be answered keeps every swipe.
+  const held = new El({ parent: scroller, style: { zIndex: '300', position: 'absolute' }, attrs: { role: 'alertdialog', 'data-bs-dialog': 'stay' } });
+  const inHeld = new El({ parent: held });
+  touch('touchstart', inHeld, 140, 400);
+  touch('touchend', inHeld, 300, 405);
+  // Nor does it slide under an edge drag, as a sheet that would close does.
+  touch('touchstart', inHeld, 6, 400);
+  touch('touchmove', inHeld, 60, 402);
+  assert.equal(held.style.transform || '', '', 'a dialog that must be answered followed the finger');
+  touch('touchend', inHeld, 60, 402);
+  // Held under a scrim of its own: an edge drag on the scrim does not move it either.
+  const heldScrim = new El({ parent: scroller, style: { zIndex: '400', position: 'absolute' } });
+  new El({ parent: heldScrim, attrs: { role: 'dialog', 'data-bs-dialog': 'stay' } });
+  touch('touchstart', heldScrim, 6, 400);
+  touch('touchmove', heldScrim, 60, 402);
+  assert.equal(heldScrim.style.transform || '', '', 'a scrim over a dialog that must be answered followed the finger');
+  touch('touchend', heldScrim, 60, 402);
+  assert.equal(closes, 1);
+  assert.equal(pageBacks, 0);
   assert.deepEqual(dispatched, []);
 });
 

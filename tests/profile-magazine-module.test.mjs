@@ -46,7 +46,7 @@ test('the theme is read at call time, and none of the client module\'s own helpe
 
 test('the module imports react, its portal and the magazine\'s colours only, and never the client module', () => {
   const imports = [...src.matchAll(/^import .* from '([^']+)';/gm)].map((m) => m[1]);
-  assert.deepEqual(imports, ['react', 'react-dom', './bsMagazine.mjs']);
+  assert.deepEqual(imports, ['react', 'react-dom', './bsMagazine.mjs', '../services/dialogBack.mjs']);
   assert.doesNotMatch(src, /iosAppBroadsheetClient/);
 });
 
