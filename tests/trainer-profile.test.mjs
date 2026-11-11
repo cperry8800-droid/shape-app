@@ -18,6 +18,7 @@ import { loadRealModule } from './helpers/load-real-module.mjs';
 import { bsCoachPronoun, bsCoachFirstName } from '../mobile-app/src/services/coachPronoun.mjs';
 import { bsStudioFromTemplate } from '../mobile-app/src/services/studioKit.mjs';
 import { BS_SUPABASE_HOST } from '../public/newdesign/listingMedia.mjs';
+import { bsCoachPagePalette, bsClimbWash } from '../mobile-app/src/services/coachPagePalette.mjs';
 
 const require_ = createRequire(import.meta.url);
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -279,21 +280,50 @@ test('a visitor sees a tab only when it has something in it; a private profile s
   await m.unmount();
 });
 
-test('the Climb is dark throughout, whatever colours the coach picked (owner, 2026-11-09: "the climb")', async () => {
+// Owner, 2026-11-11 ("make the coach cards look the same also on marketplace on app", after #2706 painted the
+// website's coach page and card): the paper and accent the coach picked paint the app's Climb too, from the
+// kit's bsCoachPagePalette, the website's own; the climb background is a wash over it. Was (2026-11-09) one
+// dark Climb whatever they picked.
+const cssOf = (v) => { const d = document.createElement('div'); d.style.background = v; return d.style.background; };
+test("the Climb takes the coach's paper, accent and climb background; Book keeps the role's colour", async () => {
+  const P = bsCoachPagePalette({ paper: 'bone', accent: 'rust' }, 'trainer');
   reset({ custom: { look: { paper: 'bone', accent: 'rust' } } });
-  const m = await mount(page());
-  assert.equal(document.querySelector('[data-trainer-profile]').style.background, CLIMB_BG, 'dark, not bone');
-  const msg = button(/^Message Maya$/);
+  let m = await mount(page());
+  const root = document.querySelector('[data-trainer-profile]');
+  assert.equal(root.style.background, cssOf(P.BG), 'the bone paper, not the dark Climb');
+  assert.equal(root.style.color, (() => { const d = document.createElement('div'); d.style.color = P.INK; return d.style.color; })(), "the paper's ink");
+  assert.equal(button(/^Message Maya$/).style.background, cssOf(P.ACCENT), "the coach's rust, at its readable step");
+  assert.equal(document.querySelector('[data-climb-book]').style.background, cssOf(P.CTA), "Book in the trainer's rust for a light paper");
+  await m.unmount();
+  // The climb background: the kit's wash over the paper.
+  reset({ custom: { look: { paper: 'bone', accent: 'rust' }, climbBg: 'dusk' } });
+  m = await mount(page());
+  assert.equal(document.querySelector('[data-trainer-profile]').style.background, cssOf(`${bsClimbWash('dusk')}, ${P.BG}`));
+  await m.unmount();
+  // A wash alone, on the dark Climb.
+  reset({ custom: { climbBg: 'ember' } });
+  m = await mount(page());
+  assert.equal(document.querySelector('[data-trainer-profile]').style.background, cssOf(`${bsClimbWash('ember')}, #0a0e11`));
+  await m.unmount();
+  // No pick, a bad key, and a private profile: the Climb as it was.
+  for (const over of [{ custom: { look: { paper: 'dark', accent: 'teal' } } }, { custom: { climbBg: '__proto__' } }, { canView: false, custom: { look: { paper: 'bone', accent: 'rust' }, climbBg: 'dusk' } }]) {
+    reset(over);
+    m = await mount(page());
+    assert.equal(document.querySelector('[data-trainer-profile]').style.background, CLIMB_BG, JSON.stringify(over));
+    await m.unmount();
+  }
+  reset({});
+  m = await mount(page());
   const probe = document.createElement('div'); probe.style.background = '#34d6c5';
-  assert.equal(msg.style.background, probe.style.background, "Shape's teal, not the coach's rust");
-  // The intro is booked in the trainer's rust.
+  assert.equal(button(/^Message Maya$/).style.background, probe.style.background, "Shape's teal with no pick");
   probe.style.background = '#c0533b';
   assert.equal(document.querySelector('[data-climb-book]').style.background, probe.style.background);
   await m.unmount();
 });
 
-test("the coach's own page is the same dark Climb members see, before, without and after their own doc's read", async () => {
+test("the coach's own page takes their colours once their own doc is read, and keeps the Climb until then", async () => {
   const painted = () => document.querySelector('[data-trainer-profile]').style.background;
+  const BONE = cssOf(bsCoachPagePalette({ paper: 'bone', accent: 'rust' }, 'trainer').BG);
   let release;
   reset({ me: 'u-maya', custom: { look: { paper: 'bone', accent: 'rust' } }, stored: { look: { paper: 'bone', accent: 'rust' } } });
   world.readHold = new Promise((r) => { release = r; });
@@ -302,7 +332,7 @@ test("the coach's own page is the same dark Climb members see, before, without a
   world.readHold = null;
   release();
   await flush();
-  assert.equal(painted(), CLIMB_BG, 'once it is read');
+  assert.equal(painted(), BONE, 'once it is read');
   await m.unmount();
   reset({ me: 'u-maya', custom: { look: { paper: 'bone', accent: 'rust' } }, readFails: true });
   m = await mount(page({ isSelf: true }));
@@ -614,7 +644,7 @@ test('Make it yours in the demo changes the page on screen, saves nothing, and a
     await click(document.querySelector('[data-save-mine]'));
     assert.ok(!document.querySelector('[data-make-it-yours]'), 'Save closes the editor');
     assert.equal(document.querySelector('img[alt="Quinn\'s wall photo"]').getAttribute('src'), '/m/demo/studio-01.webp', 'the new wall photo');
-    assert.equal(document.querySelector('[data-trainer-profile]').style.background, CLIMB_BG, 'the Climb stays dark: the paper is kept in the doc');
+    assert.equal(document.querySelector('[data-trainer-profile]').style.background, cssOf(bsCoachPagePalette({ paper: 'sage' }, 'trainer').BG), 'the page takes the sage paper picked (owner, 2026-11-11)');
     await m.unmount();
     assert.equal(world.saved, null);
     assert.deepEqual(spy.calls, [], 'nothing read or written');
@@ -907,7 +937,7 @@ test('a demo saved in Make it yours keeps only what was changed, so the Studio s
     await flush();
     assert.ok(camp('range'), 'the range camp');
     assert.match(m.text(), /Fuerte en 12/, 'the Studio follows the language after a colours-only save');
-    assert.equal(document.querySelector('[data-trainer-profile]').style.background, CLIMB_BG, 'the Climb stays dark');
+    assert.equal(document.querySelector('[data-trainer-profile]').style.background, cssOf(bsCoachPagePalette({ paper: 'sage' }, 'trainer').BG), 'the page takes the paper picked');
     await m.unmount();
   } finally { window.ShapeLocale = hadLocale; window.ShapeI18n.t = hadT; client.restore(); }
 });

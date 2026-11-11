@@ -19,7 +19,8 @@ import { BSCoachHoursPage } from './BSCoachHours.jsx';
 import { BSCoachBusinessPage, BSCoachBusinessCard } from './BSCoachBusiness.jsx';
 import { BSMakeItYours, BS_STAT_WORDS } from './BSMakeItYours.jsx';
 import { bsReceivedGroceryList } from '../services/groceryShare.mjs';
-import { BSCoachClimb, BSClimbProgramSheet, BSClimbRange, BSClimbStart, BSClimbProof, BSClimbWords, BSClimbSummit, BSClimbEmpty, BSClimbReadError, CLIMB, CLIMB_PEAK_COLORS, bsClimbAccent } from './BSCoachClimb.jsx';
+import { BSCoachClimb, BSClimbProgramSheet, BSClimbRange, BSClimbStart, BSClimbProof, BSClimbWords, BSClimbSummit, BSClimbEmpty, BSClimbReadError, CLIMB_PEAK_COLORS, bsClimbAccent, bsClimbTheme, BSClimbThemeProvider } from './BSCoachClimb.jsx';
+import { bsCoachPagePalette, bsClimbWash } from '../services/coachPagePalette.mjs';
 import { bsSaveReceivedGroceryList } from './BSGroceryShare.jsx';
 import { bsDialogRef } from '../services/dialogBack.mjs';
 
@@ -231,29 +232,37 @@ export function BSTrainerProfile(props) {
   const custom = previewCustom || (demo
     ? (() => { const c = { ...demo.custom }; if (demo.mode === 'self') for (const [k, v] of Object.entries(demoOwn || {})) { if (v === null) delete c[k]; else c[k] = v; } return c; })()
     : isSelf ? own : (live && live.custom) || null);
-  // The Climb is dark throughout, in Shape's teal (a nutritionist's gold), for every coach (owner,
-  // 2026-11-09: "the climb", one layout): of the colours a coach picked in Make it yours, only the accent
-  // reaches the page, and only its drawing (bsClimbAccent); the paper stays in their doc.
+  // The coach's own colours (owner, 2026-11-11, after the website's page and card took them in #2706): the
+  // paper and accent they picked paint the whole Climb, the camps' plates and the masthead included (the
+  // provider's paper), from the kit's bsCoachPagePalette as on the website; their climb background is a
+  // wash over it. No pick, and a private profile, keep the Climb's dark look.
+  const lockedCard = !!(live && (live.can_view === false || (live.can_view == null && live.is_public === false)));
+  const pick = !lockedCard && custom ? bsProfileLook(custom.look) : null;
+  const pagePal = bsCoachPagePalette(pick, role);
+  const theme = bsClimbTheme(pagePal, !lockedCard && custom ? bsClimbWash(custom.climbBg) : null);
   const page = demo
-    ? <TrainerPage {...props} role={role} demo={demo} live={demo.mode === 'self' ? demo.live : null} custom={custom} setOwn={saveDemo} ownState="ready" ownFor={null} />
-    : <TrainerPage {...props} role={role} live={live} custom={custom} setOwn={setOwn} ownState={isSelf ? ownState : 'ready'} ownFor={ownFor} onRetryOwn={() => setOwnEpoch((n) => n + 1)} />;
-  if (!BSProvider) return page;
+    ? <TrainerPage {...props} role={role} demo={demo} live={demo.mode === 'self' ? demo.live : null} custom={custom} setOwn={saveDemo} ownState="ready" ownFor={null} theme={theme} />
+    : <TrainerPage {...props} role={role} live={live} custom={custom} setOwn={setOwn} ownState={isSelf ? ownState : 'ready'} ownFor={ownFor} onRetryOwn={() => setOwnEpoch((n) => n + 1)} theme={theme} />;
+  const themed = <BSClimbThemeProvider value={theme}>{page}</BSClimbThemeProvider>;
+  if (!BSProvider) return themed;
   return (
-    <BSProvider paperMode="dark" accentKey={nutri ? 'amber' : 'teal'} densityKey={outer.densityKey} borderKey={outer.borderKey}
+    <BSProvider paperMode={pagePal ? (pagePal.paperKey || 'dark') : 'dark'} accentKey={pagePal && pagePal.accentKey ? pagePal.accentKey : (nutri ? 'amber' : 'teal')} densityKey={outer.densityKey} borderKey={outer.borderKey}
       weightKey={outer.weightKey} textScaleKey={outer.textScaleKey} textureKey={outer.textureKey} textureColor={outer.textureColor}>
-      {page}
+      {themed}
     </BSProvider>
   );
 }
 
-function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = false, meMode = false, onOpenSettings = () => {}, onOpenScore = null, live, custom, setOwn, ownState = 'ready', ownFor = null, onRetryOwn = () => {}, demo = null, onListing = null, previewCustom = null }) {
+function TrainerPage({ theme = null, person, role = 'trainer', onBack, onMessage, isSelf = false, meMode = false, onOpenSettings = () => {}, onOpenScore = null, live, custom, setOwn, ownState = 'ready', ownFor = null, onRetryOwn = () => {}, demo = null, onListing = null, previewCustom = null }) {
   const W = window;
   const t = W.useBS();
   const tr = useShapeTr();
   const nutri = role === 'nutritionist';
   const locale = intlLocale();
-  const ACC = nutri ? CLIMB.GOLD : CLIMB.TEAL;
-  const ON_ACC = onColor(ACC);
+  // The Climb's theme (the coach's colours, else the Climb's own: BSTrainerProfile above).
+  const CLIMB = theme || bsClimbTheme(null);
+  const ACC = CLIMB.accFor(nutri);
+  const ON_ACC = CLIMB.picked ? CLIMB.onAccFor(nutri) : onColor(ACC);
   const INK = t.INK;
   const ink = (a) => hexA(INK, a);
   const MONO = t.MONO || "'JetBrains Mono', monospace";
@@ -925,7 +934,7 @@ function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = fal
       <BSClimbSummit>
         {isSelf ? <p style={{ margin: 0, fontSize: 14, lineHeight: 1.5, color: CLIMB.MUTED }}>{tr('profile:climb.summitSelf', { defaultValue: 'Members start working with you from here: the intro, your plans and your coaching.' })}</p> : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {dock && dock.onBook ? <button type="button" data-climb-summit-book="" onClick={dock.onBook} style={{ minHeight: 50, borderRadius: 11, border: 0, background: nutri ? CLIMB.GOLD : CLIMB.RUST, color: nutri ? '#14100a' : '#ffffff', fontSize: 15, fontWeight: 700, cursor: 'pointer' }}>{dock.bookLabel}</button> : null}
+            {dock && dock.onBook ? <button type="button" data-climb-summit-book="" onClick={dock.onBook} style={{ minHeight: 50, borderRadius: 11, border: 0, background: CLIMB.ctaFor(nutri), color: CLIMB.onCtaFor(nutri), fontSize: 15, fontWeight: 700, cursor: 'pointer' }}>{dock.bookLabel}</button> : null}
             <button type="button" data-climb-plans="" onClick={() => setSheet({ kind: 'work' })} style={{ minHeight: 50, borderRadius: 11, border: `1px solid ${CLIMB.LINE2}`, background: 'transparent', color: CLIMB.INK, fontSize: 15, fontWeight: 700, cursor: 'pointer' }}>{tr('profile:climb.plansPrices', { defaultValue: 'Plans and prices' })}</button>
           </div>
         )}
@@ -1014,7 +1023,7 @@ function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = fal
             {isSelf ? <span aria-hidden style={{ flex: 'none', color: CLIMB.DIM }}><BSMpIcon name="chevron" size={16} stroke={2.2} /></span> : null}
           </>
         );
-        const rowStyle = { borderRadius: 12, border: `1px solid ${CLIMB.LINE}`, background: 'rgba(14,20,25,0.7)', display: 'flex', alignItems: 'center', gap: 8, width: '100%', minHeight: 48, margin: '14px 0 0', padding: '5px 10px 5px 6px', textAlign: 'left', color: CLIMB.INK, boxSizing: 'border-box' };
+        const rowStyle = { borderRadius: 12, border: `1px solid ${CLIMB.LINE}`, background: `rgba(${CLIMB.PLATE_RGB},0.7)`, display: 'flex', alignItems: 'center', gap: 8, width: '100%', minHeight: 48, margin: '14px 0 0', padding: '5px 10px 5px 6px', textAlign: 'left', color: CLIMB.INK, boxSizing: 'border-box' };
         const openScore = () => {
           if (typeof onOpenScore === 'function') { onOpenScore(); return; }
           try { window.dispatchEvent(new window.CustomEvent('shape:openScore')); } catch (e) {}
@@ -1058,7 +1067,7 @@ function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = fal
     <BSPage>
       <div ref={pageRef} data-coach-page="">
         {canPickPhoto && photoHook.fileRef ? <input ref={photoHook.fileRef} type="file" accept="image/*" onChange={photoHook.onPick} style={{ display: 'none' }} /> : null}
-        <BSCoachClimb nutri={nutri} isSelf={isSelf} isPrivate={isPrivate} who={who} accent={isPrivate ? null : bsClimbAccent(look.accent, nutri ? 'nutritionist' : 'trainer')} detailTitle={meMode ? '' : name} wall={isPrivate ? null : wall} wallAlt={tr('profile:trainer.wallAlt', { defaultValue: "{name}'s wall photo", name: first })} focus={bsLookPosition(look, FOCUS_POS)} mast={mast}
+        <BSCoachClimb nutri={nutri} isSelf={isSelf} isPrivate={isPrivate} who={who} accent={isPrivate ? null : (CLIMB.picked ? CLIMB.DRAW : bsClimbAccent(look.accent, nutri ? 'nutritionist' : 'trainer'))} detailTitle={meMode ? '' : name} wall={isPrivate ? null : wall} wallAlt={tr('profile:trainer.wallAlt', { defaultValue: "{name}'s wall photo", name: first })} focus={bsLookPosition(look, FOCUS_POS)} mast={mast}
           onPickPhoto={canPickPhoto ? () => { if (photoHook.fileRef?.current) photoHook.fileRef.current.click(); } : null}
           onAddWall={isSelf && !wall && editReady ? () => openEdit('wall') : null}
           rating={!isPrivate && reviews && reviews.count > 0 ? { avg: reviews.avg, count: reviews.count } : null} ratingNew={!isPrivate && !!reviews && !(reviews.count > 0)} onRating={() => setSheet({ kind: 'reviews' })}

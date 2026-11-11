@@ -678,6 +678,18 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
       ],
     },
     {
+      section: 'The coach\'s look in the app: the paper, accent and climb background a coach picks paint their coach page and their card on the Coaches tab, as on the website (#2706). No migration',
+      items: [
+        { label: 'Owner, 2026-11-11: "make the coach cards look the same also on marketplace on app", "fix all of that"', status: 'done' },
+        { label: 'The coach page (BSCoachClimb.jsx, BSTrainerProfile.jsx): every fixed Climb colour reads a theme (bsClimbTheme, useClimb), from the kit\'s bsCoachPagePalette through services/coachPagePalette.mjs: the ground, plates, bar, portrait, text, controls and drawing; the climb background is a wash over it; the camps and the masthead take the paper through BSProvider. No pick, and a private profile, keep the Climb exactly; Book keeps the role\'s rust or gold', status: 'done' },
+        { label: 'The Coaches tab (iosAppBroadsheetMarketplace.jsx, BSMarketDirectory.jsx): each live coach\'s public card is read (six at a time) and their row and pick take their look (services/coachCardLook.mjs): the paper and accent, the wash, their own cover at its dragged spot under a scrim of the paper; a wash or a cover with no colours is the Climb\'s dark card. Samples, listings with no account, private cards and no pick keep the directory\'s row', status: 'done' },
+        { label: 'Was (2026-11-09): one dark Climb whatever the coach picked, the accent tinting only the drawing; tests changed with it: coach-climb (the labels take the accent at its readable step), trainer-profile (the page takes the paper, the demo\'s picked paper repaints it)', status: 'done' },
+        { label: 'Tests: app-coach-look (7: the app imports the website\'s kit, the card look and its none cases, the Climb card\'s 4.5:1, the theme, the page provides it, the tab reads the cards, the row and pick drawn); the page in trainer-profile and coach-climb. Checked in Chromium (the mounted page and cards, 390 wide): no pick, bone with blue and dusk, forest with rose, violet alone', status: 'done' },
+        { label: 'The app\'s plate notes and replays viewers keep their dark full-screen look, as the website\'s sheets do (the item below)', status: 'pending' },
+        { label: 'OWNER: pick a light paper, an accent and a climb background in Make it yours (or the website\'s Edit profile); your page in the app and your card on the app\'s Coaches tab take them', status: 'manual' },
+      ],
+    },
+    {
       section: 'The coach\'s look in public: the paper, accent and climb background picked in Edit profile paint their page and their Coaches card (#2706). No migration',
       items: [
         { label: 'Owner, 2026-11-11: "coaches should be able to customize how their page appears publicly. So the edits need to work. This should also effect the marketplace card as well"', status: 'done' },
@@ -685,7 +697,7 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: '#2706 the coach\'s page (coachProfileWeb.jsx): the paper paints the whole page through the stylesheet\'s --cpw-* properties (its fixed dark inks are gone from the stylesheet); the labels and controls take the accent at its readable step, the route and contours the accent as painted (the ink on a light paper), headings the ink on a light paper, and so does a photo-less recipe\'s initial (Codex); the Verified tick is dark or white on the accent, whichever reads (Codex); the booking keeps the role\'s colour (a darker step on a light paper); the climb background is a wash over the paper', status: 'done' },
         { label: '#2706 the coach\'s card on the Coaches page (marketplace.jsx): the same paper (steel with its sheen: Codex), accent and wash from get_public_profile.custom under can_view, their own cover photo (held to their own media, as the page\'s wall) at the spot they dragged it to; the badges and the summit on the photo keep their dark plates with the accent\'s dark-stock value. A sample, a listing with no account, a locked card and a coach with no pick keep the Climb\'s card; the kit loads as the page loads it, and without it the card is the Climb\'s', status: 'done' },
         { label: '#2706 tests: coach-look-public (6: no pick, the stocks, every colour on every surface, the booking, the washes pinned to the editor\'s, the step), web-coach-climb (the light page mounted: ground, ink, wash, labels, Book, the stylesheet, the route; no pick; an accent alone; the accent test now has labels take the accent), marketplace-page (the card mounted: paper, accent, wash, cover and spot; a stop alone; an accent alone; no pick, locked, another account\'s photo, a bad wash key)', status: 'done' },
-        { label: 'The app: its coach page (BSCoachClimb) takes the accent and not the paper or the climb background, and its coach cards take no look', status: 'pending' },
+        { label: 'The app: its coach page (BSCoachClimb) takes the accent and not the paper or the climb background, and its coach cards take no look. Done in the app coach look PR (its section above)', status: 'done' },
         { label: 'The quick view on the Coaches page and the coach page\'s sheets keep the Climb\'s dark look', status: 'pending' },
         { label: 'OWNER: pick a light paper and an accent in Edit profile → Appearance; your page and your card on the Coaches page take them', status: 'manual' },
       ],

@@ -377,16 +377,16 @@ function MktDirFilterSheet({ f }) {
 
 // ─── A COACH ─────────────────────────────────────────────────────────────────────────────────────
 // The rating as the row prints it: "★ 9.8", or New for a coach nobody has reviewed (never a number).
-function MktDirRating({ score }) {
+function MktDirRating({ score, pal = null }) {
   const { useBS } = window;
   const t = useBS();
   const tr = useShapeTr();
   if (score == null || !(Number(score) > 0)) {
-    return <span data-mkt-rating="new" aria-label={tr('marketplace:dir.newAria', { defaultValue: 'New · no reviews yet' })} style={{ color: t.INK70, fontWeight: 600 }}>{tr('marketplace:rating.new', { defaultValue: 'New' })}</span>;
+    return <span data-mkt-rating="new" aria-label={tr('marketplace:dir.newAria', { defaultValue: 'New · no reviews yet' })} style={{ color: pal ? pal.INK_SOFT : t.INK70, fontWeight: 600 }}>{tr('marketplace:rating.new', { defaultValue: 'New' })}</span>;
   }
   return (
     <span data-mkt-rating="" aria-label={tr('marketplace:dir.ratingAria', { defaultValue: 'Rated {score} out of 10', score: Number(score).toFixed(1) })}>
-      <span aria-hidden="true">★ </span><b style={{ color: t.INK, fontWeight: 700 }}>{Number(score).toFixed(1)}</b>
+      <span aria-hidden="true">★ </span><b style={{ color: pal ? pal.INK : t.INK, fontWeight: 700 }}>{Number(score).toFixed(1)}</b>
     </span>
   );
 }
@@ -394,19 +394,19 @@ function MktDirRating({ score }) {
 // The line under a coach: Example on a sample, ★ rating · price with its unit · the next open intro
 // (teal), or At capacity (amber). Each part stays whole; a narrow phone takes the line onto two, so the
 // name above keeps the row's width beside Book intro.
-function MktDirMeta({ card, size = 12.5 }) {
+function MktDirMeta({ card, size = 12.5, pal = null }) {
   const { useBS } = window;
   const t = useBS();
   const tr = useShapeTr();
   const D = bsDash(t);
   const price = mktDirPriceText(tr, card.price);
   const parts = [
-    ['rating', <MktDirRating score={card.score} />],
+    ['rating', <MktDirRating score={card.score} pal={pal} />],
     price ? ['price', price] : null,
-    card.next ? ['next', <span style={{ color: card.next.full ? (t.AMBER || '#d8a23a') : D.text.teal, fontWeight: 600 }}>{card.next.text}</span>] : null,
+    card.next ? ['next', <span style={{ color: card.next.full ? (pal ? pal.CTA_TEXT : (t.AMBER || '#d8a23a')) : (pal ? pal.ACCENT : D.text.teal), fontWeight: 600 }}>{card.next.text}</span>] : null,
   ].filter(Boolean);
   return (
-    <span data-mkt-meta="" style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: size, fontWeight: 500, lineHeight: 1.45, color: t.INK70, fontVariantNumeric: 'tabular-nums' }}>
+    <span data-mkt-meta="" style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: size, fontWeight: 500, lineHeight: 1.45, color: pal ? pal.INK_SOFT : t.INK70, fontVariantNumeric: 'tabular-nums' }}>
       {card.example ? <span style={{ display: 'inline-flex', verticalAlign: 'text-bottom', marginRight: 6 }}><MktDirExample /></span> : null}
       {parts.map(([k, v], i) => (
         <React.Fragment key={k}>
@@ -430,6 +430,20 @@ function MktDirExample() {
   );
 }
 
+// ⚠ THE COACH'S OWN LOOK ON THEIR CARD (owner, 2026-11-11: "make the coach cards look the same also on
+// marketplace on app", after the website's Coaches card took it in #2706). card.look is
+// services/coachCardLook.mjs's: their paper and accent (the kit's palette, the website card's own), the climb
+// background's wash and their cover photo at its dragged spot, under a scrim of the paper so every word
+// keeps the palette's 4.5:1. With no look the row is the directory's own.
+function mktDirLookBg(look) {
+  const P = look.pal;
+  const layers = [];
+  if (look.wash) layers.push(look.wash);
+  if (look.cover) layers.push(`linear-gradient(90deg, rgba(${P.BG_RGB},0.95) 45%, rgba(${P.BG_RGB},0.82))`, `url(${JSON.stringify(look.cover)}) ${look.coverPos || 'center 50%'} / cover no-repeat`);
+  layers.push(P.BG);
+  return layers.join(', ');
+}
+
 // A coach in the list: one row. The row opens them (their profile); Book intro, laid over its corner
 // (never inside the row's button), opens their page at its open times. A coach who is full reads
 // At capacity, and the corner says Waiting list.
@@ -441,26 +455,30 @@ function MktDirRow({ card, first = false }) {
   const role = mktDirRole(t, card.nutri);
   const spec = [mktDirRoleWord(tr, card.nutri), ...(card.spec || [])].join(' · ');
   const full = !!(card.next && card.next.full);
+  const look = card.look || null;
+  const P = look ? look.pal : null;
   return (
-    <div data-mkt-row="" style={{ position: 'relative', borderTop: first ? 0 : `1px solid ${t.HAIR}` }}>
+    <div data-mkt-row="" data-mkt-look={look ? (look.picked ? (P.paperKey || 'accent') : 'climb') : undefined}
+      style={look ? { position: 'relative', margin: first ? '4px 0 0' : '8px 0 0', padding: '0 12px', borderRadius: 14, border: `1px solid rgba(${P.inkRGB},0.16)`, background: mktDirLookBg(look), overflow: 'hidden' }
+        : { position: 'relative', borderTop: first ? 0 : `1px solid ${t.HAIR}` }}>
       <button type="button" data-mkt-open="" data-mkt-press="" onClick={card.onOpen}
-        style={{ width: '100%', display: 'flex', alignItems: 'flex-start', gap: 12, minHeight: 72, padding: '12px 0', boxSizing: 'border-box', border: 0, background: 'transparent', textAlign: 'left', cursor: 'pointer', color: t.INK }}>
+        style={{ width: '100%', display: 'flex', alignItems: 'flex-start', gap: 12, minHeight: 72, padding: '12px 0', boxSizing: 'border-box', border: 0, background: 'transparent', textAlign: 'left', cursor: 'pointer', color: P ? P.INK : t.INK }}>
         <span style={{ display: 'block', opacity: card.atCapacity && full ? 0.6 : 1 }}><MktDirFace photo={card.photo} name={card.name} nutri={card.nutri} size={46} /></span>
         <span style={{ flex: 1, minWidth: 0 }}>
           <span style={{ display: 'block', paddingRight: 104 }}>
             <span style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
-              <span style={{ minWidth: 0, fontFamily: t.HEAD || t.DISPLAY, fontSize: 15.5, fontWeight: 700, letterSpacing: '-0.02em', lineHeight: 1.25, color: t.INK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{card.name}</span>
-              {card.verified ? <span data-mkt-verified="" role="img" aria-label={tr('marketplace:dir.verified', { defaultValue: 'Verified' })} style={{ flex: 'none', color: D.mark.teal, fontSize: 13, fontWeight: 800, lineHeight: 1 }}>✓</span> : null}
+              <span style={{ minWidth: 0, fontFamily: t.HEAD || t.DISPLAY, fontSize: 15.5, fontWeight: 700, letterSpacing: '-0.02em', lineHeight: 1.25, color: P ? P.INK : t.INK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{card.name}</span>
+              {card.verified ? <span data-mkt-verified="" role="img" aria-label={tr('marketplace:dir.verified', { defaultValue: 'Verified' })} style={{ flex: 'none', color: P ? P.ACCENT : D.mark.teal, fontSize: 13, fontWeight: 800, lineHeight: 1 }}>✓</span> : null}
             </span>
-            <span data-mkt-spec="" style={{ display: 'block', marginTop: 2, fontFamily: t.DISPLAY, fontSize: 12.5, fontWeight: 600, lineHeight: 1.3, color: role.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{spec}</span>
+            <span data-mkt-spec="" style={{ display: 'block', marginTop: 2, fontFamily: t.DISPLAY, fontSize: 12.5, fontWeight: 600, lineHeight: 1.3, color: P ? P.CTA_TEXT : role.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{spec}</span>
           </span>
-          <span style={{ display: 'block', marginTop: 3 }}><MktDirMeta card={card} /></span>
+          <span style={{ display: 'block', marginTop: 3 }}><MktDirMeta card={card} pal={P} /></span>
         </span>
       </button>
       <button type="button" data-mkt-intro="" onClick={card.onIntro}
         aria-label={full ? tr('marketplace:dir.waitingListAria', { defaultValue: 'Join {name}’s waiting list', name: card.name }) : tr('marketplace:dir.bookIntroAria', { defaultValue: 'Book an intro with {name}', name: card.name })}
-        style={{ position: 'absolute', top: 6, right: 0, minHeight: 44, padding: 0, border: 0, background: 'transparent', cursor: 'pointer' }}>
-        <span style={{ display: 'inline-flex', alignItems: 'center', height: 30, padding: '0 12px', borderRadius: 999, border: `1px solid ${bsDashA(t.INK, 0.2)}`, background: D.track, color: t.INK, fontFamily: t.DISPLAY, fontSize: 12.5, fontWeight: 650, whiteSpace: 'nowrap' }}>
+        style={{ position: 'absolute', top: 6, right: look ? 12 : 0, minHeight: 44, padding: 0, border: 0, background: 'transparent', cursor: 'pointer' }}>
+        <span style={{ display: 'inline-flex', alignItems: 'center', height: 30, padding: '0 12px', borderRadius: 999, border: `1px solid ${P ? `rgba(${P.inkRGB},0.28)` : bsDashA(t.INK, 0.2)}`, background: P ? P.DEEP : D.track, color: P ? P.INK : t.INK, fontFamily: t.DISPLAY, fontSize: 12.5, fontWeight: 650, whiteSpace: 'nowrap' }}>
           {full ? tr('marketplace:dir.waitingList', { defaultValue: 'Waiting list' }) : tr('marketplace:dir.bookIntro', { defaultValue: 'Book intro' })}
         </span>
       </button>
@@ -476,16 +494,18 @@ function MktDirPick({ card }) {
   const D = bsDash(t);
   const role = mktDirRole(t, card.nutri);
   const price = card.price ? mktDirPriceText(tr, card.price) : null;
+  const look = card.look || null;
+  const P = look ? look.pal : null;
   return (
-    <button type="button" data-mkt-pick="" data-mkt-press="" onClick={card.onOpen}
-      style={{ flex: 'none', width: 144, minHeight: 132, padding: '12px 10px 11px', boxSizing: 'border-box', borderRadius: 16, border: `1px solid ${D.border}`, background: D.card, boxShadow: D.shadow, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, textAlign: 'center', cursor: 'pointer', color: t.INK }}>
+    <button type="button" data-mkt-pick="" data-mkt-press="" onClick={card.onOpen} data-mkt-look={look ? (look.picked ? (P.paperKey || 'accent') : 'climb') : undefined}
+      style={{ flex: 'none', width: 144, minHeight: 132, padding: '12px 10px 11px', boxSizing: 'border-box', borderRadius: 16, border: `1px solid ${P ? `rgba(${P.inkRGB},0.18)` : D.border}`, background: look ? mktDirLookBg(look) : D.card, boxShadow: D.shadow, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, textAlign: 'center', cursor: 'pointer', color: P ? P.INK : t.INK }}>
       <MktDirFace photo={card.photo} name={card.name} nutri={card.nutri} size={40} />
       <span style={{ maxWidth: '100%', fontFamily: t.HEAD || t.DISPLAY, fontSize: 13.5, fontWeight: 700, letterSpacing: '-0.02em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{card.name}</span>
-      <span style={{ maxWidth: '100%', marginTop: -4, fontFamily: t.DISPLAY, fontSize: 11.5, fontWeight: 600, color: role.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-        {mktDirRoleWord(tr, card.nutri)}{card.example ? <span style={{ color: t.INK50 }}> · {tr('marketplace:dir.example', { defaultValue: 'Example' })}</span> : null}
+      <span style={{ maxWidth: '100%', marginTop: -4, fontFamily: t.DISPLAY, fontSize: 11.5, fontWeight: 600, color: P ? P.CTA_TEXT : role.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+        {mktDirRoleWord(tr, card.nutri)}{card.example ? <span style={{ color: P ? P.INK_MUTED : t.INK50 }}> · {tr('marketplace:dir.example', { defaultValue: 'Example' })}</span> : null}
       </span>
-      <span style={{ maxWidth: '100%', fontFamily: t.DISPLAY, fontSize: 11.5, fontWeight: 500, color: t.INK70, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontVariantNumeric: 'tabular-nums' }}>
-        <MktDirRating score={card.score} />{price ? ` · ${price}` : ''}
+      <span style={{ maxWidth: '100%', fontFamily: t.DISPLAY, fontSize: 11.5, fontWeight: 500, color: P ? P.INK_SOFT : t.INK70, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontVariantNumeric: 'tabular-nums' }}>
+        <MktDirRating score={card.score} pal={P} />{price ? ` · ${price}` : ''}
       </span>
     </button>
   );

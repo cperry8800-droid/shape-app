@@ -28,6 +28,7 @@ import { bsNormalizeListingMedia } from '../services/listingMedia.mjs';
 // The directory ("Find your coach.") draws in its own module; this one keeps every rule it reads.
 import { BSMarketDirectory } from './BSMarketDirectory.jsx';
 import { bsDialogRef } from '../services/dialogBack.mjs';
+import { bsCoachCardLook } from '../services/coachCardLook.mjs';
 
 // The i18n translator for this module. Mirrors client.jsx's useShapeTr —
 // self-contained on the window globals (ShapeI18n/ShapeLocale), so this module
@@ -1114,6 +1115,26 @@ function BSMarketplaceScreen({ onBack = null, onProfile, initialRole, goChat, in
     window.ShapeProfiles.getUserAvatars(ids).then((m) => { if (on && m) setAvatarByUser(m); }).catch(() => {});
     return () => { on = false; };
   }, [everyone]);
+  // Each live coach's public card (get_public_profile), for the look they set for their page: their paper,
+  // accent, climb background and cover paint their card here, as on the website's Coaches page (owner,
+  // 2026-11-11: "make the coach cards look the same also on marketplace on app"). Six reads at a time; a
+  // card that fails to read keeps the directory's own look. Samples and listings with no account read none.
+  const [cardByUser, setCardByUser] = useStateBSM2({});
+  useEffectBSM2(() => {
+    const ids = [...new Set((everyone || []).filter((c) => !bsmIsDemoCoach(c)).map((c) => c.provider_user_id).filter(Boolean))];
+    if (!ids.length || !(window.ShapeProfiles && window.ShapeProfiles.getPublicProfile)) return undefined;
+    let on = true;
+    const got = {};
+    let next = 0;
+    const one = async () => {
+      while (on && next < ids.length) {
+        const id = ids[next++];
+        try { const r = await window.ShapeProfiles.getPublicProfile(id); if (r) got[id] = { can_view: r.can_view, custom: r.custom || null }; } catch (e) { /* the directory's own look */ }
+      }
+    };
+    Promise.all(Array.from({ length: Math.min(6, ids.length) }, one)).then(() => { if (on) setCardByUser({ ...got }); });
+    return () => { on = false; };
+  }, [everyone]);
   // Portrait ladder: the coach's listing portrait (normalized — an invalid one
   // is already null and falls through) → their profile photo/avatar → the
   // fetched account avatar → initials (the face's own fallback, MktPortrait's on the listing).
@@ -1252,6 +1273,8 @@ function BSMarketplaceScreen({ onBack = null, onProfile, initialRole, goChat, in
       next: times && times.length ? { text: bsmSlotText(times[0], tr), full: false } : atCapacity ? { text: tr('marketplace:listing.atCapacity', { defaultValue: 'At capacity' }), full: true } : null,
       atCapacity,
       photo: mktValidPhoto(coachPhoto(c)),
+      // The coach's look on their card (services/coachCardLook.mjs), or null for the directory's own.
+      look: c.provider_user_id && !bsmIsDemoCoach(c) ? bsCoachCardLook(cardByUser[c.provider_user_id], getPublicProfileKind(c) === 'nutritionist' ? 'nutritionist' : 'trainer', c.provider_user_id) : null,
       onOpen: () => { setOpenNo(n); setOpenIntro(false); setOpen(c); },
       onIntro: () => { setOpenNo(n); setOpenIntro(true); setOpen(c); },
     };
