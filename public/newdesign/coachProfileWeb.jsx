@@ -1027,6 +1027,18 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
     evs.forEach((e) => window.addEventListener(e, hold, { passive: true }));
     return () => evs.forEach((e) => window.removeEventListener(e, hold));
   }, [campPicked, campOn]);
+  // A camp left behind stays mounted, hidden, so what it was playing would play on out of sight (the intro
+  // film in Base, the profile song in About). Leaving a camp stops it: a video or audio pauses where it is;
+  // the song's player is another site's frame and can't be told to pause, so it loads again, stopped.
+  const campWas = React.useRef(campOn);
+  React.useEffect(() => {
+    const was = campWas.current;
+    campWas.current = campOn;
+    const el = was && was !== campOn ? campRefs.current[was] : null;
+    if (!el) return;
+    el.querySelectorAll("video, audio").forEach((m) => { try { if (!m.paused) m.pause(); } catch (e) {} });
+    el.querySelectorAll("iframe").forEach((f) => { const src = f.getAttribute("src"); if (src) f.setAttribute("src", src); });
+  }, [campOn]);
   // The tabs sit under the wire, over the camps (owner, 2026-11-11, with a screenshot of that gap), and pin
   // under the header once they reach it, so another camp is a click away from anywhere in a long one. The
   // row wraps, never scrolls sideways. What pins under it (the spine's mark, the studio's filter row) sits

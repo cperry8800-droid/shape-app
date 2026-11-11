@@ -395,6 +395,41 @@ test('on a desktop every camp is a tab under the wire: each opens its camp as it
   await q.unmount();
 });
 
+// Codex P2 on #2700: a camp left behind stays mounted, hidden, so the intro film or the profile song would
+// play on out of sight. Leaving a camp stops what it was playing.
+test('leaving a camp stops its film and its song', async () => {
+  WIDE = true; backend();
+  const film = { url: 'https://zznufekgjngecelwxndw.supabase.co/storage/v1/object/public/coach-media/coach-1/intro.mp4', caption: 'Hi' };
+  const song = { url: 'https://open.spotify.com/track/4uLU6hMCjMI75M1A2tKUQC', label: 'Warm-up' };
+  const proto = window.HTMLMediaElement.prototype;
+  const was = { pause: Object.getOwnPropertyDescriptor(proto, 'pause'), paused: Object.getOwnPropertyDescriptor(proto, 'paused') };
+  let paused = 0;
+  Object.defineProperty(proto, 'paused', { configurable: true, get() { return false; } });
+  Object.defineProperty(proto, 'pause', { configurable: true, writable: true, value() { paused++; } });
+  try {
+    const p = await mount({ ...LIVE, row: { ...ROW, custom: { ...ROW.custom, film, song } } });
+    assert.deepEqual(shown(), ['base']);
+    assert.ok($('[data-camp="base"] video'), 'the intro film is in Base');
+    const frame = $('[data-camp="about"] iframe');
+    assert.ok(frame, 'the profile song is in About');
+    let reloads = 0;
+    const set = frame.setAttribute.bind(frame);
+    frame.setAttribute = (n, v) => { if (n === 'src') reloads++; return set(n, v); };
+    await React.act(async () => $('[data-camp-tab="about"]').click());
+    assert.equal(paused, 1, 'leaving Base pauses its film');
+    assert.equal(reloads, 0, 'the song plays on in About');
+    await React.act(async () => $('[data-camp-tab="about"]').click());
+    assert.equal(reloads, 0, 'the open tab again stops nothing');
+    await React.act(async () => $('[data-camp-tab="day"]').click());
+    assert.equal(reloads, 1, 'leaving About stops the song');
+    assert.equal(frame.getAttribute('src'), 'https://open.spotify.com/embed/track/4uLU6hMCjMI75M1A2tKUQC', 'its player loads again, stopped');
+    assert.equal(paused, 1);
+    await p.unmount();
+  } finally {
+    for (const [k, d] of Object.entries(was)) { if (d) Object.defineProperty(proto, k, d); else delete proto[k]; }
+  }
+});
+
 // Codex P2 on #2700: a read that lands late can add a camp ahead of the one shown (a photo post brings Base
 // ahead of Book); once the visitor has scrolled into the page, the camp they are reading stays.
 test('a late read that adds Base never swaps the camp a visitor is reading', async () => {
