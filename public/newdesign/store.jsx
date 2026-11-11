@@ -901,7 +901,8 @@ function StorePage() {
       const d = await res.json();
       setStore({
         balance: typeof d.balance === "number" ? d.balance : null,
-        redemptions: Array.isArray(d.redemptions) ? d.redemptions : [],
+        // A locker the route could not read is unread (null: the hero shows "—"), not an empty one.
+        redemptions: !d.redemptionsUnread && Array.isArray(d.redemptions) ? d.redemptions : null,
         credit: (d.credit && typeof d.credit === "object") ? d.credit : { session: 0, nutrition: 0 },
       });
     } catch (_) {}

@@ -95,6 +95,19 @@ test('a member whose reads are out sees dashes, not the example', () => {
   assert.match(STORE, /<StoreHero [^>]*signedIn=\{!!gate\.signedIn\} score=\{scoreSummary\} redemptions=\{store\.redemptions\}/);
 });
 
+test("a locker the route could not read shows dashes, not 0 (Codex on #2701)", () => {
+  const ROUTE = readFileSync('src/app/api/store/redeem/route.ts', 'utf8');
+  assert.match(ROUTE, /\{ data: redemptions, error: redemptionsError \}/, 'the route ignores the redemptions read failing');
+  assert.match(ROUTE, /const redemptionsUnread = !!redemptionsError \|\| !Array\.isArray\(redemptions\);/);
+  assert.match(ROUTE, /\.\.\.\(redemptionsUnread \? \{ redemptionsUnread: true \} : \{\}\)/);
+  // The list itself stays an array for the callers that only show codes (the app, Rewards).
+  assert.match(ROUTE, /redemptions: Array\.isArray\(redemptions\) \? redemptions : \[\],/);
+  assert.match(STORE, /redemptions: !d\.redemptionsUnread && Array\.isArray\(d\.redemptions\) \? d\.redemptions : null,/, 'the Store reads an unread locker as empty');
+  const f = storeHeroFigures({ signedIn: true, score: STANDING, redemptions: null, now: NOW });
+  assert.equal(f.redeemed, '—');
+  assert.equal(f.redeemedSub, '');
+});
+
 test('every sample section on the Community page says it is an example, and none claims to be live', () => {
   const labels = [...COMMUNITY.matchAll(/<CmExample[^>]*>([^<]+)<\/CmExample>/g)].map((m) => m[1]);
   for (const want of [/Example posts/, /Example rooms/, /Example events/, /Example challenges/]) {

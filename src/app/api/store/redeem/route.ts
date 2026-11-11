@@ -72,15 +72,20 @@ export async function GET(request: Request) {
   if (!user) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
   const supabase = await clientForRequest(request);
 
-  const [{ data: balance }, { data: redemptions }, { data: credit }] = await Promise.all([
+  const [{ data: balance }, { data: redemptions, error: redemptionsError }, { data: credit }] = await Promise.all([
     supabase.rpc('get_my_points_balance'),
     supabase.rpc('get_my_redemptions'),
     supabase.rpc('get_my_store_credit'),
   ]);
+  // get_my_redemptions returns a set, so a read that worked is an array, empty or not. A failed one
+  // still answers [] for the callers that only list codes, and says it was not read, so the Store's
+  // count shows "—" rather than an exact 0 (Codex on #2701).
+  const redemptionsUnread = !!redemptionsError || !Array.isArray(redemptions);
 
   return NextResponse.json({
     balance: typeof balance === 'number' ? balance : 0,
     redemptions: Array.isArray(redemptions) ? redemptions : [],
+    ...(redemptionsUnread ? { redemptionsUnread: true } : {}),
     credit: (credit && typeof credit === 'object') ? credit : { session: 0, nutrition: 0 },
   });
 }
