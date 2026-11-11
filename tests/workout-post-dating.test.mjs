@@ -199,13 +199,13 @@ test('the mapper carries the activity time and the cards date by it', () => {
 // a real divergence fails.
 test('the website copy of the activity-date rule matches the shared one', () => {
   const FEED = fs.readFileSync(path.join(ROOT, 'public/newdesign/communityFeed.jsx'), 'utf8');
-  const i = FEED.indexOf('const cfActivityAt = (row) => {');
+  const i = FEED.indexOf('function cfActivityAt(row) {');
   assert.ok(i > 0, 'communityFeed.jsx no longer declares cfActivityAt');
-  const end = FEED.indexOf('\n    };', i);
+  const end = FEED.indexOf('\n}', i);
   assert.ok(end > i, 'could not delimit cfActivityAt');
-  const body = FEED.slice(i, end + '\n    };'.length).replace(/^\s*const cfActivityAt = /, '');
+  const body = FEED.slice(i, end + '\n}'.length);
   // eslint-disable-next-line no-new-func
-  const cfActivityAt = new Function(`return (${body.replace(/;\s*$/, '')})`)();
+  const cfActivityAt = new Function(`return (${body})`)();
 
   const V = [
     { metrics: { startedAt: '2026-03-14T08:00:00.000Z' }, created_at: '2026-09-21T22:00:00Z' },
@@ -222,5 +222,5 @@ test('the website copy of the activity-date rule matches the shared one', () => 
   for (const v of V) {
     assert.equal(cfActivityAt(v), bsPostActivityStart(v), `website rule diverged on ${JSON.stringify(v)}`);
   }
-  assert.match(FEED, /time:\s*since\(cfActivityAt\(p\)\)/, 'the website card dates itself by created_at again');
+  assert.match(FEED, /time:\s*cfSince\(cfActivityAt\(p\)\)/, 'the website card dates itself by created_at again');
 });

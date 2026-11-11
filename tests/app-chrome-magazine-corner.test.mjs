@@ -118,7 +118,10 @@ test('the profile mastheads\' ✎ and ⚙ are the same bare glyphs, and the ⚙ 
   assert.match(member, /<BSSettingsCorner size=\{corner\} ink=\{WHITE\} onClick=\{isSelf \? onOpenSettings : \(\) => \{ try \{ window\.dispatchEvent\(new window\.CustomEvent\('shape:openProfile'\)\); \} catch \(e\) \{\} \}\} \/>/);
   const trainer = read('BSTrainerProfile.jsx');
   const disc = "borderRadius: 99, border: '1px solid rgba(255,255,255,0.5)', background: 'rgba(0,0,0,0.25)'";
-  assert.ok(member.includes(disc) && trainer.includes(disc), 'the ✎ on the cover is the trainer profile\'s');
+  assert.ok(member.includes(disc), 'the member cover\'s ✎ disc');
+  // The trainer page's is the same disc over a dark paper, and the paper's ink on a light one (the coach's own
+  // colours, #2708: Codex on its masthead).
+  assert.ok(trainer.includes("borderRadius: 99, border: `1px solid ${CLIMB.isLight ? hexA(CLIMB.INK, 0.4) : 'rgba(255,255,255,0.5)'}`, background: CLIMB.isLight ? hexA(CLIMB.INK, 0.06) : 'rgba(0,0,0,0.25)'"), 'the ✎ on the cover is the trainer profile\'s');
   // The follow list's corner, on the sheet's own ink, closes the sheet before Settings opens.
   assert.match(CLIENT, /<BSSettingsCorner size=\{BS_HEADER_AVATAR\} ink=\{INK\} onClick=\{\(\) => \{ onClose\(\); setTimeout\(/);
   // No corner draws the member's own face any more, and since a chat thread took Nora's sheet's design

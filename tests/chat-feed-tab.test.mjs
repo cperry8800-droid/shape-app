@@ -299,7 +299,7 @@ test('the feed reads the channel from metrics, not from a column', () => {
   // \u26a0 COMMENTS STRIPPED FIRST. The rationale comment inside the mapper quotes
   // `p.channel` to explain why it is NOT read — so the guard was failing on the
   // very sentence documenting the thing it checks.
-  const mapper = /const mapPost = \(p, uid\) => \{[\s\S]*?\n    \};/.exec(stripComments(FEED));
+  const mapper = /function cfMapPost\(p, uid\) \{[\s\S]*?\n\}/.exec(stripComments(FEED));
   assert.ok(mapper, 'mapPost no longer has the shape this reads — re-anchor the guard');
   assert.doesNotMatch(mapper[0], /\bp\.channel\b/,
     'mapPost reads p.channel off the raw row, which community_posts does not carry');
