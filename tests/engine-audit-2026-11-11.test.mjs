@@ -97,6 +97,22 @@ test('a reply\'s hours and a snooze\'s end are real elapsed time inside a scope,
   assert.equal(shows(snoozed(30)), false, 'a snooze with half an hour to go');
 });
 
+// Codex on #2703: the hour a fall-back repeats puts wall clocks out of order. 08:30Z reads 1:30 am PDT
+// in Los Angeles and the later 09:15Z reads 1:15 am PST, so a member's latest contact is picked by
+// real instant, whichever coach wrote it.
+test('a member\'s latest contact is the later instant, even in the hour a fall-back repeats (F2)', () => {
+  const at = new Date('2026-11-08T20:00:00Z');
+  const latest = (lastContact) => E.inZone(LA, at, (t) => E.evaluateClient({ profile: { id: 'm1', name: 'M' }, progressRead: { state: 'ready' }, lastContact }, t, 'client'))
+    .flags.find((f) => f.key === 'contact_gap');
+  assert.equal(latest({ trainer: '2026-11-01T09:15:00Z', nutritionist: '2026-11-01T08:30:00Z' }).sig, 'last:2026-11-01T09:15:00.000Z');
+  assert.equal(latest({ trainer: '2026-11-01T08:30:00Z', nutritionist: '2026-11-01T09:15:00Z' }).sig, 'last:2026-11-01T09:15:00.000Z');
+  assert.equal(latest({ trainer: null, nutritionist: '2026-11-01T08:30:00Z' }).sig, 'last:2026-11-01T08:30:00.000Z', 'one coach only');
+  // …and its days are counted on the member's wall clock: 1 am Nov 2 to 12:30 am Nov 10 in Sydney is seven.
+  const syd = E.inZone('Australia/Sydney', new Date('2026-11-09T13:30:00Z'), (t) => E.evaluateClient({ profile: { id: 'm2', name: 'N' }, progressRead: { state: 'ready' },
+    lastContact: { trainer: '2026-11-01T14:00:00Z', nutritionist: '2026-10-30T14:00:00Z' } }, t, 'client')).flags.find((f) => f.key === 'contact_gap');
+  assert.equal(syd.figures.days, 7);
+});
+
 // ── F4: a check-in from before they hired this coach ─────────────────────────
 test('a check-in from before the client joined is not one: a new client is not red on day one (F4)', () => {
   const now = new Date('2026-11-11T12:00:00Z');

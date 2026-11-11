@@ -830,7 +830,9 @@
     else if (disc === "nutrition") ts = lc.nutritionist;
     else {
       // Client view: most recent contact from ANY of their pros (the value as written, for its signature).
-      var a = toDate(lc.trainer), b = toDate(lc.nutritionist);
+      // ⚠ THE LATER OF THE TWO BY REAL INSTANT (Codex on #2703): in the hour a fall-back repeats, 09:15Z
+      // reads 01:15 on a Los Angeles wall clock and 08:30Z reads 01:30, so wall clocks pick the older.
+      var a = parseDate(lc.trainer), b = parseDate(lc.nutritionist);
       ts = a && b ? (a > b ? lc.trainer : lc.nutritionist) : (a ? lc.trainer : b ? lc.nutritionist : null);
     }
     var last = toDate(ts);

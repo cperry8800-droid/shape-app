@@ -42,8 +42,10 @@ export default {
       find: '        var u = parseDate(d.until);', replace: '        var u = toDate(d.until);' },
     { name: 'a snooze is compared with the wall clock\'s now', file: ENG,
       find: '    var at = instantNow(now instanceof Date ? now : new Date()).getTime();', replace: '    var at = (now instanceof Date ? now : new Date()).getTime();' },
-    { name: 'a member\'s latest contact is signed as the moved Date', file: ENG,
+    { name: 'a member\'s latest contact is counted from the unmoved instant', file: ENG,
       find: '      ts = a && b ? (a > b ? lc.trainer : lc.nutritionist) : (a ? lc.trainer : b ? lc.nutritionist : null);', replace: '      ts = a && b ? (a > b ? a : b) : (a || b);' },
+    { name: 'a member\'s later contact is picked on the wall clock (Codex on #2703)', file: ENG,
+      find: '      var a = parseDate(lc.trainer), b = parseDate(lc.nutritionist);', replace: '      var a = toDate(lc.trainer), b = toDate(lc.nutritionist);' },
     // ── F4: a check-in from before the join ────────────────────────────────────
     { name: 'a check-in from before the join counts', file: ENG,
       find: '    if (last && joinDay && mondayOf(last) < mondayOf(joinDay)) last = null;\n', replace: '' },
