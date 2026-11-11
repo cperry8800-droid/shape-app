@@ -1191,7 +1191,9 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
     return [...picked, ...more].slice(0, 3);
   })();
   const years = aboutDoc && aboutDoc.years ? aboutDoc.years : null;
-  const howSaid = !aboutDoc || !aboutDoc.how ? "" : aboutDoc.how === "online" ? "Remote" : aboutDoc.how === "in_person" ? "In person" : "In person + remote";
+  // Every coach coaches remotely through the app (owner, 2026-11-11: "every coach should have remote listed"):
+  // one who meets in person reads In person + remote.
+  const howSaid = !aboutDoc || !aboutDoc.how ? "" : aboutDoc.how === "online" ? "Remote" : "In person + remote";
   const pronounsSaid = !isPrivate && live && row && typeof row.pronouns === "string" && row.pronouns.trim().length <= 24 ? row.pronouns.trim() : "";
   const discipline = focusWords.length ? focusWords.join(" · ") : (specialty || (nutri ? "Nutritionist" : "Coach"));
   // Milestones on the route, only from figures there are: their years coaching, the programs they
@@ -2238,7 +2240,7 @@ function CpwAboutTab({ T, K, about, prompts, links: linksIn, certs, gallery = []
   const links = part === "about" ? null : linksIn;
   const biz = part === "about" ? null : bizIn;
   const { pal, ACC, INK, ink, first, isSelf } = T;
-  const how = !about || !about.how ? null : about.how === "online" ? "Coaches online" : about.how === "in_person" ? "Coaches in person" : "Coaches online and in person";
+  const how = !about || !about.how ? null : about.how === "online" ? "Coaches online" : "Coaches online and in person"; // in person includes online (howSaid)
   const facts = about ? [
     about.years ? `Coaching for ${about.years} ${about.years === 1 ? "year" : "years"}` : null,
     [how, about.where].filter(Boolean).join(" · ") || null,

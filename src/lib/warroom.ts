@@ -673,6 +673,18 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
       ],
     },
     {
+      section: 'Website Coaches page: every coach listed remote, a tap anywhere on a card opens its quick view, and the Compare sheet marks the best and folds the same rows. No migration',
+      items: [
+        { label: 'Owner, 2026-11-11: "every coach should have remote listed"; "make it so anywhere you click on the coach profile box it pulls up the preview, minus when you click the book free intro and view boxes"; of the Compare sheet, "can we improve this"', status: 'done' },
+        { label: 'Every coach meets remotely through the app: a coach who meets in person reads "In person + remote" and one with no stated format "Remote", on the card, the quick view and Compare (marketplace.jsx mkMeetLabel), on the coach page (coachProfileWeb.jsx howSaid and About; the app\'s BSTrainerProfile the same), and in the line Nora reads of each coach (support chat coachLine). The How you meet filter\'s Remote keeps every coach (the app\'s Coaches tab too); In person still narrows; a city still narrows by what the listing states', status: 'done' },
+        { label: 'A tap anywhere on a coach card opens its quick view, save on View, Book a free intro (or Join waiting list), Compare and the card\'s own buttons; the keyboard keeps the Quick view button and the name', status: 'done' },
+        { label: 'Compare: equal columns with Book a free intro and View on one line, the coaches\' heads pinned while the table scrolls, Best on the lowest price (when every coach prices the same way), the highest rating and the most years when one coach alone tops the row, and Only what differs, folding the rows every coach answers the same', status: 'done' },
+        { label: 'The editors\' "In person" choice (the website\'s Edit profile, the app\'s Make it yours) keeps its word; the page says In person + remote for it', status: 'done' },
+        { label: 'Compare on the app\'s Coaches tab: #2718', status: 'done' },
+        { label: 'OWNER: on the Coaches page, tap a card\'s words or photo: the quick view opens; tap View or Book a free intro: they go where they did. Pick three to compare and press Only what differs', status: 'manual' },
+      ],
+    },
+    {
       section: 'A client\'s break, "away until": the member or any of their coaches sets a return date, the alerts that read their absence and their own reminders go quiet, and coaches see them back (#2705). Migration: 2026-11-11-client-pause.sql',
       items: [
         { label: 'Owner, 2026-11-11, on the coach-alerts review\'s gaps: "yes to pause", then "Member or any coach" and "No, billing continues"', status: 'done' },

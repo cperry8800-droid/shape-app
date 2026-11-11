@@ -891,10 +891,13 @@ function bsmPass(c, f, role, q, now) {
     if (p.per === 'session' && f.maxSession != null && p.amount > f.maxSession) return false;
     if (p.per === 'month' && f.maxMonth != null && p.amount > f.maxMonth) return false;
   }
+  // Every coach on Shape coaches remotely through the app (owner, 2026-11-11: "every coach should have
+  // remote listed"), so Remote is every coach and only In person narrows the list. The city rule keeps
+  // reading what the listing states (Remote or Hybrid), so a city still narrows it.
   const inPerson = c.format === 'In-person' || c.format === 'Hybrid';
-  const remote = c.format === 'Remote' || c.format === 'Hybrid';
-  if ((f.meet === 'inperson' && !inPerson) || (f.meet === 'remote' && !remote)) return false;
-  if (f.city !== 'Anywhere' && bsmCityOf(c) !== f.city && !(f.meet !== 'inperson' && remote)) return false;
+  const statedRemote = c.format === 'Remote' || c.format === 'Hybrid';
+  if (f.meet === 'inperson' && !inPerson) return false;
+  if (f.city !== 'Anywhere' && bsmCityOf(c) !== f.city && !(f.meet !== 'inperson' && statedRemote)) return false;
   if (f.openWeek && !bsmWithinWeek(c, now)) return false;
   if (q) {
     const hay = [c.name, c.specialty, c.category, ...(c.spec || []), c.cred, ...getCoachCertifications(c), bsmCityOf(c)].filter(Boolean).join(' ').toLowerCase();

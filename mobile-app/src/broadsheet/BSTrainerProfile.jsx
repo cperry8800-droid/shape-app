@@ -805,7 +805,8 @@ function TrainerPage({ theme = null, person, role = 'trainer', onBack, onMessage
   const fmtNext = (ms) => { try { return new Date(ms).toLocaleString(locale, { weekday: 'short', hour: 'numeric', minute: '2-digit', timeZone: viewerZone() }); } catch (e) { return ''; } };
   const how = !aboutDoc || !aboutDoc.how ? ''
     : aboutDoc.how === 'online' ? tr('profile:climb.howOnline', { defaultValue: 'Remote' })
-    : aboutDoc.how === 'in_person' ? tr('profile:climb.howInPerson', { defaultValue: 'In person' })
+    // Every coach coaches remotely through the app (owner, 2026-11-11: "every coach should have remote
+    // listed"): one who meets in person reads In person + remote.
     : tr('profile:climb.howBoth', { defaultValue: 'In person + remote' });
   const who = {
     name, first, initials, avatar: avatarShown, onAvatarError: () => setBrokenAvatar(avatarShown), online,
@@ -1975,7 +1976,7 @@ function bsAboutHas(part, { about = null, prompts = [], links = null, certs = []
 function AboutTab({ t, tr, ACC, ink, DISPLAY, MONO, about, prompts, links, certs = [], gallery = [], isSelf, first, onEdit, biz = null, song = null, part = null }) {
   const how = !about || !about.how ? null
     : about.how === 'online' ? tr('profile:about.howOnline', { defaultValue: 'Coaches online' })
-    : about.how === 'in_person' ? tr('profile:about.howInPerson', { defaultValue: 'Coaches in person' })
+    // In person is in person and online too: every coach coaches through the app (the climb's how, above).
     : tr('profile:about.howBoth', { defaultValue: 'Coaches online and in person' });
   const facts = about ? [
     about.years ? tr('profile:about.years', { defaultValue: '{count, plural, one {Coaching for # year} other {Coaching for # years}}', count: about.years }) : null,
