@@ -251,8 +251,10 @@ function RecipesPage() {
   const [activeCourse, setActiveCourse] = React.useState(0);
   // The sticky jump row sits under the site's FIXED header, so its offset is the
   // header's own measured bottom edge — NAV_H (72) on a desktop, plus the 48px
-  // "get the app" banner mobile-redirect.js prepends on a phone until it is
-  // dismissed. Measured rather than typed, and re-measured when either changes.
+  // "get the app" banner mobile-redirect.js prepends on a phone while that banner is
+  // on screen: the header follows it off as the page scrolls, and the banner says
+  // so with 'shape:banner-offset' (Codex on #2699). Measured rather than typed, and
+  // re-measured when either changes.
   const [stickyTop, setStickyTop] = React.useState(72);
 
   React.useEffect(() => {
@@ -274,13 +276,14 @@ function RecipesPage() {
     };
     measure();
     window.addEventListener("resize", measure);
+    window.addEventListener("shape:banner-offset", measure);
     let mo = null;
     try {
       mo = new MutationObserver(measure);
       mo.observe(document.body, { childList: true });
     } catch (e) {}
     const t = setTimeout(measure, 400);
-    return () => { window.removeEventListener("resize", measure); if (mo) mo.disconnect(); clearTimeout(t); };
+    return () => { window.removeEventListener("resize", measure); window.removeEventListener("shape:banner-offset", measure); if (mo) mo.disconnect(); clearTimeout(t); };
   }, []);
 
   const loggedIn = !!me;
