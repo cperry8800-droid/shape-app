@@ -78,6 +78,17 @@ const button = (re) => [...document.querySelectorAll('button')].find((b) => re.t
 const camp = (k) => document.querySelector(`[data-climb-camp="${k}"]`);
 const campTitle = (k) => { const el = document.querySelector(`#climb-camp-${k}`); return el ? el.textContent : null; };
 const campKeys = () => [...document.querySelectorAll('[data-climb-camp]')].map((el) => el.getAttribute('data-climb-camp'));
+// The Summit, the one place to buy (owner, 2026-11-11): its parts, top to bottom, and one of them.
+const summitParts = () => [...camp('summit').querySelectorAll('[data-summit-part]')].map((el) => el.getAttribute('data-summit-part'));
+const summitPart = (k) => camp('summit').querySelector(`[data-summit-part="${k}"]`);
+// Where a door climbs to: the page scrolls to the camp whose box it measures, and jsdom lays nothing out,
+// so each camp's box notes that it was read.
+const watchClimb = () => {
+  const read = [];
+  assert.ok(document.querySelector('.bs-scroll [data-climb]'), 'the page is in its scroller');
+  for (const el of document.querySelectorAll('[data-climb-camp]')) el.getBoundingClientRect = () => { read.push(el.getAttribute('data-climb-camp')); return { top: 0, bottom: 0, left: 0, right: 0, width: 0, height: 0, x: 0, y: 0 }; };
+  return read;
+};
 // The summit holds the rating ("9.9 /10 · Rating · 284 reviews"), only with reviews.
 const summit = () => { const el = document.querySelector('[data-climb-summit]'); return el ? el.textContent.replace(/\s+/g, ' ') : ''; };
 // The Climb is dark throughout, whatever paper the coach picked (owner, 2026-11-09: "the climb").
@@ -139,9 +150,16 @@ window.ShapeListingAsks = {
   forListing: async (role, id) => { world.asksFor = [role, id]; return { rows: world.asks || [], total: world.asksTotal ?? (world.asks || []).length }; },
 };
 window.bsProfileCardFromPost = (p) => p;
-// The client module's storefront, as a probe: it records what the page hands it.
+// The client module's storefront, as a probe: it records what the page hands it, and keeps the real
+// block's contract (tests/coach-work-sheet.test.mjs): its plan list unless handed noPlans; with noMonthly,
+// no monthly package (only the capacity states, drawn here as nothing).
 window.useBSCoachCommerce = ({ person }) => ((world.commerceSeen = person.commerce), { commerce: person.commerce, commerceCoach: person.commerce && person.commerce.coach, atCapacity: !!(person.commerce && person.commerce.atCapacity), wl: null });
-window.BSCoachCoachingBlock = ({ cm, salePlans, noMonthly }) => (window.__blockPlans = salePlans, React.createElement('div', { 'data-coaching-block': noMonthly ? 'catalogue' : '' }, noMonthly ? salePlans.map((p) => `${p.name} $${p.price}`).join(' ') : cm.commerce.packages.map((p) => `${p.name} ${p.price}`).join(' ')));
+window.BSCoachCoachingBlock = (props) => {
+  const { cm, salePlans, noMonthly, noPlans } = props;
+  window.__block = props;
+  return React.createElement('div', { 'data-coaching-block': noMonthly ? 'capacity' : '' }, noMonthly ? '' : cm.commerce.packages.map((p) => `${p.name} ${p.price}`).join(' '),
+    noPlans ? null : (salePlans || []).length ? salePlans.map((pl) => React.createElement('div', { key: pl.id, 'data-offer-row': '' }, `${pl.name} $${pl.price}`)) : React.createElement('div', { 'data-offer-empty': '' }, 'No plans'));
+};
 
 const maya = { userId: 'u-maya', who: 'Maya Okafor', kind: 'TRAINER' };
 const page = (props = {}) => React.createElement(window.BSProvider, { paperMode: 'dark', accentKey: 'teal' },
@@ -203,56 +221,66 @@ test('a changed intro length reads the times again and says so', async () => {
 });
 
 test('the storefront shows only what the coach sells: no monthly price, no package and no $', async () => {
+  // The storefront is the Summit's first part (owner, 2026-11-11), where Work with climbs to.
+  const store = () => summitPart('coaching');
   reset();
   let m = await mount(page());
+  const climbed = watchClimb();
   await click(button(/^Work with her$/));
-  assert.equal(document.querySelector('[data-coaching-block]').textContent, 'Monthly coaching $180');
+  assert.deepEqual(climbed, ['summit'], 'Work with climbs to the Summit');
+  assert.ok(!document.querySelector('[role="dialog"]'), 'no Work-with sheet');
+  assert.equal(store().querySelector('[data-coaching-block]').textContent, 'Monthly coaching $180');
+  assert.equal(window.__block.noPlans, true, 'with no price list under it');
+  assert.equal(document.querySelectorAll('[data-offer-row], [data-offer-empty]').length, 0);
+  assert.match(store().querySelector('[data-summit-message]').textContent, /^Message Maya$/, 'and Message, with the coaching');
   await m.unmount();
   reset({ provider: { ...world.provider, price: null } });
   m = await mount(page());
-  await click(button(/^Work with her$/));
   assert.ok(!document.querySelector('[data-coaching-block]'), 'no storefront block without a price');
-  assert.match(m.text(), /hasn't listed prices on Shape yet/);
-  assert.doesNotMatch(document.querySelector('[role="dialog"]').textContent, /\$/);
+  assert.match(store().textContent, /hasn't listed prices on Shape yet.*Pick an intro time.*Message Maya/, 'the line, an intro time and Message, as the sheet had them');
+  assert.doesNotMatch(store().textContent, /\$/);
+  // Pick an intro time climbs to Book.
+  const toDay = watchClimb();
+  await click(store().querySelector('[data-summit-intro]'));
+  assert.deepEqual(toDay, ['day']);
   await m.unmount();
-  // No monthly price, but plans to sell: the plans alone, never the monthly package (Codex P2 on #2545).
+  // No monthly price, but plans to sell: the plans are their cards below, never the monthly package
+  // (Codex P2 on #2545); the storefront keeps its capacity states, without the monthly offer.
   reset({ provider: { ...world.provider, price: null }, salePlans: [{ id: 'p1', kind: 'program', name: 'Strong in 12', meta: '', price: '79', category: 'program', providerId: 7, providerRole: 'trainer' }] });
   m = await mount(page());
-  await click(button(/^Work with her$/));
-  const cat = document.querySelector('[data-coaching-block="catalogue"]');
-  assert.ok(cat, 'the plans are listed');
-  assert.equal(cat.textContent, 'Strong in 12 $79');
+  assert.ok(store().querySelector('[data-coaching-block="capacity"]'), 'the capacity states');
+  assert.equal(window.__block.noMonthly, true);
+  assert.equal(window.__block.noPlans, true, 'and no price list: the plans are cards');
+  assert.match(summitPart('programs').querySelector('[data-climb-program="p1"]').textContent, /Strong in 12.*\$79/);
   assert.doesNotMatch(m.text(), /hasn't listed prices on Shape yet/, 'not told there are no prices beside them');
   await m.unmount();
   // Only plans with no price (a workout or reusable program): nothing to buy, so the no-prices line
-  // stays and no catalogue shows (Codex P2 on 2ecbc5b).
+  // stays and no storefront shows (Codex P2 on 2ecbc5b).
   reset({ provider: { ...world.provider, price: null }, salePlans: [{ id: 'w1', kind: 'program', name: 'Form check', meta: '', price: null, category: 'workout', providerId: 7, providerRole: 'trainer' }] });
   m = await mount(page());
-  await click(button(/^Work with her$/));
-  assert.ok(!document.querySelector('[data-coaching-block]'), 'no catalogue with nothing to buy');
-  assert.match(m.text(), /hasn't listed prices on Shape yet/);
+  assert.ok(!document.querySelector('[data-coaching-block]'), 'no storefront with nothing to buy');
+  assert.match(store().textContent, /hasn't listed prices on Shape yet/);
   await m.unmount();
   // An account that also coaches nutrition: its paid meal plan is not the trainer's to list or sell
   // (Codex P2 on b76e074), so the trainer with no monthly price still has nothing listed.
   reset({ provider: { ...world.provider, price: null }, salePlans: [{ id: 'm1', kind: 'meal_plan', name: 'Lean cut', meta: '', price: '60', category: 'meal', providerId: 9, providerRole: 'nutritionist' }] });
   m = await mount(page());
-  await click(button(/^Work with her$/));
-  assert.ok(!document.querySelector('[data-coaching-block]'), 'no nutrition plan on the trainer\'s sheet');
-  assert.match(m.text(), /hasn't listed prices on Shape yet/);
+  assert.ok(!document.querySelector('[data-coaching-block]'), 'no nutrition plan on the trainer\'s page');
+  assert.ok(!document.querySelector('[data-climb-program="m1"]'));
+  assert.match(store().textContent, /hasn't listed prices on Shape yet/);
   await m.unmount();
-  // No live listing (unfinished or suspended: the listing read returns no row) sells nothing here,
-  // published plans or not (Codex P1 on 196314b).
+  // No live listing (unfinished or suspended: the listing read returns no row): no storefront, published
+  // plans or not (Codex P1 on 196314b).
   reset({ provider: null, salePlans: [{ id: 'p1', kind: 'program', name: 'Strong in 12', meta: '', price: '79', category: 'program', providerId: 7, providerRole: 'trainer' }] });
   m = await mount(page());
-  await click(button(/^Work with her$/));
   assert.ok(!document.querySelector('[data-coaching-block]'), 'no checkout without a live listing');
-  assert.doesNotMatch(document.querySelector('[role="dialog"]').textContent, /\$/);
+  assert.doesNotMatch(store().textContent, /\$/);
   await m.unmount();
-  // With a monthly price, the sheet's catalogue is handed the trainer's plans only.
+  // With a monthly price, the trainer's programs are the cards, and only the trainer's.
   reset({ salePlans: [{ id: 'p1', kind: 'program', name: 'Strong in 12', meta: '', price: '79', category: 'program', providerId: 7, providerRole: 'trainer' }, { id: 'm1', kind: 'meal_plan', name: 'Lean cut', meta: '', price: '60', category: 'meal', providerId: 9, providerRole: 'nutritionist' }] });
   m = await mount(page());
-  await click(button(/^Work with her$/));
-  assert.deepEqual(window.__blockPlans.map((p) => p.name), ['Strong in 12']);
+  assert.deepEqual([...camp('summit').querySelectorAll('[data-climb-program]')].map((c) => c.getAttribute('data-climb-program')), ['p1']);
+  assert.equal(window.__block.noPlans, true);
   await m.unmount();
 });
 
@@ -261,14 +289,16 @@ test('a visitor sees a tab only when it has something in it; a private profile s
   world.provider = { ...world.provider, price: 0 };
   let m = await mount(page());
   assert.ok(camp('day'), 'Book: the day');
-  assert.ok(!camp('range'), 'no Studio tab with no programs, workouts or coaching');
+  assert.ok(!camp('range'), 'no Programs camp, ever (owner, 2026-11-11)');
+  assert.deepEqual(summitParts(), ['coaching'], 'no programs or workouts in the Summit with none to show');
   assert.ok(!camp('replays'), 'no replays tab without replays');
   await m.unmount();
   // A floor plan saved before the Studio became the coach's work is never drawn (owner, 2026-11-04).
   reset({ custom: { studio: { kind: 'gym', where: 'Fishtown', items: bsStudioFromTemplate('gym') } }, posts: [{ key: 'p1', title: 'Heavy squat day', ago: '2d', statsRow: [], breakdown: { label: 'Sets', rows: [['Set 1', '100 kg × 5', '']] } }] });
   m = await mount(page());
-  assert.ok(camp('range'), 'the range camp');
-  assert.ok(document.querySelector('[data-coaching-card]'), 'monthly coaching is work enough for the tab');
+  assert.ok(!camp('range'), 'no Programs camp');
+  assert.ok(summitPart('coaching').querySelector('[data-coaching-block]'), 'the monthly coaching is the storefront, in the Summit');
+  assert.ok(!document.querySelector('[data-coaching-card]'), 'not a card as well');
   assert.equal(document.querySelectorAll('[data-station]').length, 0, 'no floor plan');
   assert.ok(camp('replays'), 'the replays camp');
   assert.equal(document.querySelectorAll('[data-replay]').length, 1);
@@ -379,9 +409,8 @@ test('Make it yours saves look, cover and the Studio\'s words onto the doc as it
   assert.equal('cover' in doc, false, 'no wall photo, no cover key');
   assert.deepEqual(world.readWith, { expectedUserId: 'u-maya' }, 'the read is bound to the account that opened the editor');
   assert.deepEqual(world.saved.opts, { expectedUserId: 'u-maya' }, 'and so is the save');
-  // Back on the page, the Studio reads the coach's line and who it is for.
-  assert.ok(camp('range'), 'the range camp');
-  assert.match(document.querySelector('[data-program]').textContent, /New to lifting.*Base 6.*Six weeks to a first pull-up\./);
+  // Back on the page, the program's card in the Summit reads the coach's line and who it is for.
+  assert.match(summitPart('programs').querySelector('[data-program]').textContent, /New to lifting.*Base 6.*Six weeks to a first pull-up\./);
   await m.unmount();
 });
 
@@ -607,18 +636,24 @@ test('signed out, the trainer\'s own page is the new profile with sample content
       if (open.length && document.querySelector('[data-busy-time]')) both = true;
     }
     assert.ok(both, 'a day with open and busy times');
+    // Ways to work with climbs to the Summit (owner, 2026-11-11): on the coach's own page, what members do
+    // there, then the sample's own programs as cards (the Work-with sheet said "Publish your first plan"
+    // under every tab: "dont think this is working properly"), then its workouts.
+    const climbed = watchClimb();
     await click(button(/^Ways to work with Quinn/));
-    assert.equal(document.querySelector('[data-coaching-block]').textContent, 'Monthly coaching $180');
-    // The sheet lists the sample's own programs, as its page shows them (owner, 2026-10-31: it said
-    // "Publish your first plan" under every tab: "dont think this is working properly").
-    assert.deepEqual(window.__blockPlans.map((p) => [p.name, p.category, p.meta]), [['Strong in 12', 'program', '12 weeks'], ['Barbell basics', 'program', '6 weeks']]);
-    await click(button(/^Close$/));
-    assert.ok(camp('range'), 'the range camp');
-    // The sample's work (owner, 2026-11-04): its two programs, every program day and video as a workout,
-    // and its coaching by the month; no floor plan.
-    assert.deepEqual([...document.querySelectorAll('[data-program]')].map((p) => (p.textContent.match(/Strong in 12|Barbell basics/) || [''])[0]), ['Strong in 12', 'Barbell basics']);
-    assert.equal(document.querySelectorAll('[data-workout]').length, 7, 'five program days and two videos');
-    assert.match(document.querySelector('[data-coaching-card]').textContent, /Coaching with Quinn.*\$180.*A month/);
+    assert.deepEqual(climbed, ['summit']);
+    assert.ok(!document.querySelector('[role="dialog"]'), 'no Work-with sheet');
+    assert.ok(!camp('range'), 'no Programs camp');
+    assert.deepEqual(summitParts(), ['coaching', 'programs', 'workouts']);
+    assert.match(summitPart('coaching').textContent, /Members start working with you from here/);
+    // The sample's work (owner, 2026-11-04): its two programs and every program day and video as a workout;
+    // no floor plan. It is the coach's own page, so their coaching card stays, under the workouts (the
+    // storefront is a member's).
+    assert.deepEqual([...summitPart('programs').querySelectorAll('[data-program]')].map((p) => (p.textContent.match(/Strong in 12|Barbell basics/) || [''])[0]), ['Strong in 12', 'Barbell basics']);
+    assert.match(summitPart('programs').textContent, /12\s*Weeks.*Strong in 12.*6\s*Weeks.*Barbell basics/, 'each with its weeks');
+    assert.equal(summitPart('workouts').querySelectorAll('[data-workout]').length, 7, 'five program days and two videos');
+    assert.ok(summitPart('workouts').querySelector('[data-coaching-card]'), 'their own coaching card');
+    assert.equal(document.querySelectorAll('[data-coaching-card]').length, 1, 'once');
     assert.equal(document.querySelectorAll('[data-station]').length, 0, 'no floor plan');
     assert.ok(camp('replays'), 'the replays camp');
     const replays = [...document.querySelectorAll('[data-replay]')];
@@ -711,13 +746,15 @@ test('a seeded listing\'s coach: its own listing, read by id, with a sample stud
     for (const d of camp('day').querySelectorAll('[role="group"] button')) { await click(d); open = open.concat([...document.querySelectorAll('[data-open-time]')]); }
     assert.ok(open.length > 0, 'sample open times');
     assert.ok(open.every((b) => !b.disabled && /Ask for it →/.test(b.textContent) && !/Take it/.test(b.textContent)), 'each is asked for, none taken');
-    assert.ok(camp('range'), 'the range camp');
-    assert.match(document.querySelector('[data-program]').textContent, /Engine 8/, 'programs that fit HIIT');
+    assert.ok(!camp('range'), 'no Programs camp');
+    assert.match(summitPart('programs').querySelector('[data-program]').textContent, /Engine 8/, 'programs that fit HIIT');
     assert.ok(camp('replays'), 'the replays camp');
     assert.match(document.querySelector('[data-replay]').textContent, /Air bike intervals/, 'conditioning replays for a HIIT coach');
+    const climbed = watchClimb();
     await click(button(/^Work with Leah$/));
-    assert.equal(document.querySelector('[data-coaching-block]').textContent, 'Monthly coaching $120', 'the listing\'s own price');
-    await click(document.querySelector('[data-full-listing]'));
+    assert.deepEqual(climbed, ['summit']);
+    assert.equal(summitPart('coaching').querySelector('[data-coaching-block]').textContent, 'Monthly coaching $120', 'the listing\'s own price');
+    await click(summitPart('coaching').querySelector('[data-full-listing]'));
     assert.equal(listed, 1, 'the full listing, one tap away');
     await m.unmount();
     assert.equal(world.booked, null, 'nothing booked');
@@ -948,8 +985,7 @@ test('a demo saved in Make it yours keeps only what was changed, so the Studio s
     window.ShapeI18n.t = (key, opts) => (key === 'profile:sample.program.strong.name' ? 'Fuerte en 12' : hadT(key, opts));
     await act(async () => { for (const fn of subs) fn(); });
     await flush();
-    assert.ok(camp('range'), 'the range camp');
-    assert.match(m.text(), /Fuerte en 12/, 'the Studio follows the language after a colours-only save');
+    assert.match(summitPart('programs').textContent, /Fuerte en 12/, 'the programs follow the language after a colours-only save');
     assert.equal(document.querySelector('[data-trainer-profile]').style.background, cssOf(bsCoachPagePalette({ paper: 'sage' }, 'trainer').BG), 'the page takes the paper picked');
     await m.unmount();
   } finally { window.ShapeLocale = hadLocale; window.ShapeI18n.t = hadT; client.restore(); }
@@ -962,7 +998,7 @@ test('their activity: a camp of its own, Posts, with what they posted that the o
   const note = (i) => ({ key: `n${i}`, title: `Note ${i}`, typeLabel: 'Note', ago: `${i}d`, body: `Body ${i}`, statsRow: [], breakdown: null });
   const tabNames = () => [...document.querySelectorAll('[data-climb-camp-tab]')].map((b) => b.textContent);
   reset({ posts: [note(1), { key: 'p1', title: 'Heavy squat day', ago: '2d', statsRow: [], breakdown: { label: 'Sets', rows: [['Set 1', '100 kg × 5', '']] } }, note(2), note(3), note(4)] });
-  world.provider = { ...world.provider, price: 0 }; // no coaching by the month, so no Range
+  world.provider = { ...world.provider, price: 0 }; // no coaching by the month
   let m = await mount(page());
   assert.deepEqual(campKeys(), ['day', 'replays', 'posts', 'summit']);
   assert.deepEqual(tabNames(), ['Book', 'Replays', 'Posts', 'Summit']);
@@ -985,7 +1021,7 @@ test('their activity: a camp of its own, Posts, with what they posted that the o
   // The coach's own page always has every camp, with what to add, Posts with Log activity.
   reset({ me: 'u-maya', posts: [] });
   m = await mount(page({ isSelf: true }));
-  assert.deepEqual(campKeys(), ['base', 'day', 'range', 'replays', 'proof', 'words', 'about', 'find', 'posts', 'summit'], 'every camp on their own page');
+  assert.deepEqual(campKeys(), ['base', 'day', 'replays', 'proof', 'words', 'about', 'find', 'posts', 'summit'], 'every camp on their own page');
   const nav = document.querySelector('[data-climb-camps]');
   assert.notEqual(nav.style.overflowX, 'auto', 'nothing scrolls sideways (owner, 9 Nov)');
   for (const b of nav.querySelectorAll('button')) assert.ok(parseFloat(b.style.minHeight) >= 44, 'a 44px target');
@@ -1140,7 +1176,8 @@ const STRONG = { id: '11111111-2222-4333-8444-555555555555', kind: 'program', na
 const ROWER = { id: '66666666-2222-4333-8444-555555555555', kind: 'program', name: 'Engine 8', price: 'Free', providerId: 7, providerRole: 'trainer', detail: { preview: true, blocks: [row(0, 0, 'Intervals', 'Rower', 'Rower')], weeks: 8, media: [] } };
 const MEAL = { id: '77777777-2222-4333-8444-555555555555', kind: 'meal_plan', name: 'A cut', price: 20, providerId: 7, providerRole: 'trainer', detail: { preview: true } };
 // The old tabs are camps on one page now: "going to one" is finding it there, and tapping its tab in the row.
-const CAMP_OF = { Studio: 'range', Replays: 'replays', 'About me': 'about', Activity: 'posts', 'Her day': 'day' };
+// The Studio's programs and workouts are in the Summit (owner, 2026-11-11).
+const CAMP_OF = { Studio: 'summit', Replays: 'replays', 'About me': 'about', Activity: 'posts', 'Her day': 'day' };
 const tab = async (name) => {
   const k = CAMP_OF[name] || name;
   assert.ok(camp(k), `the ${k} camp`);
@@ -1263,7 +1300,7 @@ test('Studio: the coach\'s line on each, who a program is for, their picks first
   assert.match(m.text(), /Strength · Olympic lifting/);
   assert.doesNotMatch(m.text(), /Strength coach/);
   await tab('Studio');
-  assert.deepEqual([...document.querySelectorAll('[data-studio-jump-to]')].map((b) => b.textContent.replace(/\s+/g, '')), ['6Workouts⌄', '1Coaching⌄'], 'the programs are the range\'s peaks, above');
+  assert.ok(!document.querySelector('[data-studio-jump]'), 'no jump line: the workouts are the studio\'s one part in the Summit, the programs are cards above');
   const progs = [...document.querySelectorAll('[data-program]')];
   assert.equal(progs[0].querySelector('[data-studio-for]').textContent, 'New to lifting');
   assert.match(progs[0].querySelector('[data-studio-desc]').textContent, /The program's own note\./, 'no line written: the program\'s own note');
@@ -1287,11 +1324,10 @@ test('Studio: the coach\'s line on each, who a program is for, their picks first
   assert.match(sheet.querySelector('[data-program-desc]').textContent, /The program's own note\./);
   assert.match(sheet.querySelector('[data-program-for]').textContent, /For\s*New to lifting/);
   await click(button(/^Close$/));
-  // Coaching: the coach's line in place of the offer's, what you get, and the way in.
-  const card = document.querySelector('[data-coaching-card]');
-  assert.match(card.textContent, /Coaching with Maya.*\$180.*A month.*I write your week around you\..*Custom programming/);
-  await click(card.querySelector('[data-coaching-apply]'));
-  assert.ok(document.querySelector('[data-coaching-block]'), 'Apply opens the Work-with sheet');
+  // Coaching: the storefront at the top of the Summit, with the coach's line about it; no card as well.
+  assert.ok(!document.querySelector('[data-coaching-card]'));
+  assert.ok(summitPart('coaching').querySelector('[data-coaching-block]'));
+  assert.equal(window.__block.desc, 'I write your week around you.');
   await m.unmount();
   // A private profile shows none of the coach's words.
   reset({ canView: false, custom: { focus: [{ id: 'strength' }] } });
@@ -1434,15 +1470,15 @@ test('the camps pin under the condensed masthead as one bar naming where you are
   assert.match(grid.style.gridTemplateColumns, /repeat\(3/, 'three to a row, wrapping');
   assert.equal(grid.style.position, 'absolute', 'opened over the page, not pushing it down');
   const tabs = [...grid.querySelectorAll('[data-climb-camp-tab]')];
-  assert.deepEqual(tabs.map((b) => b.textContent), ['Base', 'Book', 'Programs', 'Replays', 'Proof', 'Words', 'About', 'Find me', 'Posts', 'Summit']);
+  assert.deepEqual(tabs.map((b) => b.textContent), ['Base', 'Book', 'Replays', 'Proof', 'Words', 'About', 'Find me', 'Posts', 'Summit']);
   assert.ok(tabs.every((b) => parseFloat(b.style.minHeight) >= 44 && b.style.textOverflow === 'ellipsis'));
   assert.equal(tabs.filter((b) => b.getAttribute('aria-current') === 'location').length, 1, 'one camp is where you are');
   // Tapping a camp marks it at once, names it on the bar and closes the grid, handing focus back to the bar
   // (Codex, #2664: never left in the hidden grid).
-  tabs[7].focus();
-  await click(tabs[7]);
+  tabs[6].focus();
+  await click(tabs[6]);
   assert.equal(document.activeElement === pick, true, 'focus is back on the bar');
-  assert.equal(tabs[7].getAttribute('aria-current'), 'location');
+  assert.equal(tabs[6].getAttribute('aria-current'), 'location');
   assert.match(nav.querySelector('[data-climb-camp-here]').textContent, /Find me/);
   assert.equal(grid.hidden, true, 'a camp closes the grid');
   // Escape closes it; so does a tap off the bar.
@@ -1767,7 +1803,7 @@ test('the coach\'s own page opens the composer from Activity, Replays and the St
     await click(button(/Log a session/));
     assert.ok(document.querySelector('[data-probe-composer]'), 'Log a session: no composer');
     await click(document.querySelector('[data-probe-composer]'));
-    assert.ok(camp('range'));
+    assert.ok(summitPart('workouts'), 'the workouts, in the Summit');
     await open('[data-post-video]', 'Post a workout video');
     assert.deepEqual(opened, ['any', 'workout', 'video'], 'each opens the composer on its own kind');
     assert.deepEqual(asked, [], 'opening it asks for no account');

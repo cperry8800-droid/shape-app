@@ -130,8 +130,9 @@ test('a real coach\'s Climb is their own data, never the sample', async () => {
   assert.match(wire[0], /^Next open /);
   assert.match(wire[1], /^New: Tempo week · 1d ago$/);
   assert.match(wire[2], /^Strength Block 3 12 weeks/);
-  // The range: a card a program, no peaks drawn on it (owner, 9 Nov: "remove the graph design part").
-  const card = $('[data-camp="range"] [data-program]');
+  // The programs, in the Summit: a card a program, no peaks drawn on it (owner, 9 Nov: "remove the graph
+  // design part").
+  const card = $('[data-camp="summit"] [data-program]');
   assert.match(card.textContent, /Strength Block 3/);
   assert.match(card.textContent, /\$59/);
   assert.equal(!!card.querySelector('svg'), false, 'no drawing on the card');
@@ -158,23 +159,23 @@ test('a camp with nothing in it is hidden from a visitor and shown to the coach 
   WIDE = true; backend({ posts: [], plans: [], reviews: { reviews: [], avg: 0, count: 0 } });
   const bare = { ...LIVE, row: { ...ROW, custom: null, goal: '' } };
   let p = await mount(bare);
-  // The range stays for its one real offer, the listing's monthly coaching.
-  assert.deepEqual(camps(), ['day', 'range', 'summit'], 'a visitor: the day, the coaching they sell and the summit');
-  assert.ok(!$('[data-camp="range"] [data-program]') && $('[data-camp="range"] [data-coaching-card]'));
+  // Its one real offer, the listing's monthly coaching, is the Summit's storefront; no programs part under it.
+  assert.deepEqual(camps(), ['day', 'summit'], 'a visitor: the day, and the summit with the coaching they sell');
+  assert.ok($('[data-camp="summit"] [data-storefront]') && !$('[data-camp="summit"] [data-summit-range]') && !$('[data-program]'));
   assert.deepEqual($$('[data-wire-item]').map((w) => w.textContent.split(' ').slice(0, 2).join(' ')), ['Next open'], 'the wire: their open time and nothing else');
   assert.ok(!$('[data-milestone]'));
   await p.unmount();
   p = await mount({ ...bare, isSelf: true });
-  assert.deepEqual(camps(), ['base', 'day', 'range', 'replays', 'proof', 'words', 'about', 'find', 'posts', 'summit'], 'the coach sees every camp, in the app\'s order');
+  assert.deepEqual(camps(), ['base', 'day', 'replays', 'proof', 'words', 'about', 'find', 'posts', 'summit'], 'the coach sees every camp, in the app\'s order');
   assert.match($('[data-camp="proof"]').textContent, /Pin up to three of your members' reviews/, 'Proof says where to pin them');
   assert.match($('[data-camp="base"]').textContent, /Make it yours → Spotlight/);
-  assert.match($('[data-camp="range"]').textContent, /Publish a program/);
+  assert.match($('[data-camp="summit"] [data-summit-range]').textContent, /Publish a program/, 'the Summit says where their programs go');
   assert.match($('[data-camp="find"]').textContent, /Tell members where to find you/);
   assert.ok(!$('[data-dock]'), 'no booking console on their own page');
   await p.unmount();
 });
 
-test('the booking console and the range go through today\'s paths', async () => {
+test('the booking console and the Summit\'s programs go through today\'s paths', async () => {
   WIDE = true; const calls = backend();
   const opened = [];
   window.__openChat = (o) => opened.push(o);
@@ -189,8 +190,8 @@ test('the booking console and the range go through today\'s paths', async () => 
   // Message: the coach's chat, with their listing.
   await React.act(async () => dock.querySelector('[data-message]').click());
   assert.deepEqual(opened[0], { who: 'Maya Okafor', providerRole: 'trainer', providerId: 7, role: 'Trainer' });
-  // Start on the range opens the program's sheet; its Start is lvBuyPlan's checkout with the plan.
-  await React.act(async () => $('[data-camp="range"] [data-program-open]').click());
+  // Start on a program in the Summit opens the program's sheet; its Start is lvBuyPlan's checkout with the plan.
+  await React.act(async () => $('[data-camp="summit"] [data-program-open]').click());
   const sheet = $('[data-program-sheet]');
   assert.ok(!sheet.querySelector('[data-program-peaks]') && !!sheet.querySelector('[data-program-ask]'), 'no peaks drawn in the sheet, and Ask');
   assert.match(sheet.querySelector('[data-program-buy]').textContent, /Start · \$59/);
@@ -249,11 +250,14 @@ test('a coach with no account stays the sample, said so, booking nothing', async
   await p.unmount();
 });
 
-test('a nutritionist climbs in gold, with Meal plans, the kitchen and plate notes as camps', async () => {
+test('a nutritionist climbs in gold, the kitchen and plate notes as camps, the meal plans in the Summit', async () => {
   WIDE = true; backend({ listing: null, plans: [] });
   const p = await mount({ mode: 'sample', role: 'nutritionist', name: 'Rae Lindqvist', sampleKey: 'Rae Lindqvist', follow: null });
   assert.equal($('[data-coach-profile]').getAttribute('data-role'), 'nutritionist');
-  assert.ok(['range', 'kitchen', 'plates'].every((k) => camps().includes(k)), camps().join(','));
+  assert.ok(['kitchen', 'plates'].every((k) => camps().includes(k)) && !camps().includes('range'), camps().join(','));
+  const plans = $('[data-camp="summit"] [data-summit-range]');
+  assert.match(plans.querySelector('[data-summit-head] h3').textContent, /^Meal plans\.$/);
+  assert.ok(plans.querySelector('[data-program]'), 'the sample\'s meal plans are in the Summit');
   assert.match($('.cpw-h1').innerHTML, /#d8a23a|rgb\(216, 162, 58\)/);
   assert.match($('[data-dock] [data-work-with]').getAttribute('style'), /#d8a23a|rgb\(216, 162, 58\)/, 'the booking colour is gold');
   await p.unmount();
@@ -468,10 +472,11 @@ test('a meal plan opens its preview: the weeks, the meals a day, a day\'s first 
     detail: { preview: true, perDay: false, blocksCount: 4, weeks: 4, blocks: ['Breakfast: Greek yogurt power bowl · 480 kcal', 'Lunch: One-pan chicken and rice · 640 kcal'] } };
   const calls = backend({ plans: [MEAL] });
   const p = await mount({ mode: 'live', role: 'nutritionist', uid: 'coach-1', row: { ...ROW, role: 'nutritionist' }, verified: true });
-  await React.act(async () => $('[data-camp-tab="range"]').click());
-  assert.deepEqual(shown(), ['range']);
-  await React.act(async () => $('[data-camp="range"] [data-program-open]').click());
-  assert.deepEqual(shown(), ['range'], 'the page stays on the meal plans: no trip to the storefront');
+  // The meal plans are in the Summit, under its storefront (owner, 2026-11-11).
+  await React.act(async () => $('[data-camp-tab="summit"]').click());
+  assert.deepEqual(shown(), ['summit']);
+  await React.act(async () => $('[data-camp="summit"] [data-program-open]').click());
+  assert.deepEqual(shown(), ['summit'], 'the page stays on the meal plans');
   const sheet = $('[data-meal-plan-sheet]');
   assert.ok(sheet, 'the preview opens');
   assert.match(sheet.querySelector('[data-meal-plan-plates]').textContent, /4Weeks4Meals a day/);
@@ -489,7 +494,7 @@ test('a meal plan opens its preview: the weeks, the meals a day, a day\'s first 
   // A sample's plans have a day to show, and sell nothing: Work with in place of Start.
   backend({ listing: null, plans: [] });
   const q = await mount({ mode: 'sample', role: 'nutritionist', name: 'Rae Lindqvist', sampleKey: 'Rae Lindqvist', follow: null });
-  await React.act(async () => $('[data-camp="range"] [data-program-open]').click());
+  await React.act(async () => $('[data-camp="summit"] [data-program-open]').click());
   const s2 = $('[data-meal-plan-sheet]');
   assert.equal(s2.querySelectorAll('[data-meal-plan-meal]').length, 2, 'two of the day\'s meals');
   assert.match(s2.querySelector('[data-meal-plan-locked]').textContent, /more meals? in the plan$/, 'a sample sells nothing, so no "when you buy"');
@@ -498,8 +503,8 @@ test('a meal plan opens its preview: the weeks, the meals a day, a day\'s first 
   // A free plan has no checkout: the sheet offers Work with, and the more meals aren't "when you buy".
   backend({ plans: [{ ...MEAL, id: 'm2', price: 0 }] });
   const f = await mount({ mode: 'live', role: 'nutritionist', uid: 'coach-1', row: { ...ROW, role: 'nutritionist' }, verified: true });
-  await React.act(async () => $('[data-camp-tab="range"]').click());
-  await React.act(async () => $('[data-camp="range"] [data-program-open]').click());
+  await React.act(async () => $('[data-camp-tab="summit"]').click());
+  await React.act(async () => $('[data-camp="summit"] [data-program-open]').click());
   const s3 = $('[data-meal-plan-sheet]');
   assert.match(s3.querySelector('[data-meal-plan-locked]').textContent, /＋2 more meals in the plan$/, 'no checkout, so no "when you buy"');
   assert.ok(!s3.querySelector('[data-meal-plan-buy]') && s3.querySelector('[data-meal-plan-work]'));
@@ -546,16 +551,18 @@ function withPinned(answer) {
     : base(url, init));
   return () => { globalThis.fetch = base; };
 }
-test('the camps are the app\'s, in its order: Base, Book, the range, Proof, Words, About, Find me, Posts, Summit', async () => {
+// Owner, 2026-11-11, of Book, Programs and the Summit: "The Summit becomes the one place to buy ... The separate
+// Programs section and the duplicate price list go away ... yes do this". Book stays.
+test('the camps are the app\'s, in its order: Base, Book, Proof, Words, About, Find me, Posts, Summit', async () => {
   WIDE = true;
   backend({ reviews: { reviews: [{ id: PIN, author: 'Dana K.', rating: 10, text: 'An old favourite.', ownerId: 'coach-1', authorId: 'm-1' }, { id: 'r2', author: 'Lee P.', rating: 9, text: 'Patient and exact.' }], avg: 9.5, count: 2 } });
   const undo = withPinned({ reviews: [{ id: PIN, author: 'Dana K.', rating: 10, text: 'An old favourite.', ownerId: 'coach-1', authorId: 'm-1' }] });
   const custom = { ...ROW.custom, pinnedReviews: [PIN], links: { instagram: '@maya.lifts' } };
   const p = await mount({ ...LIVE, row: { ...ROW, custom } });
-  assert.deepEqual(camps(), ['base', 'day', 'range', 'proof', 'words', 'about', 'find', 'posts', 'summit']);
+  assert.deepEqual(camps(), ['base', 'day', 'proof', 'words', 'about', 'find', 'posts', 'summit']);
   // The tab names (the desktop's tabs, the phone's grid) are the app's; the spine numbers the camps between Base and Summit.
   assert.deepEqual($$('.cpw-camp-label').map((l) => l.textContent),
-    ['Base · Start here', 'Camp 1 · Book', 'Camp 2 · Programs', 'Camp 3 · Proof', 'Camp 4 · Words', 'Camp 5 · About', 'Camp 6 · Find me', 'Camp 7 · Posts', 'Summit · Work with her']);
+    ['Base · Start here', 'Camp 1 · Book', 'Camp 2 · Proof', 'Camp 3 · Words', 'Camp 4 · About', 'Camp 5 · Find me', 'Camp 6 · Posts', 'Summit · Work with her']);
   assert.equal($('#camp-h-day').textContent, 'Her day.', 'the day keeps its title (words.day)');
   assert.equal($('#camp-h-words').textContent, 'What clients say.');
   // Proof holds the pinned review; Words the rating and the rest, never the pinned one twice.
@@ -704,13 +711,13 @@ test('a program card is the program\'s own photo with nothing drawn over it; wit
   const WITHOUT = { ...PLAN, id: 'p2', name: 'Barbell basics', detail: { ...PLAN.detail, weeks: 6, media: [] } };
   backend({ plans: [WITH, WITHOUT] });
   const p = await mount(LIVE);
-  const [a, b] = $$('[data-camp="range"] [data-program]');
+  const [a, b] = $$('[data-camp="summit"] [data-program]');
   const img = a.querySelector('.cpw-range-art img');
   assert.equal(img ? img.getAttribute('src') : null, 'https://cdn.test/cover.jpg', 'the program\'s own photo');
   assert.equal(a.querySelector('.cpw-range-art').classList.contains('bare'), false);
   assert.equal(b.querySelector('.cpw-range-art').classList.contains('bare'), true, 'no photo: a short band in its colour');
   assert.equal(!!b.querySelector('.cpw-range-art img'), false);
-  assert.equal(!!$('[data-camp="range"] svg'), false, 'no peaks drawn on any card');
+  assert.equal(!!$('[data-camp="summit"] [data-summit-range] svg'), false, 'no peaks drawn on any card');
   const src = read('public/newdesign/coachProfileWeb.jsx');
   assert.match(src, /\.cpw-range-art img\{[^}]*filter:brightness\(\.78\)\}/, 'the photo shows, not greyed to half');
   assert.match(src, /\.cpw-range-art\.bare\{height:64px\}/);
