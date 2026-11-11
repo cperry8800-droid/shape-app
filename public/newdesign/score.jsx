@@ -104,16 +104,6 @@ function ScExample({ children = "Example member", style }) {
 // /api/client/score-record (The Record: every day's points, for the heatmap and the streaks). Until
 // the Standing answers a member sees "—", never the example's numbers; a read that fails falls back
 // to the labelled example, which claims nothing.
-function scHasSession() {
-  try {
-    if (localStorage.getItem("shape.auth")) return true;
-    for (let i = 0; i < localStorage.length; i++) {
-      const k = localStorage.key(i) || "";
-      if (k.indexOf("sb-") === 0 && k.indexOf("-auth-token") > 0) return true;
-    }
-  } catch (e) {}
-  return false;
-}
 
 const SC_DAY = 86400000;
 const scIsoDay = (ms) => new Date(ms).toISOString().slice(0, 10);
@@ -800,8 +790,10 @@ function ScoreRecordView({ onBack }) {
 
 function ScorePage() {
   const [recordOpen, setRecordOpen] = React.useState(false);
-  // "loading" while a session may be signed in, null for a visitor (the example), else the reads.
-  const [live, setLive] = React.useState(() => (scHasSession() ? "loading" : null));
+  // "loading" until the Standing answers, null for a visitor (the example), else the reads. Everyone starts
+  // waiting: a member signed in through the Next.js login holds the session in cookies only, which this
+  // page cannot see, and the score route is what reads them (Codex on #2701). A visitor's 401 is quick.
+  const [live, setLive] = React.useState("loading");
   React.useEffect(function () {
     var alive = true;
     var get = function (url) {

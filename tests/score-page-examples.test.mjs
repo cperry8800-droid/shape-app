@@ -226,6 +226,23 @@ test('a member whose reads are still out sees dashes, never the example; a visit
   await visitor.close();
 });
 
+test('a member signed in by cookie only waits on dashes, then sees their own; never the example (Codex on #2701)', async () => {
+  // Signed in through the Next.js login: the session is in cookies, nothing in localStorage.
+  dom.window.localStorage.removeItem('shape.auth');
+  let answer;
+  fetchImpl = (url) => (String(url).endsWith('/api/client/score') ? new Promise((r) => { answer = r; }) : new Promise(() => {}));
+  const page = await renderPage();
+  for (const ex of ['1284', '940', '716 to Form', 'Session kept · Maya Okafor']) {
+    assert.ok(!page.el.textContent.includes(ex), 'a cookie-only member waiting on the read is shown the example\'s "' + ex + '"');
+  }
+  assert.equal(marks(page.el), 0, 'a cookie-only member waiting on the read is shown the labelled example');
+  await act(async () => { answer({ ok: true, status: 200, json: async () => STANDING }); await new Promise((r) => setTimeout(r, 0)); });
+  assert.match(page.el.textContent, /2340/, "the member's own score did not land");
+  assert.equal(marks(page.el), 0);
+  await page.close();
+  fetchImpl = async () => ({ ok: false, status: 401, json: async () => ({}) });
+});
+
 test('no component shows the example member\'s figures without a label, itself or from the section that renders it', () => {
   // A net under the renders above: derived from the source, so a NEW section
   // that reads these constants fails here until it carries a label. The names
