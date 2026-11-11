@@ -59,3 +59,28 @@ test('a member with no look who saves another area gets no look invented', async
   const doc = await saveArea({ bio: 'hi' }, 'about', (d) => d.nodes().find((n) => n.props && n.props['data-cust-field'] === 'bio').props.onChange({ target: { value: 'hello' } }));
   assert.ok(!doc.look, 'a look was written');
 });
+
+// The climb background had no picker in the app (only the website's Edit profile set it). Customize's Colors
+// carries one now, under the look: a pick saves profile_custom.climbBg, Paper clears it (null, as the website
+// stores it), and an untouched picker leaves it as stored.
+const pickClimb = (key) => (d) => d.nodes().find((n) => n.props && n.props['data-cust-climb-bg'] === key).props.onClick();
+
+test('Customize → Colors: the climb backgrounds, each saved as picked; Paper clears one', async () => {
+  // Paper and the six washes, the website's, in its order.
+  const opened = { bio: 'hi', look: { ...LOOK } };
+  globalThis.window.ShapeAuth = { getCachedState: () => ({ user: { id: 'u-me' } }) };
+  const d = withSurface(() => drive(mod.BSProfileCustomizer, { initial: opened, c: '#c9a227', INK: '#111', BG: '#fff', onClose() {}, onSave() {}, ownerUid: 'u-me' }));
+  d.nodes().find((n) => n.props && n.props['data-cust-row'] === 'colors').props.onClick();
+  withSurface(() => d.render());
+  assert.deepEqual(d.nodes().filter((n) => n.props && n.props['data-cust-climb-bg']).map((n) => n.props['data-cust-climb-bg']), ['paper', 'dawn', 'dusk', 'alpine', 'forest', 'ember', 'storm']);
+  assert.equal(d.nodes().find((n) => n.props && n.props['data-cust-climb-bg'] === 'paper').props['aria-pressed'], true, 'none picked opens on Paper');
+
+  const doc = await saveArea(opened, 'colors', pickClimb('dusk'));
+  assert.equal(doc.climbBg, 'dusk', 'the pick was not saved');
+  assert.deepEqual(doc.look, LOOK, 'a climb pick changed the look');
+  const cleared = await saveArea({ bio: 'hi', climbBg: 'ember' }, 'colors', pickClimb('paper'));
+  assert.equal(cleared.climbBg, null, 'Paper did not clear the climb background');
+  // A look picked alone leaves the stored climb background as it is.
+  const kept = await saveArea({ bio: 'hi', climbBg: 'storm', look: { ...LOOK } }, 'colors', (dd) => dd.nodes().find(named('BSLookPicker')).props.setLook({ paper: 'forest', accent: 'green' }));
+  assert.equal(kept.climbBg, 'storm');
+});

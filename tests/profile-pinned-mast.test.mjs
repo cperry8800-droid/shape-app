@@ -42,7 +42,8 @@ test('both profiles are pages, and neither keeps its own scroller or tab-bar spa
     const fn = body(marker);
     // The member profile holds its page as `page` and hands it out inside the theme provider that paints it
     // in the member's own look (2026-11-04; tests/member-look.test.mjs), so BSPage is still what scrolls.
-    assert.match(fn, /(?:return|const page =) \(\s*<BSPage><div /, `${marker} no longer returns a BSPage`);
+    // The member page may hand BSPage its climb background as the backdrop (profile_custom.climbBg).
+    assert.match(fn, /(?:return|const page =) \(\s*<BSPage(?: backdrop=\{climbWash \? [^\n]*? : null\})?><div /, `${marker} no longer returns a BSPage`);
     assert.doesNotMatch(fn, /className="bs-scroll"/, `${marker} renders its own scroller again`);
     assert.match(fn, /const pinnedTop = useBSPinnedMastTop\(\);/, `${marker} no longer measures the pinned masthead`);
     assert.match(fn, /scrollMarginTop: pinnedTop/, `${marker}'s Posts jump lands under the pinned masthead`);

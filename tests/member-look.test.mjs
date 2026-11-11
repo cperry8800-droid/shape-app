@@ -155,3 +155,19 @@ test('the look\'s accent tints what the hex accent tinted; the hex accent is the
   assert.equal(pinOf({ accent: '#8a5cf6' }), '3px solid #8a5cf6', 'the old hex accent is no longer the fallback');
   assert.equal(pinOf({}), '3px solid #c0533b', 'without either, the tier\'s colour');
 });
+
+// The climb background (profile_custom.climbBg, picked in Customize or the website's Edit profile) was painted on
+// no member page. It is the kit's wash over the page's paper, behind the whole page (BSPage's backdrop).
+test('a member page lays the climb background picked behind the page, over its paper; none is the paper', () => {
+  signIn('u-viewer');
+  const pageOf = (d) => d.nodes().find((n) => n && n.props && 'backdrop' in n.props && n.props.children);
+  const d = visit(PRIYA, { climbBg: 'dusk', look: { paper: 'bone', accent: 'rust' } });
+  const back = pageOf(d).props.backdrop;
+  assert.ok(back, 'the climb background is painted nowhere');
+  assert.equal(back.props['data-member-climb-bg'], 'dusk');
+  assert.ok(back.props.style.background.startsWith('linear-gradient(165deg, rgba(138,92,246,0.30)'), back.props.style.background);
+  assert.ok(back.props.style.background.endsWith(`, ${rootOf(d).props.value.PAPER_BG}`), 'the wash is not over the page\'s paper');
+  for (const doc of [{}, { climbBg: '' }, { climbBg: 'neon' }, { look: { paper: 'bone' } }]) {
+    assert.equal(pageOf(visit(PRIYA, doc)).props.backdrop, null, `${JSON.stringify(doc)}: a wash was laid`);
+  }
+});
