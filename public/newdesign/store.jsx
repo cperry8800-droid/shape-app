@@ -17,8 +17,8 @@ const CATEGORIES = ["All", "Shape Merch", "Training", "Nutrition", "Shape Perks"
 
 const PRODUCTS = [
   // Shape Merch
-  { id: 17, cat: "Shape Merch", name: "Shape Cap · Black", brand: "Shape Merch", cost: 700, retail: 35, img: "cap · black", tag: "Limited drop", stock: "Limited · 30" },
-  { id: 18, cat: "Shape Merch", name: "Shape Cap · White", brand: "Shape Merch", cost: 700, retail: 35, img: "cap · white", tag: "Limited drop", stock: "Limited · 30" },
+  { id: 17, cat: "Shape Merch", name: "Shape Cap · Black", brand: "Shape Merch", cost: 700, retail: 35, img: "cap · black", tag: "Limited drop", stock: "Limited" },
+  { id: 18, cat: "Shape Merch", name: "Shape Cap · White", brand: "Shape Merch", cost: 700, retail: 35, img: "cap · white", tag: "Limited drop", stock: "Limited" },
 
   // Training
   { id: 6, cat: "Training", name: "$25 session credit", brand: "Any Shape coach", cost: 500, retail: 25, img: "credit · 25", stock: "Unlimited", kind: "credit" },

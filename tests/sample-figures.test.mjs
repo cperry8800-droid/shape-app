@@ -99,3 +99,21 @@ test("a signed-in member's feed section is the Wall itself, and a visitor's samp
   assert.match(COMMUNITY, /\{Wall \? \(\s*<div data-cm-wall=""[^]*?React\.createElement\(Wall, \{ place: "wall" \}\)/, "a member's feed section is not the Wall");
   assert.match(COMMUNITY, /\{Wall \? null : <CmExample[^>]*>Example posts/, "the visitor's sample feed is unlabelled");
 });
+
+test('the sweep: Pricing labels its example coaches, the FAQs drop their unsourced revenue shares, the hero mock-ups say Example', () => {
+  const PRICING = readFileSync('public/newdesign/pricing.jsx', 'utf8');
+  assert.match(PRICING, /data-pr-example=""[^>]*>· EXAMPLE</, "Pricing's example coach cards are unlabelled");
+  for (const f of ['coach', 'nutritionist']) {
+    const src = readFileSync(`public/newdesign/${f}.jsx`, 'utf8');
+    assert.doesNotMatch(src, /earn \d+–\d+% of revenue/, `${f}.jsx states a revenue share with no source again`);
+  }
+  assert.match(readFileSync('public/newdesign/coach.jsx', 'utf8'), />Example · Coach Maya O\.</);
+  assert.match(readFileSync('public/newdesign/nutritionist.jsx', 'utf8'), />Example · today's plan</);
+  assert.doesNotMatch(STORE, /stock: "Limited · \d+"/, 'the Store invents a stock count again');
+});
+
+test('the two unlinked persona pages land on the pages that show the reader their own', () => {
+  const CONFIG = readFileSync('next.config.ts', 'utf8');
+  assert.match(CONFIG, /\{ source: '\/newdesign\/Team\.html', destination: '\/newdesign\/ClientTeam\.html', permanent: false \}/);
+  assert.match(CONFIG, /\{ source: '\/newdesign\/ClientProfile\.html', destination: '\/newdesign\/ClientApp\.html#profile', permanent: false \}/);
+});

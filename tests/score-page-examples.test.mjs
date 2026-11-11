@@ -38,7 +38,7 @@ const code = babel.transformSync(SRC.slice(0, mountAt), OPTS).code;
 let fetchImpl = async () => ({ ok: false, status: 401, json: async () => ({}) });
 const S = new Function('React', 'ReactDOM', 'window', 'document', 'location', 'fetch', 'matchMedia', 'IntersectionObserver', 'localStorage',
   'mono', 'sans', 'serif', 'INK', 'INK_DEEP', 'PAPER', 'RUST', 'TEAL', 'TEAL_BRIGHT', 'Ph', 'Header', 'Footer',
-  code + '\nreturn { ScoreHero, ScoreTiers, ScoreActivity, ScoreLedger, ScoreRewards, ScorePage, scView };')(
+  code + '\nreturn { ScoreHero, ScoreTiers, ScoreActivity, ScoreLedger, ScoreRewards, ScorePage, scView, REWARDS };')(
   React, ReactDOM, dom.window, dom.window.document, dom.window.location, (...a) => fetchImpl(...a),
   () => ({ matches: false }), class { observe() {} disconnect() {} }, dom.window.localStorage,
   'monospace', 'sans-serif', 'serif', '#f2ede4', '#0b0e0c', '#1a1612', '#c0533b', '#0ac5a8', '#2ee0c4',
@@ -255,4 +255,21 @@ test('no component shows the example member\'s figures without a label, itself o
     return !(parents.length && parents.every((p) => info.get(p).labelled));
   });
   assert.deepEqual(unlabelled, [], 'these show the example member\'s figures with no label: ' + unlabelled.join(', '));
+});
+
+test("the Rewards cards are the Store's own items at the Store's own prices", () => {
+  // src/lib/store-catalogue.ts is the price list the redeem route charges: 150 points a dollar,
+  // 300 for a credit. The page had its own ("$25 session credit · 500", a "$200" credit sold at $60).
+  const CAT = readFileSync(new URL('../src/lib/store-catalogue.ts', import.meta.url), 'utf8');
+  const rate = Number(/SHAPE_PTS_PER_USD = (\d+)/.exec(CAT)[1]);
+  const creditRate = Number(/SHAPE_PTS_PER_USD_CREDIT = (\d+)/.exec(CAT)[1]);
+  assert.ok(S.REWARDS.length >= 4);
+  for (const r of S.REWARDS) {
+    const m = new RegExp(`\\{ id: '${r.id}', name: '([^']+)', cat: '[^']+', retail: (\\d+)(?:, kind: '(\\w+)')?`).exec(CAT);
+    assert.ok(m, `"${r.title}" (${r.id}) is not in the Store's catalogue`);
+    const retail = Number(m[2]);
+    const want = Math.round(retail * (m[3] === 'credit' ? creditRate : rate));
+    assert.equal(r.cost, want, `"${r.title}" says ${r.cost} points; the Store charges ${want}`);
+    if (/locked: true/.test(CAT.slice(m.index, CAT.indexOf('\n', m.index)))) assert.equal(r.locked, true, `"${r.title}" is tier-locked in the Store`);
+  }
 });

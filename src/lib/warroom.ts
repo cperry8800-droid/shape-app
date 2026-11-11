@@ -658,14 +658,19 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
       ],
     },
     {
-      section: 'Website: a member sees their own figures on the Store and Rewards pages, the real Wall on Community; every sample says it is one. No migration',
+      section: 'Website: a member sees their own figures on the Store and Rewards pages, the real Wall on Community; every sample says it is one (#2701). No migration',
       items: [
         { label: 'Owner, 2026-11-11: "fix the store sample numbers too, and community page, and rewards page. Look at every page on website"', status: 'done' },
         { label: 'Store (store.jsx): the hero strip\'s Lifetime earned, Items redeemed and Current tier were constants (3,420; 7, "4 this quarter"; "Tempo · 216 to Peak", which no score can be) shown to members beside their real balance. A member now reads their Shape Score and tier from /api/client/score and counts their own redemptions (this quarter\'s too); a read still out is "—". Signed out, the example is the Rewards page\'s member (1,284, Tempo, 716 to Form) under "Example member · sign in to see your own", and the sample locker is "Example locker"', status: 'done' },
         { label: 'Rewards (score.jsx): a signed-in member\'s page is theirs on every section: the ring and streak, the four figures (this week vs the week before, streak and best, tier and points to the next, spendable balance), the ladder, the 12-week heatmap and momentum from /api/client/score and /api/client/score-record, the ledger (a lost point reads −7, not +-7), and which rewards they can afford. No example label on a member\'s figures; "—" while the reads are out; a failed read falls back to the labelled example', status: 'done' },
         { label: 'Community (community.jsx): a signed-in member\'s feed section is the Wall itself (communityFeed.jsx\'s CommunityFeed); a visitor\'s sample is "Example posts". The rooms, events and challenges are labelled examples ("Rooms · live", "Events · this month" and "Your challenges · from your team" claimed otherwise); an example event no longer offers an RSVP that did nothing. No events or challenges product exists', status: 'done' },
         { label: 'Tests: tests/sample-figures.test.mjs (the Store\'s strip for a visitor, a member and an unread member; the Community labels and the Wall swap); tests/score-page-examples.test.mjs renders the Rewards page signed in, waiting and signed out', status: 'done' },
-        { label: 'The rest of the website: a page-by-page sweep for unlabelled sample figures, in progress on this branch', status: 'pending' },
+        { label: '#2701 a page-by-page sweep of every website page for figures shown as real that are not (index, GetApp, Coaches, ForCoaches, Radio, Recipes, the sign-up and login pages and the dashboards checked clean)', status: 'done' },
+        { label: '#2701 Rewards: its five reward cards are the Store\'s own items at the Store\'s own prices (the $25 session credit is 7,500 points, not 500; no "20% off merch"; the annual credit is $60, not $200), and Redeem opens the Store instead of doing nothing; the Store\'s caps no longer invent a "Limited · 30" stock', status: 'done' },
+        { label: '#2701 Pricing\'s three example coach cards say Example; the For trainers and For nutritionists FAQs drop "30–50% / 30–40% of revenue" (no source); the two hero mock-ups say Example', status: 'done' },
+        { label: '#2701 Team.html (a made-up member\'s team, "131 sessions, 94% completion") and ClientProfile.html (a made-up member\'s profile and revenue), unlinked and unlabelled, redirect to ClientTeam.html and ClientApp.html#profile', status: 'done' },
+        { label: 'Left by #2701: the chat bubble\'s sample rooms carry member and online counts ("41,208 members · 2,104 online") with no label, and a signed-in member keeps them when a read fails or before it lands (chatWidget.jsx, clientChatThreads.jsx)', status: 'pending' },
+        { label: 'Left by #2701: another member\'s profile (MemberProfile.html) is the real name, score and feed over the demo persona\'s records, streak, coach note and climb, and a member\'s own page keeps the demo\'s value for anything missing (livingProfilePage.jsx, livingDesktop.jsx)', status: 'pending' },
       ],
     },
     {
