@@ -1,8 +1,8 @@
 # Shape — working notes
 
-The rules, the code map and what waits on the owner. Every session loads it: when a
-rule changes, replace its line. **No changelog**: the PR description is the record.
-`tests/worklog-rules.test.mjs` fails on a dated entry or past 12 KB.
+The rules and the code map. Every session loads it: when a rule changes, replace its line.
+**No changelog**: the PR description is the record.
+`tests/worklog-rules.test.mjs` fails on a dated entry or past 16 KB.
 
 ## How we work
 
@@ -15,8 +15,8 @@ rule changes, replace its line. **No changelog**: the PR description is the reco
 - ⚠ **A stacked PR gets no CI** (`ci.yml` runs only on PRs into `main`; a base change starts
   no run). Stack only on a base that merges first, and run `workflow_dispatch` once it does.
 - **The PR description is the record:** what changed and why, each review finding and its
-  answer, what was verified, what is left open, which goes to the War Room, and below if it
-  waits on the owner. ⚠ **The War Room entry goes in the PR's first push,
+  answer, what was verified, what is left open, which goes to the War Room (its Waiting on the
+  owner section if it needs the owner). ⚠ **The War Room entry goes in the PR's first push,
   with the code**; a review fix edits it with the fix. No War-Room-only commit
   (owner, 2026-11-10).
 - **Review.**
@@ -124,38 +124,8 @@ rule changes, replace its line. **No changelog**: the PR description is the reco
 
 ## Open items
 
-Known gaps: the War Room's pending items (`src/lib/warroom.ts`).
-
-**Waiting on the owner**
-- The Exchange mail flow rule for the logo under Nora's support replies (#2479's Owner steps).
-- Push keys (#2385): `APNS_KEY_ID`, `APNS_TEAM_ID`, `APNS_PRIVATE_KEY` in Vercel; Firebase
-  `shape-84d22`'s `google-services.json` as secret `GOOGLE_SERVICES_JSON` (DEPLOY.md §10);
-  then a native device pass, MusicKit sign-in included.
-- Reconnect WHOOP on the account that connected it on 2 May (#2437: no refresh token).
-- Decide: a buyer paying an open checkout from another tab (closing it means refunds).
-- In-app purchase outside the US (Phase 2): on hold.
-- Decide how a suspended coach appeals.
-- Counsel reads the privacy policy (2026-10-13 text; §10's tap counts, 2026-10-29, and radio
-  listening, 2026-10-30); the health-data page and the data export are incomplete (War Room).
-- The direct-charges test purchase on staging (#2403's Owner steps).
-- Decide how a seeded listing becomes its coach's (`listing_time_requests`, `/dashboard/claim`).
-- Decide the perks "What Master unlocks" and `leaderboards.jsx` promise: nothing grants them.
-- Decide whether coaches keep seeing each other's active clients and sessions-kept rate.
-- Check `NORA_TTS_VOICE` (coral, nova, shimmer or sage) and `NORA_TTS_INSTRUCTIONS` in Vercel.
-- Nora's speed (#2558): ask her a few things on the deployed app (one by voice) for the timings;
-  `OPENAI_FAST_MODEL=off` and a redeploy put members back on Astra.
-- Decide the bring-your-clients rules (the 15% cases, private profiles, the app's checkout).
-- Decide whether a coach checkout refuses payment, instead of a destination charge on Shape's
-  account, when a Connect variable is missing (`directChargesReady`, #2555).
-- Decide #2566's calls (its War Room section).
-- Decide night-before prep's open calls (#2563's War Room section).
-- A trademark search on "Club Shape", its domain and handles, before the rename ships (#2568's War Room).
-- Runway (#2682): drop the "runaway" connector; decide a paid plan and an admin page.
-- Set up the radio station (`services/station`).
-- Set `STRIPE_PLATFORM_ANNUAL_PRICE_ID` ($48/yr) in Vercel Production.
-- Add the `localhost` hostname to the Turnstile widget.
-- A native speaker reads the PAR-Q, Nora hint, sample coach and Friends translations
-  (Hausa and Pidgin first).
+Known gaps: the War Room's pending items (`src/lib/warroom.ts`). What waits on the owner is
+its first section, **Waiting on the owner**: add to it there, not here.
 
 **Planned next**
 - Nora as a Shape Radio DJ, Phase 2 on

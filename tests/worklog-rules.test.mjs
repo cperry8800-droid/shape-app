@@ -1,9 +1,11 @@
-// docs/WORKLOG.md is `@`-imported by AGENTS.md, so every session loads it before its
-// first prompt. Since 2026-10-16 it holds only the current rules, the code map and the
-// open items; the PR description is the record of what shipped. Since 2026-10-30 the known
-// gaps live in the War Room (src/lib/warroom.ts) and the cap is 12 KB, so the file stays about
-// half what it was. A session that started before either change, or works from an older plan,
-// will still try to add a dated entry or a gap, so this guard says what to do instead.
+// docs/WORKLOG.md is `@`-imported by AGENTS.md, so every session loads it before its first
+// prompt. Since 2026-10-16 it holds only the current rules, the code map and the open items;
+// the PR description is the record of what shipped. Since 2026-10-30 the known gaps live in the
+// War Room (src/lib/warroom.ts) and the cap is 12 KB, so the file stays about half what it was.
+// Since 2026-11-11 the owner's list is the War Room's first section too, and the cap is 16 KB
+// (owner), so a new rule has room without squeezing the others. A session that started before
+// these changes, or works from an older plan, will still try to add a dated entry or a gap, so
+// this guard says what to do instead.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -12,17 +14,24 @@ import path from 'node:path';
 const root = path.resolve(import.meta.dirname, '..');
 const read = (rel) => fs.readFileSync(path.join(root, rel), 'utf8');
 const live = read('docs/WORKLOG.md');
-const MAX_BYTES = 12 * 1024;
+const MAX_BYTES = 16 * 1024;
 
 test('the worklog has no changelog', () => {
   const dated = live.split('\n').filter((l) => /^#{2,4} \d{4}-\d{2}-\d{2}/.test(l));
-  assert.deepEqual(dated, [], 'docs/WORKLOG.md has no dated entries since 2026-10-16: write what shipped in the PR description, and put anything left open in the War Room (src/lib/warroom.ts), and under "Waiting on the owner" if it needs the owner');
+  assert.deepEqual(dated, [], 'docs/WORKLOG.md has no dated entries since 2026-10-16: write what shipped in the PR description, and put anything left open in the War Room (src/lib/warroom.ts), and in its "Waiting on the owner" section if it needs the owner');
   assert.ok(!/^## Changelog/m.test(live), 'docs/WORKLOG.md has no "## Changelog" section since 2026-10-16: the PR description is the record');
 });
 
 test('the worklog stays short', () => {
   const bytes = Buffer.byteLength(live);
   assert.ok(bytes <= MAX_BYTES, `docs/WORKLOG.md is ${bytes} bytes (cap ${MAX_BYTES}); every session loads it, so replace an old rule instead of adding a correction under it, and put a known gap in the War Room (src/lib/warroom.ts)`);
+});
+
+test('what waits on the owner is the War Room\'s first section, not a worklog list', () => {
+  assert.doesNotMatch(live, /^\*\*Waiting on the owner\*\*\s*$/m, 'docs/WORKLOG.md keeps no owner list since 2026-11-11: add the item to the War Room\'s "Waiting on the owner" section (src/lib/warroom.ts)');
+  const warroom = read('src/lib/warroom.ts');
+  const first = warroom.slice(warroom.indexOf('function buildChecklist(')).match(/section: '([^']*)'/);
+  assert.ok(first && first[1].startsWith('Waiting on the owner'), 'the War Room\'s first checklist section is "Waiting on the owner", where AGENTS.md and the worklog send what needs the owner');
 });
 
 test('AGENTS.md loads the worklog and asks for no dated entries', () => {
