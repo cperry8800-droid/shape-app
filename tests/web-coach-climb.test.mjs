@@ -54,11 +54,13 @@ const POST = { id: 41, title: 'Tempo week', note: 'Three down, one up.', metrics
 const tomorrow = new Date(Date.now() + 864e5);
 // One backend for the page: `reviews` is the reviews route's answer (or a function of nothing that
 // returns a never-settling promise, for "on its way"); `posts`, `plans`, `listing` are the rows read.
-function backend({ reviews = { reviews: [], avg: 9.9, count: 284, locked: true }, posts = [POST], plans = [PLAN], listing = LISTING, hours = true, holdWeek = false } = {}) {
+function backend({ reviews = { reviews: [], avg: 9.9, count: 284, locked: true }, posts = [POST], plans = [PLAN], listing = LISTING, hours = true, holdWeek = false, postsGate = null } = {}) {
   const calls = [];
   const q = (table) => {
     const rows = table === 'trainers' || table === 'nutritionists' ? (listing ? [listing] : []) : table === 'community_posts' ? posts : [];
-    const o = { select: () => o, eq: () => o, in: () => o, order: () => o, limit: () => o, maybeSingle: async () => ({ data: rows[0] || null, error: null }), then: (r, j) => Promise.resolve({ data: rows, error: null }).then(r, j) };
+    // `postsGate`: a promise the posts read waits on, for a read that lands late.
+    const ready = table === 'community_posts' && postsGate ? postsGate : Promise.resolve();
+    const o = { select: () => o, eq: () => o, in: () => o, order: () => o, limit: () => o, maybeSingle: async () => ({ data: rows[0] || null, error: null }), then: (r, j) => ready.then(() => ({ data: rows, error: null })).then(r, j) };
     return o;
   };
   window.shapeDb = {
@@ -393,6 +395,31 @@ test('on a desktop every camp is a tab under the wire: each opens its camp as it
   await q.unmount();
 });
 
+// Codex P2 on #2700: a read that lands late can add a camp ahead of the one shown (a photo post brings Base
+// ahead of Book); once the visitor has scrolled into the page, the camp they are reading stays.
+test('a late read that adds Base never swaps the camp a visitor is reading', async () => {
+  WIDE = true;
+  const row = { ...ROW, goal: '', custom: { about: ROW.custom.about } };
+  let open = null;
+  backend({ postsGate: new Promise((r) => { open = r; }) });
+  const p = await mount({ ...LIVE, row });
+  assert.ok(!camps().includes('base'), 'no Base while the posts are on their way');
+  assert.deepEqual(shown(), ['day'], 'the page lands on Book');
+  await React.act(async () => window.dispatchEvent(new window.Event('scroll')));
+  await React.act(async () => { open(); });
+  await settle(); await settle();
+  assert.equal(camps()[0], 'base', 'the photo post brings Base, first');
+  assert.deepEqual(shown(), ['day'], 'the visitor stays on Book');
+  await p.unmount();
+  // Before the visitor does anything, the page lands on the first camp the reads give it.
+  backend({ postsGate: new Promise((r) => { open = r; }) });
+  const q = await mount({ ...LIVE, row });
+  await React.act(async () => { open(); });
+  await settle(); await settle();
+  assert.deepEqual(shown(), ['base']);
+  await q.unmount();
+});
+
 // Owner, 2026-11-11, with a screenshot of the meal plan cards: "when you open these meal plans, it shouldn't
 // bring you down to bottom of the page, it should open up a preview of some of these meal plans in separate pop up".
 test('a meal plan opens its preview: the weeks, the meals a day, a day\'s first meals and how many more; Start buys it', async () => {
@@ -428,6 +455,15 @@ test('a meal plan opens its preview: the weeks, the meals a day, a day\'s first 
   assert.match(s2.querySelector('[data-meal-plan-locked]').textContent, /more meals? in the plan$/, 'a sample sells nothing, so no "when you buy"');
   assert.ok(!s2.querySelector('[data-meal-plan-buy]') && s2.querySelector('[data-meal-plan-work]'));
   await q.unmount();
+  // A free plan has no checkout: the sheet offers Work with, and the more meals aren't "when you buy".
+  backend({ plans: [{ ...MEAL, id: 'm2', price: 0 }] });
+  const f = await mount({ mode: 'live', role: 'nutritionist', uid: 'coach-1', row: { ...ROW, role: 'nutritionist' }, verified: true });
+  await React.act(async () => $('[data-camp-tab="range"]').click());
+  await React.act(async () => $('[data-camp="range"] [data-program-open]').click());
+  const s3 = $('[data-meal-plan-sheet]');
+  assert.match(s3.querySelector('[data-meal-plan-locked]').textContent, /＋2 more meals in the plan$/, 'no checkout, so no "when you buy"');
+  assert.ok(!s3.querySelector('[data-meal-plan-buy]') && s3.querySelector('[data-meal-plan-work]'));
+  await f.unmount();
 });
 
 test('the house rules: no coloured emoji, no ● in a pill, the wire still for reduced motion, Saira for figures', () => {

@@ -682,6 +682,8 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: '#2700 Plate notes: each day open on the page, with its energy, protein, carbs and fat when every meal carried them and where its energy came from; each meal at its time with its figures, the coach\'s note and the Shape Kitchen recipe it was made from (its /recipes page). Above, the days shared, the day\'s average energy and protein, the meals. A meal opens the day\'s sheet at that meal', status: 'done' },
         { label: 'Review fix on #2700: the desktop tab test compared a DOM node in assert.equal, which tests/assert-dom-value.test.mjs refuses (a failing one takes 81 s to format); it compares a boolean', status: 'done' },
         { label: '#2700 merged main (#2699, which conflicted, so CI had not run): #2699\'s short-screen rule gave the tab row a bottom margin for its place over the stage; under the wire it is a 12px top margin', status: 'done' },
+        { label: 'Review fix on #2700 (Codex): a meal plan with no checkout (a free plan, or a coach whose listing is not ready) no longer says its more meals are "unlocked when you buy"; that line follows the Start button', status: 'done' },
+        { label: 'Review fix on #2700 (Codex): a read that lands late can add a camp ahead of the one shown (a photo post brings Base ahead of Book); once the visitor scrolls, taps or types, the camp on screen is held, so the page is never swapped under them', status: 'done' },
         { label: 'OWNER: on the live site, a coach\'s page on a computer (a tab opens its section on its own) and on a phone (Sections, then a section); a nutritionist\'s meal plan, Open; a sample nutritionist\'s Kitchen (recipes) and Plate notes', status: 'manual' },
       ],
     },

@@ -1017,6 +1017,16 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
   //    camp keeps its own state (the kitchen's part, the studio's filter) when the reader comes back to it.
   const [campPicked, setCampOn] = React.useState(null);
   const campOn = camps.some((c) => c.key === campPicked) ? campPicked : (camps[0] ? camps[0].key : null);
+  // Until the reader picks one, the page lands on the first camp, and a read that comes in late can add an
+  // earlier one (a photo post brings Base ahead of Book). Once the reader scrolls, taps or types, the camp
+  // on screen is held, so a late read never swaps the page they are reading.
+  React.useEffect(() => {
+    if (campPicked != null || !campOn) return undefined;
+    const hold = () => setCampOn((k) => (k == null ? campOn : k));
+    const evs = ["scroll", "pointerdown", "keydown"];
+    evs.forEach((e) => window.addEventListener(e, hold, { passive: true }));
+    return () => evs.forEach((e) => window.removeEventListener(e, hold));
+  }, [campPicked, campOn]);
   // The tabs sit under the wire, over the camps (owner, 2026-11-11, with a screenshot of that gap), and pin
   // under the header once they reach it, so another camp is a click away from anywhere in a long one. The
   // row wraps, never scrolls sideways. What pins under it (the spine's mark, the studio's filter row) sits
@@ -3047,7 +3057,7 @@ function CpwMealPlanSheet({ T, K, pl, canBuy, onClose, onBuy, onWork, onAsk = nu
           ))}
           {p.locked > 0 ? (
             <div data-meal-plan-locked="" style={{ marginTop: 10, padding: "10px 0", borderTop: "1px dashed rgba(232,235,239,0.24)", textAlign: "center", ...label }}>
-              ＋{p.locked} more {p.locked === 1 ? "meal" : "meals"}{pl.sample || isSelf ? " in the plan" : " · unlocked when you buy"}
+              ＋{p.locked} more {p.locked === 1 ? "meal" : "meals"}{canBuy ? " · unlocked when you buy" : " in the plan"}
             </div>
           ) : null}
         </div>
