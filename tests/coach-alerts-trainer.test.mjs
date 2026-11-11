@@ -360,3 +360,23 @@ test('the demo: both roles still show red, amber and joint attention, with the n
   const j = DS.findJointAttention(DS.buildMockClients(NOW), NOW, null, 'nutritionist')[0];
   assert.ok(j.trainingFlags.some((f) => f.key === 'workouts_missed'), 'the nutritionist sees the trainer\'s program slipping');
 });
+
+// ── The edges the mutation round asked for ─────────────────────────────────────
+test('the edges: one area with missed sessions, the drop on its line, quiet a day short, no booking alone', () => {
+  const at = (d) => new Date(NOW.getTime() - d * DAY).toISOString();
+  // Workouts missed and missed sessions are one area, training: amber, not red.
+  const train = feed('trainer', base({ assignedWorkouts: wk([[2, 0], [5, 0], [9, 1], [12, 1]]), bookedSessions: { trainer: { done: 1, planned: 5 } } }));
+  assert.deepEqual(keys(train), ['missed_sessions', 'workouts_missed']);
+  assert.equal(train.severity, 'amber');
+  // A drop of exactly 20 points speaks: 100% then 80%.
+  assert.ok(flag(feed('trainer', base({ assignedWorkouts: wk([[1, 1], [4, 1], [7, 1], [9, 1], [10, 0], [16, 1], [19, 1], [22, 1]]) })), 'completion_drop'));
+  // Six quiet days are not seven.
+  const six = quiet({ foodLogs: { lastLoggedOn: day(6), daysLogged7d: 1 }, activity: { lastWorkoutOn: day(6), steps: [] }, lastFromClient: day(6) + 'T10:00:00' });
+  assert.equal(flag(feed('trainer', six), 'gone_quiet'), null);
+  // An overview from before the next booking was read says nothing.
+  assert.equal(flag(feed('trainer', base({ bookedSessions: { trainer: { done: 2, planned: 2, lastKeptAt: at(16) } } })), 'no_booking'), null);
+  // No booking beside a contact gap: two areas, but the reminder never tips the row red.
+  const soft = feed('trainer', base({ bookedSessions: { trainer: { done: 2, planned: 2, lastKeptAt: at(20), nextAt: null } }, lastContact: { trainer: at(10), nutritionist: null } }));
+  assert.deepEqual(keys(soft), ['contact_gap', 'no_booking']);
+  assert.equal(soft.severity, 'amber');
+});
