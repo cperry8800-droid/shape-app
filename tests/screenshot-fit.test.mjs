@@ -61,13 +61,19 @@ test('a phone screenshot leaves room for the bar and its caption on a short scre
   assert.equal(getAppPhone().max, 272);
 });
 
-test("GetApp's phones stay 264px on a phone, where that page's own legibility ruling holds", () => {
-  // The height cap is for monitors. Under 900px GetApp sets the flat 264px its comment
-  // explains (a 200px capture on a phone renders the app's 8px mono under 3px), so the
-  // desktop clamp must not leak into the phone layout.
+test("GetApp's phones shrink on a short phone too, under the 264px cap", () => {
+  // Owner, 2026-11-11: "yes shrink the app page screenshots on phones too". Under 900px
+  // the rule caps the phone at 264px and must not set a width of its own, or the height
+  // clamp above stops applying and a phone is ~610px tall on any screen again.
   const narrow = /@media \(max-width: 900px\) \{[\s\S]*?\.beat-ph \.ph \{([^}]*)\}/.exec(GETAPP);
   assert.ok(narrow, "could not read GetApp's phone-layout rule for .beat-ph .ph");
-  assert.match(narrow[1], /width: 264px;/, "GetApp's phone layout no longer sets the phone's width itself");
+  assert.match(narrow[1], /max-width: 264px;/, "GetApp's phone layout lost its 264px cap");
+  assert.doesNotMatch(narrow[1], /(^|[^-])width:/, "GetApp's phone layout sets its own width, so the height clamp no longer applies");
+  const phone = getAppPhone();
+  const onPhone = (vh) => Math.min(264, width(phone, vh));
+  assert.equal(Math.round(onPhone(844)), 261, 'an iPhone 13-sized screen');
+  assert.equal(onPhone(667), phone.min, 'an iPhone SE-sized screen sits at the floor');
+  assert.ok(onPhone(667) * CAPTURE < 548, "at the floor a phone is still taller than an iPhone SE shows under Safari's bars");
 });
 
 test("the homepage's phones all take --phw, so none can keep a flat width", () => {
