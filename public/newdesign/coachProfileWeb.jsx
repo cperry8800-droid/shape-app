@@ -927,6 +927,10 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
     programFor: isPrivate ? null : K.bsProfileProgramFor(custom && custom.programFor),
     picks: isPrivate ? [] : K.bsProfilePicks(custom && custom.picks),
   });
+  // The Summit's programs: every one the coach sells, the Studio's rows first (bsSalePrograms), so none
+  // past the Studio's twelve goes unsold now that the storefront's price list is gone. The head's program
+  // figures (the stats, the milestones) count these, not the Studio's twelve.
+  const salePrograms = studioModel ? K.bsSalePrograms(studioModel, programs) : [];
   // What Work with lists: a coach's published plans, or the sample's own, as the app's sheet does
   // (BSTrainerProfile sheetPlans): a trainer's programs, or a nutritionist's meal plans (#2557).
   // Programs are empty for a nutritionist, so reading only them left the sample's sheet with no
@@ -1011,7 +1015,7 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
   const songEmbed = song ? K.bsSpotifyEmbed(song.url) : null;
   const statFigures = K.bsCoachStatFigures({
     reviews: reviews.count > 0 ? { avg: reviews.avg, count: reviews.count } : null,
-    years: aboutDoc && aboutDoc.years, programs: studioModel ? studioModel.programs.length : 0, workouts: studioModel ? studioModel.workouts.length : 0,
+    years: aboutDoc && aboutDoc.years, programs: salePrograms.length, workouts: studioModel ? studioModel.workouts.length : 0,
     replays: replays.length, recipes: kitchen && kitchen.recipes ? kitchen.recipes.length : 0, plates: plateDays.length, certs: credList.length,
   });
   const headline = isPrivate ? [] : K.bsCoachHeadline(custom && custom.heroStats, role, statFigures);
@@ -1034,9 +1038,6 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
   const hasRange = nutri ? mealPlans.length > 0 || (live && salePlans.state === "error") : (!!(studioModel && (studioModel.programs.length || studioModel.workouts.length)) || workFailed || studioCoaching);
   // Its Programs (Meal plans) head and cards: only with plans to show, a read of them that failed, or to the coach
   // saying where they go; a coach with workouts and no programs has no empty "Programs." over the workouts.
-  // The Summit's programs: every one the coach sells, the Studio's rows first (bsSalePrograms), so none
-  // past the Studio's twelve goes unsold now that the storefront's price list is gone.
-  const salePrograms = studioModel ? K.bsSalePrograms(studioModel, programs) : [];
   const summitPlans = nutri || isSelf || workFailed || salePrograms.length > 0;
   const hasWords = !!(quotes.length || revLocked || reviews.failed || reviews.count > 0);
   // The camps, the app's list in its order (PARITY §1): [key, kind, the name on the tab and the spine].
@@ -1198,7 +1199,7 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
   const milestones = isPrivate ? [] : [
     years ? `${years} ${years === 1 ? "year" : "years"} coaching` : null,
     nutri ? (kitchen && kitchen.recipes && kitchen.recipes.length ? `${kitchen.recipes.length} ${kitchen.recipes.length === 1 ? "recipe" : "recipes"}` : null)
-      : (studioModel && studioModel.programs.length ? `${studioModel.programs.length} ${studioModel.programs.length === 1 ? "program" : "programs"}` : null),
+      : (salePrograms.length ? `${salePrograms.length} ${salePrograms.length === 1 ? "program" : "programs"}` : null),
   ].filter(Boolean);
   // The wire: what really happened, newest first. Their next open time, their newest posts, the programs
   // or plans they publish. Nothing for a section that is unread.

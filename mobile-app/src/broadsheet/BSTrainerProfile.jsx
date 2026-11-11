@@ -19,6 +19,7 @@ import { BSCoachHoursPage } from './BSCoachHours.jsx';
 import { BSCoachBusinessPage, BSCoachBusinessCard } from './BSCoachBusiness.jsx';
 import { BSMakeItYours, BS_STAT_WORDS } from './BSMakeItYours.jsx';
 import { bsReceivedGroceryList } from '../services/groceryShare.mjs';
+import { BSPlanPreviewSheet } from './BSPlanPreviewSheet.jsx';
 import { BSCoachClimb, BSClimbProgramSheet, BSClimbRange, BSClimbStart, BSClimbProof, BSClimbWords, BSClimbSummit, BSClimbSummitHead, BSClimbEmpty, BSClimbReadError, CLIMB_PEAK_COLORS, bsClimbAccent, bsClimbTheme, BSClimbThemeProvider } from './BSCoachClimb.jsx';
 import { bsCoachPagePalette, bsClimbWash } from '../services/coachPagePalette.mjs';
 import { bsSaveReceivedGroceryList } from './BSGroceryShare.jsx';
@@ -614,6 +615,10 @@ function TrainerPage({ theme = null, person, role = 'trainer', onBack, onMessage
     programFor: isPrivate ? null : bsProfileProgramFor(custom && custom.programFor),
     picks: isPrivate ? [] : bsProfilePicks(custom && custom.picks),
   });
+  // The Summit's programs: every one the coach sells, the Studio's rows first (bsSalePrograms), so none
+  // past the Studio's twelve goes unsold now that the price list is gone. The head's program figures
+  // (the stats, the milestone) count these, not the Studio's twelve.
+  const salePrograms = !nutri && studioModel ? bsSalePrograms(studioModel, programs) : [];
   const buyProgram = async (pr) => {
     const pl = pr && pr.plan;
     if (!pl || !W.ShapeCoachPlans?.buy) return;
@@ -680,7 +685,7 @@ function TrainerPage({ theme = null, person, role = 'trainer', onBack, onMessage
   };
 
   // ── Overlays ──
-  const [sheet, setSheet] = React.useState(null); // { kind: 'book'|'ask'|'program'|'replay'|'plateDay'|'reviews', ... }
+  const [sheet, setSheet] = React.useState(null); // { kind: 'book'|'ask'|'program'|'mealPlan'|'replay'|'plateDay'|'reviews', ... }
   const [page, setPage] = React.useState(null);   // 'edit' | 'hours' | 'business' | 'person'
   const [recipe, setRecipe] = React.useState(null); // a Shape Kitchen recipe a plate note opened
   const [ownRecipe, setOwnRecipe] = React.useState(null); // one of a nutritionist's own recipes
@@ -753,7 +758,7 @@ function TrainerPage({ theme = null, person, role = 'trainer', onBack, onMessage
   const statFigures = bsCoachStatFigures({
     // The rating and count are everyone's to read (a non-member gets them with the reviews locked).
     reviews: reviews ? { avg: reviews.avg, count: reviews.count } : null,
-    years: aboutDoc && aboutDoc.years, programs: studioModel ? studioModel.programs.length : 0, workouts: studioModel ? studioModel.workouts.length : 0,
+    years: aboutDoc && aboutDoc.years, programs: salePrograms.length, workouts: studioModel ? studioModel.workouts.length : 0,
     replays: replays.length, recipes: kitchen && kitchen.recipes ? kitchen.recipes.length : 0, plates: plateDays.length, certs: certs.length,
   });
   const headline = isPrivate ? [] : bsCoachHeadline(custom && custom.heroStats, role, statFigures);
@@ -827,7 +832,7 @@ function TrainerPage({ theme = null, person, role = 'trainer', onBack, onMessage
   // Pins on the route: figures this page already has, never a count it doesn't read.
   const milestones = [
     who.years ? { key: 'years', label: tr('profile:climb.pinYears', { defaultValue: '{count, plural, one {# year coaching} other {# years coaching}}', count: who.years }) } : null,
-    !nutri && studioModel && studioModel.programs.length ? { key: 'programs', label: tr('profile:climb.pinPrograms', { defaultValue: '{count, plural, one {# program} other {# programs}}', count: studioModel.programs.length }) } : null,
+    salePrograms.length ? { key: 'programs', label: tr('profile:climb.pinPrograms', { defaultValue: '{count, plural, one {# program} other {# programs}}', count: salePrograms.length }) } : null,
     nutri && kitchen && kitchen.recipes && kitchen.recipes.length ? { key: 'recipes', label: tr('profile:climb.pinRecipes', { defaultValue: '{count, plural, one {# recipe} other {# recipes}}', count: kitchen.recipes.length }) } : null,
   ].filter(Boolean);
   // The wire: real events only. The next open time, the newest post, the programs on sale.
@@ -864,10 +869,9 @@ function TrainerPage({ theme = null, person, role = 'trainer', onBack, onMessage
   const winsShown = isPrivate || demo || (reviews && reviews.locked) ? [] : wins;
   // Words leaves out what Proof shows; with no Proof (a sample), the pinned ones stay in Words.
   const quotesRest = winsShown.length ? quotes.filter((r) => !r.pinned) : quotes;
-  // The Summit's programs: every one the coach sells, the Studio's rows first (bsSalePrograms), so none
-  // past the Studio's twelve goes unsold now that the price list is gone.
-  const salePrograms = !nutri && studioModel ? bsSalePrograms(studioModel, programs) : [];
-  const rangePrograms = salePrograms.map((p) => ({ key: p.key, id: p.id, name: p.name, price: p.pr && p.pr.sample ? null : p.price, paid: p.paid && !(p.pr && p.pr.sample), weeks: p.weeks, perWeek: p.perWeek, desc: p.desc, forSaid: bsStudioForLabel(tr, p.forWho), poster: p.pr ? p.pr.poster : null, pr: p.pr }));
+  // A program's Start buys it only on a live listing, as a meal plan's does and the website's program
+  // sheet does (an unfinished or suspended listing sells nothing: Codex P1 on 196314b), never a sample's.
+  const rangePrograms = salePrograms.map((p) => ({ key: p.key, id: p.id, name: p.name, price: p.pr && p.pr.sample ? null : p.price, paid: p.paid && !(p.pr && p.pr.sample) && listed, weeks: p.weeks, perWeek: p.perWeek, desc: p.desc, forSaid: bsStudioForLabel(tr, p.forWho), poster: p.pr ? p.pr.poster : null, pr: p.pr }));
   // A meal plan's Start buys it: a real, paid plan with the listing that sells it, never a sample's, and
   // only on a live listing, as the Work-with sheet sold them (an unfinished or suspended listing sells
   // nothing here: Codex P1 on 196314b).
@@ -900,7 +904,8 @@ function TrainerPage({ theme = null, person, role = 'trainer', onBack, onMessage
   //             Message; with no monthly price, the no-prices line, an intro time and Message, as the
   //             Work-with sheet had them. The full listing's link under it, where there is one.
   //   programs  each program as its card (See the climb: its sheet and preview; Start: its checkout), or
-  //             a nutritionist's meal plans (Start: the storefront's checkout, for a real, paid plan).
+  //             a nutritionist's meal plans (See the plan: its preview sheet; Start: the storefront's
+  //             checkout, for a real, paid plan on a live listing).
   //   workouts  a trainer's workouts, the studio's (BSCoachStudio.jsx) with no coaching card: the
   //             coaching is the first part. On the coach's own page their coaching card stays here.
   // On the coach's own page, the first part is the line for what members do here; the programs and the
@@ -936,7 +941,8 @@ function TrainerPage({ theme = null, person, role = 'trainer', onBack, onMessage
     ? ((isSelf || mealPlans.length || plansFailed) ? (
       <div data-summit-part="meal-plans">
         <BSClimbSummitHead nutri title={tr('profile:climb.mealPlans', { defaultValue: 'Meal plans' })} />
-        {mealPlans.length ? <BSClimbRange programs={mealPlans} nutri isSelf={isSelf} onStart={(pl) => buyPlan(pl)} />
+        {mealPlans.length ? <BSClimbRange programs={mealPlans} nutri isSelf={isSelf} onOpen={(pl) => { if (pl) setSheet({ kind: 'mealPlan', pl }); }}
+          openLabel={tr('profile:climb.seePlan', { defaultValue: 'See the plan' })} onStart={(pl) => buyPlan(pl)} />
           : plansError || (plansUnread ? null : <div style={{ padding: '14px 18px 0 14px' }}><BSClimbEmpty nutri text={tr('profile:climb.plansEmptySelf', { defaultValue: 'Publish a meal plan and it shows here, for members to buy.' })} /></div>)}
       </div>
     ) : null)
@@ -1178,8 +1184,20 @@ function TrainerPage({ theme = null, person, role = 'trainer', onBack, onMessage
           <BSClimbProgramSheet pr={sheet.pr} nutri={nutri} first={first} isSelf={isSelf} color={at >= 0 ? CLIMB_PEAK_COLORS[at % CLIMB_PEAK_COLORS.length] : null}
             item={item ? { desc: item.desc, forSaid: bsStudioForLabel(tr, item.forWho) } : null}
             days={studioModel ? studioModel.workouts.filter((w) => w.kind === 'day' && w.program && w.program.id === String(sheet.pr.id)).sort((a, b) => a.key.localeCompare(b.key, 'en', { numeric: true })) : []}
-            onClose={() => setSheet(null)} onBuy={() => buyProgram(sheet.pr)} onWork={toSummit}
+            sells={listed} onClose={() => setSheet(null)} onBuy={() => buyProgram(sheet.pr)} onWork={toSummit}
             onAsk={hasMessage ? () => { setSheet(null); onMessage(person); } : null} />
+        );
+      })() : null}
+      {sheet && sheet.kind === 'mealPlan' ? (() => {
+        // A meal plan's preview (the marketplace's sheet, BSPlanPreviewSheet): Buy only where its card's
+        // Start buys (a real, paid plan with its own listing on a live listing, never a sample's) and not
+        // on the coach's own page; a plan that isn't sold here offers Work with.
+        const pl = sheet.pl;
+        const card = mealPlans.find((m) => m.pr === pl) || (pl.id != null ? mealPlans.find((m) => m.id === String(pl.id)) : null);
+        return (
+          <BSPlanPreviewSheet plan={{ ...pl, price: demo ? null : bsWorkPrice(pl.price) }} isNutri roleColor={ACC} teal={ACC} onAccent={ON_ACC}
+            canBuy={!!(card && card.paid) && !isSelf} isSelf={isSelf} first={first}
+            onClose={() => setSheet(null)} onBuy={() => { setSheet(null); buyPlan(pl); }} onWork={toSummit} />
         );
       })() : null}
       {sheet && sheet.kind === 'replay' ? (

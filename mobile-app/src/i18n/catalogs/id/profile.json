@@ -1297,6 +1297,7 @@
   "climb.ratingAria": "Rating {rating} dari 10 dari {count, plural, other {# ulasan}}",
   "climb.reviewCount": "{count, plural, other {# ulasan}}",
   "climb.seeClimb": "Lihat pendakian",
+  "climb.seePlan": "Lihat rencananya",
   "climb.selfConsole": "Anggota memesanmu dari sini.",
   "climb.sessions": "Sesi",
   "climb.spreadAria": "Cara klien menilai {name}",

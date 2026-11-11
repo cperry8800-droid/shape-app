@@ -1297,6 +1297,7 @@
   "climb.ratingAria": "An ba da {rating} cikin 10 daga {count, plural, one {sharhi #} other {sharhi #}}",
   "climb.reviewCount": "{count, plural, one {sharhi #} other {sharhi #}}",
   "climb.seeClimb": "Duba hawan",
+  "climb.seePlan": "Duba tsarin",
   "climb.selfConsole": "Membobi suna yin ajiya tare da kai daga nan.",
   "climb.sessions": "Zama",
   "climb.spreadAria": "Yadda abokan cinikin {name} ke ba da maki",

@@ -323,12 +323,16 @@ test('the Summit sells every program the coach publishes, past the Studio\'s twe
   WIDE = true;
   const many = Array.from({ length: 15 }, (_, i) => ({ ...PLANS[0], id: `p${i + 1}`, name: `Block ${i + 1}` }));
   const calls = backend({ plans: () => ({ data: many, error: null }) });
-  const p = await mount(LIVE);
+  const p = await mount({ ...LIVE, row: { ...LIVE.row, custom: { ...(LIVE.row.custom || {}), heroStats: ['programs'] } } });
   const summit = document.querySelector('[data-camp="summit"]');
   const cards = [...summit.querySelectorAll('[data-summit-range] [data-program]')];
   assert.equal(cards.length, 15, 'all fifteen');
   assert.match(cards[14].textContent, /Block 15/, 'in their order');
   assert.match(summit.querySelector('[data-summit-head]').textContent, /15/, 'and counted');
+  // The head's milestone counts them all too, not the Studio's twelve.
+  assert.match(document.body.textContent, /15 programs/, 'the milestone');
+  assert.doesNotMatch(document.body.textContent, /12 programs/);
+  assert.ok([...document.querySelectorAll('[data-coach-stat]')].some((el) => el.textContent === '15Programs'), 'and the head\'s stat');
   await React.act(async () => cards[14].querySelector('[data-program-open]').click());
   assert.match(document.querySelector('[data-program-sheet]').textContent, /Block 15/);
   await React.act(async () => document.querySelector('[data-program-sheet] [data-program-buy]').click());

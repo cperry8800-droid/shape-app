@@ -1297,6 +1297,7 @@
   "climb.ratingAria": "Rated {rating} out of 10 from {count, plural, one {# review} other {# reviews}}",
   "climb.reviewCount": "{count, plural, one {# review} other {# reviews}}",
   "climb.seeClimb": "See the climb",
+  "climb.seePlan": "See the plan",
   "climb.selfConsole": "Members book you from here.",
   "climb.sessions": "Sessions",
   "climb.spreadAria": "How {name}'s clients rate them",

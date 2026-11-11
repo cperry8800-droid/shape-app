@@ -1297,6 +1297,7 @@
   "climb.ratingAria": "Được chấm {rating}/10 từ {count, plural, other {# đánh giá}}",
   "climb.reviewCount": "{count, plural, other {# đánh giá}}",
   "climb.seeClimb": "Xem hành trình",
+  "climb.seePlan": "Xem kế hoạch",
   "climb.selfConsole": "Thành viên đặt lịch với bạn từ đây.",
   "climb.sessions": "Buổi tập",
   "climb.spreadAria": "Khách hàng chấm {name} thế nào",

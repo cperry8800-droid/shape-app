@@ -1297,6 +1297,7 @@
   "climb.ratingAria": "Valorado con {rating} de 10 en {count, plural, one {# reseña} other {# reseñas}}",
   "climb.reviewCount": "{count, plural, one {# reseña} other {# reseñas}}",
   "climb.seeClimb": "Ver la subida",
+  "climb.seePlan": "Ver el plan",
   "climb.selfConsole": "Los miembros te reservan desde aquí.",
   "climb.sessions": "Sesiones",
   "climb.spreadAria": "Cómo valoran a {name} sus clientes",

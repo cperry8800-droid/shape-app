@@ -1297,6 +1297,7 @@
   "climb.ratingAria": "Оценка {rating} из 10 по {count, plural, one {# отзыву} few {# отзывам} many {# отзывам} other {# отзыва}}",
   "climb.reviewCount": "{count, plural, one {# отзыв} few {# отзыва} many {# отзывов} other {# отзыва}}",
   "climb.seeClimb": "Смотреть подъём",
+  "climb.seePlan": "Посмотреть план",
   "climb.selfConsole": "Участники записываются к вам отсюда.",
   "climb.sessions": "Тренировки",
   "climb.spreadAria": "Как клиенты оценивают: {name}",
