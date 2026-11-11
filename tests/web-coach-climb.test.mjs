@@ -257,6 +257,49 @@ test('a nutritionist climbs in gold, with Meal plans, the kitchen and plate note
   await p.unmount();
 });
 
+// Owner, 2026-11-11, of the Kitchen and Plate notes camps: "we also need to really improve these sections and
+// that data/information that is shown on them".
+test('the kitchen shows all of itself at once, its recipes from the website\'s catalog; plate notes open each day with its totals, notes and recipes', async () => {
+  WIDE = true; backend({ listing: null, plans: [] });
+  // The website's catalog as recipes.jsx publishes it; a page that has it skips the fetch.
+  window.findRecipeBySlug = (slug) => ({ title: slug.replace(/-/g, ' '), time: '1 hr 5 min', servings: 2, kcal: 500, macros: { p: 30, c: 50, f: 20 },
+    ingredients: ['7 oz extra-firm tofu, cubed (170 kcal)', '1 tbsp cornstarch'], steps: ['Press it.', 'Cook it.'] });
+  const p = await mount({ mode: 'sample', role: 'nutritionist', name: 'Rae Lindqvist', sampleKey: 'Rae Lindqvist', follow: null });
+  await settle();
+  await React.act(async () => $('[data-camp-tab="kitchen"]').click());
+  assert.deepEqual($$('[data-kitchen-part]').map((x) => x.getAttribute('data-kitchen-part')), ['plate', 'recipes', 'staples'], 'every part at once, none behind a switch');
+  assert.ok(!$('[data-kitchen-section]'), 'no part switch');
+  assert.match($('[data-kitchen-plate-art]').getAttribute('aria-label'), /^The plate: \d+% veg, \d+% protein, \d+% carbs$/, 'the plate drawn with its shares');
+  assert.ok($$('[data-plate-rules] li').length >= 3, 'the portion rules, numbered');
+  const cards = $$('[data-kitchen-recipes] [data-recipe]');
+  assert.equal(cards.length, 6, 'the sample kitchen\'s six recipes, from the catalog');
+  assert.equal(cards[0].querySelector('[data-recipe-facts]').textContent, '65min500kcal30g protein2servings', 'time, energy, protein, servings');
+  assert.match(cards[0].querySelector('[data-energy-split]').textContent, /30 g protein50 g carbs20 g fat/);
+  assert.ok(cards[0].querySelector('[data-recipe-note]').textContent.length > 10, 'the coach\'s note on it');
+  await React.act(async () => cards[0].click());
+  const sheet = $('[data-recipe-sheet]').textContent;
+  assert.deepEqual($$('[data-recipe-sheet] [data-recipe-ing]').map((g) => [...g.children].map((c) => c.textContent)), [['7 oz', 'extra-firm tofu, cubed'], ['1 tbsp', 'cornstarch']],
+    'each ingredient its amount, then its name (the item\'s n and m), the catalog\'s kcal note dropped');
+  assert.match(sheet, /Press it\..*Cook it\./);
+  assert.ok($$('[data-staple-group]').length >= 2);
+  // Plate notes: each day open, with what it adds up to.
+  await React.act(async () => $('[data-camp-tab="plates"]').click());
+  const days = $$('[data-plate-day]');
+  assert.equal(days.length, 2, 'the two days shared');
+  assert.match($('[data-plates-summary]').textContent, /^2days shared[\d,]+kcal a day\d+g protein a day\d+meals$/);
+  assert.match(days[0].querySelector('[data-plate-day-totals]').textContent, /^[\d,]+kcal\d+g protein\d+g carbs\d+g fat$/, 'a day\'s energy, protein, carbs and fat');
+  assert.ok(days[0].querySelector('[data-energy-split]'), 'and where its energy came from');
+  const meals = $$('[data-plate-meal]');
+  assert.ok(meals.length >= 5 && meals.every((m) => m.querySelector('[data-plate-note]')), 'each meal with the coach\'s note');
+  const links = $$('[data-plate-recipe]').map((a) => a.getAttribute('href'));
+  assert.ok(links.length >= 3 && links.every((h) => /^\/recipes\/[a-z0-9]+(-[a-z0-9]+)*$/.test(h)), 'a meal made from a recipe links to its page: ' + links.join(', '));
+  const third = meals[2].querySelector('[data-plate-open]');
+  await React.act(async () => third.click());
+  assert.match($('[data-plate-step]').textContent, new RegExp(third.textContent.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'), 'a meal opens the day at that meal');
+  await p.unmount();
+  delete window.findRecipeBySlug;
+});
+
 // Owner, 2026-11-09: "need a new way to organize these on coaches profile, no side scrolling".
 test('on a phone the camps pin as one bar naming the camp shown; a tap opens them all as a grid, and a camp opens on its own', async () => {
   WIDE = false; backend();
@@ -327,7 +370,7 @@ test('on a desktop every camp is a tab under the wire: each opens its camp as it
   const i = camps().indexOf('words');
   await React.act(async () => { $('[data-camp-tab="words"]').dispatchEvent(new window.KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true })); });
   assert.deepEqual(shown(), [camps()[i + 1]], 'ArrowRight opens the next camp');
-  assert.equal(document.activeElement, $(`[data-camp-tab="${camps()[i + 1]}"]`), 'and focuses its tab');
+  assert.ok(document.activeElement === $(`[data-camp-tab="${camps()[i + 1]}"]`), 'and focuses its tab');
   await React.act(async () => { document.activeElement.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Home', bubbles: true })); });
   assert.deepEqual(shown(), [camps()[0]], 'Home opens the first');
   // A link to another camp opens it: the Base's "All N posts".

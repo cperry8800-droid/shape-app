@@ -69,6 +69,53 @@ const CPW_STAT_WORDS = { rating: "Rating", reviews: "Reviews", years: "Years coa
 // read fails the whole row for a visitor.
 const CPW_LISTING_COLS = "id, name, specialty, category, price, credential, credential_full, specialty_type, owner_id, at_capacity, capacity_resume_at, verified, monthly_offer, listing_media, listing_ready";
 
+// ── A sample kitchen's recipes ──────────────────────────────────────────────────────────────
+// A sample nutritionist's recipes are written from the Shape Kitchen catalog (nutritionistDemo.mjs: its
+// `catalog`). The app hands in its own; the website's copy is recipes.jsx (held to the app's by
+// tests/recipe-web-mobile-parity.test.mjs), a Babel script the profile page doesn't load. So a sample
+// nutritionist's page fetches it once, compiles it with the page's own Babel (about 0.2 s, after the page
+// has drawn) and runs it in a function scope; the catalog it publishes (window.findRecipeBySlug) is
+// adapted to the app's shape: ingredients as { n, m }, the time in minutes. A page that has it already
+// (the recipe pages) skips the fetch. A failed load leaves the sample without recipes, as before.
+function cpwLoadRecipeCatalog() {
+  if (typeof window === "undefined") return Promise.reject(new Error("no window"));
+  if (typeof window.findRecipeBySlug === "function") return Promise.resolve(window.findRecipeBySlug);
+  if (!window.__cpwRecipesLoad) {
+    window.__cpwRecipesLoad = fetch("/newdesign/recipes.jsx")
+      .then((r) => { if (!r.ok) throw new Error("recipes " + r.status); return r.text(); })
+      .then((src) => {
+        const B = window.Babel;
+        if (!B || typeof B.transform !== "function") throw new Error("no Babel");
+        new Function(B.transform(src, { presets: ["react"] }).code)();
+        if (typeof window.findRecipeBySlug !== "function") throw new Error("no catalog");
+        return window.findRecipeBySlug;
+      })
+      .catch((e) => { window.__cpwRecipesLoad = null; throw e; });
+  }
+  return window.__cpwRecipesLoad;
+}
+// A catalog line ("6 oz chicken thigh, skin-on (330 kcal)") as the item's { n: amount, m: name }: a leading
+// quantity and unit is the amount, the kcal note goes.
+const CPW_ING_AMOUNT = /^((?:\d+(?:[./]\d+)?|[½¼¾⅓⅔])(?:\s*(?:-|to)\s*\d+(?:[./]\d+)?)?\s*(?:oz|g|kg|lb|lbs|ml|l|cups?|tbsp|tsp|cloves?|slices?|cans?|large|medium|small|pinch|handful)?\.?)\s+(.+)$/i;
+function cpwIngredient(g) {
+  const s = String(g || "").replace(/\s*\(\s*~?\d+\s*kcal\s*\)\s*$/i, "").trim();
+  const m = CPW_ING_AMOUNT.exec(s);
+  return m && m[1].length <= 24 ? { n: m[1].trim(), m: m[2].trim() } : { m: s };
+}
+function cpwWebKitchen(find) {
+  return {
+    recipe: (slug) => {
+      const r = typeof slug === "string" && slug ? find(slug) : null;
+      return r ? { ...r, ingredients: (Array.isArray(r.ingredients) ? r.ingredients : []).map((g) => (g && typeof g === "object" ? g : cpwIngredient(g))) } : null;
+    },
+    minutes: (r) => {
+      const t = String((r && r.time) || "").toLowerCase();
+      const h = t.match(/(\d+(?:\.\d+)?)\s*(?:hr|hrs|hour|hours|h)\b/), m = t.match(/(\d+(?:\.\d+)?)\s*(?:min|mins|minute|minutes|m)\b/);
+      return h || m ? Math.round((h ? parseFloat(h[1]) * 60 : 0) + (m ? parseFloat(m[1]) : 0)) : null;
+    },
+  };
+}
+
 // ── The kit ──────────────────────────────────────────────────────────────────────────────────
 // Loaded once, as the page's scripts run, so it arrives while the profile is still being read.
 function cpwLoadKit() {
@@ -727,12 +774,20 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
   const headH = useCpwHeadH(chrome);
 
   // ── The sample (a coach with no Shape account) ──
+  // A sample nutritionist's recipes come from the website's catalog, once it has loaded (cpwLoadRecipeCatalog).
+  const [webKitchen, setWebKitchen] = React.useState(null);
+  React.useEffect(() => {
+    if (live || !nutri) return undefined;
+    let on = true;
+    cpwLoadRecipeCatalog().then((find) => { if (on) setWebKitchen(cpwWebKitchen(find)); }).catch(() => {});
+    return () => { on = false; };
+  }, [live, nutri]);
   const sample = React.useMemo(() => {
     if (live) return null;
     const key = String(sampleKey || nameIn || "");
-    if (nutri) return K.bsNutritionistDemo(demo ? {} : { ...K.bsNutritionistSampleOf({ key }), where: "", business: null });
+    if (nutri) return K.bsNutritionistDemo(demo ? { catalog: webKitchen } : { ...K.bsNutritionistSampleOf({ key }), where: "", business: null, catalog: webKitchen });
     return K.bsTrainerDemo(demo ? { media: "/newdesign/demo/" } : { media: "/newdesign/demo/", ...K.bsTrainerSampleOf({ key }), where: "", business: null });
-  }, [live, nutri, sampleKey, nameIn, demo]);
+  }, [live, nutri, sampleKey, nameIn, demo, webKitchen]);
 
   // ── Who ──
   const isPrivate = !!(live && row && (row.can_view === false || (row.can_view == null && row.is_public === false)));
@@ -1176,8 +1231,8 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
         ) : null}
       </React.Fragment>
     );
-    if (k === "kitchen") return <CpwKitchenTab T={T} kitchen={kitchen} gallery={gallery} onRecipe={(r) => setSheet({ kind: "recipe", r })} />;
-    if (k === "plates") return <CpwPlateNotesTab T={T} days={plateDays} failed={postsFailed} onRetry={posts.retry} onOpen={(day) => setSheet({ kind: "plateDay", day, i: 0 })} />;
+    if (k === "kitchen") return <CpwKitchenTab T={T} K={K} kitchen={kitchen} gallery={gallery} onRecipe={(r) => setSheet({ kind: "recipe", r })} />;
+    if (k === "plates") return <CpwPlateNotesTab T={T} K={K} days={plateDays} failed={postsFailed} onRetry={posts.retry} onOpen={(day, i = 0) => setSheet({ kind: "plateDay", day, i })} />;
     if (k === "replays") return <CpwReplaysTab T={T} replays={replays} failed={postsFailed} onRetry={posts.retry} onOpen={(r) => setSheet({ kind: "replay", r, i: 0 })} />;
     if (k === "proof") return <CpwProof T={T} items={proof} />;
     if (k === "words") return (
@@ -1323,6 +1378,13 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
     .cpw-range-body{display:flex;flex-direction:column;flex:1;padding:16px 18px 18px}
     .cpw .cpw-range-name{margin:0 !important;font-family:${CPW_DISPLAY};font-size:22px !important;line-height:1.1 !important;font-weight:850;font-stretch:118%;color:#fff;letter-spacing:normal !important}
     .cpw-range-foot{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:auto;padding-top:18px}
+    .cpw-kitchen-plate{display:grid;grid-template-columns:auto minmax(0,1fr);gap:28px;align-items:center}
+    .cpw-kitchen-recipes{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:16px}
+    .cpw-recipe-card{border:1px solid rgba(238,243,240,.1)}
+    .cpw-recipe-card:hover{border-color:${cssA(0.55)}}
+    .cpw-kitchen-staples{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+    .cpw-plate-days{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:16px;align-items:start}
+    .cpw .cpw-kitchen-h{font-size:21px !important;line-height:1.2 !important}
     .cpw-summit-store [data-work-with-panel] > h2{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
     .cpw-summit-store{max-width:640px;padding:22px 24px 26px;background:linear-gradient(180deg,#0f1722,#0a0f17);border:1px solid rgba(238,243,240,.1);border-top:3px solid ${ACC};border-radius:14px}
     .cpw-dock{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:900;display:flex;align-items:center;gap:18px;padding:10px 10px 10px 12px;width:min(860px,calc(100vw - 32px));background:rgba(10,15,23,.95);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);border:1px solid ${cssA(0.38)};border-radius:16px;box-shadow:0 20px 50px -18px rgba(0,0,0,.95)}
@@ -1419,6 +1481,7 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
       .cpw-camp-label{display:block;margin-bottom:8px}
       .cpw-camp-head{flex-direction:column;align-items:flex-start;gap:6px}
       .cpw-base-grid{grid-template-columns:minmax(0,1fr)}
+      .cpw-kitchen-plate,.cpw-kitchen-staples,.cpw-plate-days{grid-template-columns:minmax(0,1fr)}
       .cpw-quotes{grid-template-columns:repeat(2,minmax(0,1fr))}
     }
     @media (max-width:760px){
@@ -1688,7 +1751,7 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
         <CpwPlateSheet T={T} K={K} day={sheet.day} i={sheet.i} setI={(i) => setSheet({ ...sheet, i })} avatar={avatarShown} onClose={() => setSheet(null)} onWork={() => { setSheet(null); openWork(); }} />
       ) : null}
       {sheet && sheet.kind === "recipe" ? (
-        <CpwRecipeSheet T={T} r={sheet.r} onClose={() => setSheet(null)} />
+        <CpwRecipeSheet T={T} K={K} r={sheet.r} onClose={() => setSheet(null)} />
       ) : null}
       {editing && canEdit ? <ProfileCustomizer key={uid || "self"} initial={custom} c={ACC} coach ownerUid={uid} ownerName={name} onClose={() => setEditing(false)} onSave={(doc) => { setCustom(doc); setEditing(false); }} /> : null}
     </div>
@@ -2455,68 +2518,138 @@ function CpwSwatch({ r, T, size = 76 }) {
   if (r.photo) return <img src={r.photo} alt="" style={{ flex: "none", width: size, height: size, objectFit: "cover" }} />;
   return <span aria-hidden="true" style={{ flex: "none", width: size, height: size, display: "grid", placeItems: "center", background: `linear-gradient(135deg, ${cpwA(T.ACC, 0.55)}, ${T.pal.PAPER2})`, color: T.INK, fontSize: size * 0.4, fontWeight: 600 }}>{String(r.t || "?").trim().charAt(0).toUpperCase()}</span>;
 }
-function CpwKitchenTab({ T, kitchen, gallery, onRecipe }) {
+// ── Kitchen ──────────────────────────────────────────────────────────────────────────────────
+// The camp as one page (owner, 2026-11-11, of Kitchen and Plate notes: "we also need to really improve these
+// sections and that data/information that is shown on them"): every part of the kitchen shows at once,
+// none behind a switch. The plate the coach teaches, drawn as a plate with its shares on it, beside the
+// portion rules; the recipes they give clients, each with its time, energy, servings, where its energy
+// comes from and their note; and the staples, by fridge, pantry and freezer.
+function CpwPlate({ plate, colors, size = 216 }) {
+  const word = { veg: "Veg", protein: "Protein", carbs: "Carbs" };
+  const parts = [["veg", plate.veg], ["protein", plate.protein], ["carbs", plate.carbs]].filter(([, v]) => Number(v) > 0);
+  const tot = parts.reduce((n, [, v]) => n + Number(v), 0) || 1;
+  const c = size / 2, r = size / 2 - 16;
+  let a0 = -Math.PI / 2;
+  const arcs = parts.map(([k, v]) => {
+    const a1 = a0 + (Number(v) / tot) * Math.PI * 2;
+    const pt = (a) => `${(c + r * Math.cos(a)).toFixed(2)} ${(c + r * Math.sin(a)).toFixed(2)}`;
+    const mid = (a0 + a1) / 2;
+    const out = { k, v: Number(v), d: parts.length > 1 ? `M ${c} ${c} L ${pt(a0)} A ${r} ${r} 0 ${a1 - a0 > Math.PI ? 1 : 0} 1 ${pt(a1)} Z` : null, lx: c + r * 0.58 * Math.cos(mid), ly: c + r * 0.58 * Math.sin(mid) };
+    a0 = a1;
+    return out;
+  });
+  return (
+    <svg data-kitchen-plate-art="" width={size} height={size} viewBox={`0 0 ${size} ${size}`} role="img" aria-label={`The plate: ${arcs.map((a) => `${a.v}% ${word[a.k].toLowerCase()}`).join(", ")}`} style={{ flex: "none", display: "block" }}>
+      <circle cx={c} cy={c} r={c - 2} fill="#0f1722" stroke="rgba(238,243,240,.16)" strokeWidth="2" />
+      <circle cx={c} cy={c} r={c - 9} fill="none" stroke="rgba(238,243,240,.08)" strokeWidth="1" />
+      {arcs.map((a) => (a.d ? <path key={a.k} d={a.d} fill={colors[a.k]} stroke="#0a0f17" strokeWidth="3" strokeLinejoin="round" /> : <circle key={a.k} cx={c} cy={c} r={r} fill={colors[a.k]} />))}
+      {arcs.filter((a) => a.v >= 12).map((a) => (
+        <g key={a.k} aria-hidden="true">
+          <text x={a.lx} y={a.ly - 2} textAnchor="middle" style={{ fontFamily: CPW_FIG, fontWeight: 700, fontSize: 21, fill: "#06090f" }}>{a.v}%</text>
+          <text x={a.lx} y={a.ly + 14} textAnchor="middle" style={{ fontFamily: CPW_MONO, fontWeight: 700, fontSize: 9.5, letterSpacing: "0.1em", fill: "rgba(6,9,15,.78)", textTransform: "uppercase" }}>{word[a.k].toUpperCase()}</text>
+        </g>
+      ))}
+    </svg>
+  );
+}
+// Where a recipe's or a day's energy comes from, as a bar: protein, carbs and fat, by their kcal.
+function CpwEnergyBar({ K, m, colors, ink, grams = true }) {
+  const split = K.energySplit(m);
+  if (!split) return null;
+  // A gold or amber accent takes the carbs' amber, so the plate draws carbs grey (cpwPlateColors); here they
+  // are a light grey and fat a dark one, two shades apart, so the bar's three never read as two.
+  const greyCarbs = colors.carbs === ink(0.4);
+  const seg = [["p", "Protein", colors.protein], ["c", "Carbs", greyCarbs ? ink(0.82) : colors.carbs], ["f", "Fat", ink(greyCarbs ? 0.3 : 0.38)]];
+  return (
+    <div data-energy-split="">
+      <div role="img" aria-label={`Energy: ${split.p}% protein, ${split.c}% carbs, ${split.f}% fat`} style={{ display: "flex", height: 6, borderRadius: 99, overflow: "hidden", gap: 2 }}>
+        {seg.map(([k, , col]) => (split[k] > 0 ? <span key={k} style={{ flex: `${split[k]} 0 0`, background: col }} /> : null))}
+      </div>
+      {grams ? (
+        <div aria-hidden="true" style={{ marginTop: 6, display: "flex", flexWrap: "wrap", gap: "2px 12px", fontFamily: CPW_MONO, fontSize: 11, color: ink(0.7) }}>
+          {seg.map(([k, l, col]) => <span key={k} style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><span style={{ width: 7, height: 7, borderRadius: 99, background: col }} />{cpwNum(m[k])} g {l.toLowerCase()}</span>)}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+function CpwKitchenTab({ T, K, kitchen, gallery, onRecipe }) {
   const { pal, ACC, INK, ink, first, isSelf } = T;
   const plate = kitchen ? kitchen.plate : null;
   const rules = kitchen ? kitchen.rules : [];
   const staples = kitchen ? kitchen.staples : [];
   const recipes = kitchen ? kitchen.recipes : [];
-  const count = { recipes: recipes.length, plate: plate || rules.length ? 1 : 0, staples: staples.length };
-  const parts = [["recipes", "Recipes"], ["plate", "Plate"], ["staples", "Staples"]].filter(([k]) => isSelf || count[k] > 0);
-  const [sec, setSec] = React.useState(null);
-  const now = parts.some(([k]) => k === sec) ? sec : (parts[0] ? parts[0][0] : null);
   const colors = cpwPlateColors(ACC, ink);
-  const part = { Veg: "Vegetables", Protein: "Protein", Carbs: "Carbs" };
   const inApp = (what) => <CpwHint ink={ink}>{what} Set it in the Shape app, in Make it yours → Your kitchen.</CpwHint>;
-  const recipesPart = recipes.length ? (
-    <div data-kitchen-recipes="" className="cpw-cards2" style={{ gap: 10 }}>
-      {recipes.map((r) => (
-        <button key={r.id} type="button" data-recipe={r.id} onClick={() => onRecipe(r)} style={{ width: "100%", padding: "10px 0 0", border: 0, borderTop: `1px solid ${ink(0.12)}`, background: "transparent", color: INK, display: "flex", gap: 12, alignItems: "stretch", textAlign: "left", cursor: "pointer", fontFamily: CPW_BODY }}>
-          <CpwSwatch r={r} T={T} />
-          <span style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 3, lineHeight: 1.35 }}>
-            <span style={{ fontFamily: CPW_DISPLAY, fontWeight: 600, fontSize: 16 }}>{r.t}</span>
-            {cpwRecipeMeta(r) ? <span style={{ fontFamily: CPW_MONO, fontSize: 11, color: ink(0.62) }}>{cpwRecipeMeta(r)}</span> : null}
-            {r.note ? <span style={{ fontSize: 14, color: ink(0.86) }}>{r.note}</span> : null}
-            <span style={{ marginTop: 2, fontFamily: CPW_DISPLAY, fontSize: 13.5, fontWeight: 600, color: ACC }}>The recipe →</span>
-          </span>
-        </button>
-      ))}
+  const head = (title, count, line) => (
+    <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12, flexWrap: "wrap", paddingBottom: 8, marginBottom: 14, borderBottom: `1px solid ${ink(0.12)}` }}>
+      <h3 className="cpw-kitchen-h" style={{ margin: 0, fontFamily: CPW_DISPLAY, fontWeight: 700, fontSize: 21, color: INK }}>{title}{count ? <span className="cpw-fig" style={{ marginLeft: 10, fontSize: 17, color: ink(0.55) }}>{count}</span> : null}</h3>
+      {line ? <span style={{ fontSize: 13.5, color: ink(0.66) }}>{line}</span> : null}
     </div>
-  ) : isSelf ? inApp("Write the recipes you give clients.") : null;
+  );
   const platePart = plate || rules.length ? (
-    <div data-kitchen-plate="">
-      <span style={cpwEyebrow(ink, ACC)}>The plate {first} teaches</span>
-      <div style={{ marginTop: 12, display: "flex", gap: 22, alignItems: "center", flexWrap: "wrap" }}>
-        {plate ? (
-          <span aria-hidden="true" style={{ flex: "none", width: 150, height: 150, borderRadius: 99, background: `conic-gradient(${colors.veg} 0 ${plate.veg}%, ${colors.protein} ${plate.veg}% ${plate.veg + plate.protein}%, ${colors.carbs} ${plate.veg + plate.protein}% 100%)`, display: "grid", placeItems: "center", boxShadow: `0 0 0 6px ${pal.PAPER2}` }}>
-            <span style={{ width: 54, height: 54, borderRadius: 99, background: pal.PAPER }} />
-          </span>
-        ) : null}
-        <div style={{ flex: "1 1 200px", minWidth: 0, maxWidth: 320, display: "flex", flexDirection: "column", gap: 7 }}>
-          {plate ? [["Veg", plate.veg, colors.veg], ["Protein", plate.protein, colors.protein], ["Carbs", plate.carbs, colors.carbs]].filter(([, v]) => v > 0).map(([k, v, c]) => (
-            <span key={k} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14.5 }}>
-              <span aria-hidden="true" style={{ width: 10, height: 10, borderRadius: 99, background: c }} /><span style={{ flex: 1 }}>{part[k]}</span>
-              <span style={{ fontFamily: CPW_MONO, fontSize: 12, color: ink(0.7) }}>{v}%</span>
-            </span>
-          )) : null}
+    <div data-kitchen-plate="" className="cpw-kitchen-plate">
+      {plate ? (
+        <div style={{ display: "flex", gap: 18, alignItems: "center", flexWrap: "wrap" }}>
+          <CpwPlate plate={plate} colors={colors} />
+          <div data-plate-legend="" style={{ display: "flex", flexDirection: "column", gap: 8, minWidth: 150 }}>
+            {[["Vegetables", plate.veg, colors.veg], ["Protein", plate.protein, colors.protein], ["Carbs", plate.carbs, colors.carbs]].filter(([, v]) => v > 0).map(([l, v, col]) => (
+              <span key={l} style={{ display: "flex", alignItems: "center", gap: 9, fontSize: 14.5 }}>
+                <span aria-hidden="true" style={{ width: 11, height: 11, borderRadius: 3, background: col }} /><span style={{ flex: 1 }}>{l}</span>
+                <span className="cpw-fig" style={{ fontSize: 16 }}>{v}%</span>
+              </span>
+            ))}
+          </div>
         </div>
-      </div>
-      {rules.length ? <ul style={{ margin: "16px 0 0", padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 7, maxWidth: 680 }}>{rules.map((r, i) => <li key={i} style={{ display: "flex", gap: 10, fontSize: 15, lineHeight: 1.45 }}><span aria-hidden="true" style={{ color: ACC, fontFamily: CPW_MONO }}>—</span>{r}</li>)}</ul> : null}
+      ) : null}
+      {rules.length ? (
+        <ol data-plate-rules="" style={{ margin: 0, padding: 0, listStyle: "none", display: "grid", gap: 10, alignContent: "start" }}>
+          {rules.map((r, i) => (
+            <li key={i} className="cpw-card" style={{ display: "flex", gap: 14, alignItems: "baseline", padding: "13px 16px", borderRadius: 12 }}>
+              <span className="cpw-fig" style={{ flex: "none", width: 26, fontSize: 22, color: ACC }}>{i + 1}</span>
+              <span style={{ fontSize: 15.5, lineHeight: 1.45, color: INK }}>{r}</span>
+            </li>
+          ))}
+        </ol>
+      ) : null}
     </div>
   ) : isSelf ? inApp("Show members how you build a plate, and the portion rules you teach.") : null;
+  const recipesPart = recipes.length ? (
+    <div data-kitchen-recipes="" className="cpw-kitchen-recipes">
+      {recipes.map((r) => {
+        const facts = [Number.isFinite(r.min) ? [r.min, "min"] : null, Number.isFinite(r.kcal) ? [r.kcal, "kcal"] : null, Number.isFinite(r.p) ? [r.p, "g protein"] : null, Number.isFinite(r.serves) ? [r.serves, r.serves === 1 ? "serving" : "servings"] : null].filter(Boolean);
+        return (
+          <button key={r.id} type="button" data-recipe={r.id} onClick={() => onRecipe(r)} className="cpw-card cpw-recipe-card" style={{ padding: 0, overflow: "hidden", color: INK, textAlign: "left", cursor: "pointer", fontFamily: CPW_BODY, display: "flex", flexDirection: "column" }}>
+            {r.photo ? <img src={r.photo} alt="" loading="lazy" style={{ display: "block", width: "100%", height: 132, objectFit: "cover" }} />
+              : <span aria-hidden="true" style={{ display: "flex", alignItems: "flex-end", height: 72, padding: "0 16px 10px", background: `linear-gradient(120deg, ${cpwA(ACC, 0.42)}, rgba(10,15,23,0) 75%), #0f1722`, fontFamily: CPW_DISPLAY, fontWeight: 850, fontSize: 30, color: "rgba(255,255,255,.9)" }}>{String(r.t || "?").trim().charAt(0).toUpperCase()}</span>}
+            <span style={{ display: "flex", flexDirection: "column", gap: 8, padding: "14px 16px 16px", flex: 1 }}>
+              <span style={{ fontFamily: CPW_DISPLAY, fontWeight: 700, fontSize: 17.5, lineHeight: 1.2 }}>{r.t}</span>
+              {facts.length ? (
+                <span data-recipe-facts="" style={{ display: "flex", flexWrap: "wrap", gap: "4px 14px" }}>
+                  {facts.map(([n, l]) => <span key={l} style={{ display: "inline-flex", alignItems: "baseline", gap: 4 }}><span className="cpw-fig" style={{ fontSize: 16 }}>{n}</span><span style={{ fontSize: 12, color: ink(0.66) }}>{l}</span></span>)}
+                </span>
+              ) : null}
+              <CpwEnergyBar K={K} m={{ p: r.p, c: r.c, f: r.f }} colors={colors} ink={ink} />
+              {r.note ? <span data-recipe-note="" style={{ display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical", overflow: "hidden", paddingLeft: 10, borderLeft: `2px solid ${ACC}`, fontSize: 14, lineHeight: 1.45, color: ink(0.88) }}>{r.note}</span> : null}
+              <span style={{ marginTop: "auto", paddingTop: 4, fontFamily: CPW_DISPLAY, fontSize: 13.5, fontWeight: 650, color: ACC }}>The recipe →</span>
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  ) : isSelf ? inApp("Write the recipes you give clients.") : null;
   const groups = { fridge: "Fridge", pantry: "Pantry", freezer: "Freezer" };
   const staplesPart = staples.length ? (
     <div data-kitchen-staples="">
-      <span style={cpwEyebrow(ink)}>Always in the kitchen</span>
-      <div className="cpw-cards2" style={{ marginTop: 12, gap: 10 }}>
+      <div className="cpw-kitchen-staples">
         {Object.keys(groups).map((g) => {
           const inG = staples.filter((x) => x.g === g);
           if (!inG.length) return null;
           return (
-            <div key={g} data-staple-group={g} style={{ padding: "12px 14px 14px", borderRadius: 14, background: pal.PAPER2 }}>
-              <div style={{ fontFamily: CPW_DISPLAY, fontSize: 15, fontWeight: 600 }}>{groups[g]}<span style={{ marginLeft: 6, fontFamily: CPW_MONO, fontSize: 11, fontWeight: 400, color: ink(0.55) }}>{inG.length}</span></div>
-              <div style={{ marginTop: 8, display: "flex", flexWrap: "wrap", gap: 8 }}>
-                {inG.map((x) => <span key={x.n} data-staple="" style={{ minHeight: 34, padding: "0 13px", borderRadius: 999, display: "inline-flex", alignItems: "center", background: cpwA(ACC, 0.12), fontSize: 14 }}>{x.n}</span>)}
+            <div key={g} data-staple-group={g} className="cpw-card" style={{ padding: "14px 16px 16px", borderRadius: 14 }}>
+              <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", fontFamily: CPW_DISPLAY, fontSize: 15.5, fontWeight: 650 }}>{groups[g]}<span className="cpw-fig" style={{ fontSize: 14, color: ink(0.55) }}>{inG.length}</span></div>
+              <div style={{ marginTop: 10, display: "flex", flexWrap: "wrap", gap: 7 }}>
+                {inG.map((x) => <span key={x.n} data-staple="" style={{ minHeight: 32, padding: "0 12px", borderRadius: 999, display: "inline-flex", alignItems: "center", background: cpwA(ACC, 0.12), fontSize: 14 }}>{x.n}</span>)}
               </div>
             </div>
           );
@@ -2526,26 +2659,15 @@ function CpwKitchenTab({ T, kitchen, gallery, onRecipe }) {
     </div>
   ) : isSelf ? inApp("List what is always in your fridge, pantry and freezer.") : null;
   return (
-    <section data-kitchen-tab="" style={{ paddingTop: 20 }}>
-      {now ? (
-        <React.Fragment>
-          {parts.length > 1 ? (
-            <div role="group" aria-label="In the kitchen" style={{ display: "flex", gap: 6, maxWidth: 520 }}>
-              {parts.map(([k, label]) => { const on = k === now; return (
-                <button key={k} type="button" data-kitchen-section={k} aria-pressed={on} onClick={() => setSec(k)} style={{ flex: 1, minHeight: 44, padding: "0 8px", border: `1px solid ${on ? ACC : ink(0.22)}`, background: on ? cpwA(ACC, 0.14) : "transparent", color: INK, fontFamily: CPW_DISPLAY, fontSize: 14, fontWeight: on ? 600 : 500, cursor: "pointer" }}>
-                  {label}{k !== "plate" && count[k] ? <span style={{ marginLeft: 6, fontFamily: CPW_MONO, fontSize: 11, color: ink(0.6) }}>{count[k]}</span> : null}
-                </button>
-              ); })}
-            </div>
-          ) : now === "recipes" ? <span style={cpwEyebrow(ink, ACC)}>Recipes</span> : null}
-          <div style={{ marginTop: parts.length > 1 || now === "recipes" ? 16 : 0 }}>{now === "recipes" ? recipesPart : now === "plate" ? platePart : staplesPart}</div>
-        </React.Fragment>
-      ) : null}
-      <CpwGallery gallery={gallery} />
+    <section data-kitchen-tab="" style={{ paddingTop: 20, display: "flex", flexDirection: "column", gap: 34 }}>
+      {platePart ? <div data-kitchen-part="plate">{head(`The plate ${first} teaches`, null, plate ? "Every meal, built the same way" : null)}{platePart}</div> : null}
+      {recipesPart ? <div data-kitchen-part="recipes">{head(`What ${first} cooks`, recipes.length || null, recipes.length ? "Tap one for the ingredients and the method" : null)}{recipesPart}</div> : null}
+      {staplesPart ? <div data-kitchen-part="staples">{head("Always in the kitchen", staples.length || null, null)}{staplesPart}</div> : null}
+      <CpwGallery gallery={gallery} top={0} />
     </section>
   );
 }
-function CpwRecipeSheet({ T, r, onClose }) {
+function CpwRecipeSheet({ T, K, r, onClose }) {
   const { pal, ACC, INK, ink, first } = T;
   return (
     <CpwSheet pal={pal} label={r.t} onClose={onClose} data={{ "data-recipe-sheet": "" }}>
@@ -2558,10 +2680,13 @@ function CpwRecipeSheet({ T, r, onClose }) {
         </div>
       </div>
       {r.note ? <p style={{ margin: "14px 0 0", paddingLeft: 10, borderLeft: `3px solid ${ACC}`, fontSize: 15, lineHeight: 1.5 }}>{r.note}</p> : null}
+      {K ? <div style={{ marginTop: 14 }}><CpwEnergyBar K={K} m={{ p: r.p, c: r.c, f: r.f }} colors={cpwPlateColors(ACC, ink)} ink={ink} /></div> : null}
       {Array.isArray(r.ing) && r.ing.length ? (
         <div style={{ marginTop: 16 }}>
           <span style={cpwEyebrow(ink)}>Ingredients</span>
-          {r.ing.map((g, i) => <div key={i} style={{ display: "flex", gap: 10, padding: "8px 0", borderTop: `1px solid ${ink(0.12)}`, fontSize: 14.5 }}><span style={{ flex: 1 }}>{g.n}</span><span style={{ fontFamily: CPW_MONO, fontSize: 12, color: ink(0.7) }}>{g.m || g.q || ""}</span></div>)}
+          {/* An ingredient is { n: its amount, m: its name } (profileCustom.mjs bsKitchenRecipeItem), the amount
+              first as the app's sheet has it; this read them the other way round, the name in the amount's place. */}
+          {r.ing.map((g, i) => <div key={i} data-recipe-ing="" style={{ display: "flex", gap: 12, padding: "8px 0", borderTop: `1px solid ${ink(0.12)}`, fontSize: 14.5 }}><span style={{ flex: "none", width: 84, fontFamily: CPW_MONO, fontSize: 12, color: ink(0.7), paddingTop: 2 }}>{g.n || ""}</span><span style={{ flex: 1 }}>{g.m}</span></div>)}
         </div>
       ) : null}
       {Array.isArray(r.steps) && r.steps.length ? (
@@ -2576,21 +2701,75 @@ function CpwRecipeSheet({ T, r, onClose }) {
 }
 
 // ── Plate notes ──────────────────────────────────────────────────────────────────────────────
-function CpwPlateNotesTab({ T, days, failed = false, onRetry, onOpen }) {
+// Each day the coach shared, open on the page (owner, 2026-11-11: "really improve these sections and that
+// data/information that is shown on them"): the day's energy and protein, carbs and fat when every meal
+// carried them, where its energy came from, then each meal at its time with its energy and protein, the
+// coach's note on it, and the Shape Kitchen recipe it was made from (its page on this site). A meal opens
+// the day's sheet at that meal. Above the days, what they add up to: the days shared and the day's average.
+const cpwDayTotals = (day) => {
+  const sum = (k) => { let n = 0; for (const x of day.meals) { const v = cpwNum(x.meal && x.meal[k]); if (v == null) return null; n += v; } return n; };
+  return { kcal: sum("kcal"), p: sum("p"), c: sum("c"), f: sum("f") };
+};
+const cpwRecipeHref = (slug) => (/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(String(slug || "")) ? `/recipes/${slug}` : null);
+function CpwPlateNotesTab({ T, K, days, failed = false, onRetry, onOpen }) {
   const { pal, ACC, INK, ink, first, isSelf } = T;
+  const colors = cpwPlateColors(ACC, ink);
   const dayName = (day) => { if (!Number.isFinite(day.at)) return "A day of meals"; try { return new Date(day.at).toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" }); } catch (e) { return day.key; } };
+  const fmt = (ms) => { try { return new Date(ms).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }); } catch (e) { return ""; } };
+  const totals = days.map(cpwDayTotals);
+  const avg = (k) => (totals.length && totals.every((t) => t[k] != null) ? Math.round(totals.reduce((n, t) => n + t[k], 0) / totals.length) : null);
+  const summary = [[days.length, days.length === 1 ? "day shared" : "days shared"], [avg("kcal"), "kcal a day"], [avg("p"), "g protein a day"], [days.reduce((n, d) => n + d.meals.length, 0), "meals"]].filter(([n]) => n != null && n > 0);
   return (
     <section data-plates-tab="" style={{ paddingTop: 20 }}>
-      <p style={{ margin: 0, fontSize: 14.5, color: ink(0.74) }}>Days of meals {first} logged and shared. Step through each one.</p>
-      <div className="cpw-cards2" style={{ marginTop: 14, gap: 12 }}>
-        {days.map((day) => (
-          <button key={day.key} type="button" data-plate-day="" onClick={() => onOpen(day)} style={{ padding: "13px 15px", border: 0, borderTop: `2px solid ${ACC}`, background: pal.PAPER2, color: INK, textAlign: "left", cursor: "pointer", display: "flex", flexDirection: "column", gap: 4, fontFamily: CPW_BODY }}>
-            <span style={{ fontFamily: CPW_MONO, fontSize: 10, letterSpacing: "0.14em", textTransform: "uppercase", color: ink(0.64) }}>{day.meals.length} {day.meals.length === 1 ? "meal" : "meals"}</span>
-            <span style={{ fontFamily: CPW_DISPLAY, fontWeight: 600, fontSize: 18 }}>{dayName(day)}</span>
-            <span style={{ fontSize: 13.5, color: ink(0.74) }}>{day.meals.map((m) => m.title).join(" · ")}</span>
-            <span style={{ fontFamily: CPW_MONO, fontSize: 11, color: ink(0.62) }}>{[day.proteinAll ? `${day.protein} g protein` : null, day.kcal != null ? `${day.kcal} kcal` : null].filter(Boolean).join(" · ")}</span>
-          </button>
-        ))}
+      <p style={{ margin: 0, fontSize: 14.5, color: ink(0.74) }}>The meals {first} logged and shared, each with {first}'s note. Open one to step through the day.</p>
+      {days.length && summary.length > 1 ? (
+        <div data-plates-summary="" style={{ marginTop: 14, display: "flex", flexWrap: "wrap", gap: 10 }}>
+          {summary.map(([n, l]) => (
+            <span key={l} className="cpw-plate" style={{ padding: "10px 14px 9px", display: "inline-flex", flexDirection: "column", gap: 5, minWidth: 120 }}>
+              <span className="cpw-fig" style={{ fontSize: 24 }}>{Number(n).toLocaleString()}</span>
+              <span className="cpw-dtl" style={{ color: ink(0.66), fontSize: 10 }}>{l}</span>
+            </span>
+          ))}
+        </div>
+      ) : null}
+      <div className="cpw-plate-days" style={{ marginTop: 16 }}>
+        {days.map((day, di) => {
+          const t = totals[di];
+          const figs = [[t.kcal, "kcal"], [t.p, "g protein"], [t.c, "g carbs"], [t.f, "g fat"]].filter(([n]) => n != null);
+          return (
+            <article key={day.key} data-plate-day="" className="cpw-card" style={{ padding: 0, overflow: "hidden", borderTop: `2px solid ${ACC}`, borderRadius: 14, display: "flex", flexDirection: "column" }}>
+              <div style={{ padding: "16px 18px 12px" }}>
+                <span style={cpwEyebrow(ink)}>{day.meals.length} {day.meals.length === 1 ? "meal" : "meals"}</span>
+                <h3 style={{ margin: "4px 0 0", fontFamily: CPW_DISPLAY, fontWeight: 700, fontSize: 20, color: INK }}>{dayName(day)}</h3>
+                {figs.length ? (
+                  <div data-plate-day-totals="" style={{ marginTop: 10, display: "flex", flexWrap: "wrap", gap: "4px 16px" }}>
+                    {figs.map(([n, l]) => <span key={l} style={{ display: "inline-flex", alignItems: "baseline", gap: 4 }}><span className="cpw-fig" style={{ fontSize: 18 }}>{n.toLocaleString()}</span><span style={{ fontSize: 12, color: ink(0.66) }}>{l}</span></span>)}
+                  </div>
+                ) : null}
+                {t.p != null && t.c != null && t.f != null ? <div style={{ marginTop: 10 }}><CpwEnergyBar K={K} m={t} colors={colors} ink={ink} grams={false} /></div> : null}
+              </div>
+              <ol data-plate-day-meals="" style={{ margin: 0, padding: "0 18px", listStyle: "none" }}>
+                {day.meals.map((x, k) => {
+                  const m = x.meal || {};
+                  const href = cpwRecipeHref(m.recipeId);
+                  const said = [cpwNum(m.kcal) != null ? `${cpwNum(m.kcal)} kcal` : null, cpwNum(m.p) != null ? `${cpwNum(m.p)} g protein` : null].filter(Boolean).join(" · ");
+                  return (
+                    <li key={x.key || k} data-plate-meal="" style={{ display: "grid", gridTemplateColumns: "64px minmax(0,1fr)", columnGap: 10, padding: "11px 0", borderTop: `1px solid ${ink(0.1)}` }}>
+                      <span style={{ fontFamily: CPW_MONO, fontSize: 11.5, color: ACC, paddingTop: 2 }}>{x.at ? fmt(x.at) : ""}</span>
+                      <span style={{ minWidth: 0, display: "flex", flexDirection: "column", gap: 3 }}>
+                        <button type="button" data-plate-open="" onClick={() => onOpen(day, k)} style={{ padding: 0, border: 0, background: "transparent", color: INK, textAlign: "left", cursor: "pointer", fontFamily: CPW_BODY, fontSize: 15, fontWeight: 600, minHeight: 24 }}>{x.title}</button>
+                        {said ? <span style={{ fontFamily: CPW_MONO, fontSize: 11, color: ink(0.62) }}>{said}</span> : null}
+                        {x.body ? <span data-plate-note="" style={{ display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", fontSize: 13.5, lineHeight: 1.45, color: ink(0.82) }}>{x.body}</span> : null}
+                        {href ? <a data-plate-recipe="" href={href} style={{ alignSelf: "flex-start", fontSize: 13, fontWeight: 650, color: ACC, textDecoration: "none", minHeight: 24, display: "inline-flex", alignItems: "center" }}>The recipe ↗</a> : null}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ol>
+              <button type="button" data-plate-step-through="" onClick={() => onOpen(day, 0)} style={{ marginTop: "auto", minHeight: 46, border: 0, borderTop: `1px solid ${ink(0.1)}`, background: "transparent", color: ACC, fontFamily: CPW_DISPLAY, fontSize: 14, fontWeight: 650, cursor: "pointer" }}>Step through the day →</button>
+            </article>
+          );
+        })}
       </div>
       {failed ? <CpwReadFailed ink={ink} ACC={ACC} tag="posts" what={isSelf ? "Couldn't read your plate notes just now." : `Couldn't read ${first}'s plate notes just now.`} onRetry={onRetry} /> : null}
       {!days.length && isSelf && !failed ? <CpwHint ink={ink}>Share the meals you log, and each day you share becomes a plate note here.</CpwHint> : null}

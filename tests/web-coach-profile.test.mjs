@@ -591,7 +591,7 @@ test('a nutritionist\'s page: amber until they pick, the kitchen and plate notes
   assert.equal(document.querySelector('#camp-h-kitchen').textContent, 'My kitchen.');
   assert.equal(document.querySelector('#camp-h-range').textContent, 'Meal plans.', 'the meal plans are a camp of their own');
   assert.match(document.querySelector('.cpw-h1').innerHTML, /#d8a23a|rgb\(216, 162, 58\)/, 'the name\'s full stop is the nutritionist gold');
-  await React.act(async () => document.querySelector('[data-plate-day]').click());
+  await React.act(async () => document.querySelector('[data-plate-day] [data-plate-step-through]').click());
   assert.ok(document.querySelector('[data-plate-step]'), 'a day of meals steps meal by meal');
   // Work with lists the sample's own meal plans, each with its price and length and none to buy, as
   // the app's sheet does (Codex P2 on #2560: the sheet read only programs, empty for a nutritionist).
