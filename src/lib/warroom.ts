@@ -658,6 +658,16 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
       ],
     },
     {
+      section: 'Coach dashboard: every page\'s description can be hidden; the Hours & rules sheet laid out as cards with the week spread out (#2700). No migration',
+      items: [
+        { label: 'Owner, 2026-11-11, with a screenshot of the Hours & rules sheet: "make this look cleaner, this pop up page. Make the hours section in top a little more spread out. Just improve layout on this popout", then, with the Schedule\'s description: "make these descriptions on each dashboard page hideable so the schedule sits higher on page as well as other dashboard sections"', status: 'done' },
+        { label: '#2700 trainerDashboard.jsx DashPage, so every dashboard page: Hide beside the page\'s description folds it away and the page\'s content moves up (the Schedule\'s by 79px at 1440); an i beside the title brings it back. Remembered per page on this browser (localStorage, read before the first paint, so a hidden one never shows and then jumps away)', status: 'done' },
+        { label: '#2700 dashSchedule.jsx Hours & rules: the open hours as seven day cards (each its hours, broken only after a dash, a bar of the day with its open time on it, and its hours open; a closed day quiet), the week\'s total and Edit hours beside the heading; the hours, time off and booking rules as three matching cards. The summary still reads each day\'s label then its hours, as the schedule tests read it', status: 'done' },
+        { label: 'Checked in Chromium on the demo Schedule at 1440 and 820: the sheet\'s seven cards with no overflow, the cards wrapping at 820; Hide, the content moving up, the i, and the choice kept on reload; no page errors. The schedule and dashboard suites: 578 of 578', status: 'done' },
+        { label: 'OWNER: on the live site as a coach, Schedule → Hours & rules; Hide on a page\'s description, then the i to bring it back', status: 'manual' },
+      ],
+    },
+    {
       section: 'Coach profile on the website: each tab opens its camp as its own page, the tabs under the wire; a meal plan opens its preview; a richer Kitchen and Plate notes (#2700). No migration',
       items: [
         { label: 'Owner, 2026-11-11, with screenshots of the meal plan cards and of the gap under the wire: "when you open these meal plans, it shouldn\'t bring you down to bottom of the page, it should open up a preview of some of these meal plans in separate pop up", then "move this nav bar somewhere in the area i attached in second image. Also again don\'t, have each section just scroll down, have it open its own page, if you will ... Similar to the app"', status: 'done' },

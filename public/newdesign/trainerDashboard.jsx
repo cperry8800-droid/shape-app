@@ -332,14 +332,37 @@ function DashPage({ navItems, payoutCard, eyebrow, title, subtitle, actions, chi
   // the read is a constant for the life of the page — never a hook called
   // conditionally between renders.
   if (typeof useDashPaper === "function") useDashPaper();
+  // The page's description can be hidden (owner, 2026-11-11, with the Schedule's: "make these descriptions on
+  // each dashboard page hideable so the schedule sits higher on page as well as other dashboard sections"):
+  // Hide folds it away and the page's content moves up; an ⓘ beside the title brings it back. Remembered per
+  // page on this browser, read before the first paint so a hidden one never shows and then jumps away.
+  const introKey = "shape.dash.intro:" + (typeof window !== "undefined" && window.location ? window.location.pathname : "") + ":" + (typeof title === "string" ? title : "");
+  const [introHidden, setIntroHidden] = React.useState(() => { try { return window.localStorage.getItem(introKey) === "hidden"; } catch (e) { return false; } });
+  const setIntro = (hide) => {
+    setIntroHidden(hide);
+    try { if (hide) window.localStorage.setItem(introKey, "hidden"); else window.localStorage.removeItem(introKey); } catch (e) {}
+  };
+  const showIntro = !!subtitle && !introHidden;
   return (
     <DashFrame navItems={navItems} payoutCard={payoutCard}>
       <main style={{ padding: "22px 32px 64px", minWidth: 0, overflowX: "hidden" }}>
-        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 26 }}>
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: showIntro ? 26 : 20 }}>
           <div data-tour={tourHero}>
             {eyebrow && <div style={{ fontFamily: mono, fontSize: 11, letterSpacing: "0.14em", color: "var(--sh-ink3, #75706a)", marginBottom: 10 }}>{eyebrow}</div>}
-            <h1 style={{ fontFamily: serif, fontSize: 30, letterSpacing: "-0.02em", fontWeight: 600, margin: 0, lineHeight: 1.08, fontVariationSettings: "'wdth' 112" }}>{title}</h1>
-            {subtitle && <div style={{ fontSize: 14, color: "var(--sh-ink2, #a09b94)", marginTop: 10, maxWidth: 640, lineHeight: 1.5 }}>{subtitle}</div>}
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <h1 style={{ fontFamily: serif, fontSize: 30, letterSpacing: "-0.02em", fontWeight: 600, margin: 0, lineHeight: 1.08, fontVariationSettings: "'wdth' 112" }}>{title}</h1>
+              {subtitle && introHidden ? (
+                <button type="button" data-dash-intro-show="" onClick={() => setIntro(false)} aria-label="Show what this page does" title="Show what this page does"
+                  style={{ flex: "none", width: 26, height: 26, borderRadius: 99, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.24)", background: "transparent", color: "var(--sh-ink2, #a09b94)", fontFamily: serif, fontStyle: "italic", fontWeight: 600, fontSize: 14, lineHeight: 1, cursor: "pointer", display: "grid", placeItems: "center", padding: 0 }}>i</button>
+              ) : null}
+            </div>
+            {showIntro && (
+              <div data-dash-intro="" style={{ display: "flex", alignItems: "flex-start", gap: 14, marginTop: 10, maxWidth: 720 }}>
+                <div style={{ fontSize: 14, color: "var(--sh-ink2, #a09b94)", maxWidth: 640, lineHeight: 1.5 }}>{subtitle}</div>
+                <button type="button" data-dash-intro-hide="" onClick={() => setIntro(true)} aria-label="Hide this description" title="Hide this description"
+                  style={{ flex: "none", minHeight: 28, padding: "0 10px", borderRadius: 99, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.18)", background: "transparent", color: "var(--sh-ink2, #a09b94)", fontFamily: mono, fontSize: 10.5, letterSpacing: "0.1em", textTransform: "uppercase", cursor: "pointer", whiteSpace: "nowrap" }}>Hide</button>
+              </div>
+            )}
           </div>
           {/* flexWrap: a nowrap row of action pills opposite a 52px title is
               clipped by main's overflowX:hidden at narrow widths (and on a
