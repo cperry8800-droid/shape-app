@@ -48,6 +48,9 @@ The rules and the code map. Every session loads it: when a rule changes, replace
 - **Staging:** `git push origin <sha>:staging --force` →
   https://shape-app-git-staging-cperry8800-droids-projects.vercel.app. Previews share the
   production database: no destructive migrations there.
+- **Plugins:** the owner's claude.ai plugins load here as `<name>@synced`; `.claude/settings.json`
+  turns off each one Shape doesn't use (on: superpowers, vectorlab-ux-skills, design, figma,
+  marketing). One added to the account later loads until it gets a `false` line there.
 - **No colored emoji in new work:** typographic symbols (⚙ ↗ ✓ → × ♡ ＋ #) or theme-tinted
   SVG. Leave existing emoji.
 - **Generated media (Higgsfield):** each clip and track in the Sources table of
