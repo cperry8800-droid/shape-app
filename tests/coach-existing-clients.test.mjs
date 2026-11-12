@@ -185,8 +185,8 @@ test('a closed list still shows who is on it, and offers nothing to add or remov
   const m = await mount();
   await settle();
   assert.match(m.host.textContent, /Your list closed on .*, and the people on it still pay no Shape fee\./);
-  assert.equal(m.host.querySelector('textarea'), null);
-  assert.equal(m.host.querySelector('button[aria-label^="Remove"]'), null);
+  assert.ok(!m.host.querySelector('textarea'), 'no box to add to');
+  assert.ok(!m.host.querySelector('button[aria-label^="Remove"]'), 'no one to remove');
   assert.deepEqual([...m.host.querySelectorAll('[data-existing-list] li span')].map((s) => s.textContent), ['a@example.com']);
   await m.done();
 });
