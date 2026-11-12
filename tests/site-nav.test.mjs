@@ -92,41 +92,64 @@ test('the Coaches link names a page that exists', () => {
 // Owner, 2026-09-14: "just have 1 link" — the menu used to carry Trainers and
 // Nutritionists, each deep-linking one of the marketplace's own two tabs. Owner,
 // 2026-11-05: "turn coaches page into what you built" — the Coaches page IS the
-// marketplace, and its one item became For coaches (ForCoaches.html). Owner,
-// 2026-11-08, of "Coaches ▾": "remove the sub tab from here on website now, no
-// longer needed" — so Coaches is a plain link on both bars and both drawers, For
-// coaches stays in the footer, and the tab still lights on the coach pages.
-test('Coaches is a plain link to the marketplace, with no menu, on both bars and both drawers', () => {
+// marketplace. Owner, 2026-11-08: "remove the sub tab ... no longer needed", when
+// its one item was For coaches. Owner, 2026-11-12, of For trainers and For
+// nutritionists, which only the footer linked: "add them as subtabs under coaches".
+//
+// ⚠ SIGNED OUT ONLY. The three pages each end in a coach application, so they are
+// sign-up pages, and the signed-in row is the site's tabs minus its sign-up pages
+// (owner, 2026-09-23). Signed in, Coaches is the plain link, swapped in place the
+// way Rewards ▾ is, so the signed-in bar is as wide as it was measured.
+test('Coaches is a menu of the coach pages signed out, and a plain link signed in, on both bars and both drawers', () => {
   assert.equal(target(NAV_TABLES.COACHES_HREF), 'Coaches.html', 'the Coaches tab no longer opens the marketplace page');
-  assert.ok(!('COACHES_ITEMS' in NAV_TABLES) || NAV_TABLES.COACHES_ITEMS === undefined, 'the Coaches menu\'s items are back');
-  assert.doesNotMatch(SHELL, /const COACHES_ITEMS = /, 'the Coaches menu\'s items are back');
-  for (const [name, groups] of [['signed out', NAV_TABLES.SHAPE_NAV_GROUPS], ['signed in', NAV_TABLES.PORTAL_NAV]]) {
-    const coaches = groups.find((g) => g.label === 'Coaches');
-    assert.equal(coaches.kind, 'link', 'the ' + name + ' row draws Coaches as a menu again');
-    assert.equal(coaches.items, undefined, 'the ' + name + ' row gives Coaches menu items');
-    // It still lights on the pages the menu lit on.
+  const items = NAV_TABLES.COACHES_ITEMS.map(([n, h]) => [n, target(h)]);
+  assert.deepEqual(items, [['For coaches', 'ForCoaches.html'], ['For trainers', 'Coach.html'], ['For nutritionists', 'Nutritionist.html']],
+    'the Coaches menu is not the owner\'s three coach pages');
+  const out = NAV_TABLES.SHAPE_NAV_GROUPS.find((g) => g.label === 'Coaches');
+  assert.equal(out.kind, 'drop', 'signed out, Coaches is not a menu');
+  assert.equal(out.items, NAV_TABLES.COACHES_ITEMS, 'the signed-out Coaches menu is not COACHES_ITEMS');
+  assert.deepEqual(out.signedIn, [NAV_TABLES.COACHES_TAB], 'signed in, Coaches is not swapped for its plain link');
+  const inRow = NAV_TABLES.PORTAL_NAV.find((g) => g.label === 'Coaches');
+  assert.equal(inRow, NAV_TABLES.COACHES_TAB, 'the signed-in Coaches is not the plain tab');
+  assert.equal(inRow.kind, 'link', 'signed in, Coaches is drawn as a menu');
+  assert.equal(inRow.items, undefined, 'signed in, Coaches carries menu items');
+  for (const [name, g] of [['signed out', out], ['signed in', inRow]]) {
+    assert.equal(g.href, NAV_TABLES.COACHES_HREF, 'the ' + name + ' Coaches points somewhere else');
+    // It lights on the marketplace and on every coach page.
     for (const page of ['Coaches', 'Marketplace', 'Trainer Overview', 'Nutritionist Overview']) {
-      assert.ok((coaches.match || []).includes(page), 'Coaches no longer lights on ' + page);
+      assert.ok((g.match || []).includes(page), 'the ' + name + ' Coaches no longer lights on ' + page);
     }
   }
   // The shared header's bar and drawer honour a link's `match`.
   assert.match(SHELL, /\{link\(g\.label, g\.href, g\.match\)\}/, 'the bar draws a link without its match');
   assert.match(SHELL, /const on = match \? match\.includes\(active\) : active === name;/);
   assert.match(SHELL, /color: \(g\.match \? g\.match\.includes\(active\) : active === g\.label\) \? TEAL : INK/, 'the drawer lights a link only on its own name');
-  // The homepage's static bar: a bare link, no caret, no panel; the one menu left is Rewards.
+  // The homepage's static bar: the same menu, its caret and panel marked signed-out-only.
   const row = /<div class="nlinks">([\s\S]*?)<\/div>\s*<div class="nauth">/.exec(INDEX);
   assert.ok(row, 'the homepage nav\'s .nlinks block is gone');
-  assert.match(row[1], /^\s*<a href="\/newdesign\/Coaches\.html">Coaches<\/a>$/m, 'the homepage Coaches is not a plain link');
-  assert.doesNotMatch(row[1], /Coaches<span class="car"/, 'the homepage Coaches has a caret again');
+  const drop = /<span class="ndrop"><a href="\/newdesign\/Coaches\.html">Coaches<span class="car"[^>]*\bdata-signed-out-only\b[^>]*><\/span><\/a><div class="nmenu" data-signed-out-only>([\s\S]*?)<\/div><\/span>/.exec(row[1]);
+  assert.ok(drop, 'the homepage Coaches is not a menu whose caret and panel go on sign-in');
+  assert.deepEqual([...drop[1].matchAll(/<a href="([^"]+)">([^<]+)<\/a>/g)].map((a) => [a[2], target(a[1])]), items,
+    'the homepage Coaches menu is not the shared header\'s');
   assert.equal((row[1].match(/<span class="ndrop">/g) || []).length, NAV_TABLES.SHAPE_NAV_GROUPS.filter((g) => g.kind === 'drop').length, 'the homepage draws a different number of menus than the shared header');
-  // Both drawers: Coaches, and no For coaches under it.
+  // Both drawers: Coaches, then its items indented and marked signed-out-only.
   const drawer = /<div class="ndrawer" id="ndrawer">([\s\S]*?)<\/div>/.exec(INDEX);
   assert.ok(drawer, 'the homepage has no drawer');
-  assert.match(drawer[1], /<a href="\/newdesign\/Coaches\.html">Coaches<\/a>/);
-  assert.doesNotMatch(drawer[1], /ForCoaches\.html/, 'the homepage drawer still carries For coaches');
-  // For coaches is still reachable: the footer's For coaches column opens it.
-  assert.match(INDEX, /<a href="\/newdesign\/ForCoaches\.html">For coaches<\/a>/, 'the homepage footer lost For coaches');
-  assert.match(SHELL, /\["For coaches", "ForCoaches\.html"\]/, 'the shared footer lost For coaches');
+  const inDrawer = [...drawer[1].matchAll(/<a href="([^"]+)"([^>]*)>([\s\S]*?)<\/a>/g)];
+  const at = inDrawer.findIndex((a) => target(a[1]) === 'Coaches.html' && a[3].trim() === 'Coaches');
+  assert.ok(at >= 0, 'the homepage drawer lost Coaches');
+  assert.deepEqual(inDrawer.slice(at + 1, at + 1 + items.length).map((a) => [a[3].replace(/&nbsp;/g, ' ').trim(), target(a[1]), /\bdata-signed-out-only\b/.test(a[2])]),
+    items.map(([n, h]) => [n, h, true]), 'the homepage drawer does not carry the Coaches menu under Coaches, marked signed-out-only');
+  // The footer still opens all three, which a signed-in visitor needs. Read from
+  // each footer alone: COACHES_ITEMS spells the same pairs in the nav.
+  const homeFoot = /<footer class="ft">[\s\S]*?<\/footer>/.exec(INDEX);
+  const at2 = SHELL.indexOf('function Footer(');
+  assert.ok(homeFoot && at2 > 0, 'a footer did not parse — this guard is reading nothing');
+  const shellFoot = SHELL.slice(at2, SHELL.indexOf('].map(([h, items])', at2));
+  for (const page of ['ForCoaches.html', 'Coach.html', 'Nutritionist.html']) {
+    assert.ok(homeFoot[0].includes('href="/newdesign/' + page + '"'), 'the homepage footer lost ' + page);
+    assert.ok(shellFoot.includes('", "' + page + '"]'), 'the shared footer lost ' + page);
+  }
 });
 
 // ── 1b · Radio is offered once per width ───────────────────────────────────
@@ -895,8 +918,7 @@ test('the homepage drawer carries every link the homepage bar carries', () => {
   //
   // The two lists are DERIVED from the markup, and the drawer's extras are named
   // rather than counted: it legitimately carries Radio and the auth pair the
-  // collapse rule hides. (It carried the Coaches menu's For coaches inline until
-  // that menu went, owner 2026-11-08.)
+  // collapse rule hides, and the menus' items inlined under their tabs.
   const bar = homepageLinks().map(([l]) => l);
   const m = /<div class="ndrawer" id="ndrawer">([\s\S]*?)<\/div>/.exec(INDEX);
   assert.ok(m, 'the homepage drawer is gone — this guard is reading nothing');

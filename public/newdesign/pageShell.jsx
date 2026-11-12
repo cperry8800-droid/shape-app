@@ -236,13 +236,34 @@ function NavCaret({ open }) {
 // handler therefore toggles ONLY when there is no `href` to go to.
 function NavDropdown({ label, href, items, active, activeMatch }) {
   const [open, setOpen] = React.useState(false);
+  const wrap = React.useRef(null);
   const closeTimer = React.useRef(null);
+  const quietFocus = React.useRef(false);
   const cancelClose = () => { if (closeTimer.current) { clearTimeout(closeTimer.current); closeTimer.current = null; } };
-  const scheduleClose = () => { cancelClose(); closeTimer.current = setTimeout(() => setOpen(false), 150); };
+  // The pointer leaving does not close a menu the keyboard is inside: its items would unmount
+  // under the focus and drop it to the page.
+  const scheduleClose = () => { cancelClose(); closeTimer.current = setTimeout(() => { if (!(wrap.current && wrap.current.contains(document.activeElement))) setOpen(false); }, 150); };
   const isActive = activeMatch.includes(active);
+  // ⚠ THE KEYBOARD OPENS IT TOO (Codex P2 on #2723). The trigger is a link to its own page, so
+  // Enter navigates rather than toggles, and the items are not in the DOM until `open`: a menu
+  // opened by hover alone put For coaches, For trainers and For nutritionists (and the Shape
+  // Store) out of reach of the keyboard. Focus on the trigger opens it, Tab walks into the items,
+  // focus leaving the whole menu closes it, and Escape closes it and returns to the trigger.
+  // React's onFocus/onBlur bubble (focusin/focusout), so the wrapper sees its items' focus.
+  // `quietFocus` keeps Escape's own move back to the trigger from opening it again.
   return (
-    <div style={{ position: "relative", display: "inline-flex", alignItems: "center", height: "100%" }} onMouseEnter={() => { cancelClose(); setOpen(true); }} onMouseLeave={scheduleClose}>
-      <a href={href || undefined} className="shape-nav-link"
+    <div ref={wrap} style={{ position: "relative", display: "inline-flex", alignItems: "center", height: "100%" }} onMouseEnter={() => { cancelClose(); setOpen(true); }} onMouseLeave={scheduleClose}
+      onFocus={() => { if (quietFocus.current) { quietFocus.current = false; return; } cancelClose(); setOpen(true); }}
+      onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) { cancelClose(); setOpen(false); } }}
+      onKeyDown={(e) => {
+        if (e.key !== "Escape" || !open) return;
+        cancelClose(); setOpen(false);
+        const trigger = e.currentTarget.querySelector("a");
+        // focus() dispatches focusin synchronously, so the flag is spent inside the call; it is
+        // cleared after as well, in case no focus event fired.
+        if (trigger && trigger !== e.target) { quietFocus.current = true; trigger.focus(); quietFocus.current = false; }
+      }}>
+      <a href={href || undefined} className="shape-nav-link" aria-haspopup="true" aria-expanded={open}
         onClick={href ? undefined : () => setOpen(o => !o)}
         style={{ fontFamily: navSans, fontSize: 13.5, fontWeight: 500, color: isActive ? "var(--sh-nav-ink, #f5efe1)" : "rgba(var(--sh-nav-ink-rgb, 245,239,225),0.78)", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 5, lineHeight: 1, whiteSpace: "nowrap", textDecoration: isActive ? "underline" : "none", textDecorationColor: TEAL_BRIGHT, textDecorationThickness: 1.5, textUnderlineOffset: 9 }}>
         {label}<NavCaret open={open} />
@@ -271,13 +292,24 @@ function NavDropdown({ label, href, items, active, activeMatch }) {
 // the goal-first matcher, the filters and the cards, trainers and nutritionists on one page with the
 // switch at its top. The old Marketplace.html forwards to Coaches.html and keeps its hash.
 //
-// ⚠ AND ITS MENU IS GONE. Owner, 2026-11-08, of "Coaches ▾": "remove the sub tab from here on website
-// now, no longer needed". Its one item was For coaches (ForCoaches.html, the page that pitches Shape to
-// trainers and nutritionists), which the footer's For coaches column still opens; the tab is a plain
-// link on both bars and both drawers. It still lights on the coach pages (`match`), as the menu did.
+// ⚠ SIGNED OUT, IT IS A MENU OF THE THREE PAGES THAT PITCH SHAPE TO COACHES. Owner, 2026-11-12,
+// of For trainers and For nutritionists, which only the footer linked: keep the pages and "add them
+// as subtabs under coaches". That reverses the 2026-11-08 ruling that took the menu off ("remove the
+// sub tab from here on website now, no longer needed"), when its one item was For coaches.
+//
+// ⚠ SIGNED IN, IT IS A PLAIN LINK AGAIN (`signedIn`), the way Rewards ▾ swaps. Each of the three
+// pages ends in a coach application, so they are sign-up pages, and the signed-in row is the site's
+// tabs minus its sign-up pages (owner, 2026-09-23; Pricing is the other). The footer still opens all
+// three for a signed-in visitor. The tab lights on each of them (`match`).
 //
 // `tests/site-nav.test.mjs` requires the target to name a file that is in the repo.
 const COACHES_HREF = "Coaches.html";
+const COACHES_TAB = { kind: "link", label: "Coaches", href: COACHES_HREF, match: ["Coaches", "Marketplace", "Trainers", "Nutritionists", "Trainer Overview", "Nutritionist Overview"] };
+const COACHES_ITEMS = [
+  ["For coaches", "ForCoaches.html"],
+  ["For trainers", "Coach.html"],
+  ["For nutritionists", "Nutritionist.html"],
+];
 
 // ⚠ THE STORE IS A REWARDS MENU ITEM SIGNED OUT AND A TAB OF ITS OWN SIGNED IN.
 // Owner, 2026-10-09: "theres no shape store tab on website on nav bar, it should
@@ -329,11 +361,13 @@ const REWARDS_ITEMS = [
 // ⚠ AND THE THREE `Dashboard` DROPDOWN ITEMS ARE GONE. The retired Clients /
 // Trainers / Nutritionists menus each carried one, which opened the demo
 // dashboard for an anonymous visitor — the access PR 2 gates behind an account.
-// `Coach.html`, `Nutritionist.html` and `Recipes.html` keep working and keep
-// their footer links; they simply leave the bar. (`Client.html` was in that
-// list too; it became the `Members` tab, and is now retired, above.)
+// `Coach.html`, `Nutritionist.html` and `Recipes.html` kept working and kept
+// their footer links. (`Client.html` was in that list too; it became the
+// `Members` tab, and is now retired, above.) Recipes.html came back as the
+// `Kitchen` tab, and Coach.html and Nutritionist.html as items of the Coaches
+// menu (owner, 2026-11-12), signed out.
 const SHAPE_NAV_GROUPS = [
-  { kind: "link", label: "Coaches", href: COACHES_HREF, match: ["Coaches", "Marketplace", "Trainers", "Nutritionists", "Trainer Overview", "Nutritionist Overview"] },
+  { ...COACHES_TAB, kind: "drop", items: COACHES_ITEMS, signedIn: [COACHES_TAB] },
   { kind: "link", label: "App", href: "GetApp.html" },
   // ⚠ THE KITCHEN WAS FOOTER-ONLY UNTIL NOW, which is the same standing
   // `Client.html` had before its `Members` tab (#2069). Owner, 2026-09-16:
@@ -378,9 +412,10 @@ const SHAPE_NAV_GROUPS = [
 // same test requires the two lists to agree.
 //
 // ⚠ AN ENTRY WITH `signedIn` IS REPLACED BY THAT LIST ON THIS ROW, in place.
-// Rewards is the one (owner, 2026-10-09): its menu's Store becomes a tab beside
-// it. The homepage marks the same swap: the Rewards caret and menu are
-// `data-signed-out-only`, and the Store tab is `data-signed-in-only`.
+// Rewards is one (owner, 2026-10-09): its menu's Store becomes a tab beside it.
+// Coaches is the other (2026-11-12): its menu holds the coach sign-up pages, so
+// signed in it is the plain link. The homepage marks the same swaps: each caret
+// and menu is `data-signed-out-only`, and the Store tab is `data-signed-in-only`.
 const SIGNED_OUT_ONLY = ["Pricing"];
 const PORTAL_NAV = SHAPE_NAV_GROUPS
   .filter((g) => !SIGNED_OUT_ONLY.includes(g.label))
@@ -1753,11 +1788,11 @@ function HeroBg() {
 // columns and a 32px base, inside 56/36 of padding — so on most pages it was two
 // thirds of a screen of site furniture under the content.
 //
-// ⚠ WHAT CHANGED IS RHYTHM AND THE MARK, NEVER THE TABLE. Every group, label and
-// target below is untouched: `tests/site-footer.test.mjs` compares this table
-// against the homepage's hand-written copy by label AND by target, and a footer
-// that quietly dropped a link would take a page with it (six of them are linked
-// from nowhere else). Only spacing and the logo size move.
+// ⚠ THAT TRIM CHANGED RHYTHM AND THE MARK, NOT THE TABLE. The table changes only
+// on the owner's word (the last time 2026-11-12, below), and
+// `tests/site-footer.test.mjs` compares it with the homepage's hand-written copy
+// by label AND by target, since a footer that quietly dropped a link could take a
+// page with it.
 // 36: the Club Shape logo, smaller (owner, 2026-11-03), as the homepage's footer draws it.
 function Footer({ logoHeight = 36 } = {}) {
   return (
@@ -1774,76 +1809,54 @@ function Footer({ logoHeight = 36 } = {}) {
           <img src="/shape-logo-black.svg" alt="Shape" style={{ height: logoHeight, width: "auto", display: "var(--sh-logo-light, none)", margin: "0 auto", objectFit: "contain" }} />
           <div style={{ fontFamily: serif, fontSize: 17, fontStyle: "italic", letterSpacing: "-0.02em", color: INK }}>Join the community</div>
         </div>
-        <div className="shape-footer-grid" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 24, paddingTop: 20, borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.1)", justifyItems: "center", textAlign: "center" }}>
+        <div className="shape-footer-grid" style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 24, paddingTop: 20, borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.1)", justifyItems: "center", textAlign: "center" }}>
           {[
             /* ── THE CANONICAL FOOTER TABLE ────────────────────────────────
-               ⚠ THREE FOOTERS RENDERED THIS SITE, AND THEY HAD DRIFTED INTO
-               THREE DIFFERENT DESIGNS. This component is one; `index.html`
-               hand-writes its own (a static page cannot import this React
-               component); `GetApp.html` hand-wrote a third.
-               ⚠ CORRECTED 2026-09-17 — GETAPP NO LONGER HAND-WRITES ONE. The App
-               page was rebuilt as One Day and mounts THIS component in a root of
-               its own, so two footers render the site and the reconciliation below
-               is between this table and the homepage's copy. Left in place rather
-               than cut because the measurement is the reason the table exists, and
-               a comment still naming a third copy is an instruction to re-add it.
-               Measured 2026-09-14 from the
-               three files before this was reconciled — 22, 23 and 17 links, no
-               two agreeing: the homepage carried The app + Shape Store and NO
-               link to Coaches.html, headed its second group "For coaches" where
-               this one said "For trainers", and put the four deep-legal links
-               under Support where this one put them under Company; GetApp had
-               the same four group HEADS as this one and almost none of the same
-               contents — a four-item Product list (no The app, no Shape Store,
-               no Shape Kitchen, no For members), a three-item "For trainers"
-               that was Apply plus two dashboard dead ends and named no coach
-               page at all, and no Pricing anywhere.
-               `tests/site-footer.test.mjs` now compares
-               all three against this table, the way `tests/site-nav.test.mjs`
-               compares the two nav bars, and for the same reason: they drifted
-               because nothing compared them.
+               ⚠ TWO FOOTERS RENDER THIS SITE: this component, and the copy
+               `index.html` writes by hand (a static page cannot import a React
+               component). `tests/site-footer.test.mjs` compares the two by group,
+               label AND target. There were three until 2026-09-17, measured
+               2026-09-14 at 22, 23 and 17 links with no two agreeing, which is why
+               the comparison exists; GetApp.html mounts this component now.
 
-               ⚠ EVERY TARGET HERE IS PUBLIC AND SIGNED-OUT READABLE — a rule, not
-               a coincidence. A footer is read overwhelmingly by people who are not
-               signed in. Three links used to point at dashboard pages
-               (Dashboard→ClientDashboard, Payouts→TrainerDashboard,
-               Programs→TrainerPrograms) and every one of those is a redirect stub
-               into a shell that, since the sign-in gate shipped, sends a measured
-               signed-out visitor to Login.html. They were dead ends for the entire
-               audience of a marketing footer. Owner's ruling: repoint at public
-               pages. Pricing.html carries the coach fee and payout facts;
-               ForCoaches.html is the coaches' pitch page (it was Coaches.html
-               until 2026-11-05, when the Coaches page became the marketplace,
-               which Product's "Find a coach" names).
+               ⚠ REORGANISED ON THE OWNER'S REVIEW, 2026-11-12 ("make sure these
+               are organized and labeled correctly also. And make sure we aren't
+               missing any"):
+               · Legal is a column of its own. Privacy and Terms sat under Company
+                 and the other legal pages under Support. Support keeps the pages a
+                 person reads for help; Code of conduct is the community's rules.
+               · Join holds Get started and Pricing, which was all Company had left.
+               · Apply opens Landing.html, where a visitor picks trainer or
+                 nutritionist. It opened the trainer application for both.
+               · "Rates & payouts" is gone: it opened the member Pricing page, where
+                 the coach fee was one FAQ answer. The coach pages carry the fees.
+               · The coach column's first link was "For coaches" under a heading
+                 reading "For coaches". It is "Overview" now.
+               · Added: Community (a nav tab the footer lacked), Your privacy
+                 choices (the data-request form, linked before only from the privacy
+                 policies) and Get started.
 
-               ⚠ AND "PRESS" IS GONE. It pointed at `Team.html#press` in all three
-               footers — but Team.html is the CLIENT'S "My Team" page (its own
-               header: "the client's roster of coaches"), and there is no
-               `id="press"` anywhere on it. Wrong page, and a dead anchor on top.
-               Owner's ruling: remove it until there is a press page to name.
+               ⚠ EVERY TARGET HERE IS PUBLIC AND SIGNED-OUT READABLE, a rule, not a
+               coincidence. A footer is read mostly by people who are not signed in.
+               Three links once pointed at dashboard pages, every one a redirect
+               into a shell that sends a signed-out visitor to Login.html. The
+               owner's ruling: public pages only.
 
-               ⚠ TWO OF THESE PAGES HAVE NO OTHER LINK. Measured across
-               public/newdesign, nothing in the nav and nothing in any live page's
-               body points at Coach.html or Nutritionist.html — so
-               without this table they are reachable only by typing a URL.
-               (`directionB.jsx` names all three and is a retired exploration,
-               loaded only by the *-print / index-explorations pages.) ForCoaches.html
-               sits above them in the nav and does NOT replace them: each still
-               carries its own copy and its own application.
+               ⚠ AND "PRESS" IS GONE. It pointed at `Team.html#press`, the CLIENT'S
+               "My Team" page, which has no `id="press"`. Owner's ruling: remove it
+               until there is a press page to name.
 
-               ⚠ RECIPES.HTML IS THE EXCEPTION, AND IT IS NAMED RATHER THAN LEFT
-               IN THE LIST ABOVE. The `Kitchen` tab points at it, so the footer is
-               not the only way in. That sentence used to include Client.html, and
-               #2069 made it false without anything noticing;
-               `tests/site-footer.test.mjs` now asserts the two pages named above
-               are absent from the nav table AND that the exception is present in
-               it, so the next tab promoted out of the footer fails a test instead of
-               quietly leaving a wrong claim here. (Client.html, "For members", is
-               retired: owner, 2026-11-09, "remove the members page from website".) */
-            ["Product",     [["Find a coach", "Coaches.html"], ["The app", "GetApp.html"], ["Shape Score", "Score.html"], ["Shape Store", "Store.html"], ["Radio", "Radio.html"], ["Shape Kitchen", "Recipes.html"]]],
-            ["For coaches", [["For coaches", "ForCoaches.html"], ["For trainers", "Coach.html"], ["For nutritionists", "Nutritionist.html"], ["Apply", "SignupTrainer.html"], ["Rates & payouts", "Pricing.html"]]],
-            ["Company",     [["Pricing", "Pricing.html"], ["Privacy", "/privacy.html"], ["Terms", "/terms.html"]]],
-            ["Support",     [["Help", "/help.html"], ["Contact", "/contact.html"], ["Code of conduct", "/code-of-conduct.html"], ["Data & compliance", "/data-compliance.html"], ["Consumer health data", "/health-data-privacy.html"], ["Subprocessors", "/subprocessors.html"]]],
+               ⚠ SIGNED IN, THE FOOTER IS THE ONLY LINK TO TWO OF THESE PAGES.
+               Coach.html and Nutritionist.html are items of the nav's Coaches menu
+               signed out (owner, 2026-11-12), and the menu is a plain link signed in,
+               so a signed-in visitor reaches them only from here.
+               `tests/site-footer.test.mjs` holds both halves. Recipes.html is the
+               nav's Kitchen tab as well. */
+            ["Product",     [["Find a coach", "Coaches.html"], ["The app", "GetApp.html"], ["Shape Score", "Score.html"], ["Shape Store", "Store.html"], ["Radio", "Radio.html"], ["Shape Kitchen", "Recipes.html"], ["Community", "Community.html"]]],
+            ["For coaches", [["Overview", "ForCoaches.html"], ["Personal trainers", "Coach.html"], ["Nutritionists", "Nutritionist.html"], ["Apply", "Landing.html"]]],
+            ["Join",        [["Get started", "Landing.html"], ["Pricing", "Pricing.html"]]],
+            ["Support",     [["Help", "/help.html"], ["Contact", "/contact.html"], ["Code of conduct", "/code-of-conduct.html"]]],
+            ["Legal",       [["Privacy", "/privacy.html"], ["Terms", "/terms.html"], ["Consumer health data", "/health-data-privacy.html"], ["Data & compliance", "/data-compliance.html"], ["Subprocessors", "/subprocessors.html"], ["Your privacy choices", "/privacy-request.html"]]],
           ].map(([h, items]) => (
             <div key={h}>
               <div style={{ fontFamily: mono, fontSize: 10, letterSpacing: "0.18em", textTransform: "uppercase", color: TEAL, marginBottom: 9 }}>{h}</div>
