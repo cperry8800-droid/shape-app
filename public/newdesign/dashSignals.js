@@ -1675,10 +1675,11 @@
     var lastDay = new Date(last.on.getTime()); lastDay.setHours(0, 0, 0, 0);
     var gap = daysBetween(lastDay, now);
     // ⚠ FROM THE DAY THEY CAME BACK, NOT FROM BEFORE A BREAK (as the other gaps): a last weigh-in from
-    // before it counts the days since their return. ⚠ FOR AS LONG AS THE LINE (Codex on #2721): the other
-    // gaps stop reading a break 14 days back (PAUSE_BOUND_DAYS), and a line of 14 or more then counted from
-    // before it, so the break is read here until a day past the coach's own line.
-    var bp = pauseOf(c, now, Math.max(PAUSE_BOUND_DAYS, THRESHOLDS.WEIGHIN_GAP_DAYS + 1));
+    // before it counts the days since their return. ⚠ UNTIL THEY WEIGH IN AGAIN (Codex on #2721, twice): the
+    // other gaps stop reading a break 14 days back (PAUSE_BOUND_DAYS), and a gap still open then went back to
+    // counting from before it, a new episode with a new sig, so a dismissed one came back. With no weigh-in
+    // since, the days since the return are the gap, however long ago it was.
+    var bp = pauseOf(c, now, Infinity);
     var backDay = bp && bp.state === "back" ? toDate(bp.since) : null, sinceBreak = false;
     if (backDay && lastDay < backDay) { gap = bp.day; sinceBreak = true; }
     if (gap == null || gap < THRESHOLDS.WEIGHIN_GAP_DAYS) return null;
