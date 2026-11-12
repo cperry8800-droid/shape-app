@@ -152,7 +152,7 @@ test('signed out, each bar menu opens on focus, stays open while focus is inside
       // Escape: closed, focus back on the trigger, and that move does not reopen it.
       await act(async () => { document.activeElement.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); });
       assert.equal(items().length, 0, 'Escape did not close ' + label + '\'s menu');
-      assert.equal(document.activeElement, trigger, 'Escape did not return focus to ' + label);
+      assert.ok(document.activeElement === trigger, 'Escape did not return focus to ' + label);
       assert.equal(trigger.getAttribute('aria-expanded'), 'false');
       // Focus leaving the menu closes it.
       await act(async () => { trigger.blur(); trigger.focus(); });
