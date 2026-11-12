@@ -12,6 +12,7 @@
 // it carries `consentAt` (both forms write it when the member confirms their answers).
 
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { healthScreeningCurrent } from '../../public/newdesign/healthScreening.mjs';
 
 export const SCREENING_REQUIRED = {
   error: 'Complete your health screening before hiring a coach. It is shared with the coaches you hire, so they can train you safely.',
@@ -40,10 +41,10 @@ export async function hasCompletedScreening(client: SupabaseClient, userId: stri
   if (error) throw error;
   const doc = (data as { data?: unknown } | null)?.data;
   if (!doc || typeof doc !== 'object') return false;
-  const d = doc as { consentAt?: unknown; glp1?: unknown };
-  // ⚠ AND THE GLP-1 ANSWER (Codex on #2720): a profile saved before the question was added counts as
-  // complete only once it is answered, so hiring a coach asks it (the screening page requires it).
-  return !!d.consentAt && (d.glp1 === 'yes' || d.glp1 === 'no');
+  // ⚠ COMPLETE AND CURRENT (healthScreening.mjs): every required answer, the GLP-1 one included (Codex
+  // on #2720), and confirmed within the year (owner, 2026-11-12), so hiring a coach asks again for a
+  // screening that is not.
+  return healthScreeningCurrent(doc as Record<string, unknown>);
 }
 
 /** The website's screening (Settings → Health profile), coming back to `next` (a same-site path) once saved. */

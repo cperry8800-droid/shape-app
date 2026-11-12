@@ -19,14 +19,17 @@
 // health_profile document, or null when none is stored. A caller whose read FAILED does not call
 // this: it shows no step (an answer on file could be overwritten), and asks again next time.
 
+import { healthScreeningCurrent } from './healthScreening.mjs';
+
 /** 'intent' | 'coaching' | 'health' | 'ok' */
-export function bsFirstRunStage(onboarding, health) {
+export function bsFirstRunStage(onboarding, health, now = Date.now()) {
   const onb = onboarding && typeof onboarding === 'object' ? onboarding : {};
   if (!onb.intentSeen) return 'intent';
-  // ⚠ A SCREENING FROM BEFORE THE GLP-1 QUESTION (Codex on #2720): a member who wants coaching is asked
-  // it (the intake opens with their answers in place); anyone else is asked when they hire a coach
-  // (hasCompletedScreening), and a coach sees it as not answered yet.
-  if (health && health.consentAt) return health.glp1 === 'yes' || health.glp1 === 'no' || onb.wantsCoaching !== true ? 'ok' : 'health';
+  // ⚠ ONCE A YEAR, AND WHEN THE FORM ASKS SOMETHING NEW (owner, 2026-11-12: "add a yearly screening
+  // confirming if anything has changed"). A screening that is not current (a required answer missing, or
+  // not confirmed in HEALTH_REVIEW_DAYS) opens the intake again with their answers in place, for anyone
+  // but a member who said they don't want coaching; they are asked when they hire (hasCompletedScreening).
+  if (health && health.consentAt) return healthScreeningCurrent(health, now) || onb.wantsCoaching === false ? 'ok' : 'health';
   if (typeof onb.wantsCoaching !== 'boolean') return 'coaching';
   return onb.wantsCoaching ? 'health' : 'ok';
 }

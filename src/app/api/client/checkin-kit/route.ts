@@ -5,7 +5,8 @@
 // GET  → { ok, weekOf, checkins, measurements, health }
 // POST { action: 'checkin', ratings, wins?, struggles?, question?, weight?, unit?,
 //        measurements?: [{site,value,unit}] }
-//      { action: 'health', doc }      → upserts user_goals('health_profile')
+//      { action: 'health', doc }      → upserts user_goals('health_profile'), stamped confirmedAt (and
+//        changedAt + changed when a part differs from the last save), and tells the member's coaches
 //
 // All writes ride the caller's session client, so RLS owns the scoping.
 
@@ -14,6 +15,9 @@ import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { readJson, dbError } from '@/lib/request-utils';
 import { clientLocalDay, weekMondayOf } from '@/lib/local-day';
 import { requireAccount } from '@/lib/require-membership';
+import { createAdminClient } from '@/lib/supabase/admin';
+import { tellCoachesHealthChanged } from '@/lib/health-changes';
+import { healthChangedParts } from '../../../../../public/newdesign/healthScreening.mjs';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -57,13 +61,30 @@ export async function POST(request: Request) {
   const action = String(body.action || '');
 
   if (action === 'health') {
-    const doc = body.doc && typeof body.doc === 'object' ? body.doc : null;
-    if (!doc) return NextResponse.json({ error: 'Missing health profile.' }, { status: 400 });
+    const given = body.doc && typeof body.doc === 'object' && !Array.isArray(body.doc) ? (body.doc as Record<string, unknown>) : null;
+    if (!given) return NextResponse.json({ error: 'Missing health profile.' }, { status: 400 });
+    // ⚠ EVERY SAVE IS A CONFIRMATION, AND A CHANGE IS TOLD TO THE COACHES (owner, 2026-11-12). The last
+    // save is read first: the parts that differ (healthChangedParts) are stamped on the profile, so the
+    // coach's card says what changed and when, and each coach is notified. A first screening tells
+    // nobody (a coach hired later reads it whole). The stamps are the server's, never the member's.
+    const { data: prevRow, error: prevErr } = await supabase
+      .from('user_goals').select('data').eq('user_id', user.id).eq('kind', 'health_profile').maybeSingle();
+    if (prevErr) return dbError(prevErr, 'health profile read', 500);
+    const prev = (prevRow as { data?: Record<string, unknown> } | null)?.data ?? null;
+    const now = new Date().toISOString();
+    const parts = healthChangedParts(prev, given);
+    const doc: Record<string, unknown> = { ...given, confirmedAt: now };
+    if (parts.length) { doc.changedAt = now; doc.changed = parts; }
+    else if (prev) { doc.changedAt = prev.changedAt ?? null; doc.changed = prev.changed ?? null; }
     const { error } = await supabase
       .from('user_goals')
       .upsert({ user_id: user.id, kind: 'health_profile', data: doc }, { onConflict: 'user_id,kind' });
     if (error) return dbError(error, 'checkin kit write', 500);
-    return NextResponse.json({ ok: true });
+    if (parts.length) {
+      try { await tellCoachesHealthChanged(createAdminClient(), { clientId: user.id, parts, changedAt: now }); }
+      catch (e) { console.error('[checkin-kit] coaches not told of a health change:', e instanceof Error ? e.message : e); }
+    }
+    return NextResponse.json({ ok: true, doc });
   }
 
   if (action === 'checkin') {
