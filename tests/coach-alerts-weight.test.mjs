@@ -114,6 +114,14 @@ test('a weigh-in gap: none for 14 days, for a client who weighed in weekly over 
   // Two weigh-ins in the 4 weeks before: never a weekly habit to miss.
   const sparse = base(goal({ start: 85, target: 78, from: 80, pts: [[60, 84], [40, 83.6], [20, 83.2]] }));
   assert.equal(flag(feed('nutritionist', sparse), 'weighin_gap'), null);
+  // A coach goal's own history stops, the member's weigh-ins go on (Codex on #2720): read both.
+  const frozen = weekly(30);
+  const live = { ...frozen, weighIns: [[23, 82.9], [16, 82.7], [9, 82.6], [2, 82.4]].map(([d, v]) => ({ on: day(d), weight: v, unit: 'kg' })) };
+  assert.ok(flag(feed('nutritionist', frozen), 'weighin_gap'), 'the goal\'s history alone: 30 days');
+  assert.equal(flag(feed('nutritionist', live), 'weighin_gap'), null, 'weighed in 2 days ago');
+  // …in their own unit, and the live reading wins on a day both have one.
+  const lb = { ...base(goal({ start: 85, target: 72, from: 35, pts: [[35, 85], [21, 83.6], [14, 82.5], [7, 81.4], [1, 85]] })), weighIns: [{ on: day(1), weight: 177, unit: 'lb' }] };
+  assert.ok(flag(feed('nutritionist', lb), 'weight_fast'), '177 lb is 80.3 kg: still losing fast');
   // On a break it is quiet.
   assert.equal(flag(feed('nutritionist', weekly(15, { pause: { until: day(-5), by: 'client' } })), 'weighin_gap'), null);
   // After one it counts from the day they came back, never from before it.

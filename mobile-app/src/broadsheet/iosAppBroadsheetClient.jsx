@@ -1336,7 +1336,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
     return <>{<BSCoachingStep onDone={(answer) => firstRunNext({ ...firstRun.onb, ...answer })} />}{noraSheet}</>;
   }
   if (firstRun.stage === 'health') {
-    return <>{<BSHealthIntake onDone={(doc) => setFirstRun((f) => ({ ...f, health: doc, stage: 'ok' }))} />}{noraSheet}</>;
+    return <>{<BSHealthIntake onDone={(doc) => setFirstRun((f) => ({ ...f, health: doc, stage: 'ok' }))} initial={firstRun.health || null} />}{noraSheet}</>;
   }
   // ⚠ Settings is an OVERLAY, not an early return, and that is load-bearing.
   // Returning <BSSettings/> in its place unmounted the whole tab tree beneath it,

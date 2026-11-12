@@ -1591,8 +1591,17 @@
     for (var i = 0; i < gs.length; i++) if (gs[i] && gs[i].metric === "weight") { g = gs[i]; break; }
     if (!g || g.target == null || !isFinite(Number(g.target))) return null;
     var unit = g.unit || "lb";
-    var pts = goalSeries(g, now).map(function (p) { return { on: p.on, kg: toWeightUnit(p.value, unit, "kg") }; })
-      .filter(function (p) { return p.kg > 0; });
+    // ⚠ THE LIVE WEIGH-INS TOO (Codex on #2720): a coach goal keeps its own history once it has two
+    // points (goalsFromDoc), so the weigh-ins logged since were not read, and a client weighing in every
+    // week could read a gap. The goal's points and the record's weigh-ins, one a day, the live one on a
+    // day both have.
+    var byDay = {};
+    goalSeries(g, now).forEach(function (p) { byDay[iso(p.on)] = { on: p.on, kg: toWeightUnit(p.value, unit, "kg") }; });
+    weightSeriesIn(c && c.weighIns, "kg").forEach(function (p) {
+      var on = toDate(p.on);
+      if (on && on.getTime() <= now.getTime()) byDay[p.on] = { on: on, kg: p.value };
+    });
+    var pts = Object.keys(byDay).sort().map(function (k) { return byDay[k]; }).filter(function (p) { return p.kg > 0; });
     if (!pts.length) return null;
     var started = toDate(g.startedOn) || pts[0].on;
     var startDay = new Date(started.getTime()); startDay.setHours(0, 0, 0, 0);
@@ -2311,6 +2320,8 @@
           { id: "g-weight", label: "Goal weight", metric: "weight", unit: "lb", target: 135, start: 150, startedOn: ago(49), setBy: "nutritionist",
             history: gh([[49, 150], [42, 149], [35, 148], [28, 147], [21, 146], [14, 144.2], [7, 142.5], [1, 140.8]]) },
         ],
+        // Her own weigh-ins, the same as her goal's (the weight alerts read both).
+        weighIns: [[21, 146], [14, 144.2], [7, 142.5], [1, 140.8]].map(function (p) { return { on: ago(p[0]), weight: p[1], unit: "lb" }; }),
         payments: pay(22000, 1, 210, "marketplace"),
         recentLogs: [
           { on: ago(0), kcal: 1815, protein: 92 },

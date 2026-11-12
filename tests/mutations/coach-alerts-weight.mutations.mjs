@@ -4,8 +4,10 @@
 // Run: node scripts/mutate.mjs --spec tests/mutations/coach-alerts-weight.mutations.mjs --fail-on-skipped
 const ENG = 'public/newdesign/dashSignals.js';
 const SET = 'public/newdesign/coachSettings.jsx';
+const SCREEN = 'src/lib/health-screening.ts';
+const FIRST = 'mobile-app/src/services/firstRun.mjs';
 export default {
-  test: 'node --test tests/coach-alerts-weight.test.mjs tests/coach-settings.test.mjs tests/coach-settings-sections.test.mjs tests/dash-signals.test.mjs tests/dash-goals.test.mjs tests/coach-actions.test.mjs tests/coach-alerts-trainer.test.mjs',
+  test: 'node --test tests/coach-alerts-weight.test.mjs tests/health-screening.test.mjs tests/signup-answers.test.mjs tests/coach-settings.test.mjs tests/coach-settings-sections.test.mjs tests/dash-signals.test.mjs tests/dash-goals.test.mjs tests/coach-actions.test.mjs tests/coach-alerts-trainer.test.mjs',
   mutations: [
     // ── the read ──
     { name: 'a goal of any metric is the weight goal', file: ENG,
@@ -16,6 +18,17 @@ export default {
       find: '    var startKg = g.start != null && isFinite(Number(g.start)) && Number(g.start) > 0 ? toWeightUnit(Number(g.start), unit, "kg") : pts[0].kg;', replace: '    var startKg = pts[0].kg;' },
     { name: 'a goal at its start weight reads as loss', file: ENG,
       find: '    var dir = targetKg < startKg ? "loss" : targetKg > startKg ? "gain" : null;', replace: '    var dir = targetKg <= startKg ? "loss" : "gain";' },
+    { name: 'the live weigh-ins are not read', file: ENG,
+      find: '    weightSeriesIn(c && c.weighIns, "kg").forEach(function (p) {', replace: '    [].forEach(function (p) {' },
+    { name: 'the goal\'s reading wins over the live one', file: ENG,
+      find: '      if (on && on.getTime() <= now.getTime()) byDay[p.on] = { on: on, kg: p.value };', replace: '      if (on && on.getTime() <= now.getTime() && !byDay[p.on]) byDay[p.on] = { on: on, kg: p.value };' },
+    // ── the GLP-1 answer on a screening from before it (Codex on #2720) ──
+    { name: 'a screening without the GLP-1 answer is complete at hire', file: SCREEN,
+      find: "  return !!d.consentAt && (d.glp1 === 'yes' || d.glp1 === 'no');", replace: '  return !!d.consentAt;' },
+    { name: 'first run asks no one the GLP-1 question', file: FIRST,
+      find: "  if (health && health.consentAt) return health.glp1 === 'yes' || health.glp1 === 'no' || onb.wantsCoaching !== true ? 'ok' : 'health';", replace: "  if (health && health.consentAt) return 'ok';" },
+    { name: 'first run asks everyone the GLP-1 question', file: FIRST,
+      find: "  if (health && health.consentAt) return health.glp1 === 'yes' || health.glp1 === 'no' || onb.wantsCoaching !== true ? 'ok' : 'health';", replace: "  if (health && health.consentAt) return health.glp1 === 'yes' || health.glp1 === 'no' ? 'ok' : 'health';" },
     // ── the trend ──
     { name: 'the trend needs two weigh-ins', file: ENG,
       find: '    if (pts.length < THRESHOLDS.WEIGH_MIN_POINTS) return null;', replace: '    if (pts.length < 2) return null;' },

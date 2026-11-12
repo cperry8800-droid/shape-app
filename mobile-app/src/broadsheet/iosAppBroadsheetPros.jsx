@@ -5326,7 +5326,7 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
             const condLine = [(Array.isArray(h.conditionTags) ? h.conditionTags.join(' · ') : ''), (h.conditions || '')].filter(Boolean).join(' — ') || null;
             const allergyLine = h.allergies === 'yes' ? (h.allergyDetails || tr('coach:case.yesNotListed', { defaultValue: 'Yes — not listed' })) : h.allergies === 'no' ? tr('coach:case.noneReported', { defaultValue: 'None reported' }) : null;
             const pregLine = h.pregnancy === 'yes' ? tr('coach:case.pregnancyYes', { defaultValue: 'Yes — pregnant or ≤6 months postpartum' }) : null;
-            const glp1Line = h.glp1 === 'yes' ? tr('coach:case.glp1Yes', { defaultValue: 'Yes — the weight alerts use its own lines' }) : h.glp1 === 'no' ? tr('coach:case.glp1No', { defaultValue: 'No' }) : null;
+            const glp1Line = h.glp1 === 'yes' ? tr('coach:case.glp1Yes', { defaultValue: 'Yes — the weight alerts use its own lines' }) : h.glp1 === 'no' ? tr('coach:case.glp1No', { defaultValue: 'No' }) : tr('coach:case.glp1Unanswered', { defaultValue: 'Not answered yet' });
             const rows = [
               [tr('coach:case.rowRx', { defaultValue: 'Prescription medication' }), rxLine],
               [tr('coach:case.rowGlp1', { defaultValue: 'GLP-1 medication' }), glp1Line],

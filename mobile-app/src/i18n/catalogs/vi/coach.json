@@ -311,6 +311,7 @@
   "case.rowGlp1": "Thuốc GLP-1",
   "case.glp1Yes": "Có — cảnh báo cân nặng dùng ngưỡng riêng",
   "case.glp1No": "Không",
+  "case.glp1Unanswered": "Chưa trả lời",
   "case.screening": "SÀNG LỌC · HỒ SƠ SỨC KHỎE",
   "case.screeningShared": "Được chia sẻ với các HLV liên kết vì an toàn · hoàn thành {date}",
   "case.selfProgrammed": "TỰ LẬP TRÌNH",

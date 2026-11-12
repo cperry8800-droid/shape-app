@@ -23,7 +23,10 @@
 export function bsFirstRunStage(onboarding, health) {
   const onb = onboarding && typeof onboarding === 'object' ? onboarding : {};
   if (!onb.intentSeen) return 'intent';
-  if (health && health.consentAt) return 'ok';
+  // ⚠ A SCREENING FROM BEFORE THE GLP-1 QUESTION (Codex on #2720): a member who wants coaching is asked
+  // it (the intake opens with their answers in place); anyone else is asked when they hire a coach
+  // (hasCompletedScreening), and a coach sees it as not answered yet.
+  if (health && health.consentAt) return health.glp1 === 'yes' || health.glp1 === 'no' || onb.wantsCoaching !== true ? 'ok' : 'health';
   if (typeof onb.wantsCoaching !== 'boolean') return 'coaching';
   return onb.wantsCoaching ? 'health' : 'ok';
 }

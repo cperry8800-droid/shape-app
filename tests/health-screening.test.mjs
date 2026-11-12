@@ -47,8 +47,11 @@ test('a completed screening is the member\'s own document carrying consentAt; a 
     const q = { select: () => q, eq: (c, v) => { seen.push([c, v]); return q; }, maybeSingle: async () => result };
     return { client: { from: (t) => { seen.push(['from', t]); return q; } }, seen };
   };
-  const done = client({ data: { data: { consentAt: '2026-10-01', parq: [] } }, error: null });
+  const done = client({ data: { data: { consentAt: '2026-10-01', parq: [], glp1: 'no' } }, error: null });
   assert.equal(await lib.hasCompletedScreening(done.client, 'u1'), true);
+  // A screening from before the GLP-1 question is asked it at hire (Codex on #2720).
+  assert.equal(await lib.hasCompletedScreening(client({ data: { data: { consentAt: '2026-10-01', parq: [] } }, error: null }).client, 'u1'), false, 'no GLP-1 answer');
+  assert.equal(await lib.hasCompletedScreening(client({ data: { data: { consentAt: '2026-10-01', glp1: 'yes' } }, error: null }).client, 'u1'), true);
   assert.deepEqual(done.seen, [['from', 'user_goals'], ['user_id', 'u1'], ['kind', 'health_profile']], 'their own row, by RLS');
   assert.equal(await lib.hasCompletedScreening(client({ data: { data: { parq: [] } }, error: null }).client, 'u1'), false, 'answers without the confirmation');
   assert.equal(await lib.hasCompletedScreening(client({ data: null, error: null }).client, 'u1'), false);

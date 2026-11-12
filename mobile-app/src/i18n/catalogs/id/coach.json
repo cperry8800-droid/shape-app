@@ -311,6 +311,7 @@
   "case.rowGlp1": "Obat GLP-1",
   "case.glp1Yes": "Ya — peringatan berat badan memakai batasnya sendiri",
   "case.glp1No": "Tidak",
+  "case.glp1Unanswered": "Belum dijawab",
   "case.screening": "SKRINING · PROFIL KESEHATAN",
   "case.screeningShared": "Dibagikan dengan pelatih tertaut demi keamanan · selesai {date}",
   "case.selfProgrammed": "DIPROGRAM SENDIRI",

@@ -311,6 +311,7 @@
   "case.rowGlp1": "Maganin GLP-1",
   "case.glp1Yes": "Eh — faɗakarwar nauyi suna amfani da nasu iyakoki",
   "case.glp1No": "A'a",
+  "case.glp1Unanswered": "Ba a amsa ba tukuna",
   "case.screening": "GWAJI · BAYANIN LAFIYA",
   "case.screeningShared": "An raba da koci-kocin da aka haɗa domin tsaro · an kammala {date}",
   "case.selfProgrammed": "YA TSARA WA KANSA",

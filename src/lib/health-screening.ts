@@ -39,7 +39,11 @@ export async function hasCompletedScreening(client: SupabaseClient, userId: stri
     .maybeSingle();
   if (error) throw error;
   const doc = (data as { data?: unknown } | null)?.data;
-  return !!(doc && typeof doc === 'object' && (doc as { consentAt?: unknown }).consentAt);
+  if (!doc || typeof doc !== 'object') return false;
+  const d = doc as { consentAt?: unknown; glp1?: unknown };
+  // ⚠ AND THE GLP-1 ANSWER (Codex on #2720): a profile saved before the question was added counts as
+  // complete only once it is answered, so hiring a coach asks it (the screening page requires it).
+  return !!d.consentAt && (d.glp1 === 'yes' || d.glp1 === 'no');
 }
 
 /** The website's screening (Settings → Health profile), coming back to `next` (a same-site path) once saved. */
