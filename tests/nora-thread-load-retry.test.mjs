@@ -1077,16 +1077,16 @@ test('the docked panel: a welcome with her cards stands in for her greeting, the
     const reach = [...panel.querySelectorAll('a[href], button:not([disabled]), textarea:not([disabled])')].filter((el) => !el.closest('[style*="display: none"]'));
     reach[reach.length - 1].focus();
     await tab(false);
-    assert.equal(d.activeElement, reach[0], 'Tab wraps to the first control');
+    assert.ok(d.activeElement === reach[0], 'Tab wraps to the first control');
     await tab(true);
-    assert.equal(d.activeElement, reach[reach.length - 1], 'Shift+Tab wraps to the last');
+    assert.ok(d.activeElement === reach[reach.length - 1], 'Shift+Tab wraps to the last');
     opener.focus();
     await tab(false);
     assert.ok(panel.contains(d.activeElement), 'Tab from behind the dim comes back into the panel');
     await React.act(async () => { m.w.dispatchEvent(new m.w.KeyboardEvent('keydown', { key: 'Escape' })); });
     assert.ok(!d.querySelector('[data-chat-panel]'), 'Escape closes the panel');
     assert.ok(!d.querySelector('.cw-scrim'), 'and lifts the dim');
-    assert.equal(d.activeElement, opener, 'focus goes back to what opened it');
+    assert.ok(d.activeElement === opener, 'focus goes back to what opened it');
   } finally {
     await m.done();
   }
