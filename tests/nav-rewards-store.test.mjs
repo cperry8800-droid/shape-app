@@ -40,7 +40,7 @@ function fnSource(name) {
   return SHELL.slice(decl.start, decl.end);
 }
 // The tables, the shell routing that `navGroupsFor` reads, and the three components.
-const tableSrc = ['COACHES_HREF', 'REWARDS_HREF', 'STORE_TAB', 'REWARDS_ITEMS', 'SHAPE_NAV_GROUPS', 'SIGNED_OUT_ONLY', 'PORTAL_NAV', 'DASH_SHELL_STUBS']
+const tableSrc = ['COACHES_HREF', 'COACHES_TAB', 'COACHES_ITEMS', 'REWARDS_HREF', 'STORE_TAB', 'REWARDS_ITEMS', 'SHAPE_NAV_GROUPS', 'SIGNED_OUT_ONLY', 'PORTAL_NAV', 'DASH_SHELL_STUBS']
   .map((n) => statement(SHELL, n)).join('\n');
 const fnSrc = ['dashShellRole', 'dashShellHref', 'navGroupsFor', 'NavCaret', 'NavDropdown', 'MobileDrawer', 'Header'].map(fnSource).join('\n');
 const compiled = babel.transformSync(tableSrc + '\n' + fnSrc, {

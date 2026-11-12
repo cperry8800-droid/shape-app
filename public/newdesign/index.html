@@ -205,9 +205,9 @@
   .nradio:hover .nvfr path{stroke:rgba(var(--teal-rgb),.45)}
   .nradio svg.mark{width:11px;height:13px;display:block}
   .nvfr{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;display:block}
-  /* The Rewards menu (Coaches lost its menu, owner 2026-11-08: "remove the sub
-     tab from here on website now, no longer needed"; it is a plain link to the
-     coach marketplace). ⚠ The trigger is a real link as well as a menu: clicking
+  /* The Coaches and Rewards menus, signed out (Coaches got its menu back on the
+     owner's word, 2026-11-12: "add them as subtabs under coaches", For trainers
+     and For nutritionists with For coaches). ⚠ The trigger is a real link as well as a menu: clicking
      goes to its page; hovering opens its items. A trigger that only toggles makes
      the page it names unreachable from the bar. */
   /* Signed-in-only links (the Store tab) stay hidden until /api/me answers with an
@@ -596,7 +596,7 @@
 
   /* ── footer ──────────────────────────────────────────────── */
   .ft{border-top:1px solid var(--line);padding:40px 0 22px;background:var(--ink-2)}
-  .ftg{display:grid;grid-template-columns:1.6fr repeat(4,1fr);gap:28px}
+  .ftg{display:grid;grid-template-columns:1.6fr repeat(5,1fr);gap:28px}
   .ft h5{font-family:var(--num);font-weight:700;font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;
          color:var(--fg-3);margin:0 0 9px;font-variation-settings:'ROND' 30}
   .ft a{display:block;font-size:13.5px;line-height:1.5;color:var(--fg-2);padding:2px 0}
@@ -1003,7 +1003,7 @@
       })();
     </script>
     <div class="nlinks">
-      <a href="/newdesign/Coaches.html">Coaches</a>
+      <span class="ndrop"><a href="/newdesign/Coaches.html">Coaches<span class="car" aria-hidden="true" data-signed-out-only></span></a><div class="nmenu" data-signed-out-only><a href="/newdesign/ForCoaches.html">For coaches</a><a href="/newdesign/Coach.html">For trainers</a><a href="/newdesign/Nutritionist.html">For nutritionists</a></div></span>
       <a href="/newdesign/GetApp.html">App</a>
       <a href="/newdesign/Recipes.html">Kitchen</a>
       <a href="/newdesign/Community.html">Community</a>
@@ -1022,6 +1022,9 @@
 </nav>
 <div class="ndrawer" id="ndrawer">
   <a href="/newdesign/Coaches.html">Coaches</a>
+  <a href="/newdesign/ForCoaches.html" data-signed-out-only>&nbsp;&nbsp;For coaches</a>
+  <a href="/newdesign/Coach.html" data-signed-out-only>&nbsp;&nbsp;For trainers</a>
+  <a href="/newdesign/Nutritionist.html" data-signed-out-only>&nbsp;&nbsp;For nutritionists</a>
   <a href="/newdesign/GetApp.html">App</a>
   <a href="/newdesign/Recipes.html">Kitchen</a>
   <a href="/newdesign/Community.html">Community</a>
@@ -1359,26 +1362,30 @@
 <a href="/newdesign/Store.html">Shape Store</a>
 <a href="/newdesign/Radio.html">Radio</a>
 <a href="/newdesign/Recipes.html">Shape Kitchen</a>
+<a href="/newdesign/Community.html">Community</a>
 </div>
 <div><h5>For coaches</h5>
-<a href="/newdesign/ForCoaches.html">For coaches</a>
-<a href="/newdesign/Coach.html">For trainers</a>
-<a href="/newdesign/Nutritionist.html">For nutritionists</a>
-<a href="/newdesign/SignupTrainer.html">Apply</a>
-<a href="/newdesign/Pricing.html">Rates &amp; payouts</a>
+<a href="/newdesign/ForCoaches.html">Overview</a>
+<a href="/newdesign/Coach.html">Personal trainers</a>
+<a href="/newdesign/Nutritionist.html">Nutritionists</a>
+<a href="/newdesign/Landing.html">Apply</a>
 </div>
-<div><h5>Company</h5>
+<div><h5>Join</h5>
+<a href="/newdesign/Landing.html">Get started</a>
 <a href="/newdesign/Pricing.html">Pricing</a>
-<a href="/privacy.html">Privacy</a>
-<a href="/terms.html">Terms</a>
 </div>
 <div><h5>Support</h5>
 <a href="/help.html">Help</a>
 <a href="/contact.html">Contact</a>
 <a href="/code-of-conduct.html">Code of conduct</a>
-<a href="/data-compliance.html">Data &amp; compliance</a>
+</div>
+<div><h5>Legal</h5>
+<a href="/privacy.html">Privacy</a>
+<a href="/terms.html">Terms</a>
 <a href="/health-data-privacy.html">Consumer health data</a>
+<a href="/data-compliance.html">Data &amp; compliance</a>
 <a href="/subprocessors.html">Subprocessors</a>
+<a href="/privacy-request.html">Your privacy choices</a>
 </div>
 </div>
 <div class="ftb"><span>© 2026 Shape</span><span>Different goals · One community</span></div>

@@ -27,6 +27,7 @@ import assert from 'node:assert/strict';
 import { readFileSync, existsSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { navTables } from './helpers/nav-tables.mjs';
 
 const ND = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'public', 'newdesign');
 const PUB = path.join(ND, '..');
@@ -93,7 +94,7 @@ const COPIES = [
   ['index.html', staticTable(INDEX, /<footer class="ft">[\s\S]*?<\/footer>/, /<h5>([^<]+)<\/h5>/g)],
 ];
 
-test('all three footers carry the same groups, labels and targets', () => {
+test('both footers carry the same groups, labels and targets', () => {
   for (const [name, copy] of COPIES) {
     assert.deepEqual(copy.map(([h]) => h), SHARED.map(([h]) => h),
       name + ' has different footer groups than the shared footer');
@@ -156,9 +157,11 @@ test('every footer target exists, and every anchor it names is real', () => {
 
 // ⚠ THESE HAD NO OTHER LINK. Measured when the nav's dropdowns were retired:
 // nothing else in public/newdesign pointed at them, so the footer was the only
-// thing standing between them and being reachable by typed URL alone. (A fourth,
-// Client.html, is retired: owner, 2026-11-09, "remove the members page from
-// website".)
+// thing standing between them and being reachable by typed URL alone. Two are back
+// in the nav since (Recipes.html as Kitchen; Coach.html and Nutritionist.html in
+// the Coaches menu, signed out), and the footer still carries all three: signed in,
+// it is the only link to the two coach pages. (A fourth, Client.html, is retired:
+// owner, 2026-11-09, "remove the members page from website".)
 test('the footer still carries the pages nothing else links', () => {
   const linked = new Set(SHARED.flatMap(([, items]) => items.map(([, h]) => target(h))));
   for (const orphan of ['Coach.html', 'Nutritionist.html', 'Recipes.html']) {
@@ -166,42 +169,32 @@ test('the footer still carries the pages nothing else links', () => {
   }
 });
 
-// ⚠ THE COMMENT ABOVE THE FOOTER TABLE CLAIMS SOME OF THOSE PAGES HAVE NO OTHER
-// LINK, AND A CLAIM ABOUT THE NAV GOES STALE WHEN THE NAV MOVES. It has now been
-// wrong twice: #2069 promoted Client.html to the `Members` tab and nothing
-// noticed, so the file carried a measurement that had been false since the day
-// before; this PR promotes Recipes.html to the `Kitchen` tab and the comment is
-// corrected in the same diff. This asserts the two it still names are absent
-// from the nav table — promote one and this fails, naming the comment, instead
-// of leaving a wrong reason sitting where the next reader decides whether a
-// footer link is load bearing.
+// ⚠ THE COMMENT ABOVE THE FOOTER TABLE SAYS WHERE ELSE THESE PAGES ARE LINKED, AND
+// A CLAIM ABOUT THE NAV GOES STALE WHEN THE NAV MOVES. It has been wrong twice:
+// #2069 promoted Client.html to the `Members` tab and nothing noticed, and a later
+// PR promoted Recipes.html to `Kitchen`. Now (owner, 2026-11-12, "add them as
+// subtabs under coaches") Coach.html and Nutritionist.html are items of the
+// signed-out Coaches menu and off the signed-in row, which the comment states.
+// This asserts both halves from the nav tables that ship, so moving either fails
+// here, naming the comment.
 //
-// ⚠ AND THE TWO CHECKS ABOVE THE ASSERTIONS CATCH DIFFERENT FAILURES — neither
-// is belt-and-braces, which was measured rather than assumed. A nav parser that
-// stops matching ENTIRELY reports every page as absent and passes both
-// assertions vacuously; the page that IS in the nav is the control that catches
-// it. A parser that still works but sees only PART of the table passes that
-// control — Recipes.html is the second quoted target — while the pages it never
-// reaches read as absent for the wrong reason; only the size floor catches that.
-// The floor is every quoted target the table holds (GetApp, Recipes, Community,
-// Pricing; Coaches and Rewards are named constants), so a parse that stops one
-// short fails it. It was five, and the first control Client.html, until the
-// members page was retired (owner, 2026-11-09).
-test('the pages the footer comment calls footer-only are really not in the nav', () => {
-  const i = SHELL.indexOf('const SHAPE_NAV_GROUPS');
-  assert.ok(i > 0, 'SHAPE_NAV_GROUPS not found — this guard is reading nothing');
-  const table = SHELL.slice(i, SHELL.indexOf('\n];', i));
-  const navTargets = new Set([...table.matchAll(/href:\s*"([^"]+)"/g)].map((m) => target(m[1])));
-  assert.ok(navTargets.size >= 4, 'parsed only ' + navTargets.size + ' nav targets — the parser stopped matching');
-
-  for (const [page, tab] of [['Recipes.html', 'Kitchen']]) {
-    assert.ok(navTargets.has(page),
-      page + ' is the ' + tab + ' tab and must parse as present — if it does not, this guard cannot see a nav link at all');
+// ⚠ AND THE CONTROLS CATCH A PARSER THAT READS NOTHING. A signed-in row that
+// parsed empty would report every page absent and pass the second half vacuously;
+// Recipes.html, which IS a tab on both rows, catches that.
+test('the pages the footer comment places in the nav are where it says', () => {
+  const NAV = navTables(SHELL);
+  const hrefs = (groups) => new Set(groups.flatMap((g) => [g.href, ...(g.items || []).map(([, h]) => h)]).map(target));
+  const signedOut = hrefs(NAV.SHAPE_NAV_GROUPS);
+  const signedIn = hrefs(NAV.PORTAL_NAV);
+  assert.ok(signedOut.size >= 6 && signedIn.size >= 5, 'parsed only ' + signedOut.size + ' / ' + signedIn.size + ' nav targets — the parser stopped matching');
+  for (const [where, set] of [['signed-out', signedOut], ['signed-in', signedIn]]) {
+    assert.ok(set.has('Recipes.html'), 'Recipes.html is the Kitchen tab and must parse as present on the ' + where + ' row — if it does not, this guard cannot see a nav link at all');
   }
-
-  for (const only of ['Coach.html', 'Nutritionist.html']) {
-    assert.ok(!navTargets.has(only),
-      only + ' is in the nav now, so the footer comment calling it footer-only is false — correct the comment above FOOTER TABLE in pageShell.jsx');
+  for (const page of ['Coach.html', 'Nutritionist.html']) {
+    assert.ok(signedOut.has(page),
+      page + ' left the signed-out Coaches menu, so the footer comment placing it there is false — correct the comment above FOOTER TABLE in pageShell.jsx');
+    assert.ok(!signedIn.has(page),
+      page + ' is on the signed-in row now, so the footer comment calling it footer-only signed in is false — correct the comment above FOOTER TABLE in pageShell.jsx');
   }
 });
 
