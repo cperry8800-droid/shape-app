@@ -69,3 +69,16 @@ test('the three website panels ask for the greeting; the plain ones ask for the 
   const seed = readFileSync(join(ROOT, 'public/newdesign/clientChatThreads.jsx'), 'utf8');
   assert.doesNotMatch(seed, /bring in the Shape team/);
 });
+
+// The website's welcome cards carry a line under each suggestion (owner, 2026-11-12, after Ladder's).
+test('every suggestion, plain or not, has the line its welcome card shows, keyed by the suggestion', () => {
+  for (const k of GREETING_KINDS) {
+    for (const plain of [false, true]) {
+      const g = greetingFor(k, { plain });
+      assert.deepEqual(Object.keys(g.hints), g.quick, `${k}${plain ? ' (plain)' : ''}: a line for each suggestion, and none other`);
+      for (const q of g.quick) assert.ok(g.hints[q].length <= 60 && /\.$/.test(g.hints[q]), `${k}: "${g.hints[q]}" is one short sentence`);
+    }
+  }
+  const widget = readFileSync(join(ROOT, 'public/newdesign/chatWidget.jsx'), 'utf8');
+  assert.match(widget, /if \(g\.hints && typeof g\.hints === "object"\) quick\.forEach\(\(q\) => \{ if \(typeof g\.hints\[q\] === "string"\) hints\[q\] = g\.hints\[q\]; \}\);/, 'the widget keeps only the lines for the suggestions it shows');
+});

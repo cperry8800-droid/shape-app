@@ -403,7 +403,8 @@ test('the bubble carries the app\'s places, and files each post where the app do
   const W = stripComments(WIDGET);
   const places = [...W.matchAll(/\{\s*id: "(\w+)", label: "(\w+)", place: "(\w+)"/g)].map((m) => [m[1], m[3]]);
   assert.deepEqual(places, [['feed', 'wall'], ['members', 'community'], ['peers', 'role']], 'the three feed places, in the app\'s order');
-  assert.match(W, /React\.createElement\(window\.CommunityFeed, \{ place: currentTab\.place \|\| "wall" \}\)/, 'the feed is not told its place');
+  // `compact`: in the docked panel the feed fills the panel (owner, 2026-11-12).
+  assert.match(W, /React\.createElement\(window\.CommunityFeed, \{ place: currentTab\.place \|\| "wall", compact: true \}\)/, 'the feed is not told its place');
   // The web-only peer DM tabs are gone: the app's role place is a feed.
   const threads = read('clientChatThreads.jsx');
   for (const id of ['clients', 'trainers', 'nutritionists']) assert.doesNotMatch(threads, new RegExp(`id: "${id}"`), `the ${id} DM tab came back`);
