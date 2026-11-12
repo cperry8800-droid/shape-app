@@ -948,8 +948,10 @@ function CoachClientDetailPage({ clientId: clientIdProp, role: roleProp, inShell
             const condLine = [(Array.isArray(h.conditionTags) ? h.conditionTags.join(" · ") : ""), (h.conditions || "")].filter(Boolean).join(" — ") || null;
             const allergyLine = h.allergies === "yes" ? (h.allergyDetails || "Yes — not listed") : h.allergies === "no" ? "None reported" : null;
             const pregLine = h.pregnancy === "yes" ? "Yes — pregnant or ≤6 months postpartum" : null;
+            const glp1Line = h.glp1 === "yes" ? "Yes — the weight alerts use its own lines" : h.glp1 === "no" ? "No" : null;
             const rows = [
               ["PRESCRIPTION MEDICATION", rxLine],
+              ["GLP-1 MEDICATION", glp1Line],
               ["ALLERGIES", allergyLine],
               ["PREGNANCY / POSTPARTUM", pregLine],
               ["MEDICAL CONDITIONS", condLine],

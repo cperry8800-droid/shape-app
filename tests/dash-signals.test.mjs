@@ -293,7 +293,7 @@ test("nutritionist persona feed: Deandre amber (logs+ledger, one area), Priya am
   assert.equal(nby["Deandre K."].severity, "amber");
   assert.deepEqual(keys(nby["Deandre K."]), ["food_gap", "ledger_blown"]);
   assert.equal(nby["Priya S."].severity, "amber");
-  assert.deepEqual(keys(nby["Priya S."]), ["protein_under"]);
+  assert.deepEqual(keys(nby["Priya S."]), ["protein_under", "weight_fast"], "losing fast, in the same area as her protein (PR 2)");
   assert.equal(nby["Marcus T."].severity, "amber", "his food-log gap is hers; his sleep is the trainer's");
   const tf = getTriageFeed("trainer", buildMockClients(NOW), NOW);
   const tby = Object.fromEntries(tf.map((r) => [r.client.profile.name, r.severity]));

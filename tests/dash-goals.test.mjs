@@ -91,10 +91,12 @@ test("slip: a flat week moves the ETA exactly 16 days later", () => {
 test("steady pace = zero slip, no flag; both pro feeds see a real slip", () => {
   const steady = goal({ start: 180, history: hist([[21, 180], [14, 178], [7, 176], [0, 174]]) });
   assert.equal(goalSlipDays(steady, NOW), 0);
-  assert.deepEqual(evaluateClient({ profile: { id: "x", name: "X" }, goals: [steady] }, NOW, "trainer").flags, []);
+  // The goal's slip alone: 2 lb a week at 180 lb is also losing fast (PR 2), which tests/coach-alerts-weight.test.mjs holds.
+  const slipKeys = (r) => r.flags.map((f) => f.key).filter((k) => k !== "weight_fast");
+  assert.deepEqual(slipKeys(evaluateClient({ profile: { id: "x", name: "X" }, goals: [steady] }, NOW, "trainer")), []);
   const slipped = goal({ start: 180, history: hist([[21, 180], [14, 178], [7, 176], [0, 176]]) });
   for (const role of ["trainer", "nutritionist"]) {
-    assert.deepEqual(evaluateClient({ profile: { id: "x", name: "X" }, goals: [slipped] }, NOW, role).flags.map((f) => f.key), ["goal_slip"], role);
+    assert.deepEqual(slipKeys(evaluateClient({ profile: { id: "x", name: "X" }, goals: [slipped] }, NOW, role)), ["goal_slip"], role);
   }
 });
 test("losing the ETA entirely (pace reversed) flags as 'Goal ETA lost'", () => {
@@ -119,7 +121,7 @@ test("visible goals cap at MAX_GOALS; a hidden 4th goal can't flag", () => {
   const four = [steady("g1"), steady("g2"), steady("g3"), slipped];
   assert.equal(visibleGoals(four).length, 3);
   assert.ok(!visibleGoals(four).some((g) => g.id === "g4"));
-  assert.deepEqual(evaluateClient({ profile: { id: "x", name: "X" }, goals: four }, NOW, "trainer").flags, []);
+  assert.deepEqual(evaluateClient({ profile: { id: "x", name: "X" }, goals: four }, NOW, "trainer").flags.filter((f) => f.key === "goal_slip"), []);
   assert.deepEqual(visibleGoals(null), []);
 });
 

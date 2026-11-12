@@ -29052,6 +29052,8 @@ function BSHealthIntake({ onDone, onBack = null, initial = null, purpose = null 
   // Prescription meds — mandatory yes/no; default 'yes' for legacy docs that
   // already carry a medications free-text but no explicit flag.
   const [rxMeds, setRxMeds] = useStateBSC((initial && initial.rxMeds) || ((initial && initial.medications) ? 'yes' : null));
+  // A GLP-1 medication (the coach-alerts plan, PR 2): its own yes/no, which the weight alerts read.
+  const [glp1, setGlp1] = useStateBSC((initial && (initial.glp1 === 'yes' || initial.glp1 === 'no')) ? initial.glp1 : null);
   const [conditions, setConditions] = useStateBSC((initial && initial.conditions) || '');
   const [conditionTags, setConditionTags] = useStateBSC(() => (initial && Array.isArray(initial.conditionTags) ? initial.conditionTags : []));
   const [pregnancy, setPregnancy] = useStateBSC((initial && initial.pregnancy) || null);
@@ -29066,7 +29068,7 @@ function BSHealthIntake({ onDone, onBack = null, initial = null, purpose = null 
   // and the allergy screen (+ details when yes).
   const rxOk = rxMeds === 'no' || (rxMeds === 'yes' && medications.trim().length > 0);
   const allergyOk = allergies === 'no' || (allergies === 'yes' && allergyDetails.trim().length > 0);
-  const screenComplete = allAnswered && rxMeds !== null && pregnancy !== null && allergies !== null && rxOk && allergyOk;
+  const screenComplete = allAnswered && rxMeds !== null && glp1 !== null && pregnancy !== null && allergies !== null && rxOk && allergyOk;
   const canSave = screenComplete && consent && !busy;
   const toggleTag = (tag) => setConditionTags((cur) => (cur.includes(tag) ? cur.filter((x) => x !== tag) : [...cur, tag]));
   const save = async () => {
@@ -29078,6 +29080,7 @@ function BSHealthIntake({ onDone, onBack = null, initial = null, purpose = null 
       injuries: injuries.trim() || null,
       rxMeds: rxMeds,
       medications: rxMeds === 'yes' ? (medications.trim() || null) : null,
+      glp1: glp1,
       conditions: conditions.trim() || null,
       conditionTags: conditionTags,
       pregnancy: pregnancy,
@@ -29171,6 +29174,12 @@ function BSHealthIntake({ onDone, onBack = null, initial = null, purpose = null 
               <textarea value={medications} onChange={(e) => setMedications(e.target.value)} placeholder={tr('onboarding:health.rxPlaceholder', { defaultValue: 'e.g. Lisinopril (blood pressure) · Levothyroxine (thyroid)' })} style={ta} />
             </div>
           )}
+        </div>
+        <div style={card}>
+          <div style={lbl}>{tr('onboarding:health.glp1Label', { defaultValue: 'GLP-1 medication · required' })}</div>
+          <div style={{ fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 500, color: t.INK, lineHeight: 1.4, marginBottom: 8 }}>{tr('onboarding:health.glp1Question', { defaultValue: 'Are you taking a GLP-1 medication for weight or blood sugar, such as Ozempic, Wegovy, Mounjaro or Zepbound?' })}</div>
+          {ynRow(glp1, setGlp1, [[NO, 'no', teal], [YES, 'yes', t.RUST]])}
+          <div style={{ fontFamily: t.DISPLAY, fontSize: 12, color: t.INK50, lineHeight: 1.45, marginTop: 8 }}>{tr('onboarding:health.glp1Note', { defaultValue: 'Your coach uses this to keep your weight-loss pace and protein safe on the medication.' })}</div>
         </div>
         <div style={card}>
           <div style={lbl}>{tr('onboarding:health.allergyLabel', { defaultValue: 'Allergies · required' })}</div>

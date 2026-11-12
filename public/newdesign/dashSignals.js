@@ -113,6 +113,24 @@
     STEPS_DROP_PCT: 30,       // this week's average steps this far under the 4-week average (context; an estimate)
     STEPS_MIN_DAYS: 4,        // days with steps this week needs (evidence floor)
     STEPS_BASE_MIN_DAYS: 14,  // days with steps the 4-week baseline needs (evidence floor)
+    // ── The nutritionist's weight alerts (the coach-alerts plan, PR 2). Weigh-ins the client shares
+    // with their goals; a client who shares none is silent, with no notice. ──
+    LOSS_FAST_PCT: 1,         // a weight-loss goal's 2-week trend losing more than this % of body weight a week: weight_fast
+    LOSS_SAFETY_KG: 1,        // …a loss of this many kg a week or more, each of LOSS_SAFETY_WEEKS weeks in a row,
+    LOSS_SAFETY_WEEKS: 2,     //    with high hunger or low energy, is red on its own: weight_unsafe
+    WEIGHIN_GAP_DAYS: 14,     // days with no weigh-in, for a client who weighed in weekly before: weighin_gap
+    SLOW_START_EARLY_PCT: 2,  // a weight-loss goal under this % lost by week 4…
+    SLOW_START_LATE_PCT: 3,   // …or under this % by week 8: slow_start
+    GAIN_FAST_PCT: 0.5,       // a weight-gain goal's 2-week trend gaining more than this % a week: gain_fast
+    // Engine policy, not tunable: the evidence the trend needs, and the GLP-1 lines.
+    WEIGH_TREND_DAYS: 21,     // the trend reads the weigh-ins of the last 3 weeks…
+    WEIGH_MIN_POINTS: 3,      // …at least this many…
+    WEIGH_MIN_SPAN_DAYS: 14,  // …spanning at least 2 weeks
+    WEIGH_FROM_DAY: 14,       // the loss and gain paces speak from week 3 of the goal (day 14)
+    GLP1_FAST_PCT: 1.5,       // on a GLP-1 medication, the fast-loss line (an estimate: the drugs' trials lose about 1% a week early)
+    GLP1_SLOW_PCT: 5,         // …and the slow start: under 5% by week 12 (the drugs' own stopping rule)
+    GLP1_TOTAL_PCT: 14,       // …14% or more lost in 3 to 4 months shows as context
+    GLP1_PROTEIN_G_KG: 1.2,   // …protein under 1.2 g per kg a day shows as context (1.2–1.6 is advised)
   };
 
   var DEFAULT_THRESHOLDS = {};
@@ -212,6 +230,27 @@
       help: "This week's effort (rating × minutes) over this multiple of their 4-week weekly average shows on the client. It never colours the row or sends an alert." },
     { key: "STEPS_DROP_PCT",     label: "Steps falling",       unit: "%",     min: 10, max: 70, step: 5, roles: ["training"],
       help: "This week's average steps this far under their own 4-week average shows on the client. It never colours the row or sends an alert. 30% is an estimate." },
+    // ── The nutritionist's weight alerts (PR 2): Plans & progress. The gain pace is both coaches'. ──
+    { key: "LOSS_FAST_PCT",      label: "Losing fast",         unit: "% a week", min: 0.5, max: 3, step: 0.1,
+      help: "Flag a weight-loss goal whose 2-week trend loses more than this share of body weight a week, from week 3 of the goal. On a GLP-1 medication the line is 1.5%.",
+      byRole: { training: { help: "The nutritionist's: you see a client losing fast as context, on the client and never counted, as their only coach too." } } },
+    { key: "LOSS_SAFETY_KG",     label: "Safety loss",         unit: "kg a week", min: 0.5, max: 3, step: 0.1,
+      help: "A loss of this much a week or more, for the safety weeks in a row, with high hunger or low energy, is red on its own.",
+      byRole: { training: { help: "With a nutritionist on, theirs, and you see it as context. Without one, it's yours, and red on its own." } } },
+    { key: "LOSS_SAFETY_WEEKS",  label: "Safety weeks",        unit: "weeks", min: 1,  max: 6,  step: 1,
+      help: "Weeks in a row the safety loss needs.",
+      byRole: { training: { help: "Weeks in a row the safety loss needs." } } },
+    { key: "WEIGHIN_GAP_DAYS",   label: "Weigh-in gap",        unit: "days",  min: 5,  max: 30, step: 1,
+      help: "Days with no weigh-in before it flags, for a client with a weight goal who weighed in weekly over the 4 weeks before.",
+      byRole: { training: { help: "Days with no weigh-in before it flags, for a client with a weight goal who weighed in weekly. The nutritionist's when one is on; yours when you're their only coach." } } },
+    { key: "SLOW_START_EARLY_PCT", label: "Slow start, week 4", unit: "%",    min: 0.5, max: 5, step: 0.5,
+      help: "Flag a weight-loss goal that has lost less than this by week 4. On a GLP-1 medication the slow start is under 5% by week 12.",
+      byRole: { training: { help: "A weight-loss goal with less than this lost by week 4 flags. The nutritionist's when one is on; yours when you're their only coach." } } },
+    { key: "SLOW_START_LATE_PCT", label: "Slow start, week 8", unit: "%",     min: 1,  max: 8,  step: 0.5,
+      help: "…or less than this by week 8.",
+      byRole: { training: { help: "…or less than this by week 8." } } },
+    { key: "GAIN_FAST_PCT",      label: "Gaining fast",        unit: "% a week", min: 0.1, max: 2, step: 0.05,
+      help: "Flag a weight-gain goal whose 2-week trend gains more than this share of body weight a week. The evidence supports 0.25 to 0.5%. A trend that isn't gaining flags too." },
     { key: "RECOVERY_LOW",       label: "Low recovery",        unit: "/100",  min: 10, max: 70, step: 1,
       help: "A wearable's recovery or readiness averaging at or under this over the week flags.",
       byRole: { nutrition: { help: "A wearable's recovery or readiness averaging at or under this over the week flags. The trainer's when one is on; yours when you're their only coach." } } },
@@ -420,7 +459,9 @@
   var PAUSE_BOUND_DAYS = 14;
   var PAUSE_SILENCED = { food_gap: true, food_logging: true, checkin_overdue: true, contact_gap: true, missed_sessions: true, goal_slip: true, streak_broken: true, score_drop: true,
     // The trainer alerts (PR 1): every one that reads their absence (owner: anyone on a break stays quiet).
-    workouts_missed: true, completion_drop: true, gone_quiet: true, not_started: true, no_booking: true, load_spike: true, steps_falling: true };
+    workouts_missed: true, completion_drop: true, gone_quiet: true, not_started: true, no_booking: true, load_spike: true, steps_falling: true,
+    // The weight alerts (PR 2): a weigh-in gap reads their absence.
+    weighin_gap: true };
   var ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
   // null | { state: "paused", until, by } | { state: "back", until, since, day, fresh, by }: `since` is
   // the return day, `day` the days since it (0 on it), `fresh` within PAUSE_BACK_DAYS.
@@ -1539,6 +1580,152 @@
     return { key: "steps_falling", label: "Steps −" + pct + "%", reason: "Steps averaging " + Math.round(wa).toLocaleString("en-US") + " a day this week, " + pct + "% under their 4-week average", figures: { pct: pct, avg: Math.round(wa), baseline: Math.round(ba) }, sig: "wk:" + weekKey(now) };
   }
 
+  // ── The nutritionist's weight alerts (the coach-alerts plan, PR 2) ──────────────────────────────
+  // All of them read the weight goal the client shares (its history is the live weigh-in series), in
+  // kg. ⚠ A CLIENT WHO SHARES NO WEIGHT GOAL IS SILENT, with no notice to the coach.
+  // The goal's start: a coach goal's startedOn, else its first weigh-in (a self-set goal stores only a
+  // month label). Its start weight: the goal's own, else that first weigh-in. A loss goal aims under
+  // it, a gain goal over it.
+  function weightRead(c, now) {
+    var gs = visibleGoals(c && c.goals), g = null;
+    for (var i = 0; i < gs.length; i++) if (gs[i] && gs[i].metric === "weight") { g = gs[i]; break; }
+    if (!g || g.target == null || !isFinite(Number(g.target))) return null;
+    var unit = g.unit || "lb";
+    var pts = goalSeries(g, now).map(function (p) { return { on: p.on, kg: toWeightUnit(p.value, unit, "kg") }; })
+      .filter(function (p) { return p.kg > 0; });
+    if (!pts.length) return null;
+    var started = toDate(g.startedOn) || pts[0].on;
+    var startDay = new Date(started.getTime()); startDay.setHours(0, 0, 0, 0);
+    var startKg = g.start != null && isFinite(Number(g.start)) && Number(g.start) > 0 ? toWeightUnit(Number(g.start), unit, "kg") : pts[0].kg;
+    var targetKg = toWeightUnit(Number(g.target), unit, "kg");
+    var dir = targetKg < startKg ? "loss" : targetKg > startKg ? "gain" : null;
+    return { goal: g, pts: pts, startDay: startDay, startKg: startKg, dir: dir, days: daysBetween(startDay, now) };
+  }
+  // The trend of the last WEIGH_TREND_DAYS: a least-squares line through WEIGH_MIN_POINTS or more
+  // weigh-ins spanning WEIGH_MIN_SPAN_DAYS, as % of body weight a week (negative is loss).
+  function weightTrend(r, now) {
+    var from = new Date(now.getTime()); from.setHours(0, 0, 0, 0); from.setDate(from.getDate() - THRESHOLDS.WEIGH_TREND_DAYS);
+    var pts = r.pts.filter(function (p) { return p.on >= from && p.on.getTime() <= now.getTime(); });
+    if (pts.length < THRESHOLDS.WEIGH_MIN_POINTS) return null;
+    if (daysBetween(pts[0].on, pts[pts.length - 1].on) < THRESHOLDS.WEIGH_MIN_SPAN_DAYS) return null;
+    var t0 = pts[0].on.getTime(), n = pts.length, sx = 0, sy = 0, sxx = 0, sxy = 0;
+    for (var i = 0; i < n; i++) { var x = (pts[i].on.getTime() - t0) / DAY, y = pts[i].kg; sx += x; sy += y; sxx += x * x; sxy += x * y; }
+    var den = n * sxx - sx * sx;
+    if (!(den > 0)) return null;
+    var slope = (n * sxy - sx * sy) / den, mean = sy / n;
+    return { kgWeek: slope * 7, pctWeek: slope * 7 * 100 / mean, n: n };
+  }
+  // The weight on a day: the newest weigh-in on or before it, within 4 days of it; else null.
+  function weightOn(r, day) {
+    var best = null;
+    for (var i = 0; i < r.pts.length; i++) {
+      var p = r.pts[i];
+      if (p.on.getTime() <= day.getTime() && day.getTime() - p.on.getTime() <= 4 * DAY + DAY - 1) best = p;
+    }
+    return best;
+  }
+  function round1(v) { return Math.round(v * 10) / 10; }
+  // Losing fast (amber, nutrition; a trainer's context, TRAINER_CONTEXT): from week 3 of a weight-loss
+  // goal, the 2-week trend losing more than LOSS_FAST_PCT of body weight a week (GLP1_FAST_PCT on a
+  // GLP-1 medication).
+  function ruleWeightFast(c, now, r) {
+    if (!r || r.dir !== "loss" || r.days < THRESHOLDS.WEIGH_FROM_DAY) return null;
+    var t = weightTrend(r, now);
+    var line = c.glp1 === true ? THRESHOLDS.GLP1_FAST_PCT : THRESHOLDS.LOSS_FAST_PCT;
+    if (!t || !(-t.pctWeek > line)) return null;
+    var pct = round1(-t.pctWeek);
+    return { key: "weight_fast", label: "Losing fast", reason: "Losing " + pct + "% of body weight a week over the last 2 weeks" + (c.glp1 === true ? " (on a GLP-1)" : ""), figures: { pctWeek: pct, glp1: c.glp1 === true }, sig: "wk:" + weekKey(now) };
+  }
+  // The safety red (red on its own, SAFETY_FLAGS): LOSS_SAFETY_KG a week or more for LOSS_SAFETY_WEEKS
+  // weeks in a row, with high hunger or low energy. Any goal: a fast loss is the concern whatever the
+  // aim. No BMI condition (Shape stores no height).
+  function ruleWeightUnsafe(c, now, r) {
+    if (!r) return null;
+    var weeks = THRESHOLDS.LOSS_SAFETY_WEEKS;
+    var end = new Date(now.getTime()); end.setHours(23, 59, 59, 999);
+    var total = 0;
+    for (var w = 0; w < weeks; w++) {
+      var hi = new Date(end.getTime() - w * 7 * DAY), lo = new Date(end.getTime() - (w + 1) * 7 * DAY);
+      var a = weightOn(r, hi), b = weightOn(r, lo);
+      if (!a || !b || a === b) return null;
+      var lost = b.kg - a.kg;
+      if (!(lost >= THRESHOLDS.LOSS_SAFETY_KG)) return null;
+      total += lost;
+    }
+    var hunger = ruleHungerHigh(c, now), energy = ruleEnergyLow(c, now);
+    if (!hunger && !energy) return null;
+    var with_ = hunger && energy ? "high hunger and low energy" : hunger ? "high hunger" : "low energy";
+    return { key: "weight_unsafe", label: "Losing very fast", reason: "Down " + round1(total) + " kg in " + weeks + " weeks, with " + with_ + ". Check in, and suggest they see their doctor if it goes on", figures: { kg: round1(total), weeks: weeks, hunger: !!hunger, energy: !!energy }, sig: "wk:" + weekKey(now) };
+  }
+  // A weigh-in gap (amber, progress): a weight goal, weighed in weekly or more over the 4 weeks before
+  // the last weigh-in (4 or more), and none for WEIGHIN_GAP_DAYS.
+  function ruleWeighinGap(c, now, r) {
+    if (!r) return null;
+    var last = r.pts[r.pts.length - 1];
+    var lastDay = new Date(last.on.getTime()); lastDay.setHours(0, 0, 0, 0);
+    var gap = daysBetween(lastDay, now);
+    if (gap < THRESHOLDS.WEIGHIN_GAP_DAYS) return null;
+    var before = r.pts.filter(function (p) { return p.on.getTime() <= last.on.getTime() && last.on.getTime() - p.on.getTime() < 28 * DAY; });
+    if (before.length < 4) return null;
+    return { key: "weighin_gap", label: "No weigh-in " + gap + "d", reason: "No weigh-in for " + gap + " days", figures: { days: gap }, sig: "last:" + iso(lastDay) };
+  }
+  // A slow start on a weight-loss goal (amber, progress): under SLOW_START_EARLY_PCT lost by week 4, or
+  // SLOW_START_LATE_PCT by week 8, from the goal's start; read through week 11. On a GLP-1 medication:
+  // under GLP1_SLOW_PCT by week 12, read through week 15. The latest weigh-in must be from this read's
+  // own weeks (no older than 14 days), or it has nothing to say.
+  function ruleSlowStart(c, now, r) {
+    if (!r || r.dir !== "loss") return null;
+    var d = r.days, glp1 = c.glp1 === true, line = null;
+    if (glp1) { if (d >= 84 && d < 112) line = THRESHOLDS.GLP1_SLOW_PCT; }
+    else if (d >= 28 && d < 84) line = d >= 56 ? THRESHOLDS.SLOW_START_LATE_PCT : THRESHOLDS.SLOW_START_EARLY_PCT;
+    if (line == null) return null;
+    var last = r.pts[r.pts.length - 1];
+    if (daysBetween(last.on, now) > 14 || last.on < r.startDay) return null;
+    var lostPct = (r.startKg - last.kg) * 100 / r.startKg;
+    if (!(lostPct < line)) return null;
+    var weeks = Math.floor(d / 7), shown = round1(lostPct);
+    var said = shown > 0 ? "Down " + shown + "%" : shown < 0 ? "Up " + round1(-lostPct) + "%" : "No change";
+    return { key: "slow_start", label: "Slow start", reason: said + " after " + weeks + " weeks" + (glp1 ? " on a GLP-1" : ""), figures: { pct: shown, weeks: weeks, glp1: glp1 }, sig: "line:" + line + "|start:" + iso(r.startDay) };
+  }
+  // On a GLP-1 medication, context only: 14% or more lost in 3 to 4 months (from the weigh-in 84 to 122
+  // days back), and protein under GLP1_PROTEIN_G_KG per kg of body weight a day.
+  function ruleGlp1Total(c, now, r) {
+    if (!r || c.glp1 !== true) return null;
+    var last = r.pts[r.pts.length - 1];
+    if (daysBetween(last.on, now) > 14) return null;
+    var from = null;
+    for (var i = 0; i < r.pts.length; i++) {
+      var age = daysBetween(r.pts[i].on, now);
+      if (age >= 84 && age <= 122) { from = r.pts[i]; break; }
+    }
+    if (!from) return null;
+    var pct = (from.kg - last.kg) * 100 / from.kg;
+    if (!(pct >= THRESHOLDS.GLP1_TOTAL_PCT)) return null;
+    var months = Math.round(daysBetween(from.on, last.on) / 30);
+    return { key: "glp1_total", label: "Down " + Math.round(pct) + "% on a GLP-1", reason: "Down " + Math.round(pct) + "% in about " + months + " months on a GLP-1: worth checking protein and strength work", figures: { pct: Math.round(pct), months: months }, sig: "from:" + iso(from.on) };
+  }
+  function ruleGlp1Protein(c, now, r) {
+    if (!r || c.glp1 !== true) return null;
+    var n = c.nutrition;
+    if (!n || n.avgProtein == null || !isFinite(Number(n.avgProtein)) || !nutritionLogged(c)) return null;
+    var last = r.pts[r.pts.length - 1];
+    if (daysBetween(last.on, now) > 30) return null;
+    var gkg = Number(n.avgProtein) / last.kg;
+    if (!(gkg < THRESHOLDS.GLP1_PROTEIN_G_KG)) return null;
+    return { key: "glp1_protein", label: "Protein " + round1(gkg) + " g/kg", reason: "Protein averaging " + round1(gkg) + " g per kg a day, under the 1.2 to 1.6 often advised on a GLP-1", figures: { gPerKg: round1(gkg) }, sig: "wk:" + weekKey(now) };
+  }
+  // The gain bands (amber, progress, both coaches): from week 3 of a weight-gain goal, the 2-week trend
+  // gaining more than GAIN_FAST_PCT a week, or not gaining at all.
+  function ruleGainPace(c, now, r) {
+    if (!r || r.dir !== "gain" || r.days < THRESHOLDS.WEIGH_FROM_DAY) return null;
+    var t = weightTrend(r, now);
+    if (!t) return null;
+    var pct = round1(t.pctWeek);
+    if (t.pctWeek > THRESHOLDS.GAIN_FAST_PCT) return { key: "gain_fast", label: "Gaining fast", reason: "Gaining " + pct + "% of body weight a week over the last 2 weeks", figures: { pctWeek: pct }, sig: "wk:" + weekKey(now) };
+    if (t.pctWeek <= 0) return { key: "gain_stalled", label: "Not gaining", reason: "No gain over the last 2 weeks on a weight-gain goal", figures: { pctWeek: pct }, sig: "wk:" + weekKey(now) };
+    return null;
+  }
+
   // ── Evaluation + triage ───────────────────────────────────────────────────
 
   // evaluateClient(record, now, role) -> { flags, severity }
@@ -1619,6 +1806,25 @@
         if ((f = ruleStepsFalling(c, now))) flags.push(f);
       }
       if ((f = ruleNoBooking(c, now, role))) flags.push(f);
+      // The weight alerts (PR 2). The safety red takes the place of losing fast; the GLP-1 reads are
+      // context (CONTEXT_FLAGS), and losing fast is a trainer's context (TRAINER_CONTEXT).
+      var wr = weightRead(c, now);
+      if (wr) {
+        var unsafe = ruleWeightUnsafe(c, now, wr);
+        if (unsafe) flags.push(unsafe);
+        else if ((f = ruleWeightFast(c, now, wr))) flags.push(f);
+        if ((f = ruleWeighinGap(c, now, wr))) flags.push(f);
+        // ⚠ ONE WEIGHT GOAL, ONE LINE: a slow start takes the place of that goal's slip, which says the
+        // same thing (and would make the row red as a second area).
+        if ((f = ruleSlowStart(c, now, wr))) {
+          var wgSig = "goal:" + (wr.goal.id || wr.goal.label) + "|";
+          flags = flags.filter(function (fl) { return !(fl.key === "goal_slip" && typeof fl.sig === "string" && fl.sig.indexOf(wgSig) === 0); });
+          flags.push(f);
+        }
+        if ((f = ruleGainPace(c, now, wr))) flags.push(f);
+        if ((f = ruleGlp1Total(c, now, wr))) flags.push(f);
+        if ((f = ruleGlp1Protein(c, now, wr))) flags.push(f);
+      }
       // Not started speaks for a new client; gone quiet for the rest. Either takes the place of the
       // food-log gap and the contact gap (not started: the food-log reads only), so the coach reads one
       // line, not two. Each gap still shows alone when only that one is quiet.
@@ -1657,7 +1863,7 @@
     // context, and one with nobody else to take it is the viewer's own. The member's view counts all.
     // The money and calendar flags (SOFT_FLAGS) make a row amber on their own and never tip it red;
     // a coach's context flags (CONTEXT_FLAGS) and the quiet ones (QUIET_FLAGS) never colour it.
-    var counted = (coachView ? flags.filter(function (fl) { return tagFlag(fl, role, c).owned && !CONTEXT_FLAGS[fl.key]; }) : flags)
+    var counted = (coachView ? flags.filter(function (fl) { return tagFlag(fl, role, c).owned && !isContextFlag(fl, role); }) : flags)
       .filter(function (fl) { return !QUIET_FLAGS[fl.key]; });
     // A trainer who is the client's only coach owns the intake reads, and they still never tip the row
     // red: a trainer shares general guidance or suggests a dietitian, never a target (ACE's scope).
@@ -1697,13 +1903,22 @@
   // A coach's context: on the row with its reason, never counted toward a coach's severity, never a
   // lead while anything counted is on the row (coachLead), never an alert. The Score moves on posts
   // and sleep as much as on training or food, so its fall is a question to ask, not a slip to chase.
-  var CONTEXT_FLAGS = { score_drop: true, load_spike: true, steps_falling: true };
+  var CONTEXT_FLAGS = { score_drop: true, load_spike: true, steps_falling: true, glp1_total: true, glp1_protein: true };
+  // …and a trainer's alone: losing weight fast is the nutritionist's to act on (the coach-alerts plan,
+  // PR 2), so a trainer sees it on the client as context, as the only coach too. The safety red is not
+  // here: a trainer who is the client's only coach owns it.
+  var TRAINER_CONTEXT = { weight_fast: true };
+  function isContextFlag(f, role) {
+    return !!(f && (CONTEXT_FLAGS[f.key] || (TRAINER_CONTEXT[f.key] && disciplineForRole(role) === "training")));
+  }
   // Red on its own for a coach: a yes on the health screening is read before anything is programmed.
-  var SAFETY_FLAGS = { screening_flagged: true };
+  var SAFETY_FLAGS = { screening_flagged: true, weight_unsafe: true };
   // The area a flag speaks to, for the two-areas red. A goal's slip takes its goal's discipline.
   var FLAG_AREA = {
     missed_sessions: "training", streak_broken: "training", workouts_missed: "training", completion_drop: "training",
     no_booking: "training", load_spike: "training", steps_falling: "training", gone_quiet: "contact", not_started: "onboarding",
+    weight_fast: "nutrition", weight_unsafe: "safety", weighin_gap: "progress", slow_start: "progress",
+    gain_fast: "progress", gain_stalled: "progress", glp1_total: "progress", glp1_protein: "nutrition",
     food_gap: "nutrition", food_logging: "nutrition", ledger_blown: "nutrition", protein_under: "nutrition",
     hunger_high: "nutrition", hydration_low: "nutrition",
     sleep_low: "recovery", energy_low: "recovery", recovery_low: "recovery",
@@ -1799,6 +2014,16 @@
     gone_quiet: "general",        // both coaches
     not_started: "general",
     no_booking: "general",        // each coach's own bookings
+    // The weight alerts (PR 2): weight loss is the nutritionist's; a trainer sees it as context, and
+    // owns the safety red, the gap and the slow start only as the client's one coach. Gain is both.
+    weight_fast: "nutrition",
+    weight_unsafe: "nutrition",
+    weighin_gap: "nutrition",
+    slow_start: "nutrition",
+    gain_fast: "general",
+    gain_stalled: "general",
+    glp1_total: "nutrition",
+    glp1_protein: "nutrition",
   };
   function flagDiscipline(key) { return FLAG_DISCIPLINE[key] || "general"; }
   function disciplineOwner(discipline) {
@@ -2037,7 +2262,8 @@
           { on: ago(1), weight: 181.4, unit: "lb" },
         ],
         goals: [
-          { id: "g-weight", label: "Goal weight", metric: "weight", unit: "lb", target: 172, start: 184, startedOn: ago(70), setBy: "trainer",
+          // Started 13 weeks ago, so past the slow start's weeks: his case is the training side.
+          { id: "g-weight", label: "Goal weight", metric: "weight", unit: "lb", target: 172, start: 184, startedOn: ago(90), setBy: "trainer",
             history: gh([[35, 181.4], [28, 181.2], [21, 181.5], [14, 181.3], [7, 181.4], [1, 181.4]]) },
         ],
       }),
@@ -2074,6 +2300,12 @@
           { key: "m50", kind: "goal", label: "50% to goal", hitAt: ago(20) },
         ],
         nutrition: { avgCalories: 1840, targetCalories: 1900, avgProtein: 96, targetProtein: 150 },
+        // Losing fast (PR 2): about 1.3% a week over the last 3 weeks, on protein well under target. The
+        // nutritionist's, in the same area as her protein, so her row stays amber; the trainer's context.
+        goals: [
+          { id: "g-weight", label: "Goal weight", metric: "weight", unit: "lb", target: 135, start: 150, startedOn: ago(49), setBy: "nutritionist",
+            history: gh([[49, 150], [42, 149], [35, 148], [28, 147], [21, 146], [14, 144.2], [7, 142.5], [1, 140.8]]) },
+        ],
         payments: pay(22000, 1, 210, "marketplace"),
         recentLogs: [
           { on: ago(0), kcal: 1815, protein: 92 },
@@ -2145,7 +2377,8 @@
           { on: ago(1), weight: 172.8, unit: "lb" },
         ],
         goals: [
-          { id: "g-weight", label: "Goal weight", metric: "weight", unit: "lb", target: 165, start: 178, startedOn: ago(70), setBy: "nutritionist",
+          // From 178.6: 3.2% down by week 10, so her case is the slip, not a slow start (PR 2).
+          { id: "g-weight", label: "Goal weight", metric: "weight", unit: "lb", target: 165, start: 178.6, startedOn: ago(70), setBy: "nutritionist",
             history: gh([[56, 178], [49, 177], [42, 176], [35, 175], [28, 174], [21, 173.2], [14, 172.9], [7, 172.8], [1, 172.8]]) },
         ],
       }),
@@ -2368,6 +2601,7 @@
     plan: "Week 1 not live", reply: "Reply waiting", review: "Check-in to review", sessions: "Sessions slipping",
     program: "Program ending", billing: "Payment retrying", renewal: "Plan ending", recovery: "Recovery is low",
     workouts: "Workouts slipping", start: "Not started yet", load: "Training load is up", steps: "Steps are down",
+    weightfast: "Losing weight fast", weighin: "Weigh-in overdue", weightslow: "Slow start", gain: "Gain pace is off", glp1: "On a GLP-1",
   };
   function directiveKeyToLever(key) {
     return ({
@@ -2381,6 +2615,8 @@
       program_ending: "program", payment_retrying: "billing", plan_ending: "renewal", recovery_low: "recovery",
       workouts_missed: "workouts", completion_drop: "workouts", gone_quiet: "contact", not_started: "start",
       no_booking: "sessions", load_spike: "load", steps_falling: "steps",
+      weight_fast: "weightfast", weight_unsafe: "weightfast", weighin_gap: "weighin", slow_start: "weightslow",
+      gain_fast: "gain", gain_stalled: "gain", glp1_total: "glp1", glp1_protein: "glp1",
     })[key] || null;
   }
 
@@ -2418,6 +2654,11 @@
     // under, no booking with the calendar reminders; the context reads under the Score.
     not_started: 82, gone_quiet: 80, workouts_missed: 64, completion_drop: 62, no_booking: 28,
     load_spike: 29, steps_falling: 29,
+    // The weight alerts (PR 2): the safety red just over a yes on the screening; losing fast between the
+    // goal's slip and the food-log gap, the gap and the slow start under it; the GLP-1 context with the
+    // other context reads.
+    weight_unsafe: 92, weight_fast: 57, weighin_gap: 53, slow_start: 52, gain_fast: 51, gain_stalled: 49,
+    glp1_total: 29, glp1_protein: 29,
   };
   function flagPriority(f) {
     if (!f) return 0;
@@ -2711,6 +2952,15 @@
     no_booking:        { kind: "schedule", label: "Offer a session" },
     load_spike:        { kind: "message", label: "Message", draft: true },
     steps_falling:     { kind: "message", label: "Message", draft: true },
+    // The weight alerts (PR 2). A trainer shares guidance, never a target (ACE's scope).
+    weight_unsafe:     { kind: "message", label: "Check in", draft: true },
+    weight_fast:       { kind: "adjust_plan", label: "Review the plan", training: { kind: "message", label: "Message", draft: true } },
+    weighin_gap:       { kind: "message", label: "Ask for a weigh-in", draft: true, nora: true },
+    slow_start:        { kind: "adjust_plan", label: "Review the plan", training: { kind: "message", label: "Message", draft: true } },
+    gain_fast:         { kind: "adjust_plan", label: "Review the plan", training: { kind: "message", label: "Message", draft: true } },
+    gain_stalled:      { kind: "adjust_plan", label: "Review the plan", training: { kind: "message", label: "Message", draft: true } },
+    glp1_total:        { kind: "message", label: "Message", draft: true },
+    glp1_protein:      { kind: "adjust_plan", label: "Adjust plan", training: { kind: "message", label: "Share guidance", draft: true } },
   };
   var COACH_ACTION_KINDS = ["message", "reply", "review_checkin", "read_screening", "adjust_program", "adjust_plan", "schedule", "care_team"];
 
@@ -2777,6 +3027,23 @@
         return hi + "you've put in a big week of training. How's your body feeling? If anything's sore or tired, tell me and we'll balance the next few days.";
       case "steps_falling":
         return hi + "how has your week been outside the gym? Your daily movement has dipped a little. Anything going on?";
+      // The weight alerts (PR 2): never a weight, a percentage or a target, only what to do.
+      case "weight_unsafe":
+        return hi + "how are you feeling this week? Your weight has been coming down quickly, and you've been hungry or low on energy. Let's add a bit more food to your days, and if it carries on, please check in with your doctor.";
+      case "weight_fast":
+        return hi + "your weight has been coming down faster than we planned. How are you feeling? Let's make sure you're eating enough to keep your energy and strength up.";
+      case "weighin_gap":
+        return hi + "could you log a weigh-in this week? It helps me see how the plan is working for you.";
+      case "slow_start":
+        return hi + "how are you finding the plan so far? Progress has been slower than we hoped, which is common early on. Let's look at your week together and pick one or two changes.";
+      case "gain_fast":
+        return hi + "your weight is climbing a little faster than we planned. How are your appetite and training? We may ease back the extra food a touch.";
+      case "gain_stalled":
+        return hi + "your weight has held steady these last couple of weeks. How's eating going? We may add a little more to keep you moving toward your goal.";
+      case "glp1_total":
+        return hi + "you've made big progress. How are you feeling? With your medication, protein and strength work matter more than ever to protect your muscle. Let's check you're getting enough.";
+      case "glp1_protein":
+        return hi + "how's food going? On your medication, protein at each meal matters more than usual, to protect your muscle. How's that going for you?";
       case "payment_retrying":
         return "Hi " + firstName(rec) + " — quick heads-up: your latest payment for our plan didn't go through. Stripe will try again, and you can update your card in your membership settings.";
       case "plan_ending": {
@@ -2808,7 +3075,7 @@
     // every coach flag (DIRECTIVE_PRIORITY; tests/coach-actions.test.mjs holds it there). A context
     // flag (CONTEXT_FLAGS: a score drop) leads only a row with nothing counted on it, so an amber row's
     // push and Today name what made it amber.
-    var counted = owned.filter(function (f) { return !CONTEXT_FLAGS[f.key] && !QUIET_FLAGS[f.key]; });
+    var counted = owned.filter(function (f) { return !isContextFlag(f, role) && !QUIET_FLAGS[f.key]; });
     var top = topFlag(counted.length ? counted : owned);
     return { key: top.key, label: top.label, reason: top.reason, sig: top.sig || null, action: coachActionFor(top.key, role, row.client, top) };
   }
@@ -2954,6 +3221,9 @@
         periodEndsAt: row.periodEndsAt || null,
       },
     };
+    // On a GLP-1 medication (the health profile's yes/no; PR 2): true, false, or left off when unanswered.
+    var hp = o && o.healthProfile && typeof o.healthProfile === "object" ? o.healthProfile : null;
+    if (hp && (hp.glp1 === "yes" || hp.glp1 === "no")) rec.glp1 = hp.glp1 === "yes";
     // Whether the dated food-log read answered (foodDated): the overview carries `logs`, null for none.
     if (o && Object.prototype.hasOwnProperty.call(o, "logs") && o.logs !== undefined) rec.logsRead = true;
     // Whether the Score read answered (gone quiet): only a true answer is carried.
@@ -3107,7 +3377,7 @@
     // their absence alerts all through it (Codex on #2705).
     "pause",
     // The trainer alerts (PR 1): the push reads them as the website does.
-    "assignedWorkouts", "trainingLoad", "activity", "lastFromClient", "scoreRead", "logsRead"];
+    "assignedWorkouts", "trainingLoad", "activity", "lastFromClient", "scoreRead", "logsRead", "glp1"];
   function engineSnapshot(rec) {
     if (!rec || typeof rec !== "object") return null;
     var out = {};

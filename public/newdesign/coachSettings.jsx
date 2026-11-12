@@ -122,15 +122,15 @@ const CST_FLAG_CONTEXT = { key: "context", icon: "example", label: "Context · s
 const CST_FLAG_CONTEXT_TRAINER = { ...CST_FLAG_CONTEXT, keys: ["SCORE_DROP_PCT", "LOAD_SPIKE_X", "STEPS_DROP_PCT"] };
 const CST_FLAG_GROUPS_BY_ROLE = {
   trainer: [
-    { key: "training", icon: "training", label: "Training & sessions", blurb: "When workouts or sessions slip, nothing is booked, a program runs out, or a strength or endurance goal stalls.", keys: ["WORKOUT_DONE_PCT", "WORKOUT_MISSED_ROW", "WORKOUT_MIN_DUE", "COMPLETION_DROP_PCT", "MISSED_SESSIONS", "NO_BOOKING_DAYS", "PROGRAM_END_DAYS", "GOAL_SLIP_DAYS"] },
+    { key: "training", icon: "training", label: "Training & sessions", blurb: "When workouts or sessions slip, nothing is booked, a program runs out, or a strength or endurance goal stalls.", keys: ["WORKOUT_DONE_PCT", "WORKOUT_MISSED_ROW", "WORKOUT_MIN_DUE", "COMPLETION_DROP_PCT", "MISSED_SESSIONS", "NO_BOOKING_DAYS", "PROGRAM_END_DAYS", "GOAL_SLIP_DAYS", "GAIN_FAST_PCT"] },
     { key: "recovery", icon: "recovery", label: "Recovery", blurb: "When sleep or a wearable's recovery runs low, so you can ease the load.", keys: ["SLEEP_DEFICIT_H", "RECOVERY_LOW"] },
     CST_FLAG_CONTACT,
-    { key: "nutrition", icon: "nutrition", label: "Nutrition · when you're their only coach", blurb: "With a nutritionist on the client these are theirs, and you see them as context. Without one they're yours, and calories and protein never turn a row red.", keys: ["FOOD_GAP_DAYS", "LEDGER_OVER_PCT", "PROTEIN_UNDER_PCT"] },
+    { key: "nutrition", icon: "nutrition", label: "Nutrition · when you're their only coach", blurb: "With a nutritionist on the client these are theirs, and you see them as context. Without one they're yours, and calories and protein never turn a row red.", keys: ["FOOD_GAP_DAYS", "LEDGER_OVER_PCT", "PROTEIN_UNDER_PCT", "LOSS_FAST_PCT", "LOSS_SAFETY_KG", "LOSS_SAFETY_WEEKS", "SLOW_START_EARLY_PCT", "SLOW_START_LATE_PCT", "WEIGHIN_GAP_DAYS"] },
     CST_FLAG_CONTEXT_TRAINER,
   ],
   nutritionist: [
     { key: "intake", icon: "nutrition", label: "Logging & intake", blurb: "When logging thins out, or intake runs off the plan's targets.", keys: ["FOOD_GAP_DAYS", "FOOD_LOG_DAYS", "LEDGER_OVER_PCT", "PROTEIN_UNDER_PCT"] },
-    { key: "plans", icon: "progress", label: "Plans & progress", blurb: "When a plan runs out, a weight goal stalls, your sessions slip, or nothing is booked.", keys: ["PROGRAM_END_DAYS", "GOAL_SLIP_DAYS", "MISSED_SESSIONS", "NO_BOOKING_DAYS"] },
+    { key: "plans", icon: "progress", label: "Plans & progress", blurb: "When a plan runs out, weight moves too fast or too slowly, weigh-ins stop, your sessions slip, or nothing is booked.", keys: ["PROGRAM_END_DAYS", "GOAL_SLIP_DAYS", "LOSS_FAST_PCT", "LOSS_SAFETY_KG", "LOSS_SAFETY_WEEKS", "SLOW_START_EARLY_PCT", "SLOW_START_LATE_PCT", "GAIN_FAST_PCT", "WEIGHIN_GAP_DAYS", "MISSED_SESSIONS", "NO_BOOKING_DAYS"] },
     CST_FLAG_CONTACT,
     { key: "recovery", icon: "recovery", label: "Recovery · the trainer's when one is on", blurb: "Sleep and recovery are the trainer's to act on. When you're the client's only coach, they're yours.", keys: ["SLEEP_DEFICIT_H", "RECOVERY_LOW"] },
     CST_FLAG_CONTEXT,

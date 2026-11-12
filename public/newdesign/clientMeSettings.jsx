@@ -737,6 +737,8 @@ function HealthProfileCard() {
   const [injuries, setInjuries] = React.useState("");
   const [medications, setMedications] = React.useState("");
   const [rxMeds, setRxMeds] = React.useState(null);
+  // A GLP-1 medication (the coach-alerts plan, PR 2): its own yes/no, which the weight alerts read.
+  const [glp1, setGlp1] = React.useState(null);
   const [conditions, setConditions] = React.useState("");
   const [conditionTags, setConditionTags] = React.useState([]);
   const [pregnancy, setPregnancy] = React.useState(null);
@@ -760,6 +762,7 @@ function HealthProfileCard() {
         if (Array.isArray(h.parq)) setAnswers(h.parq);
         setInjuries(h.injuries || ""); setMedications(h.medications || "");
         setRxMeds(h.rxMeds || (h.medications ? "yes" : null));
+        setGlp1(h.glp1 === "yes" || h.glp1 === "no" ? h.glp1 : null);
         setConditions(h.conditions || ""); setConditionTags(Array.isArray(h.conditionTags) ? h.conditionTags : []);
         setPregnancy(h.pregnancy || null); setAllergies(h.allergies || null); setAllergyDetails(h.allergyDetails || "");
         setEmName((h.emergency && h.emergency.name) || ""); setEmPhone((h.emergency && h.emergency.phone) || "");
@@ -784,7 +787,7 @@ function HealthProfileCard() {
   const allAnswered = answers.every(a => a === true || a === false);
   const rxOk = rxMeds === "no" || (rxMeds === "yes" && medications.trim().length > 0);
   const allergyOk = allergies === "no" || (allergies === "yes" && allergyDetails.trim().length > 0);
-  const screenComplete = allAnswered && rxMeds !== null && pregnancy !== null && allergies !== null && rxOk && allergyOk;
+  const screenComplete = allAnswered && rxMeds !== null && glp1 !== null && pregnancy !== null && allergies !== null && rxOk && allergyOk;
   const toggleTag = (tag) => setConditionTags(cur => (cur.includes(tag) ? cur.filter(x => x !== tag) : [...cur, tag]));
 
   const save = async () => {
@@ -796,6 +799,7 @@ function HealthProfileCard() {
       injuries: injuries.trim() || null,
       rxMeds: rxMeds,
       medications: rxMeds === "yes" ? (medications.trim() || null) : null,
+      glp1: glp1,
       conditions: conditions.trim() || null,
       conditionTags: conditionTags,
       pregnancy: pregnancy,
@@ -869,6 +873,14 @@ function HealthProfileCard() {
             {ynRow(rxMeds, setRxMeds, [["No", "no", "var(--sh-accent2, #0ac5a8)"], ["Yes", "yes", "#d2693f"]])}
           </div>
           {rxMeds === "yes" && <textarea value={medications} onChange={(e) => setMedications(e.target.value)} placeholder="List your prescription medication(s) — e.g. Lisinopril (blood pressure)" style={{ ...taStyle, marginTop: 8 }} />}
+        </div>
+        <div>
+          <div style={lbl}>GLP-1 medication · required</div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 160px", gap: 14, alignItems: "center" }}>
+            <div style={qTxt}>Are you taking a GLP-1 medication for weight or blood sugar, such as Ozempic, Wegovy, Mounjaro or Zepbound?</div>
+            {ynRow(glp1, setGlp1, [["No", "no", "var(--sh-accent2, #0ac5a8)"], ["Yes", "yes", "#d2693f"]])}
+          </div>
+          <div style={{ fontSize: 12, color: "var(--sh-ink2, #a09b94)", lineHeight: 1.5, marginTop: 6 }}>Your coach uses this to keep your weight-loss pace and protein safe on the medication.</div>
         </div>
         <div>
           <div style={lbl}>Allergies · required</div>
