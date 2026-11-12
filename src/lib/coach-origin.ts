@@ -4,19 +4,20 @@
 // resolveCoachCheckoutOrigin, because that is where Stripe's fee is fixed for the
 // life of the subscription. Resolution runs entirely through the auth.uid()-scoped
 // SECURITY DEFINER RPC `resolve_coach_checkout_origin` on the CALLER's client —
-// a user-initiated route never reads the referral ledger via the service role
-// (RLS-authoritative, the house rule; review round). The RPC owns the precedence
-// (waitlist wins → provider-matched token touch → unexpired bound-row channel →
+// a user-initiated route never reads the existing-client list or the referral
+// ledger via the service role (RLS-authoritative, the house rule). The RPC owns
+// the precedence (2026-11-12-coach-existing-clients.sql: waitlist wins → the
+// coach's existing-client list → an in-flight tag from before 2026-11-12 →
 // marketplace — mirrored by the pure ./coach-origin.mjs decision, which the tests
 // pin); the fee RATE stays code-owned here so a future rate change never needs SQL.
 // Fail-closed: any error — including pre-migration, when the RPC doesn't exist —
-// resolves marketplace / 1500, i.e. byte-identical to today's flow.
+// resolves marketplace / 1500.
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { MARKETPLACE_FEE_BPS, BYO_FEE_BPS } from './coach-origin.mjs';
 
 export type ProviderRole = 'trainer' | 'nutritionist';
-export type CoachOrigin = 'marketplace' | 'coach_invite' | 'coach_link';
+export type CoachOrigin = 'marketplace' | 'coach_existing' | 'coach_invite' | 'coach_link';
 export type OriginResolution = { origin: CoachOrigin; feeBps: number; referralId: string | null };
 
 // Canonical UUID — a ref token must be well-formed before we hand it to the RPC.
@@ -60,6 +61,11 @@ export async function resolveCoachCheckoutOrigin(args: {
     const row = (Array.isArray(data) ? data[0] : data) as
       | { origin?: string; referral_id?: string | null }
       | undefined;
+    // An existing client (the coach's list) carries no referral; an in-flight tag does, for the
+    // webhook to consume.
+    if (row?.origin === 'coach_existing') {
+      return { origin: 'coach_existing', feeBps: BYO_FEE_BPS, referralId: null };
+    }
     if (row?.origin === 'coach_invite' || row?.origin === 'coach_link') {
       return { origin: row.origin, feeBps: BYO_FEE_BPS, referralId: row.referral_id ?? null };
     }

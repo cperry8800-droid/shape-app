@@ -85,6 +85,7 @@
     marketplace: "Marketplace",
     coach_invite: "Coach invite",
     coach_link: "Coach link",
+    coach_existing: "Existing client",
   };
   function originLabel(origin) {
     if (!origin) return null;

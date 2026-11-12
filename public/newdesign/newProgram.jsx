@@ -388,14 +388,14 @@ function NpFeeNote({ price, kind = "one-time" }) {
   if (proc == null) {
     return (
       <div style={{ fontSize: 12, color: "rgba(242,237,228,0.55)", lineHeight: 1.5 }}>
-        You receive <span style={{ color: INK, fontWeight: 500 }}>{fromShape || "—"}</span> {per} who found you on Shape, after Shape's 15%, and the full price from clients you bring.
+        You receive <span style={{ color: INK, fontWeight: 500 }}>{fromShape || "—"}</span> {per} who signed up through Shape, after Shape's 15%, and the full price from your existing clients.
         {" "}Stripe's card-processing fee comes out of your share. Payouts go straight to your bank, on the schedule you set in Stripe.
       </div>
     );
   }
   return (
     <div data-np-processing="" style={{ fontSize: 12, color: "rgba(242,237,228,0.55)", lineHeight: 1.5 }}>
-      You receive about <span style={{ color: INK, fontWeight: 500 }}>{fromShape}</span> {per} who found you on Shape, after Shape's 15% and about ${proc.toFixed(2)} card processing, and about <span style={{ color: INK, fontWeight: 500 }}>{fromYou}</span> from a client you bring.
+      You receive about <span style={{ color: INK, fontWeight: 500 }}>{fromShape}</span> {per} who signed up through Shape, after Shape's 15% and about ${proc.toFixed(2)} card processing, and about <span style={{ color: INK, fontWeight: 500 }}>{fromYou}</span> from an existing client.
       {" "}Card processing is Stripe's and comes out of your share: estimated at Stripe's US card rate, 2.9% + 30¢ a charge{sub ? ", and 0.7% Stripe Billing on a subscription" : ""}, and your own Stripe pricing decides it. Payouts go straight to your bank, on the schedule you set in Stripe.
     </div>
   );

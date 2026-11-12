@@ -124,6 +124,10 @@ The rules and the code map. Every session loads it: when a rule changes, replace
   and the War Room board (`/warroom`). Nora's account setup: `src/lib/ai/accountSetup.mjs`.
 - **Free account, paid membership:** routes take `requireAccount` (free) or `requireMembership`
   (paid; assistant Nora included, with no free week); past due is free (`paidRefusal`).
+- **Coach fee** (owner, 2026-11-12): 15% on every client who signs up through Shape, 0% only on the
+  coach's existing-client list (`coach_existing_clients`, open 60 days from joining); an invite or a
+  link sets no fee. `src/lib/coach-origin.mjs` mirrors `resolve_coach_checkout_origin`; a rate change
+  appends to `ISSUED_FEE_BPS`, never replaces.
 - **Own radio station:** `services/station`, the engine's `NORA_MODE=station`, `radio/rotation.mjs`.
 - **Time zones:** one per account (`profiles.timezone`, `/api/me/timezone`); print through `shapeZone.mjs`;
   the server runs the engine inside `DashSignals.inZone(zone, now, fn)`, or its days are UTC's.

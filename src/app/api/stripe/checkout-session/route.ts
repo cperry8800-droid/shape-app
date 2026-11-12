@@ -184,8 +184,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: CODE_MESSAGES[reason], reason }, { status: 400 });
   }
 
-  // BYO commission split: resolve WHY this checkout exists (marketplace vs a
-  // client the coach brought) → the resolved fee. feeBps is THE single fee value;
+  // The coach fee (owner, 2026-11-12): resolve WHY this checkout exists (a client
+  // signing up through Shape vs one on the coach's existing-client list) → the
+  // resolved fee. feeBps is THE single fee value;
   // nothing downstream re-derives from `origin`. Runs entirely on the CALLER's
   // RLS client (the auth.uid()-scoped RPC). Fail-closed to marketplace / 1500.
   const { origin: coachOrigin, feeBps, referralId } = await resolveCoachCheckoutOrigin({

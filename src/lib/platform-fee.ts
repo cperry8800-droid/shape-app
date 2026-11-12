@@ -2,8 +2,8 @@
 // in the framework-free, unit-tested ./platform-fee.mjs; this re-exports it with
 // types so app code imports `@/lib/platform-fee` unchanged.
 //
-// Shape takes 15% on coach revenue (coach receives 85%); coach-brought (BYO)
-// clients pay 0% (owner-ruled 2026-07-21). The RESOLVED rate is stamped on the
+// Shape takes 15% on coach revenue from clients who sign up through Shape (coach
+// receives 85%); a coach's existing clients pay 0% (owner, 2026-11-12). The RESOLVED rate is stamped on the
 // row as fee_bps at checkout — see src/lib/coach-origin.ts. When a client redeems
 // Shape store credit, SHAPE absorbs the discount (the coach is still paid on the
 // FULL gross); callers cap the credit at Shape's cut, so the charge always covers

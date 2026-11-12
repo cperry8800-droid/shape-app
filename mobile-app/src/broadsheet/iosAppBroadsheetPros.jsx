@@ -18,6 +18,7 @@ import { mayLeave, holdLeave } from '../services/leaveGuard.mjs';
 import { nutritionNotAMenu } from '../services/nutritionAssign.mjs';
 import BSCoachNote from './BSCoachNote.jsx';
 import { BSClientPauseCard } from './BSClientPause.jsx';
+import { BSCoachExistingClients } from './BSCoachExistingClients.jsx';
 import BSLiveWorkoutWatch from './BSLiveWorkoutWatch.jsx';
 import BSWorkoutReviewPage from './BSWorkoutReview.jsx';
 import BSProAdjustProgram from './BSProAdjust.jsx';
@@ -2342,14 +2343,10 @@ function BSProAddClientSheet({ role, onClose }) {
   const invite = async (p) => {
     const lock = sendLockRef.current;
     const k = inviteKey(p.userId);
-    // 'ok' = delivered + tagged (terminal). 'noTag' rows stay actionable — the
-    // retry re-runs ONLY the attribution write (lock.sent gates the DM), so a
-    // failed create_coach_referral can never strand a client untaggable behind
-    // an "Invited ✓" it didn't earn.
     if (lock.active || invited[k] === 'ok') return;
     // mine must be RESOLVED and belong to THIS role — the one commit frame
     // after a role switch (new role, stale mine) must never stamp the previous
-    // role's provider id onto the invite or the referral.
+    // role's provider id onto the invite.
     if (!mine || mine.role !== role) { window.__bsToast?.(tr('coach:addClient.publishFirst', { defaultValue: 'Publish your marketplace listing first — the invite carries it.' }), 'warn'); return; }
     lock.active = p.userId;
     setBusyId(p.userId);
@@ -2366,27 +2363,24 @@ function BSProAddClientSheet({ role, onClose }) {
         });
         lock.sent[k] = true;
       }
-      // The BYO attribution row (rails #1794): the DM card carries no token —
-      // this client-bound referral IS what resolves 0% at their checkout.
-      const refRes = await window.ShapeReferrals?.forClient?.(role, mine.providerId, p.userId);
-      if (refRes && refRes.ok) {
-        setInvited((prev) => ({ ...prev, [k]: 'ok' }));
-        window.__bsToast?.(tr('coach:addClient.inviteSent', { defaultValue: 'Invite sent ✓ — it lands in their chat' }), 'ok');
-      } else {
-        setInvited((prev) => ({ ...prev, [k]: 'noTag' }));
-        window.__bsToast?.(tr('coach:addClient.inviteSentNoTag', { defaultValue: 'Invite sent ✓ — the 0% tag didn’t record; tap Retry tag' }), 'warn');
-      }
+      // ⚠ AN INVITE SETS NO FEE (owner, 2026-11-12: "Shape takes 15% cut on clients that sign up
+      // through Shape. Existing clients, Shape takes no cut from."). It used to write a 0% tag
+      // (create_coach_referral); a client the coach had before Shape is on their existing-client list
+      // below (BSCoachExistingClients), and only that list pays no Shape fee.
+      setInvited((prev) => ({ ...prev, [k]: 'ok' }));
+      window.__bsToast?.(tr('coach:addClient.inviteSent', { defaultValue: 'Invite sent ✓ — it lands in their chat' }), 'ok');
     } catch (e) {
       window.__bsToast?.(e?.message || tr('coach:addClient.inviteFailed', { defaultValue: 'Could not send the invite' }), 'err');
     }
     lock.active = null;
     setBusyId(null);
   };
-  // ── The ref-tagged link + send channels (BYO rails #1794) ────────────────
-  // The durable ?ref= token binds a member who opens the link into THIS
-  // coach's 30-day attribution window (0% commission at checkout). A fast
-  // first tap must never ship an untagged link that checkout can't attribute
-  // — the buttons wait for refToken (declared with `mine` above) to resolve.
+  // ── The ref-tagged link + send channels ─────────────────────────────────
+  // The durable ?ref= token opens the coach's profile on Coaching for whoever
+  // follows the link (livingDesktop.jsx DesktopProfile). It no longer sets the
+  // fee (2026-11-12): a client who signs up through it pays Shape's 15% unless
+  // they are on the coach's existing-client list. The buttons still wait for
+  // refToken (declared with `mine` above) so the link carries it.
   useEffectBSP(() => {
     let on = true;
     (async () => {
@@ -2453,8 +2447,8 @@ function BSProAddClientSheet({ role, onClose }) {
   // It was mono capitals, amber-ruled notes and dashed boxes. Now: a friendly head with its icon, the notices
   // as soft callouts, the member search as a rounded field whose matches are rows with their facet avatar and
   // an Invite pill, and the three ways to send the link as rounded buttons with their icons. Every state and
-  // door above is unchanged: the listing check and its notice, the search's three answers, invite and Retry
-  // 0% tag, the 0% pitch or its unavailable note, email, text, share or copy, close.
+  // door above is unchanged: the listing check and its notice, the search's three answers, invite, the fee
+  // note, email, text, share or copy, the existing-client list, close.
   const FA = typeof window !== 'undefined' ? window.BSFacetAvatar : null;
   const L = !!t.isLight;
   const inkA = (a) => `rgba(${t.inkRGB || (L ? '20,18,15' : '242,237,228')},${a})`;
@@ -2560,9 +2554,7 @@ function BSProAddClientSheet({ role, onClose }) {
                     </div>
                     {st === 'ok'
                       ? <span style={pill(null, { background: L ? 'rgba(10,143,135,0.12)' : 'rgba(52,214,197,0.14)', color: tealText })}>{tr('coach:addClient.invited', { defaultValue: 'Invited ✓' })}</span>
-                      : st === 'noTag'
-                        ? <button type="button" data-add-press="" onClick={() => invite(p)} disabled={!!busyId} style={{ ...hit, cursor: busyId ? 'default' : 'pointer', opacity: busyId ? 0.6 : 1 }}><span style={pill(null, { background: 'transparent', border: `1.5px solid ${amber}`, color: L ? '#7a5205' : amber })}>{busyId === p.userId ? tr('coach:common.sending', { defaultValue: 'Sending…' }) : tr('coach:addClient.retryTag', { defaultValue: 'Retry 0% tag' })}</span></button>
-                        : <button type="button" data-add-press="" onClick={() => invite(p)} disabled={!!busyId} style={{ ...hit, cursor: busyId ? 'default' : 'pointer', opacity: busyId ? 0.6 : 1 }}><span style={pill(heatFill)}>{busyId === p.userId ? tr('coach:common.sending', { defaultValue: 'Sending…' }) : tr('coach:addClient.invite', { defaultValue: 'Invite' })}</span></button>}
+                      : <button type="button" data-add-press="" onClick={() => invite(p)} disabled={!!busyId} style={{ ...hit, cursor: busyId ? 'default' : 'pointer', opacity: busyId ? 0.6 : 1 }}><span style={pill(heatFill)}>{busyId === p.userId ? tr('coach:common.sending', { defaultValue: 'Sending…' }) : tr('coach:addClient.invite', { defaultValue: 'Invite' })}</span></button>}
                   </div>
                 );
               })}
@@ -2570,20 +2562,13 @@ function BSProAddClientSheet({ role, onClose }) {
           )}
         </section>
 
-        {/* Send your link: the 0% pitch (only with a real ref token) or the note that it is unavailable, then
-            email, text and share or copy as three rounded buttons with their icons. */}
+        {/* Send your link: what a client who signs up through it pays, then email, text and share or copy as
+            three rounded buttons with their icons. */}
         <section style={{ marginTop: 22 }}>
           {head(tr('coach:addClient.sendLabel', { defaultValue: 'Send your link' }))}
-          {/* The honest pitch — incl. the waitlist qualifier — renders ONLY
-              with a REAL ref token. When the token is confirmed unavailable
-              (signed out / no listing / pre-migration) the plain URL still
-              shares, but the copy says the truth: those links can't attribute,
-              so the 0% promise never sits over an untagged link. */}
-          {refToken ? (
-            <div style={{ marginTop: 10 }}>{callout(L ? '#0a8f87' : '#34d6c5', '0%', tr('coach:addClient.byoPitch', { defaultValue: 'Clients you bring pay no Shape commission — you keep your full rate. They join Shape as members at $5/mo. Members already in your Shape waiting room count as Shape-found.' }), 'pitch')}</div>
-          ) : linkReady ? (
-            <div style={{ marginTop: 10 }}>{callout(amber, '!', tr('coach:addClient.noTagNote', { defaultValue: 'The 0% tag isn’t available right now — links sent from here will count as Shape-found.' }), 'noTag')}</div>
-          ) : null}
+          {/* The fee, as charged (owner, 2026-11-12): every client who signs up through Shape pays its 15%,
+              from the marketplace, an invite or this link alike; only the existing-client list below is 0%. */}
+          <div style={{ marginTop: 10 }}>{callout(L ? '#0a8f87' : '#34d6c5', '%', tr('coach:addClient.feeNote', { defaultValue: 'Clients who sign up through Shape pay Shape’s 15%, whether they found you here or came from your invite or link. They join Shape as members at $5/mo. Clients you coached before Shape pay no Shape fee: list them below.' }), 'fee')}</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 8, marginTop: 12 }}>
             {channels.map((ch, i) => (
               <button key={ch.key} type="button" data-add-channel={ch.key} data-add-press="" onClick={ch.onTap} disabled={!linkReady}
@@ -2594,6 +2579,13 @@ function BSProAddClientSheet({ role, onClose }) {
             ))}
           </div>
         </section>
+
+        {/* The coach's existing clients, the only clients Shape takes no cut from (BSCoachExistingClients.jsx),
+            for THIS role's provider row once it has resolved. */}
+        {mineForRole && mine && mine.role === role && (
+          <BSCoachExistingClients key={role + ':' + mine.providerId} role={role} providerId={mine.providerId} t={t}
+            kit={{ head, callout, tile, pill, heatFill, amber, tealText, inkA, sans: BS_PRO_SANS }} />
+        )}
       </div>
     </div>
   );

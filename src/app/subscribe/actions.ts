@@ -199,9 +199,9 @@ export async function startCheckout(formData: FormData): Promise<void> {
       redirect(`${backHref}&error=${encodeURIComponent(priceResult.error)}`);
     }
 
-    // BYO commission split: resolve WHY this checkout exists → the resolved fee.
-    // A client the coach brought (an already-bound referral) pays 0%; a marketplace
-    // client pays 15%. Fail-closed to marketplace / 1500 inside the resolver.
+    // The coach fee: resolve WHY this checkout exists → the resolved fee. A client on
+    // the coach's existing-client list pays 0%; every client signing up through Shape
+    // pays 15% (owner, 2026-11-12). Fail-closed to marketplace / 1500 inside the resolver.
     const { origin: coachOrigin, feeBps, referralId } = await resolveCoachCheckoutOrigin({
       caller: supabase,
       providerRole,

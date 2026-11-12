@@ -88,9 +88,9 @@ function NwFeeNote({ price }) {
   const proc = priced && CF ? CF.processingCents(Math.round(p * 100), { recurring: false }) / 100 : null;
   const money = (v) => "$" + Math.max(0, v - (proc || 0)).toFixed(2);
   if (proc == null) {
-    return <>Shape takes 15% on clients who find you on Shape and nothing on clients you bring. You receive <span style={{ color: INK, fontWeight: 500 }}>{priced ? "$" + (p * 0.85).toFixed(2) : "—"}</span> per sale from a client who finds you here, or <span style={{ color: INK, fontWeight: 500 }}>{priced ? "$" + p.toFixed(2) : "—"}</span> from one you bring, before Stripe's card-processing fee.</>;
+    return <>Shape takes 15% on clients who sign up through Shape and no cut on your existing clients. You receive <span style={{ color: INK, fontWeight: 500 }}>{priced ? "$" + (p * 0.85).toFixed(2) : "—"}</span> per sale from a client who signs up through Shape, or <span style={{ color: INK, fontWeight: 500 }}>{priced ? "$" + p.toFixed(2) : "—"}</span> from an existing client, before Stripe's card-processing fee.</>;
   }
-  return <span data-nw-processing="">Shape takes 15% on clients who find you on Shape and nothing on clients you bring. You receive about <span style={{ color: INK, fontWeight: 500 }}>{money(p * 0.85)}</span> per sale from a client who finds you here, or about <span style={{ color: INK, fontWeight: 500 }}>{money(p)}</span> from one you bring, after about ${proc.toFixed(2)} card processing: Stripe's, estimated at its US card rate of 2.9% + 30¢ a charge. Your own Stripe pricing decides it.</span>;
+  return <span data-nw-processing="">Shape takes 15% on clients who sign up through Shape and no cut on your existing clients. You receive about <span style={{ color: INK, fontWeight: 500 }}>{money(p * 0.85)}</span> per sale from a client who signs up through Shape, or about <span style={{ color: INK, fontWeight: 500 }}>{money(p)}</span> from an existing client, after about ${proc.toFixed(2)} card processing: Stripe's, estimated at its US card rate of 2.9% + 30¢ a charge. Your own Stripe pricing decides it.</span>;
 }
 
 function NewWorkoutPage() {

@@ -111,7 +111,7 @@ export function bsBizDemo(now = Date.now()) {
   // One row a client, in the routes' shape (origin-attribution.ts folds each client's plans into one
   // row); each holds one plan here. The app lists none of it: the share and the renewals read it.
   const byOrigin = names.slice(0, last.active).map((name, i) => ({
-    name, clientId: 'demo-' + (i + 1), kind: 'subscription', origin: i % 4 === 0 ? 'coach_link' : 'marketplace',
+    name, clientId: 'demo-' + (i + 1), kind: 'subscription', origin: i % 4 === 0 ? 'coach_existing' : 'marketplace',
     feeBps: i % 4 === 0 ? 0 : 1500, priceCents: 17500, plans: 1, mixedFees: false,
   }));
   return {
@@ -414,7 +414,7 @@ function rateFromNote(base, tr) {
 // The brought share's note, per client (the routes' byoMix: one client on two plans is one client):
 // an unread share (byoMix null) starts at 0% and says so, never as a measured none.
 function byoNote(base, tr) {
-  if (base.broughtUnread) return tr('coach:business.earn.byoUnread', { defaultValue: "couldn't read who you brought · set your own" });
+  if (base.broughtUnread) return tr('coach:business.earn.byoUnread', { defaultValue: "couldn't read who pays no Shape fee · set your own" });
   return base.byoClients ? tr('coach:business.earn.byoNote', { defaultValue: '0% fee · {brought} of your {clients}', brought: base.brought, clients: base.byoClients }) : tr('coach:business.earn.byoNone', { defaultValue: '0% Shape fee on these' });
 }
 
@@ -436,7 +436,7 @@ export function BSBizEarn({ t, base }) {
         <NumberField t={t} label={tr('coach:business.earn.clients', { defaultValue: 'Clients' })} value={clients} onChange={setClients} max="999"
           note={tr('coach:business.earn.today', { defaultValue: 'you have {count} today', count: base.clients })} />
         <NumberField t={t} label={tr('coach:business.earn.rate', { defaultValue: 'Monthly rate' })} value={rate} onChange={setRate} prefix="$" max="9999" note={rateFromNote(base, tr)} />
-        <NumberField t={t} label={tr('coach:business.earn.byo', { defaultValue: 'Brought by you' })} value={byo} onChange={setByo} suffix="%" max="100"
+        <NumberField t={t} label={tr('coach:business.earn.byo', { defaultValue: 'Clients with no Shape fee' })} value={byo} onChange={setByo} suffix="%" max="100"
           note={byoNote(base, tr)} />
       </div>
       <div style={{ marginTop: 16, display: 'flex', gap: 24, alignItems: 'flex-end', flexWrap: 'wrap' }}>

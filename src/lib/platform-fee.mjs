@@ -1,16 +1,22 @@
 // src/lib/platform-fee.mjs — framework-free platform-fee math (unit-tested).
 //
 // Single source of truth for Shape's fee on coach sales. Shape's standard rate is
-// 15% (the coach receives 85%). Coach-brought (BYO) clients pay 0% Shape
-// commission — origin attribution decides which rate applies, and the RESOLVED
+// 15% (the coach receives 85%), on every client who signs up through Shape. A
+// coach's existing clients pay 0% Shape commission (owner, 2026-11-12) — origin
+// attribution (./coach-origin.mjs) decides which rate applies, and the RESOLVED
 // rate is stamped on the row as basis points at checkout. EVERY helper here is
-// rate-aware (defaulting to the standard rate) so a BYO checkout can't, e.g.,
+// rate-aware (defaulting to the standard rate) so a 0% checkout can't, e.g.,
 // still apply the 15% store-credit cap while charging a 0% fee — at rate 0 the
 // credit cap computes to 0, which IS the no-credit rule falling out of the math.
 
 /** Shape's standard commission on coach revenue (85% to the coach). */
 export const PLATFORM_FEE_RATE = 0.15;
-/** Coach-brought (BYO) clients: 0% Shape commission (owner-ruled 2026-07-21). */
+/**
+ * A coach's existing clients: 0% Shape commission (owner, 2026-11-12: "Existing clients, Shape takes
+ * no cut from"). The name is the 2026-07-21 one, when every client a coach invited or linked paid
+ * it; now only a client on the coach's existing-client list does, and the tags from then until
+ * they expire (./coach-origin.mjs).
+ */
 export const BYO_FEE_RATE = 0;
 
 // Basis-point ⇄ rate conversions defined ONCE (1500 bps = 15% = 0.15). Origin

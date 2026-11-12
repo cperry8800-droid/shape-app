@@ -199,7 +199,7 @@ function TrainerHow() {
 function TrainerEarnings() {
   const [clients, setClients] = React.useState(20);
   // A monthly rate per client, as clients pay on Shape (Business review, 2026-10-17: this was a
-  // per-session price times a guessed number of sessions). Clients a coach brings pay no Shape fee.
+  // per-session price times a guessed number of sessions). A coach's existing clients pay no Shape fee.
   const [price, setPrice] = React.useState(150);
   const [byo, setByo] = React.useState(0);
   const PLATFORM_FEE_RATE = 0.15;
@@ -256,11 +256,11 @@ function TrainerEarnings() {
             </div>
             <div style={{ marginBottom: 32 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 12 }}>
-                <label style={{ fontFamily: sans, fontSize: 13, color: "rgba(242,237,228,0.7)" }}>Clients you bring</label>
+                <label style={{ fontFamily: sans, fontSize: 13, color: "rgba(242,237,228,0.7)" }}>Your existing clients</label>
                 <div style={{ fontFamily: serif, fontSize: 30, color: INK, letterSpacing: "-0.02em" }}>{byo}%</div>
               </div>
               <input type="range" min="0" max="100" step="5" value={byo} onChange={e => setByo(+e.target.value)} style={{ width: "100%", accentColor: TEAL }} />
-              <div style={{ fontFamily: sans, fontSize: 11.5, color: "rgba(242,237,228,0.45)", marginTop: 8 }}>No Shape fee on clients you bring.</div>
+              <div style={{ fontFamily: sans, fontSize: 11.5, color: "rgba(242,237,228,0.45)", marginTop: 8 }}>No Shape fee on clients you coached before Shape.</div>
             </div>
             <div style={{ padding: "22px 0 0", borderTop: "1px solid rgba(242,237,228,0.1)" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 10 }}>
@@ -289,7 +289,7 @@ function TrainerEarnings() {
             {/* The footnote carries the estimate's basis, so it reads at AA on the dark card (Copilot, #2555:
                 cream at 40% was about 3.4:1 at 11.5px; at 62% it is about 6.7:1). */}
             <div data-earn-footnote="" style={{ marginTop: 28, fontFamily: sans, fontSize: 11.5, color: "rgba(242,237,228,0.62)", lineHeight: 1.5 }}>
-              Estimate at one monthly rate per client. Shape takes 15% on clients who find you on Shape and nothing on clients you bring. {processingMonthly == null
+              Estimate at one monthly rate per client. Shape takes 15% on clients who sign up through Shape and no cut on your existing clients. {processingMonthly == null
                 ? "The take-home is before Stripe's card-processing fee, which comes out of your share."
                 : "Stripe's card processing comes out of your share: it is estimated here at Stripe's US card rate, 2.9% + 30¢ a charge, and 0.7% Stripe Billing on subscriptions, and your own Stripe pricing decides the real figure."} Actual earnings vary by specialty, location, and how many clients you take on.
             </div>

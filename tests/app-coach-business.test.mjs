@@ -1069,7 +1069,7 @@ test('an unread brought share and listing price say so in What clients earn you,
   world({ answer: p, listing: new Error('500') });
   let m = await mount(page({ tab: 'plan' }));
   assert.match(m.text(), /couldn't read your listing price · your clients' average/);
-  assert.match(m.text(), /couldn't read who you brought · set your own/);
+  assert.match(m.text(), /couldn't read who pays no Shape fee · set your own/);
   assert.doesNotMatch(m.text(), /no listing price yet|0% Shape fee on these|0% fee · /);
   const base = CF.planNumbers({ extra: p, listingMonthly: null, listingFailed: true });
   assert.deepEqual([base.rateFrom, base.listingUnread, base.broughtUnread], ['average', true, true]);

@@ -78,9 +78,9 @@ export default {
       find: '    if (p.y === t.y && p.mo === t.mo) marks.push', replace: '    if (true) marks.push' },
     // ── The fee, row by row
     { name: 'a brought client pays the fee', file: BIZ,
-      find: '  if (bps <= 0) return "brought by you · no fee";', replace: '  if (bps < 0) return "brought by you · no fee";' },
+      find: '  if (bps <= 0) return "no Shape fee";', replace: '  if (bps < 0) return "no Shape fee";' },
     { name: 'the fee is a constant', file: BIZ,
-      find: '  return "found you on Shape · " + (Math.round(bps / 10) / 10) + "% fee";', replace: '  return "found you on Shape · 15% fee";' },
+      find: '  return "through Shape · " + (Math.round(bps / 10) / 10) + "% fee";', replace: '  return "through Shape · 15% fee";' },
     { name: 'a row with no stored fee is not read from its net', file: BIZ,
       find: '  if (r && Number.isFinite(r.priceCents) && r.priceCents > 0 && Number.isFinite(r.netCents)) return Math.round(((r.priceCents - r.netCents) / r.priceCents) * 10000);', replace: '' },
     { name: 'a renewing plan gets Message', file: BIZ,

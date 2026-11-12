@@ -366,6 +366,25 @@ test('webhook: a coach plan\'s first month is announced with Shape\'s fee at the
   assert.equal(ended.db.tables.subscriptions[0].status, 'canceled', 'recorded as ended');
 });
 
+// A coach's existing client (owner, 2026-11-12: "Existing clients, Shape takes no cut from") lands at 0%
+// under its own origin: the webhook knows every origin checkout stamps (coach-origin.mjs KNOWN_ORIGINS),
+// and an origin it did not know would land as marketplace at 15%.
+test('webhook: an existing client\'s plan and purchase land as coach_existing at 0%', async () => {
+  const sub = await runWebhook(coaching({ metadata: meta({ origin: 'coach_existing', fee_bps: '0' }) }));
+  assert.equal(sub.status, 200);
+  const row = sub.db.tables.subscriptions[0];
+  assert.deepEqual([row.origin, row.fee_bps], ['coach_existing', 0]);
+  assert.equal(sub.announced[0].shapeFeeCents, 0);
+  const buy = await runWebhook(purchase({ origin: 'coach_existing', fee_bps: '0' }));
+  assert.equal(buy.status, 200);
+  const bought = buy.db.tables.one_time_purchases[0];
+  assert.deepEqual([bought.origin, bought.fee_bps], ['coach_existing', 0]);
+  // An existing client's origin next to the 15% rate is corrupted metadata: marketplace at 15%.
+  const mixed = await runWebhook(purchase({ origin: 'coach_existing', fee_bps: '1500' }));
+  const m = mixed.db.tables.one_time_purchases[0];
+  assert.deepEqual([m.origin, m.fee_bps], ['marketplace', 1500]);
+});
+
 test('webhook: the membership\'s first month is announced once its row is saved', async () => {
   const membership = coaching({ id: 'cs_member', amount_total: 500, metadata: { client_id: UID, plan: 'shape_platform', price_cents: '500' } });
   const r = await runWebhook(membership);

@@ -326,11 +326,11 @@ test('the month as one track: each renewal on its day on the account\'s clock, t
 
 // ── 6. Renewals explain the fee ───────────────────────────────────────────────
 test('every renewal says why Shape takes its fee or none; an ending plan gets Message', async () => {
-  assert.equal(B.dbzFeeLabel({ feeBps: 0 }), 'brought by you · no fee');
-  assert.equal(B.dbzFeeLabel({ feeBps: 1500 }), 'found you on Shape · 15% fee');
-  assert.equal(B.dbzFeeLabel({ feeBps: 1250 }), 'found you on Shape · 12.5% fee', 'the stored rate, never a constant');
-  assert.equal(B.dbzFeeLabel({ feeBps: null, priceCents: 18000, netCents: 15300 }), 'found you on Shape · 15% fee', 'a route before the field: read from what the row nets');
-  assert.equal(B.dbzFeeLabel({ priceCents: 18000, netCents: 18000 }), 'brought by you · no fee');
+  assert.equal(B.dbzFeeLabel({ feeBps: 0 }), 'no Shape fee', 'a renewal carries the fee, not the origin: 0% says only that (Codex on #2722)');
+  assert.equal(B.dbzFeeLabel({ feeBps: 1500 }), 'through Shape · 15% fee');
+  assert.equal(B.dbzFeeLabel({ feeBps: 1250 }), 'through Shape · 12.5% fee', 'the stored rate, never a constant');
+  assert.equal(B.dbzFeeLabel({ feeBps: null, priceCents: 18000, netCents: 15300 }), 'through Shape · 15% fee', 'a route before the field: read from what the row nets');
+  assert.equal(B.dbzFeeLabel({ priceCents: 18000, netCents: 18000 }), 'no Shape fee');
   assert.equal(B.dbzFeeLabel({ feeBps: null, priceCents: null, netCents: null }), "fee couldn't be read");
   messages.length = 0;
   const rows = [
@@ -338,11 +338,11 @@ test('every renewal says why Shape takes its fee or none; an ending plan gets Me
     { name: 'Ben K', clientId: 'b', dueAt: '2026-11-11T12:00:00Z', priceCents: 18000, netCents: 18000, feeBps: 0, ending: true },
   ];
   const m = await mount(React.createElement(B.DbzRenewalsZone, { live: true, renewals: rows, clients: [], role: 'nutritionist' }));
-  assert.deepEqual([...m.div.querySelectorAll('[data-dbz-fee]')].map((e) => e.textContent), ['found you on Shape · 15% fee', 'brought by you · no fee']);
+  assert.deepEqual([...m.div.querySelectorAll('[data-dbz-fee]')].map((e) => e.textContent), ['through Shape · 15% fee', 'no Shape fee']);
   assert.deepEqual([...m.div.querySelectorAll('[data-dbz-renewal]')].map((e) => e.getAttribute('data-dbz-renewal') + ':' + e.querySelectorAll('button').length), ['renews:0', 'cancelled:1']);
   await click(m.div.querySelector('[data-dbz-renewal="cancelled"] button'));
   assert.deepEqual(messages, [{ name: 'Ben K', role: 'nutritionist', draft: null, id: 'b' }]);
-  assert.match(m.text(), /Net to you, after Shape's fee: 15% on a client who found you on Shape, none on a client you brought\./);
+  assert.match(m.text(), /Net to you, after Shape's fee: 15% on a client who signed up through Shape, none on your existing clients \(or an invite or link from before November 12, 2026\)\./);
   await m.unmount();
   // The routes send the stored fee on each row (coach-renewals.mjs).
   const { renewalRows } = await import('../src/lib/coach-renewals.mjs');
