@@ -236,13 +236,34 @@ function NavCaret({ open }) {
 // handler therefore toggles ONLY when there is no `href` to go to.
 function NavDropdown({ label, href, items, active, activeMatch }) {
   const [open, setOpen] = React.useState(false);
+  const wrap = React.useRef(null);
   const closeTimer = React.useRef(null);
+  const quietFocus = React.useRef(false);
   const cancelClose = () => { if (closeTimer.current) { clearTimeout(closeTimer.current); closeTimer.current = null; } };
-  const scheduleClose = () => { cancelClose(); closeTimer.current = setTimeout(() => setOpen(false), 150); };
+  // The pointer leaving does not close a menu the keyboard is inside: its items would unmount
+  // under the focus and drop it to the page.
+  const scheduleClose = () => { cancelClose(); closeTimer.current = setTimeout(() => { if (!(wrap.current && wrap.current.contains(document.activeElement))) setOpen(false); }, 150); };
   const isActive = activeMatch.includes(active);
+  // ⚠ THE KEYBOARD OPENS IT TOO (Codex P2 on #2723). The trigger is a link to its own page, so
+  // Enter navigates rather than toggles, and the items are not in the DOM until `open`: a menu
+  // opened by hover alone put For coaches, For trainers and For nutritionists (and the Shape
+  // Store) out of reach of the keyboard. Focus on the trigger opens it, Tab walks into the items,
+  // focus leaving the whole menu closes it, and Escape closes it and returns to the trigger.
+  // React's onFocus/onBlur bubble (focusin/focusout), so the wrapper sees its items' focus.
+  // `quietFocus` keeps Escape's own move back to the trigger from opening it again.
   return (
-    <div style={{ position: "relative", display: "inline-flex", alignItems: "center", height: "100%" }} onMouseEnter={() => { cancelClose(); setOpen(true); }} onMouseLeave={scheduleClose}>
-      <a href={href || undefined} className="shape-nav-link"
+    <div ref={wrap} style={{ position: "relative", display: "inline-flex", alignItems: "center", height: "100%" }} onMouseEnter={() => { cancelClose(); setOpen(true); }} onMouseLeave={scheduleClose}
+      onFocus={() => { if (quietFocus.current) { quietFocus.current = false; return; } cancelClose(); setOpen(true); }}
+      onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) { cancelClose(); setOpen(false); } }}
+      onKeyDown={(e) => {
+        if (e.key !== "Escape" || !open) return;
+        cancelClose(); setOpen(false);
+        const trigger = e.currentTarget.querySelector("a");
+        // focus() dispatches focusin synchronously, so the flag is spent inside the call; it is
+        // cleared after as well, in case no focus event fired.
+        if (trigger && trigger !== e.target) { quietFocus.current = true; trigger.focus(); quietFocus.current = false; }
+      }}>
+      <a href={href || undefined} className="shape-nav-link" aria-haspopup="true" aria-expanded={open}
         onClick={href ? undefined : () => setOpen(o => !o)}
         style={{ fontFamily: navSans, fontSize: 13.5, fontWeight: 500, color: isActive ? "var(--sh-nav-ink, #f5efe1)" : "rgba(var(--sh-nav-ink-rgb, 245,239,225),0.78)", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 5, lineHeight: 1, whiteSpace: "nowrap", textDecoration: isActive ? "underline" : "none", textDecorationColor: TEAL_BRIGHT, textDecorationThickness: 1.5, textUnderlineOffset: 9 }}>
         {label}<NavCaret open={open} />
