@@ -4,8 +4,10 @@
 // Run: node scripts/mutate.mjs --spec tests/mutations/coach-alerts-weight.mutations.mjs --fail-on-skipped
 const ENG = 'public/newdesign/dashSignals.js';
 const SET = 'public/newdesign/coachSettings.jsx';
+const SCREEN = 'src/lib/health-screening.ts';
+const FIRST = 'mobile-app/src/services/firstRun.mjs';
 export default {
-  test: 'node --test tests/coach-alerts-weight.test.mjs tests/coach-settings.test.mjs tests/coach-settings-sections.test.mjs tests/dash-signals.test.mjs tests/dash-goals.test.mjs tests/coach-actions.test.mjs tests/coach-alerts-trainer.test.mjs',
+  test: 'node --test tests/coach-alerts-weight.test.mjs tests/health-screening.test.mjs tests/signup-answers.test.mjs tests/coach-settings.test.mjs tests/coach-settings-sections.test.mjs tests/dash-signals.test.mjs tests/dash-goals.test.mjs tests/coach-actions.test.mjs tests/coach-alerts-trainer.test.mjs',
   mutations: [
     // ── the read ──
     { name: 'a goal of any metric is the weight goal', file: ENG,
@@ -16,6 +18,17 @@ export default {
       find: '    var startKg = g.start != null && isFinite(Number(g.start)) && Number(g.start) > 0 ? toWeightUnit(Number(g.start), unit, "kg") : pts[0].kg;', replace: '    var startKg = pts[0].kg;' },
     { name: 'a goal at its start weight reads as loss', file: ENG,
       find: '    var dir = targetKg < startKg ? "loss" : targetKg > startKg ? "gain" : null;', replace: '    var dir = targetKg <= startKg ? "loss" : "gain";' },
+    { name: 'the live weigh-ins are not read', file: ENG,
+      find: '    weightSeriesIn(c && c.weighIns, "kg").forEach(function (p) {', replace: '    [].forEach(function (p) {' },
+    { name: 'the goal\'s reading wins over the live one', file: ENG,
+      find: '      if (on && on.getTime() <= now.getTime()) byDay[p.on] = { on: on, kg: p.value };', replace: '      if (on && on.getTime() <= now.getTime() && !byDay[p.on]) byDay[p.on] = { on: on, kg: p.value };' },
+    // ── the GLP-1 answer on a screening from before it (Codex on #2720) ──
+    { name: 'a screening without the GLP-1 answer is complete at hire', file: SCREEN,
+      find: "  return !!d.consentAt && (d.glp1 === 'yes' || d.glp1 === 'no');", replace: '  return !!d.consentAt;' },
+    { name: 'first run asks no one the GLP-1 question', file: FIRST,
+      find: "  if (health && health.consentAt) return health.glp1 === 'yes' || health.glp1 === 'no' || onb.wantsCoaching !== true ? 'ok' : 'health';", replace: "  if (health && health.consentAt) return 'ok';" },
+    { name: 'first run asks everyone the GLP-1 question', file: FIRST,
+      find: "  if (health && health.consentAt) return health.glp1 === 'yes' || health.glp1 === 'no' || onb.wantsCoaching !== true ? 'ok' : 'health';", replace: "  if (health && health.consentAt) return health.glp1 === 'yes' || health.glp1 === 'no' ? 'ok' : 'health';" },
     // ── the trend ──
     { name: 'the trend needs two weigh-ins', file: ENG,
       find: '    if (pts.length < THRESHOLDS.WEIGH_MIN_POINTS) return null;', replace: '    if (pts.length < 2) return null;' },
@@ -55,7 +68,15 @@ export default {
       find: '      if (p.on.getTime() <= day.getTime() && day.getTime() - p.on.getTime() <= 4 * DAY + DAY - 1) best = p;', replace: '      if (p.on.getTime() <= day.getTime()) best = p;' },
     // ── the weigh-in gap ──
     { name: 'the gap a day early', file: ENG,
-      find: '    if (gap < THRESHOLDS.WEIGHIN_GAP_DAYS) return null;\n    var before', replace: '    if (gap < THRESHOLDS.WEIGHIN_GAP_DAYS - 1) return null;\n    var before' },
+      find: '    if (gap == null || gap < THRESHOLDS.WEIGHIN_GAP_DAYS) return null;\n    var before', replace: '    if (gap == null || gap < THRESHOLDS.WEIGHIN_GAP_DAYS - 1) return null;\n    var before' },
+    { name: 'the gap counts from before a break', file: ENG,
+      find: '    if (backDay && lastDay < backDay) { gap = bp.day; sinceBreak = true; }', replace: '' },
+    { name: 'the gap counts from a break before the last weigh-in', file: ENG,
+      find: '    if (backDay && lastDay < backDay) { gap = bp.day; sinceBreak = true; }', replace: '    if (backDay) { gap = bp.day; sinceBreak = true; }' },
+    { name: 'the gap reads a break only 14 days back', file: ENG,
+      find: '    var bp = pauseOf(c, now, Infinity);', replace: '    var bp = pauseOf(c, now);' },
+    { name: 'the gap reads a break only a day past its line', file: ENG,
+      find: '    var bp = pauseOf(c, now, Infinity);', replace: '    var bp = pauseOf(c, now, Math.max(PAUSE_BOUND_DAYS, THRESHOLDS.WEIGHIN_GAP_DAYS + 1));' },
     { name: 'the gap needs no weekly habit', file: ENG,
       find: '    if (before.length < 4) return null;', replace: '' },
     { name: 'the gap speaks on a break', file: ENG,

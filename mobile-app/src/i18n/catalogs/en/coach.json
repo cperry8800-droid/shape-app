@@ -311,6 +311,7 @@
   "case.rowGlp1": "GLP-1 medication",
   "case.glp1Yes": "Yes — the weight alerts use its own lines",
   "case.glp1No": "No",
+  "case.glp1Unanswered": "Not answered yet",
   "case.screening": "SCREENING · HEALTH PROFILE",
   "case.screeningShared": "Shared with linked coaches for safety · completed {date}",
   "case.selfProgrammed": "SELF-PROGRAMMED",

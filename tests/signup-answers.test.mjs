@@ -229,7 +229,12 @@ test('the first-run steps: the goal, the coaching question, and the screening on
   assert.equal(bsFirstRunStage({ intentSeen: true, wantsCoaching: true }, null), 'health');
   assert.equal(bsFirstRunStage({ intentSeen: true, wantsCoaching: false }, null), 'ok', 'a no is never screened at first run');
   assert.equal(bsFirstRunStage({ intentSeen: true }, { consentAt: '2026-01-01' }), 'ok', 'a completed screening ends the steps');
-  assert.equal(bsFirstRunStage({ intentSeen: true, wantsCoaching: true }, { consentAt: '2026-01-01' }), 'ok');
+  assert.equal(bsFirstRunStage({ intentSeen: true, wantsCoaching: true }, { consentAt: '2026-01-01', glp1: 'no' }), 'ok');
+  // A screening from before the GLP-1 question (Codex on #2720): asked of a member who wants coaching,
+  // with their answers in place; anyone else is asked when they hire (hasCompletedScreening).
+  assert.equal(bsFirstRunStage({ intentSeen: true, wantsCoaching: true }, { consentAt: '2026-01-01' }), 'health');
+  assert.equal(bsFirstRunStage({ intentSeen: true, wantsCoaching: false }, { consentAt: '2026-01-01' }), 'ok');
+  assert.match(CLIENT, /<BSHealthIntake onDone=\{\(doc\) => setFirstRun\(\(f\) => \(\{ \.\.\.f, health: doc, stage: 'ok' \}\)\)\} initial=\{firstRun\.health \|\| null\} \/>/, 'opened with their answers');
   assert.equal(bsFirstRunStage({ intentSeen: true, wantsCoaching: true }, { parq: [] }), 'health', 'a screening without consent is not complete');
   assert.equal(bsFirstRunStage(null, null), 'intent');
   assert.equal(bsFirstRunNeedsSeed({}), true);

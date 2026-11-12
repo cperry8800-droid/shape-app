@@ -311,6 +311,7 @@
   "case.rowGlp1": "Farmaco GLP-1",
   "case.glp1Yes": "Sì — gli avvisi sul peso usano soglie proprie",
   "case.glp1No": "No",
+  "case.glp1Unanswered": "Non ancora risposto",
   "case.screening": "VALUTAZIONE · PROFILO SANITARIO",
   "case.screeningShared": "Condiviso con i coach collegati per sicurezza · completato il {date}",
   "case.selfProgrammed": "AUTO-PROGRAMMATO",

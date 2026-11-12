@@ -469,7 +469,8 @@
   // away, and a coach's surface runs on the coach's day: a coach a day ahead saw "Back from a break"
   // while the member was still away. `backAt` (get_client_pause) is the instant their return day
   // begins, the same in every zone; without it (a snapshot saved before it), the viewer's day.
-  function pauseOf(c, now) {
+  // `bound`: how many days back it still reads (PAUSE_BOUND_DAYS by default); the weigh-in gap reads it longer.
+  function pauseOf(c, now, bound) {
     var p = c && c.pause;
     if (!p || typeof p !== "object" || typeof p.until !== "string" || !ISO_DAY.test(p.until)) return null;
     var by = typeof p.by === "string" ? p.by : null;
@@ -496,7 +497,7 @@
       if (iso(now) <= p.until) return { state: "paused", until: p.until, by: by };
       day = daysBetween(back, now);
     }
-    if (day >= PAUSE_BOUND_DAYS) return null;
+    if (day >= (bound || PAUSE_BOUND_DAYS)) return null;
     return { state: "back", until: p.until, since: iso(back), day: day, fresh: day < PAUSE_BACK_DAYS, by: by };
   }
   // Local midnight of the day they came back from a break, while the gaps still count from it; else null.
@@ -1591,8 +1592,17 @@
     for (var i = 0; i < gs.length; i++) if (gs[i] && gs[i].metric === "weight") { g = gs[i]; break; }
     if (!g || g.target == null || !isFinite(Number(g.target))) return null;
     var unit = g.unit || "lb";
-    var pts = goalSeries(g, now).map(function (p) { return { on: p.on, kg: toWeightUnit(p.value, unit, "kg") }; })
-      .filter(function (p) { return p.kg > 0; });
+    // ⚠ THE LIVE WEIGH-INS TOO (Codex on #2720): a coach goal keeps its own history once it has two
+    // points (goalsFromDoc), so the weigh-ins logged since were not read, and a client weighing in every
+    // week could read a gap. The goal's points and the record's weigh-ins, one a day, the live one on a
+    // day both have.
+    var byDay = {};
+    goalSeries(g, now).forEach(function (p) { byDay[iso(p.on)] = { on: p.on, kg: toWeightUnit(p.value, unit, "kg") }; });
+    weightSeriesIn(c && c.weighIns, "kg").forEach(function (p) {
+      var on = toDate(p.on);
+      if (on && on.getTime() <= now.getTime()) byDay[p.on] = { on: on, kg: p.value };
+    });
+    var pts = Object.keys(byDay).sort().map(function (k) { return byDay[k]; }).filter(function (p) { return p.kg > 0; });
     if (!pts.length) return null;
     var started = toDate(g.startedOn) || pts[0].on;
     var startDay = new Date(started.getTime()); startDay.setHours(0, 0, 0, 0);
@@ -1664,9 +1674,20 @@
     var last = r.pts[r.pts.length - 1];
     var lastDay = new Date(last.on.getTime()); lastDay.setHours(0, 0, 0, 0);
     var gap = daysBetween(lastDay, now);
-    if (gap < THRESHOLDS.WEIGHIN_GAP_DAYS) return null;
+    // ⚠ FROM THE DAY THEY CAME BACK, NOT FROM BEFORE A BREAK (as the other gaps): a last weigh-in from
+    // before it counts the days since their return. ⚠ UNTIL THEY WEIGH IN AGAIN (Codex on #2721, twice): the
+    // other gaps stop reading a break 14 days back (PAUSE_BOUND_DAYS), and a gap still open then went back to
+    // counting from before it, a new episode with a new sig, so a dismissed one came back. With no weigh-in
+    // since, the days since the return are the gap, however long ago it was. ⚠ THE READ STILL ENDS: the
+    // overview's get_client_pause returns a break only up to 15 days after it ends, so past that this
+    // counts from before it again (War Room: the owner decides on a migration; Codex on #2721).
+    var bp = pauseOf(c, now, Infinity);
+    var backDay = bp && bp.state === "back" ? toDate(bp.since) : null, sinceBreak = false;
+    if (backDay && lastDay < backDay) { gap = bp.day; sinceBreak = true; }
+    if (gap == null || gap < THRESHOLDS.WEIGHIN_GAP_DAYS) return null;
     var before = r.pts.filter(function (p) { return p.on.getTime() <= last.on.getTime() && last.on.getTime() - p.on.getTime() < 28 * DAY; });
     if (before.length < 4) return null;
+    if (sinceBreak) return { key: "weighin_gap", label: "No weigh-in " + gap + "d", reason: "No weigh-in in the " + gap + " days since their break", figures: { days: gap, sinceBreak: true }, sig: "back:" + iso(backDay) };
     return { key: "weighin_gap", label: "No weigh-in " + gap + "d", reason: "No weigh-in for " + gap + " days", figures: { days: gap }, sig: "last:" + iso(lastDay) };
   }
   // A slow start on a weight-loss goal (amber, progress): under SLOW_START_EARLY_PCT lost by week 4, or
@@ -2306,6 +2327,8 @@
           { id: "g-weight", label: "Goal weight", metric: "weight", unit: "lb", target: 135, start: 150, startedOn: ago(49), setBy: "nutritionist",
             history: gh([[49, 150], [42, 149], [35, 148], [28, 147], [21, 146], [14, 144.2], [7, 142.5], [1, 140.8]]) },
         ],
+        // Her own weigh-ins, the same as her goal's (the weight alerts read both).
+        weighIns: [[21, 146], [14, 144.2], [7, 142.5], [1, 140.8]].map(function (p) { return { on: ago(p[0]), weight: p[1], unit: "lb" }; }),
         payments: pay(22000, 1, 210, "marketplace"),
         recentLogs: [
           { on: ago(0), kcal: 1815, protein: 92 },

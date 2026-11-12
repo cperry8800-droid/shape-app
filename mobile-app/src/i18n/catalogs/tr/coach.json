@@ -311,6 +311,7 @@
   "case.rowGlp1": "GLP-1 ilacı",
   "case.glp1Yes": "Evet — kilo uyarıları kendi sınırlarını kullanır",
   "case.glp1No": "Hayır",
+  "case.glp1Unanswered": "Henüz yanıtlanmadı",
   "case.screening": "TARAMA · SAĞLIK PROFİLİ",
   "case.screeningShared": "Güvenlik için bağlı koçlarla paylaşıldı · {date} tarihinde tamamlandı",
   "case.selfProgrammed": "KENDİ PROGRAMI",

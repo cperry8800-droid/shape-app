@@ -311,6 +311,7 @@
   "case.rowGlp1": "Препарат GLP-1",
   "case.glp1Yes": "Да — для оповещений о весе свои пороги",
   "case.glp1No": "Нет",
+  "case.glp1Unanswered": "Пока без ответа",
   "case.screening": "СКРИНИНГ · ПРОФИЛЬ ЗДОРОВЬЯ",
   "case.screeningShared": "Доступно привязанным тренерам для безопасности · заполнено {date}",
   "case.selfProgrammed": "САМОСТОЯТЕЛЬНО СОСТАВЛЕНО",

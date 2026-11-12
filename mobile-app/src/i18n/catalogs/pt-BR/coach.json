@@ -311,6 +311,7 @@
   "case.rowGlp1": "Medicamento GLP-1",
   "case.glp1Yes": "Sim — os alertas de peso usam limites próprios",
   "case.glp1No": "Não",
+  "case.glp1Unanswered": "Ainda sem resposta",
   "case.screening": "TRIAGEM · PERFIL DE SAÚDE",
   "case.screeningShared": "Compartilhado com os coaches vinculados por segurança · concluído {date}",
   "case.selfProgrammed": "AUTOPROGRAMADO",

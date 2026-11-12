@@ -114,8 +114,35 @@ test('a weigh-in gap: none for 14 days, for a client who weighed in weekly over 
   // Two weigh-ins in the 4 weeks before: never a weekly habit to miss.
   const sparse = base(goal({ start: 85, target: 78, from: 80, pts: [[60, 84], [40, 83.6], [20, 83.2]] }));
   assert.equal(flag(feed('nutritionist', sparse), 'weighin_gap'), null);
+  // A coach goal's own history stops, the member's weigh-ins go on (Codex on #2720): read both.
+  const frozen = weekly(30);
+  const live = { ...frozen, weighIns: [[23, 82.9], [16, 82.7], [9, 82.6], [2, 82.4]].map(([d, v]) => ({ on: day(d), weight: v, unit: 'kg' })) };
+  assert.ok(flag(feed('nutritionist', frozen), 'weighin_gap'), 'the goal\'s history alone: 30 days');
+  assert.equal(flag(feed('nutritionist', live), 'weighin_gap'), null, 'weighed in 2 days ago');
+  // …in their own unit, and the live reading wins on a day both have one.
+  const lb = { ...base(goal({ start: 85, target: 72, from: 35, pts: [[35, 85], [21, 83.6], [14, 82.5], [7, 81.4], [1, 85]] })), weighIns: [{ on: day(1), weight: 177, unit: 'lb' }] };
+  assert.ok(flag(feed('nutritionist', lb), 'weight_fast'), '177 lb is 80.3 kg: still losing fast');
   // On a break it is quiet.
   assert.equal(flag(feed('nutritionist', weekly(15, { pause: { until: day(-5), by: 'client' } })), 'weighin_gap'), null);
+  // After one it counts from the day they came back, never from before it.
+  assert.equal(flag(feed('nutritionist', weekly(30, { pause: { until: day(5), by: 'client' } })), 'weighin_gap'), null, '5 days back, 30 since the last');
+  const ten = DS.resolveThresholds({ WEIGHIN_GAP_DAYS: 10 }, 'nutritionist').thresholds;
+  assert.equal(flag(feed('nutritionist', weekly(40, { pause: { until: day(12), by: 'client' } }), ten), 'weighin_gap').reason, 'No weigh-in in the 11 days since their break', 'at a 10-day line');
+  // At the house 14 days and over it, still from the return (Codex on #2721): the other gaps stop reading
+  // a break 14 days back, this one a day past its own line.
+  assert.equal(flag(feed('nutritionist', weekly(40, { pause: { until: day(15), by: 'client' } })), 'weighin_gap').reason, 'No weigh-in in the 14 days since their break', 'at the house line');
+  const twenty = DS.resolveThresholds({ WEIGHIN_GAP_DAYS: 20 }, 'nutritionist').thresholds;
+  assert.equal(flag(feed('nutritionist', weekly(30, { pause: { until: day(16), by: 'client' } }), twenty), 'weighin_gap'), null, '15 days back under a 20-day line');
+  assert.equal(flag(feed('nutritionist', weekly(30, { pause: { until: day(21), by: 'client' } }), twenty), 'weighin_gap').reason, 'No weigh-in in the 20 days since their break');
+  // …and the days after it, the same episode (Codex on #2721): still counted from the return, the same sig.
+  const day14 = flag(feed('nutritionist', weekly(40, { pause: { until: day(15), by: 'client' } })), 'weighin_gap');
+  // The same record read a day later.
+  const day15 = DS.getTriageFeed('nutritionist', [weekly(40, { pause: { until: day(15), by: 'client' } })], new Date(NOW.getTime() + 86400000))[0].flags.find((f) => f.key === 'weighin_gap');
+  assert.equal(day15.reason, 'No weigh-in in the 15 days since their break', 'a day later');
+  assert.equal(day15.sig, day14.sig, 'one episode');
+  assert.equal(flag(feed('nutritionist', weekly(60, { pause: { until: day(41), by: 'client' } })), 'weighin_gap').reason, 'No weigh-in in the 40 days since their break', 'long after');
+  const five = DS.resolveThresholds({ WEIGHIN_GAP_DAYS: 5 }, 'nutritionist').thresholds;
+  assert.equal(flag(feed('nutritionist', weekly(6, { pause: { until: day(12), by: 'client' } }), five), 'weighin_gap').reason, 'No weigh-in for 6 days', 'weighed in after the break: from that weigh-in');
   // A trainer with a nutritionist on sees it as theirs.
   const t = feed('trainer', weekly(15));
   assert.equal(t.severity, 'green');

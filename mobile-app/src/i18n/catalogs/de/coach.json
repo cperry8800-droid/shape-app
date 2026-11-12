@@ -311,6 +311,7 @@
   "case.rowGlp1": "GLP-1-Medikament",
   "case.glp1Yes": "Ja — die Gewichtswarnungen nutzen eigene Grenzen",
   "case.glp1No": "Nein",
+  "case.glp1Unanswered": "Noch nicht beantwortet",
   "case.screening": "SCREENING · GESUNDHEITSPROFIL",
   "case.screeningShared": "Aus Sicherheitsgründen mit verknüpften Coaches geteilt · abgeschlossen {date}",
   "case.selfProgrammed": "SELBST PROGRAMMIERT",

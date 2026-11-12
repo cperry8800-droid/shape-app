@@ -185,7 +185,7 @@ test('appendParam puts the parameter in the query, before any fragment, whether 
 // ── /api/stripe/checkout-session: coaching needs the membership ─────────────────────────────
 // `screening`: the buyer's own health_profile document (fix 2b). Completed by default, so each
 // test here is about what it names; null is a buyer who has not completed it.
-async function coachRoute({ profile = ADULT, platform = [], subscriptions = [], fail = [], errors = {}, stripeSubs = [], emailSubs = [], stripeThrows = false, customerFails = false, open = [], table = claimsTable(), rpcError = null, createDelay = 0, onCreated = null, onList = null, afterCheck = null, screening = { consentAt: '2026-10-01T00:00:00Z' }, atCapacity = false, invite = 'no' } = {}) {
+async function coachRoute({ profile = ADULT, platform = [], subscriptions = [], fail = [], errors = {}, stripeSubs = [], emailSubs = [], stripeThrows = false, customerFails = false, open = [], table = claimsTable(), rpcError = null, createDelay = 0, onCreated = null, onList = null, afterCheck = null, screening = { consentAt: '2026-10-01T00:00:00Z', glp1: 'no' }, atCapacity = false, invite = 'no' } = {}) {
   const { requestUtils, returnPath, membershipCore, platformFee } = await baseModules();
   const created = [];
   const createdOpts = [];
