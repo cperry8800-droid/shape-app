@@ -855,11 +855,13 @@ function ChatWidget(props) {
   const [threadsByTab, setThreadsByTab] = React.useState(() => tabs.map(t => t.threads));
   // Nora's greeting and suggestions for this account (GET /api/support/chat), fetched the
   // first time the widget opens. It replaces the seed greeting only while her thread is
-  // untouched, so a conversation already under way is never rewritten.
+  // untouched, so a conversation already under way is never rewritten. A popped-out window is
+  // always open though its `open` stays false, so it asks at once (Codex P2 on #2725: its
+  // welcome cards had no lines, and its greeting was the seed's).
   const greetedRef = React.useRef(false);
   const [noraGreeting, setNoraGreeting] = React.useState(null);
   React.useEffect(() => {
-    if (!open || greetedRef.current) return;
+    if (!(open || docked) || greetedRef.current) return;
     greetedRef.current = true;
     fetch("/api/support/chat", { credentials: "same-origin" })
       .then((r) => (r.ok ? r.json() : null))
@@ -872,7 +874,7 @@ function ChatWidget(props) {
         setNoraGreeting({ text: g.text, quick, hints });
       })
       .catch(() => {});
-  }, [open]);
+  }, [open, docked]);
   const [activeByTab, setActiveByTab] = React.useState(() => tabs.map(() => 0));
   const [draftByTab, setDraftByTab] = React.useState(() => tabs.map(() => ""));
   const [typing, setTyping] = React.useState(false);

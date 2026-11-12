@@ -1091,3 +1091,17 @@ test('the docked panel: a welcome with her cards stands in for her greeting, the
     await m.done();
   }
 });
+
+// Codex P2 on #2725: a popped-out window is always open while its `open` stays false, so it never
+// asked for the account's greeting, and its welcome cards had no lines.
+test('the popped-out window asks for her greeting at once, so its welcome cards carry their lines', async () => {
+  const m = await mount({ docked: true, stored: [], greeting: { text: 'Hi, I am Nora.', quick: ['How do I log a meal?'], hints: { 'How do I log a meal?': 'Logged once you confirm it.' } } });
+  try {
+    assert.ok(m.calls.includes('GET /api/support/chat'), 'asked without an open');
+    const card = m.w.document.querySelector('[data-nora-suggest] button');
+    assert.ok(card, 'the welcome is drawn in the window');
+    assert.equal(card.querySelector('.cw-nora-card-h').textContent, 'Logged once you confirm it.');
+  } finally {
+    await m.done();
+  }
+});
