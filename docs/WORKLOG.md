@@ -50,7 +50,8 @@ The rules and the code map. Every session loads it: when a rule changes, replace
   production database: no destructive migrations there.
 - **Plugins:** the owner's claude.ai plugins load here as `<name>@synced`; `.claude/settings.json`
   turns off each one Shape doesn't use (on: superpowers, vectorlab-ux-skills, design, figma,
-  marketing). One added to the account later loads until it gets a `false` line there.
+  marketing, and for social posts and videos social-media-skills, canva, adobe-for-creativity,
+  remotion). One added to the account later loads until it gets a `false` line there.
 - **No colored emoji in new work:** typographic symbols (⚙ ↗ ✓ → × ♡ ＋ #) or theme-tinted
   SVG. Leave existing emoji.
 - **Generated media (Higgsfield):** each clip and track in the Sources table of
@@ -68,6 +69,8 @@ The rules and the code map. Every session loads it: when a rule changes, replace
   through `livingShared.jsx`'s `useLvCoachCommerce`. Its colours and its Coaches card's
   (`marketplace.jsx`) are the coach's look through the kit's `bsCoachPagePalette` (null: the Climb),
   as are the app's coach page (`BSCoachClimb.jsx` `bsClimbTheme`) and Coaches cards (`coachCardLook.mjs`).
+  `chatWidget.jsx` is Nora and Chat: one panel docked to the right edge over a dimmed page; Nora's
+  door opens on a welcome with suggestion cards, and her answers read as text, not bubbles.
 - **Next.js (`src/`):** API routes, `/dashboard`, `/admin`. Read the Next docs first;
   CI typechecks (`npx tsc --noEmit`). A new route goes in the War Room's `RAW_ROUTES`. A
   route the app calls reads the caller with `clientForRequest`/`currentUser`

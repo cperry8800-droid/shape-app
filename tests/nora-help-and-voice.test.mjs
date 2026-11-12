@@ -34,12 +34,13 @@ test('app Help: bsOpenNora sends the same request as search\'s Nora hit', () => 
 test('website: voice controls show only to someone the gate lets through', () => {
   assert.match(WEB, /const canVoice = member === true(;| \|\| voiceGate === true;)/);
   const guarded = [
-    '{!m.me && isSupport && canVoice && (() => {',
-    '{canVoice && <button onClick={() => setNoraEnabled(!noraVoice.enabled)}',
     '{isSupport && canVoice && talkSupported && (',
     '{isSupport && canVoice && voiceSupported && (',
   ];
   for (const g of guarded) assert.ok(WEB.includes(g), `guarded: ${g.split('\n')[0]}`);
+  // Listen under each of her answers, and Read replies aloud in her ⋯ menu (the panel of 2026-11-12).
+  assert.match(WEB, /\{canVoice && \(\s*<div className="cw-nora-tools">/, 'guarded: Listen');
+  assert.match(WEB, /\{canVoice && \(\s*<button type="button" onClick=\{\(\) => setNoraEnabled\(!noraVoice\.enabled\)\}/, 'guarded: Read replies aloud');
   // No voice picker in the pop-up (owner, 2026-10-17): Voice on/off is the choice; the voice
   // itself is the app's Settings', synced through the account and still sent with each read.
   assert.doesNotMatch(WEB, /<select value=\{noraVoice\.voice\}|Auto voice|setNoraVoiceId/);

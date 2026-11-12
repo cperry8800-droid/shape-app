@@ -66,10 +66,37 @@ const PLAIN = {
   },
 };
 
+// What each suggestion gets Nora to do, in a line under it on the website's welcome cards
+// (owner, 2026-11-12: Nora's panel to look and flow like Ladder's, whose cards carry one).
+// Keyed by the suggestion, so a suggestion without a line here is a card with its title only.
+// Each line says only what the suggestion above it already does for that account.
+const HINTS = {
+  'Find me a coach': 'Coaches on Shape who fit your goal.',
+  'What does Shape cost?': 'Membership, coaching, and what each includes.',
+  'How does coaching work?': 'Plans, check-ins and messages with a coach.',
+  'Is a coach required?': 'What you can do on Shape on your own.',
+  'What does a membership include?': 'Nora, Shape Radio, the Store and the full leaderboard.',
+  'How do I cancel or change my plan?': 'Change or cancel your membership, step by step.',
+  "What's on today?": "Today's sessions and meals from your plan.",
+  'How was my week?': 'Your training and eating this week, in brief.',
+  'Log a glass of water': 'Logged once you confirm it.',
+  'What needs me today?': 'Clients and sessions waiting on you.',
+  'Draft a 45-minute lower-body session': 'A draft for you to review before it saves.',
+  'Draft a 4-week strength program': 'Nothing changes until you confirm it.',
+  'Look up a client': 'Find a client and see where they are.',
+  'Draft a 3-day cut meal plan': "From Shape's meal library, for you to review.",
+  "Set a client's protein goal": 'Drafted for you to confirm.',
+  'Look up an account by email': 'Read-only, and every lookup is logged.',
+  'What does Shape take from coaches?': 'The coach fee, and when it applies.',
+  'How does the Verified badge work?': 'What it means and how a coach gets it.',
+};
+
 export function greetingFor(kind, { plain = false } = {}) {
   const known = GREETINGS[kind] ? kind : 'visitor';
   const g = (plain && PLAIN[known]) || GREETINGS[known];
-  return { kind: known, text: g.text, quick: g.quick.slice(0, 4) };
+  const quick = g.quick.slice(0, 4);
+  const hints = Object.fromEntries(quick.filter((q) => HINTS[q]).map((q) => [q, HINTS[q]]));
+  return { kind: known, text: g.text, quick, hints };
 }
 
 export const GREETING_KINDS = Object.keys(GREETINGS);
