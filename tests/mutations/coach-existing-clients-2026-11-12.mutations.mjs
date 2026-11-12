@@ -120,6 +120,8 @@ export default {
       replace: 'No invoicing, no chasing payments. Shape takes 15% on clients who find you on Shape and nothing on clients you bring.' },
     { name: 'the Terms give 0% to a client from an invite or link again', file: TERMS,
       find: '<li><strong>Your existing clients — 0%.</strong>', replace: '<li><strong>Clients you brought yourself — 0%.</strong>' },
+    { name: 'the Terms leave out the window of a coach who joined before the rule (Codex on #2722)', file: TERMS,
+      find: ', within 60 days of joining Shape, or by January 11, 2027 if you joined before November 12, 2026)', replace: ', within 60 days of joining Shape)' },
     { name: 'the coaches page promises the 30-day invite window again', file: COACHES,
       find: '"Yes. In the app, list the clients you coached before Shape by the email they use on Shape, within 60 days of joining: they pay no Shape fee on their plans with you.',
       replace: '"Yes. Send them your invite or your referral link: a client who subscribes within 30 days of it pays no Shape fee on that plan, for as long as it renews.' },

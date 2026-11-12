@@ -13,6 +13,7 @@ import { createRequire } from 'node:module';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, join } from 'node:path';
 import { loadRealModule } from './helpers/load-real-module.mjs';
+import { existingClientsClosesAt } from '../src/lib/coach-origin.mjs';
 import {
   ADD_BATCH, addExistingClients, looksLikeEmail, readExistingClients, removeExistingClient, splitEmails,
 } from '../mobile-app/src/services/coachExistingClients.mjs';
@@ -244,7 +245,9 @@ test('the Add-a-client sheet holds the list, its invite writes no 0% tag, and it
 test('the Terms state the fee as charged: 15% on every client who signs up through Shape, 0% on the existing-client list', () => {
   const terms = read('public/terms.html').replace(/<[^>]+>/g, '').replace(/\s+/g, ' ');
   assert.match(terms, /Clients who sign up through Shape — 15%\. When a client signs up with you through Shape, whether they found you on the Shape marketplace or came from your own invite or link, we take a 15% platform fee/);
-  assert.match(terms, /Your existing clients — 0%\. When a client you coached before joining Shape is on your existing-client list \(the clients you list in the app by the email they use on Shape, within 60 days of joining Shape\), we take no platform fee/);
+  assert.match(terms, /Your existing clients — 0%\. When a client you coached before joining Shape is on your existing-client list \(the clients you list in the app by the email they use on Shape, within 60 days of joining Shape, or by January 11, 2027 if you joined before November 12, 2026\), we take no platform fee/);
+  // The date a coach who joined before the rule has (Codex on #2722) is the SQL's own close.
+  assert.equal(existingClientsClosesAt('2026-01-01T00:00:00Z'), '2027-01-11T00:00:00.000Z');
   assert.doesNotMatch(terms, /Clients you brought yourself — 0%|through your invite or your referral link, within the attribution window/);
   // A row keeps the rate it was made at, which is what honours the tags already sent.
   assert.match(terms, /The fee rate that applied when a subscription or purchase was created is the rate that governs it/);
