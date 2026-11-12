@@ -24,10 +24,13 @@
 // shot before the gate existed. The next person to fulfil `{user:null}` will
 // read the redirect as the harness being broken; it is the gate working.
 //
-// All twenty frames re-shot 2026-10-26 by the recipe below (Business on its default Overview
-// section), after Today's Needs you gained New clients, Business its Plan section, Goal its
-// "What clients earn you" card and Score the three-term formula. The ?v on `src` moved with
-// them. Park the pointer off the icon rail (bottom right) before each shot, or the rail opens.
+// All twenty frames re-shot 2026-11-12 by the recipe below (Business on its default Overview
+// section), after every page gained its Guide button and more of them cards you arrange, Profile became the
+// public profile (`coachProfileWeb.jsx`) and the rail took the 3D mark. The ?v on `src` moved
+// with them. Park the pointer off the icon rail (bottom right) before each shot, or the rail
+// opens. ⚠ The @font-face answer for the css2 request needs ABSOLUTE urls to the local files: a
+// relative url resolves against fonts.googleapis.com, nothing loads, and every frame is drawn in
+// fallback faces with no error anywhere (check `document.fonts` holds Anybody before shooting).
 // Captures refreshed 2026-10-14, after #2343 gave the dashboard its own app frame
 // (the icon rail and the app bar ARE the dashboard now, so they stay in every frame;
 // the old recipe's "hide the site header, move main up 72px" no longer applies).
@@ -74,8 +77,8 @@ const CO_TOUR = {
       // DashNowColumn gives demo rows a bare "UP NEXT": the countdown needs a real booking's
       // start time, so a frame of it would need a signed-in capture. The same for both roles.
       { key: "today", file: "today", name: "Today",
-        body: "Your day on the left: the session up next, what you know about the client and a button to message them, above today's timeline. Beside it, Needs you puts client attention, each new client's first 30 days, check-ins to review, replies waiting and next week's programming one tab apart, above your figures, arranged however you like.",
-        list: ["The next session, one tap from a message", "Today's timeline, marked where you are", "Needs you: attention, new clients, check-ins, replies and programs", "Joint-attention flags shared with the client's other coach"] },
+        body: "Your day in six cards you can move, resize or hide: a one-line brief of who needs you and what's next, the session up next with a button to message the client, three figures at a glance, your money, Needs you, and today's timeline. New clients, check-ins, replies and next week's programming each have a queue you can add as a card.",
+        list: ["A one-line brief: who needs you, then what's next", "The next session, one tap from a message", "Needs you, and today's timeline marked where you are", "Joint-attention flags shared with the client's other coach"] },
       { key: "week", file: "week", name: "Week",
         body: "The end-of-week review. Every client, one row: their check-in ratings, the win and the struggle they wrote, what they asked you, adherence against the week before, food logs and the weigh-in. Tick each one as you go, or close the week in one go.",
         list: ["Ratings, win, struggle and the question they asked you", "Adherence, food logs and weigh-in against the week before", "Message or leave a note from the row", "Mark all reviewed in one tap"] },
@@ -91,7 +94,7 @@ const CO_TOUR = {
         body: "Your week and your month. Clients book inside Shape, into the hours you open, and every booking reads in your own time zone. Drag one to a new day and the client is notified.",
         list: ["Week and month views", "Drag a session to move it; the client is notified", "Open hours you set once, in your own time zone", "Bookings color-coded by kind, each client's tier beside their name, one click to their file", "A private, read-only feed for Google Calendar, Apple Calendar or Outlook"] },
       { key: "clients", file: "clients", name: "Clients",
-        body: "One roster, one view: streaks, weekly score, adherence, last food log, last contact, revenue and tenure. Sort by whatever you care about today and open any client's full file.",
+        body: "One roster, one view: weekly score, sessions kept, program, streak, last contact, revenue and tenure. Sort by whatever you care about today and open any client's full file.",
         list: ["Sort every column that has a value behind it", "Status tiles: needs you, watch, on track and new", "Each client's file one click away", "Export the roster as a spreadsheet"] },
       { key: "programs", file: "programs", name: "Programs",
         body: "Blocks, sessions, sets, reps, RPE and tempo, with autoregulation built in. Write a block once and clone it to a new client in one click.",
@@ -103,22 +106,22 @@ const CO_TOUR = {
         body: "Paste a Spotify or Apple Music link, attach it to a workout, and your client gets a play button on the session card. Optional, always skippable.",
         list: ["A library of your playlists, with BPM range and length", "Attach matrix: assign playlists to workouts in bulk", "Builder: deep-edit tracks and notes", "Listens per playlist, and what you've shared"] },
       { key: "goal", file: "goal", name: "Goal",
-        body: "Your own targets for the quarter — clients, revenue, programs, adherence — each with a progress bar and the pace that gets it there. What clients earn you starts from your live figures: set a client count and a monthly rate, and read what you take home after Shape's fee.",
-        list: ["Client, revenue, program and adherence goals", "Progress and pace against the date", "Clients × monthly rate, with your existing clients counted apart", "Your take-home after Shape's fee, and a 12-month plan on Business"] },
+        body: "Your own targets for the quarter — clients, revenue, programs, adherence — each a card with a ring, whether it's on track and one next step, its pace a tap away. Add What clients earn you as a card: set a client count and a monthly rate, and read what you take home after Shape's fee.",
+        list: ["Client, revenue, program and adherence goals", "On track or at risk, with the pace against the date", "One next step on each goal", "Your take-home after Shape's fee, and a 12-month plan on Business"] },
       { key: "score", file: "score", name: "Score",
         body: "Your coach score, added up from three things: your active clients, your session completion and the programs you publish. It drives marketplace ranking and the verified badge.",
-        list: ["Five tiers, Certified to Icon", "A breakdown of what earns the points", "What the next tier unlocks", "How each term earns points"] },
+        list: ["Five tiers, Certified to Icon", "A breakdown of what earns the points", "The fastest way up to the next tier", "How each term earns points"] },
       { key: "profile", file: "profile", name: "Profile",
-        body: "The profile clients see on the marketplace: your credentials, coaching philosophy, Shape score and streak, availability with a book-a-consult button, and your activity, reviews and music underneath.",
-        list: ["Credentials, philosophy and where you coach", "Availability, and a button to book a consult", "Activity, about, coaching, reviews and music", "Followers, following and posts"] },
+        body: "The page clients see on the marketplace: your name, your line, your rating from reviews and the figures you choose, over a route that climbs to the summit. Below it, a tab for each part of your practice, and a bar at the foot of the page to message you or book.",
+        list: ["Your rating, reviews and the figures you choose", "This week's open times, and a bar to message or book", "Replays, reviews, about, where to find you and posts", "Your coaching, programs and workouts in one place to buy"] },
     ],
   },
   nutri: {
     label: "Nutritionist",
     tabs: [
       { key: "today", file: "today", name: "Today",
-        body: "Your day on the left: the consult up next, what you know about the client and a button to message them, above today's timeline. Beside it, Needs you puts client attention, each new client's first 30 days, check-ins to review, replies waiting and the plans due next one tab apart, above your figures and roster health, arranged however you like.",
-        list: ["The next consult, one tap from a message", "Today's timeline, marked where you are", "Needs you: attention, new clients, check-ins, replies and plans", "Joint-attention flags shared with the client's trainer"] },
+        body: "Your day in six cards you can move, resize or hide: a one-line brief of who needs you and what's next, the consult up next with a button to message the client, three figures at a glance, your money, Needs you, and today's timeline. New clients, check-ins, replies and the plans due next each have a queue you can add as a card.",
+        list: ["A one-line brief: who needs you, then what's next", "The next consult, one tap from a message", "Needs you, and today's timeline marked where you are", "Joint-attention flags shared with the client's trainer"] },
       { key: "week", file: "week", name: "Week",
         body: "The end-of-week review. Every client, one row: their check-in ratings, the win and the struggle they wrote, what they asked you, adherence against the week before, food logs and the weigh-in. Tick each one as you go, or close the week in one go.",
         list: ["Ratings, win, struggle and the question they asked you", "Adherence, food logs and weigh-in against the week before", "Message or leave a note from the row", "Mark all reviewed in one tap"] },
@@ -142,14 +145,14 @@ const CO_TOUR = {
         body: "Paste a Spotify or Apple Music link, attach it to a meal, recipe or prep routine, and your client gets a play button in their kitchen. Optional, always skippable.",
         list: ["A library of your playlists, with BPM range and length", "Attach matrix: assign playlists to meals in bulk", "Builder: deep-edit tracks and notes", "Listens per playlist, and what you've shared"] },
       { key: "goal", file: "goal", name: "Goal",
-        body: "Your own targets for the quarter — clients, revenue, plans, adherence — each with a progress bar and the pace that gets it there. What clients earn you starts from your live figures: set a client count and a monthly rate, and read what you take home after Shape's fee.",
-        list: ["Client, revenue, plan and adherence goals", "Progress and pace against the date", "Clients × monthly rate, with your existing clients counted apart", "Your take-home after Shape's fee, and a 12-month plan on Business"] },
+        body: "Your own targets for the quarter — clients, revenue, plans, adherence — each a card with a ring, whether it's on track and one next step, its pace a tap away. Add What clients earn you as a card: set a client count and a monthly rate, and read what you take home after Shape's fee.",
+        list: ["Client, revenue, plan and adherence goals", "On track or at risk, with the pace against the date", "One next step on each goal", "Your take-home after Shape's fee, and a 12-month plan on Business"] },
       { key: "score", file: "score", name: "Score",
         body: "Your coach score, added up from two things: your active clients and your session completion. It drives marketplace ranking and the verified badge.",
-        list: ["Five tiers, Certified to Icon", "A breakdown of what earns the points", "What the next tier unlocks", "How each term earns points"] },
+        list: ["Five tiers, Certified to Icon", "A breakdown of what earns the points", "The fastest way up to the next tier", "How each term earns points"] },
       { key: "profile", file: "profile", name: "Profile",
-        body: "The profile clients see on the marketplace: your credentials, practice philosophy, Shape score and streak, availability with a book-a-consult button, and your activity, reviews and music underneath.",
-        list: ["Credentials, philosophy and where you practise", "Availability, and a button to book a consult", "Activity, about, coaching, reviews and music", "Followers, following and posts"] },
+        body: "The page clients see on the marketplace: your name, your line, your rating from reviews and the figures you choose, over a route that climbs to the summit. Below it, a tab for each part of your practice, and a bar at the foot of the page to message you or book.",
+        list: ["Your rating, reviews and the figures you choose", "This week's open times, and a bar to message or book", "Your kitchen, plate notes, reviews, about and posts", "Your coaching and meal plans in one place to buy"] },
     ],
   },
 };
@@ -157,7 +160,7 @@ const CO_TOUR = {
 // ⚠ THE FRAME CARRIES ITS OWN LABEL. Not a caption under the picture — a mark on
 // it, so the claim travels with the image wherever it is seen.
 function CoFrame({ role, tab, style = {} }) {
-  const src = `/newdesign/coaches/coaches-dash-${role}-${tab.file}.jpg?v=20261026`;
+  const src = `/newdesign/coaches/coaches-dash-${role}-${tab.file}.jpg?v=20261112`;
   return (
     <div style={{ border: "1px solid rgba(238,243,240,0.10)", borderRadius: 10, background: "#0a0f17", boxShadow: "0 40px 90px rgba(0,0,0,0.55)", overflow: "hidden", ...style }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, height: 34, padding: "0 12px", borderBottom: "1px solid rgba(238,243,240,0.055)", background: "rgba(255,255,255,0.02)" }}>
