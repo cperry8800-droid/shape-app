@@ -55,7 +55,11 @@ export default {
       find: '      if (p.on.getTime() <= day.getTime() && day.getTime() - p.on.getTime() <= 4 * DAY + DAY - 1) best = p;', replace: '      if (p.on.getTime() <= day.getTime()) best = p;' },
     // ── the weigh-in gap ──
     { name: 'the gap a day early', file: ENG,
-      find: '    if (gap < THRESHOLDS.WEIGHIN_GAP_DAYS) return null;\n    var before', replace: '    if (gap < THRESHOLDS.WEIGHIN_GAP_DAYS - 1) return null;\n    var before' },
+      find: '    if (gap == null || gap < THRESHOLDS.WEIGHIN_GAP_DAYS) return null;\n    var before', replace: '    if (gap == null || gap < THRESHOLDS.WEIGHIN_GAP_DAYS - 1) return null;\n    var before' },
+    { name: 'the gap counts from before a break', file: ENG,
+      find: '    if (backDay && lastDay < backDay) { gap = resumeDays(c, now); sinceBreak = true; }', replace: '' },
+    { name: 'the gap counts from a break before the last weigh-in', file: ENG,
+      find: '    if (backDay && lastDay < backDay) { gap = resumeDays(c, now); sinceBreak = true; }', replace: '    if (backDay) { gap = resumeDays(c, now); sinceBreak = true; }' },
     { name: 'the gap needs no weekly habit', file: ENG,
       find: '    if (before.length < 4) return null;', replace: '' },
     { name: 'the gap speaks on a break', file: ENG,

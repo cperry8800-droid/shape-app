@@ -1664,9 +1664,14 @@
     var last = r.pts[r.pts.length - 1];
     var lastDay = new Date(last.on.getTime()); lastDay.setHours(0, 0, 0, 0);
     var gap = daysBetween(lastDay, now);
-    if (gap < THRESHOLDS.WEIGHIN_GAP_DAYS) return null;
+    // ⚠ FROM THE DAY THEY CAME BACK, NOT FROM BEFORE A BREAK (as the other gaps): a last weigh-in from
+    // before it counts the days since their return.
+    var backDay = resumeDay(c, now), sinceBreak = false;
+    if (backDay && lastDay < backDay) { gap = resumeDays(c, now); sinceBreak = true; }
+    if (gap == null || gap < THRESHOLDS.WEIGHIN_GAP_DAYS) return null;
     var before = r.pts.filter(function (p) { return p.on.getTime() <= last.on.getTime() && last.on.getTime() - p.on.getTime() < 28 * DAY; });
     if (before.length < 4) return null;
+    if (sinceBreak) return { key: "weighin_gap", label: "No weigh-in " + gap + "d", reason: "No weigh-in in the " + gap + " days since their break", figures: { days: gap, sinceBreak: true }, sig: "back:" + iso(backDay) };
     return { key: "weighin_gap", label: "No weigh-in " + gap + "d", reason: "No weigh-in for " + gap + " days", figures: { days: gap }, sig: "last:" + iso(lastDay) };
   }
   // A slow start on a weight-loss goal (amber, progress): under SLOW_START_EARLY_PCT lost by week 4, or

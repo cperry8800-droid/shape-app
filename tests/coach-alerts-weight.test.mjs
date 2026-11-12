@@ -116,6 +116,12 @@ test('a weigh-in gap: none for 14 days, for a client who weighed in weekly over 
   assert.equal(flag(feed('nutritionist', sparse), 'weighin_gap'), null);
   // On a break it is quiet.
   assert.equal(flag(feed('nutritionist', weekly(15, { pause: { until: day(-5), by: 'client' } })), 'weighin_gap'), null);
+  // After one it counts from the day they came back, never from before it.
+  assert.equal(flag(feed('nutritionist', weekly(30, { pause: { until: day(5), by: 'client' } })), 'weighin_gap'), null, '5 days back, 30 since the last');
+  const ten = DS.resolveThresholds({ WEIGHIN_GAP_DAYS: 10 }, 'nutritionist').thresholds;
+  assert.equal(flag(feed('nutritionist', weekly(40, { pause: { until: day(12), by: 'client' } }), ten), 'weighin_gap').reason, 'No weigh-in in the 11 days since their break', 'at a 10-day line');
+  const five = DS.resolveThresholds({ WEIGHIN_GAP_DAYS: 5 }, 'nutritionist').thresholds;
+  assert.equal(flag(feed('nutritionist', weekly(6, { pause: { until: day(12), by: 'client' } }), five), 'weighin_gap').reason, 'No weigh-in for 6 days', 'weighed in after the break: from that weigh-in');
   // A trainer with a nutritionist on sees it as theirs.
   const t = feed('trainer', weekly(15));
   assert.equal(t.severity, 'green');
