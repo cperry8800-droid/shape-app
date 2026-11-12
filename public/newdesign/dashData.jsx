@@ -871,13 +871,13 @@ function useCoachLiveFigures(role) {
         activeClients: today && today.clients != null ? today.clients : null,
         mrrNetCents: today && today.mrrNetCents != null ? today.mrrNetCents : null,
         mrrGrossCents: today && today.mrrGrossCents != null ? today.mrrGrossCents : null,
-        // The share of CLIENTS who are the coach's existing clients (0% fee), per client from the route's byoMix (one
+        // The share of CLIENTS who pay no Shape fee (0%: the coach's existing clients, and invites or links from before 2026-11-12), per client from the route's byoMix (one
         // client with two plans is one client): the Goal tab's "What clients earn you" starts from it
         // (dashBusiness.jsx DbzGoalEarn).
         ...(() => {
           const mix = a.byoMix || null;
           // A null mix is a failed read: the calculator still starts at 0%, and says why.
-          if (!mix) return { byoShare: null, byoNote: "couldn't read your existing clients · set your own" };
+          if (!mix) return { byoShare: null, byoNote: "couldn't read who pays no Shape fee · set your own" };
           if (!mix.clients) return { byoShare: null, byoNote: null };
           return { byoShare: mix.brought / mix.clients, byoNote: "0% fee · " + mix.brought + " of your " + mix.clients };
         })(),

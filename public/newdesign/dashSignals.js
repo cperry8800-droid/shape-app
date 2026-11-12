@@ -30,7 +30,7 @@
 //     payments:  { mrrCents, status?, lastSessionAt?, joinedAt?, feeCents?, origin? } | null,
 //                // lastSessionAt = last consult/session; joinedAt = earliest subscription;
 //                // feeCents = the platform fee the rows STORE (coach-roster.ts), origin = who
-//                // brought the client (coach_link / coach_invite / marketplace)
+//                // brought the client (coach_existing / coach_invite / coach_link / marketplace)
 //     recentLogs: [{ on: 'YYYY-MM-DD', kcal, protein }] | null,  // newest first, ≤3 (drawer)
 //     goals:     [{ id, label, metric?, unit?, target, start?, startedOn?,
 //                   setBy?, now?, history: [{on, value}] }] | null,
@@ -2177,8 +2177,8 @@
     // the two tabs quoted two different nets for one practice. The preview's net is now each
     // client's price less the fee on their own row (`rosterNetCents`), the shape the live roster
     // route sends (coach-roster.ts: feeCents and origin), and Business lists these same people
-    // as its origin list. The coach brought their longest-standing clients; the newer ones
-    // found them on Shape, at the published rate.
+    // as its origin list. The coach's longest-standing clients are their existing clients, from before
+    // Shape (0%); the newer ones signed up through Shape, at the published rate.
     var pay = function (mrrCents, lastDays, joinedDays, origin) {
       return {
         mrrCents: mrrCents, status: "active", lastSessionAt: ago(lastDays), joinedAt: ago(joinedDays),
@@ -2218,7 +2218,7 @@
           { key: "m50", kind: "goal", label: "50% to goal", hitAt: ago(12) },
         ],
         totals: { workouts: 64 },
-        payments: pay(18000, 2, 400, "coach_link"),
+        payments: pay(18000, 2, 400, "coach_existing"),
         recentLogs: [
           { on: ago(0), kcal: 2105, protein: 148 },
           { on: ago(1), kcal: 2210, protein: 139 },
@@ -2302,7 +2302,7 @@
       // red — no contact in 7 days, and 5 of 14 sessions missed (the trainer's) or no food logs
       // in 4 days (the nutritionist's): two areas for each coach
       person(4, "Sam R.", {
-        payments: pay(18000, 9, 730, "coach_invite"),
+        payments: pay(18000, 9, 730, "coach_existing"),
         recentLogs: [],
         program: { name: "Foundations", week: 4, weeks: 8 },
         foodLogs: { lastLoggedOn: ago(4), daysLogged7d: 2 },

@@ -403,7 +403,7 @@ function DbzChurnZone({ live, churn, pace = null, now = Date.now() }) {
 // Each row is one client in the routes' shape (origin-attribution.ts: their id, and their plans
 // folded into one row); a roster client holds one plan, so the preview's net stays the roster's.
 const DBZ_DEMO_PURCHASES = [
-  { name: "Drew Park", kind: "purchase", origin: "coach_link", feeBps: 0, priceCents: 9000 },
+  { name: "Drew Park", kind: "purchase", origin: "coach_existing", feeBps: 0, priceCents: 9000 },
 ];
 function dbzDemoOrigin() {
   let subs = [];
@@ -480,6 +480,11 @@ function DbzOriginZone({ live, byOrigin }) {
   // Commission status keys off the STORED fee, never off origin — this surface
   // is the fee pitch, and the row's rate is the billing truth.
   const isByo = (row) => row.feeBps === 0;
+  // ⚠ WHY A ROW PAYS NO FEE IS ITS ORIGIN (Codex on #2722). A 0% row is an existing client only when
+  // its origin says so: one from an invite or link under the 2026-07-21 rule (coach_invite / coach_link,
+  // honoured to the end of its window) keeps 0% and is not on the coach's list.
+  const kindOf = (row) => (!isByo(row) ? "shape" : row.origin === "coach_existing" ? "existing" : row.origin === "coach_invite" || row.origin === "coach_link" ? "earlier" : "nofee");
+  const KIND_LABEL = { existing: "Existing client", earlier: "Earlier invite or link", nofee: "No Shape fee", shape: "Through Shape" };
   // ⚠ THE HEADER COUNTS CLIENTS, AND A PURCHASE IS NOT ONE (the follow-up to #2395). It counted
   // rows, one a plan and one more a one-time purchase, so one brought client with two plans beside
   // one from Shape read "2 you brought · 1 found you on Shape" while the Plan said "1 of your 2".
@@ -488,7 +493,11 @@ function DbzOriginZone({ live, byOrigin }) {
   // count; the purchases are listed under a line of their own.
   const clients = rows.filter((r) => r.kind === "subscription");
   const purchases = rows.filter((r) => r.kind === "purchase");
-  const brought = clients.filter(isByo).length;
+  const count = (k) => clients.filter((r) => kindOf(r) === k).length;
+  const tally = [count("existing") + " existing"]
+    .concat(count("earlier") ? [count("earlier") + " earlier invite or link"] : [])
+    .concat(count("nofee") ? [count("nofee") + " no Shape fee"] : [])
+    .concat([count("shape") + " through Shape"]).join(" · ");
   const countStyle = { fontFamily: DBZ_MONO, fontSize: 9, letterSpacing: "0.08em", textTransform: "uppercase", color: DBZ_INK50, marginBottom: 4 };
   // The feed holds the latest DBZ_ORIGIN_PURCHASES purchases, so a full list is not a total. None
   // has no line: a purchases read that failed sends none too, and "0" would be a claim.
@@ -496,6 +505,7 @@ function DbzOriginZone({ live, byOrigin }) {
     : purchases.length === 1 ? "1 one-time purchase" : purchases.length + " one-time purchases";
   const line = (r, i) => {
     const byo = isByo(r);
+    const kind = kindOf(r);
     const feePct = Math.round((r.feeBps || 0) / 100 * 10) / 10;
     // A client on two plans is one row. When their plans' fees differ no one rate is theirs, so the
     // row says so rather than print the 0% that made them brought.
@@ -504,7 +514,7 @@ function DbzOriginZone({ live, byOrigin }) {
       <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 12, alignItems: "center", padding: "9px 0", borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.05)" }}>
         <span style={{ fontSize: 13, fontWeight: 500, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.name}</span>
         <span style={{ fontFamily: DBZ_MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: byo ? DBZ_TEAL : DBZ_INK50, whiteSpace: "nowrap" }}>
-          {byo ? "Existing client" : "Through Shape"} · {fee}{r.kind === "purchase" ? " · one-time" : ""}
+          {KIND_LABEL[kind]} · {fee}{r.kind === "purchase" ? " · one-time" : ""}
         </span>
       </div>
     );
@@ -512,7 +522,7 @@ function DbzOriginZone({ live, byOrigin }) {
   return (
     <div>
       <div style={countStyle}>
-        {brought} existing · {clients.length - brought} through Shape
+        {tally}
       </div>
       {clients.map(line)}
       {purchases.length > 0 && (
@@ -1063,7 +1073,7 @@ function dbzPlanBase({ live, extra, failed = false, listing, listingRead, listin
       : n.rateFrom === "average" ? "your clients' average" : "no listing price yet · set your own",
     // The brought-in share is per client (the routes' byoMix: one client with two plans is one
     // client). Null is a failed read: the share starts at 0% and says so, never as a measurement.
-    byoNote: n.broughtUnread ? "couldn't read your existing clients · set your own" : n.byoClients ? "0% fee · " + n.brought + " of your " + n.byoClients : "0% Shape fee on these",
+    byoNote: n.broughtUnread ? "couldn't read who pays no Shape fee · set your own" : n.byoClients ? "0% fee · " + n.brought + " of your " + n.byoClients : "0% Shape fee on these",
   };
 }
 
@@ -1099,7 +1109,7 @@ function DbzEarnZone({ base }) {
       <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr) minmax(0,1fr)", gap: 12 }}>
         <DbzNumberField label="Clients" value={clients} onChange={setClients} max="999" note={"you have " + base.clients + " today"} />
         <DbzNumberField label="Monthly rate" value={rate} onChange={setRate} prefix="$" max="9999" note={base.rateFrom} />
-        <DbzNumberField label="Your existing clients" value={byo} onChange={setByo} suffix="%" max="100" note={base.byoNote} />
+        <DbzNumberField label="Clients with no Shape fee" value={byo} onChange={setByo} suffix="%" max="100" note={base.byoNote} />
       </div>
       {/* The month and the year sit on one baseline with their labels on one line, and the
           billed and fee line, which is the month's, runs under both (owner, 2026-10-18: "fix look
@@ -1387,7 +1397,8 @@ function dbzDay(v) {
 }
 // ⚠ EVERY RENEWAL SAYS WHY SHAPE TAKES ITS FEE, OR NONE (coach dashboard step 4a: "the 15% fee is
 // never explained"). The fee is the row's STORED one (coach-renewals.mjs `feeBps`), the billing truth
-// the origin list reads too: 0 is one of the coach's existing clients (no fee), anything else one
+// the origin list reads too: 0 is no Shape fee (an existing client, or an invite or link from before
+// 2026-11-12: a renewal row carries the fee, not the origin, so it says only that), anything else one
 // who signed up through Shape. A row from a route before the field, or one storing none, is read from what
 // it nets (price less net), which is the rate the route cut it at. Neither readable: said so.
 function dbzFeeBps(r) {
@@ -1398,7 +1409,7 @@ function dbzFeeBps(r) {
 function dbzFeeLabel(r) {
   const bps = dbzFeeBps(r);
   if (bps == null) return "fee couldn't be read";
-  if (bps <= 0) return "existing client · no fee";
+  if (bps <= 0) return "no Shape fee";
   return "through Shape · " + (Math.round(bps / 10) / 10) + "% fee";
 }
 // The renewal's status, as a labelled chip: renews (Stripe said so), cancelled (ends that day), or
@@ -1447,7 +1458,7 @@ function DbzRenewalsZone({ live, renewals, clients = [], role = "trainer" }) {
         );
       })}
       <div style={{ ...DBZ_NOTE, marginTop: 8 }}>
-        Net to you, after Shape's fee: {pct}% on a client who signed up through Shape, none on your existing clients.{unchecked ? " Some couldn't be checked with Stripe, so they aren't counted above." : ""}
+        Net to you, after Shape's fee: {pct}% on a client who signed up through Shape, none on your existing clients (or an invite or link from before November 12, 2026).{unchecked ? " Some couldn't be checked with Stripe, so they aren't counted above." : ""}
       </div>
     </div>
   );
@@ -2215,7 +2226,7 @@ function DbzPlanStartCard({ model }) {
   const { base, start, known } = model;
   const rows = [
     ["New clients pay", dbzRate(start.rate) + " a month", base.rateFrom],
-    ["Your existing clients", Math.round(base.byoShare * 100) + "%", base.byoNote],
+    ["Clients with no Shape fee", Math.round(base.byoShare * 100) + "%", base.byoNote],
     // With no pace to read, the plan starts from stated defaults, and never calls them "yours".
     [known ? "Your pace" : "A starting pace", start.adds.toFixed(1) + " new · " + dbzPct(start.churnPct) + " leave, a month", known ? dbzPaceWhen(base.pace) : dbzNoHistory(base)],
   ];
@@ -2506,8 +2517,9 @@ function DbzProfileLinkCard({ preview, role, providerId, pending }) {
   );
 }
 
-// Where clients come from: one bar of what today's clients pay a month, split three ways: the coach's
-// existing clients (no fee, all theirs), those who signed up through Shape (theirs after the fee), and
+// Where clients come from: one bar of what today's clients pay a month, split three ways: the clients
+// who pay no Shape fee (the coach's existing clients, and invites or links from before 2026-11-12: all
+// theirs), those who signed up through Shape (theirs after the fee), and
 // Shape's fee, with each group's tier marks. From the analytics' per-client rows (origin-attribution.ts,
 // the origin list's own), at each row's STORED fee. A row whose price couldn't be read, or whose plans
 // carry different fees (no one rate is theirs), is left out of the split and said.
@@ -2550,7 +2562,7 @@ function DbzOriginSplitCard({ model, clients }) {
     </span>
   );
   const rows = [
-    { k: "brought", label: "Your existing clients", sub: nClients(m.brought.length) + " · no fee", cents: m.broughtCents, gems: m.brought },
+    { k: "brought", label: "No Shape fee", sub: nClients(m.brought.length) + " · all yours", cents: m.broughtCents, gems: m.brought },
     { k: "shape", label: "Through Shape", sub: nClients(m.shape.length) + " · yours after the fee", cents: m.shapeNetCents, gems: m.shape },
     { k: "fee", label: "Shape's fee", sub: "on the clients who signed up through Shape", cents: m.feeCents, gems: null },
   ];
@@ -3301,7 +3313,7 @@ function CoachBusinessPage({ role }) {
     { key: "level", title: "Where it levels off", blurb: "The net a month the plan settles at, and how far that is from the goal.", group: "money", size: "narrow",
       render: () => <DbzLevelCard model={planModel} /> },
     // ── Optional: where the plan starts, and what the Plan tab carried before.
-    { key: "start", title: "Where you start", blurb: "Today's net a month, and the numbers the plan starts from: your price, your existing clients, your pace.", optional: true, group: "money", size: "narrow",
+    { key: "start", title: "Where you start", blurb: "Today's net a month, and the numbers the plan starts from: your price, who pays no Shape fee, your pace.", optional: true, group: "money", size: "narrow",
       render: () => <DbzPlanStartCard model={planModel} /> },
     { key: "earn", title: "What clients earn you", blurb: "Type a client count and a rate, and read the net a month and a year.", optional: true, group: "money", size: "full",
       render: () => earnPlate },
@@ -3317,7 +3329,7 @@ function CoachBusinessPage({ role }) {
       render: () => <DbzFunnelCard model={funnelModel} /> },
     { key: "link", title: "Your profile link", blurb: "Copy the link that opens your profile on Coaching.", group: "clients", size: "narrow",
       render: () => <DbzProfileLinkCard preview={preview} role={role} providerId={extra && extra.providerId} pending={!extra && !extraFailed} /> },
-    { key: "origin", title: "Where clients come from", blurb: "Your existing clients, clients through Shape, and Shape's fee, in one bar, with each client's tier.", group: "money", size: "wide",
+    { key: "origin", title: "Where clients come from", blurb: "Clients with no Shape fee, clients through Shape, and Shape's fee, in one bar, with each client's tier.", group: "money", size: "wide",
       render: () => <DbzOriginSplitCard model={originSplit} clients={boardClients} /> },
     { key: "waitlist", title: "Waiting list", blurb: "Who's waiting to join you, what they'd bring in, and reopening a full listing.", group: "clients", size: "narrow",
       render: () => <DbzWaitlistCard preview={preview} waiting={waiting} rateCents={waitRateCents} priceNote={waitPriceNote} capacity={capacity} role={role} onReopened={() => setCapacity({ effective: false })} /> },

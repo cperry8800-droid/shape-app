@@ -466,7 +466,7 @@ test('where clients come from: one bar of brought, found on Shape and Shape\'s f
   const m = await mount(React.createElement(B.DbzOriginSplitCard, { model: s, clients }));
   // The header counts the clients in the split, at what they pay.
   assert.match(m.text(), new RegExp('^Where clients come from3 clients · ' + esc(money(54000)) + ' a month'));
-  assert.match(m.text(), new RegExp('Your existing clients1 client · no fee' + esc(money(20000)) + '/moThrough Shape2 clients · yours after the fee' + esc(money(29300)) + '/moShape\'s fee'));
+  assert.match(m.text(), new RegExp('No Shape fee1 client · all yours' + esc(money(20000)) + '/moThrough Shape2 clients · yours after the fee' + esc(money(29300)) + '/moShape\'s fee'));
   assert.match(m.text(), /2 clients aren't in the split: a price that couldn't be read, or plans at different fees\./);
   assert.deepEqual([...m.div.querySelectorAll('[data-dbz-split]')].map((x) => x.getAttribute('data-dbz-split')), ['brought', 'shape', 'fee']);
   // Each client's tier mark, in their group: a known tier, and a hollow mark for one unknown.

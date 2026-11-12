@@ -78,7 +78,7 @@ export default {
       find: '    if (p.y === t.y && p.mo === t.mo) marks.push', replace: '    if (true) marks.push' },
     // ── The fee, row by row
     { name: 'a brought client pays the fee', file: BIZ,
-      find: '  if (bps <= 0) return "existing client · no fee";', replace: '  if (bps < 0) return "existing client · no fee";' },
+      find: '  if (bps <= 0) return "no Shape fee";', replace: '  if (bps < 0) return "no Shape fee";' },
     { name: 'the fee is a constant', file: BIZ,
       find: '  return "through Shape · " + (Math.round(bps / 10) / 10) + "% fee";', replace: '  return "through Shape · 15% fee";' },
     { name: 'a row with no stored fee is not read from its net', file: BIZ,

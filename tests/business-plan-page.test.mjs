@@ -833,7 +833,7 @@ test('an unread history, brought share or listing price is said as unread, never
   const extra = { metrics: { activeClients: 12, mrrNetCents: 189000, mrrGrossCents: 216000 }, byOrigin: null, byoMix: null, trajectory: null };
   const b = B.dbzPlanBase({ live: true, extra, listing: null, listingRead: true, listingFailed: true });
   assert.equal(b.pace.unread, true);
-  assert.equal(b.byoNote, "couldn't read your existing clients · set your own");
+  assert.equal(b.byoNote, "couldn't read who pays no Shape fee · set your own");
   assert.equal(b.rateFrom, "couldn't read your listing price · your clients' average");
   assert.equal(B.dbzPlanBase({ live: true, extra: { ...extra, metrics: { activeClients: 0, mrrNetCents: 0, mrrGrossCents: 0 } }, listing: null, listingRead: true, listingFailed: true }).rateFrom, "couldn't read your listing price · set your own");
   assert.equal(B.dbzPlanBase({ live: true, extra: { ...extra, byOrigin: [], byoMix: { clients: 0, brought: 0 } }, listing: null, listingRead: true }).byoNote, '0% Shape fee on these', 'a read with no subscriptions is not unread');
@@ -845,14 +845,14 @@ test('an unread history, brought share or listing price is said as unread, never
   assert.match(life.text(), /^Couldn't read your subscription history just now/);
   await life.unmount();
   const earn = await mount(React.createElement(B.DbzEarnZone, { base: b }));
-  assert.match(earn.text(), /couldn't read your existing clients · set your own/);
+  assert.match(earn.text(), /couldn't read who pays no Shape fee · set your own/);
   await earn.unmount();
   // The Goal tab's figures (dashData.jsx) read the same per-client mix, and say when it couldn't be read.
   const data = readFileSync(ND('dashData.jsx'), 'utf8');
-  assert.match(data, /const mix = a\.byoMix \|\| null;\n[^\n]*\n\s+if \(!mix\) return \{ byoShare: null, byoNote: "couldn't read your existing clients · set your own" \};\n\s+if \(!mix\.clients\) return \{ byoShare: null, byoNote: null \};\n\s+return \{ byoShare: mix\.brought \/ mix\.clients, byoNote: "0% fee · " \+ mix\.brought \+ " of your " \+ mix\.clients \};/);
+  assert.match(data, /const mix = a\.byoMix \|\| null;\n[^\n]*\n\s+if \(!mix\) return \{ byoShare: null, byoNote: "couldn't read who pays no Shape fee · set your own" \};\n\s+if \(!mix\.clients\) return \{ byoShare: null, byoNote: null \};\n\s+return \{ byoShare: mix\.brought \/ mix\.clients, byoNote: "0% fee · " \+ mix\.brought \+ " of your " \+ mix\.clients \};/);
   assert.doesNotMatch(data, /a\.byOrigin/, 'the Goal tab no longer counts rows');
-  const goal = B.dbzGoalEarnBase({ kind: 'live', activeClients: 12, mrrNetCents: 189000, mrrGrossCents: 216000, trajectory: null, byoShare: null, byoNote: "couldn't read your existing clients · set your own" });
-  assert.deepEqual([goal.byoShare, goal.byoNote], [0, "couldn't read your existing clients · set your own"]);
+  const goal = B.dbzGoalEarnBase({ kind: 'live', activeClients: 12, mrrNetCents: 189000, mrrGrossCents: 216000, trajectory: null, byoShare: null, byoNote: "couldn't read who pays no Shape fee · set your own" });
+  assert.deepEqual([goal.byoShare, goal.byoNote], [0, "couldn't read who pays no Shape fee · set your own"]);
 });
 
 test('a signed-in coach never sees the preview\'s figures while the page is still reading', async () => {
@@ -1145,17 +1145,19 @@ test('"who found whom" counts clients: two plans are one row, a purchase is not 
     const q = { select: () => q, eq: () => q, order: () => q, limit: async () => ({ data: rows, error: null }) };
     return { from: () => q, rpc: async () => ({ data: [], error: null }) };
   };
-  // Ada was brought and took a second plan from the marketplace; Ben found the coach on Shape; Cleo
-  // was brought and holds two plans at 0%. Ada also buys a meal plan, and Pia buys one alone.
+  // Ada is an existing client and took a second plan from the marketplace; Ben signed up through
+  // Shape; Cleo came from the coach's link before 2026-11-12 and holds two plans at 0% (Codex on
+  // #2722: a 0% row is an existing client only when its origin says so). Ada also buys a meal plan,
+  // and Pia buys one alone.
   const subs = [
     { client_id: 'a', price_cents: 18000, fee_bps: 1500, origin: 'marketplace' },
     { client_id: 'b', price_cents: 16000, fee_bps: 1500, origin: 'marketplace' },
-    { client_id: 'a', price_cents: 6000, fee_bps: 0, origin: 'coach_link' },
+    { client_id: 'a', price_cents: 6000, fee_bps: 0, origin: 'coach_existing' },
     { client_id: 'c', price_cents: 12000, fee_bps: 0, origin: 'coach_link' },
     { client_id: 'c', price_cents: 3000, fee_bps: 0, origin: 'coach_link' },
   ];
   const purchases = [
-    { client_id: 'a', price_cents: 9000, fee_bps: 0, origin: 'coach_link' },
+    { client_id: 'a', price_cents: 9000, fee_bps: 0, origin: 'coach_existing' },
     { client_id: 'p', price_cents: 6000, fee_bps: 1500, origin: 'marketplace' },
   ];
   const names = new Map([['a', 'Ada'], ['b', 'Ben'], ['c', 'Cleo'], ['p', 'Pia']]);
@@ -1163,11 +1165,11 @@ test('"who found whom" counts clients: two plans are one row, a purchase is not 
   const mix = byoMixOf(subs);
   assert.deepEqual(mix, { clients: 3, brought: 2 });
   assert.deepEqual(await originZone(feed), [
-    mix.brought + ' existing · ' + (mix.clients - mix.brought) + ' through Shape',
+    '1 existing · 1 earlier invite or link · ' + (mix.clients - mix.brought) + ' through Shape',
     // Brought by her 0% plan; her other plan pays 15%, so no one rate is printed as hers.
     ['Ada', 'Existing client · 2 plans · different fees'],
     ['Ben', 'Through Shape · 15% fee'],
-    ['Cleo', 'Existing client · 2 plans · 0% fee'],
+    ['Cleo', 'Earlier invite or link · 2 plans · 0% fee'],
     '2 one-time purchases',
     ['Ada', 'Existing client · 0% fee · one-time'],
     ['Pia', 'Through Shape · 15% fee · one-time'],
@@ -1183,7 +1185,7 @@ test('"who found whom" says a full purchases list is only the latest, and prints
   assert.ok(cap, "the page has no cap on the purchases it counts");
   const N = Number(cap[1]);
   assert.equal(N, Number(limit[1]), "the page's cap is not the feed's");
-  const ada = { name: 'Ada', clientId: 'a', kind: 'subscription', origin: 'coach_link', feeBps: 0, priceCents: 18000, plans: 1, mixedFees: false };
+  const ada = { name: 'Ada', clientId: 'a', kind: 'subscription', origin: 'coach_existing', feeBps: 0, priceCents: 18000, plans: 1, mixedFees: false };
   const bought = (n) => Array.from({ length: n }, (_, i) => ({ name: 'Buyer ' + i, kind: 'purchase', origin: 'marketplace', feeBps: 1500, priceCents: 5000 }));
   const counts = async (feed) => (await originZone(feed)).filter((l) => typeof l === 'string');
   // None: no line. A failed purchases read sends none too, so "0 one-time purchases" would be a claim.
