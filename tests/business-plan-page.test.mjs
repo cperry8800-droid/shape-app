@@ -793,13 +793,23 @@ test('the page hands the sidebar its demo card, whatever Stripe answered, and th
     trainerNavItems: () => [], trainerPayoutCard: { demo: 'trainer' }, nutriPayoutCard: { demo: 'nutritionist' },
   });
   const answer = (d) => Promise.resolve({ ok: true, json: () => Promise.resolve(d) });
-  for (const stripe of [{ connected: true, error: true, balanceCents: null, pendingCents: null, payouts: [] }, { connected: false }, { connected: true, status: 'active', balanceCents: 4100, pendingCents: 0, payouts: [] }]) {
+  // What Money's own Stripe and Payout history cards say for each answer (dbzStripeState): a linked
+  // account Stripe couldn't be reached for is a failed read, never one still to set up.
+  const SAYS = [
+    [/Couldn't reach Stripe from here just now.*Couldn't reach Stripe just now, so past payouts aren't shown/, /isn't ready to pay out yet|aren't set up yet|once Stripe is set up/],
+    [/Payouts aren't set up yet\. Link a Stripe account to get paid\..*Your payouts list here once Stripe is set up\./, /Couldn't reach Stripe/],
+    [/Open your Stripe ↗/, /Couldn't reach Stripe|aren't set up yet|isn't ready to pay out yet/],
+  ];
+  for (const [i, stripe] of [{ connected: true, error: true, balanceCents: null, pendingCents: null, payouts: [] }, { connected: false }, { connected: true, status: 'active', balanceCents: 4100, pendingCents: 0, payouts: [] }].entries()) {
     globalThis.fetch = window.fetch = (url) => url.startsWith('/api/trainer/analytics')
       ? answer({ isTrainer: true, providerId: 7, metrics: {}, byOrigin: [], trajectory: null, renewals: [], churn: [], stripe })
       : answer({ listings: [] });
     const m = await mount(React.createElement(window.CoachBusinessPage, { role: 'trainer' }));
     await React.act(async () => { await new Promise((r) => setTimeout(r, 0)); });
     assert.deepEqual(card, { demo: 'trainer' }, JSON.stringify(stripe));
+    const t = m.text().replace(/&#x27;/g, "'");
+    assert.match(t, SAYS[i][0], JSON.stringify(stripe) + ': ' + t.slice(0, 600));
+    assert.doesNotMatch(t, SAYS[i][1], JSON.stringify(stripe));
     await m.unmount();
   }
   assert.match(readFileSync(ND('trainerDashboard.jsx'), 'utf8'), /dashPayoutSidebarCard\(askPayout \? payoutRead : null, role\)/, 'the sidebar no longer reads the payout');
@@ -918,8 +928,8 @@ const SECTIONS = ['overview', 'money', 'plan', 'growth', 'retention'];
 // in the detector so a plate that brings them back is still caught.
 const DEMO = new RegExp(/PREVIEW|Casey Morgan|Alex Rivera|Riley Kim|Sam Patel|Drew Park|Quinn Choi|Devon Sharpe|Mara Ellison|Theo Brandt|is coming to you|Active now|you have \d+ today|DEMO FUNNEL|people are waiting/.source + '|' + ROSTER_NAMES.source);
 // Every figure on an unread page would be invented; the bring-your-clients pitch's $5 is the one
-// fixed price the page states.
-const dollars = (t) => /\$\d/.test(t.replace('members at $5/mo', ''));
+// fixed price the page states (DBZ_BYO_PITCH, in "Bring your clients", a catalogue card).
+const dollars = (t) => /\$\d/.test(t.replace('the $5/mo membership', ''));
 const answer = (status, body) => () => Promise.resolve({ ok: status >= 200 && status < 300, status, json: () => Promise.resolve(body) });
 
 test('a signed-in coach whose reads all failed sees unread states, never the preview\'s figures', async () => {
@@ -1331,13 +1341,12 @@ test('a live coach whose dashboard feed failed is told the funnel could not be r
 });
 
 // ── The catalogue's cards read as the board's do (coach dashboard steps 4a and 4b) ──
-// The funnel plate (the Overview's "Marketplace funnel", Growth's "Close rate and the benchmark")
-// and the roster outcomes moved into the boards' catalogues, off the board until a coach adds them,
-// and the page tests above draw the default cards: nothing read what the two say any more, and
-// their loading and unread guards stood untested (business-plan-2026-10-17's preview gate).
-// They are drawn here with every card each board declares: the funnel on the Overview, where the
-// plate is the only funnel, and the outcomes on Retention.
-test("the catalogue's funnel and roster outcomes say loading while a read is out, and unread once it failed", async () => {
+// The funnel plate (the Overview's "Marketplace funnel", Growth's "Close rate and the benchmark"),
+// the roster outcomes, "Who left, by name" and "Who found whom" moved into the boards' catalogues,
+// off the board until a coach adds them, and the page tests above draw the default cards: nothing
+// read what those plates say while a read is out or once it failed, and their guards stood untested
+// (business-plan-2026-10-17's preview gate). Every card each board declares is drawn here, in both.
+test("every card in the boards' catalogues says loading while a read is out, and unread once it failed", async () => {
   const draw = async (source, section, fetch) => {
     stubPage({ source, section, all: true });
     globalThis.fetch = window.fetch = fetch;
@@ -1349,28 +1358,35 @@ test("the catalogue's funnel and roster outcomes say loading while a read is out
   };
   const pending = () => new Promise(() => {});
   const outage = answer(500, { error: 'x' });
-  // Loading: the dashboard hasn't answered, or it resolved a demo the analytics haven't confirmed.
+  // Loading: the dashboard resolved a demo the analytics haven't confirmed (and, for the funnel, the
+  // dashboard hasn't answered at all). No card is a failed or an empty read, nor the preview.
+  for (const section of SECTIONS) {
+    const t = await draw('demo', section, pending);
+    const at = section + ': ' + t.slice(0, 400);
+    assert.doesNotMatch(t, DEMO, at);
+    assert.doesNotMatch(t, /Couldn't read|could not be read|No cancellations on record|Origin labels land here/, at);
+  }
   for (const source of [null, 'demo']) {
     const t = await draw(source, 'overview', pending);
     assert.match(t, /Your funnel is loading…/, source + ': ' + t.slice(0, 400));
-    assert.doesNotMatch(t, /Couldn't read your funnel|DEMO FUNNEL|PREVIEW/, source + ': still loading is not a failed read, nor the preview');
   }
-  // Unread: a live coach with no feed (their dashboard feed failed, whatever the analytics are
-  // doing), and an analytics outage under a failed roster read or an unconfirmed demo.
+  assert.match(await draw('demo', 'retention', pending), /Roster outcomes load with the analytics rollup\..*Your cancellations load with the analytics rollup…/);
+  assert.match(await draw('demo', 'growth', pending), /Where your clients came from loads with the analytics rollup…/);
+  // Unread: an analytics outage under a failed roster read or an unconfirmed demo. No card is still
+  // loading, nor the preview, nor a figure the page never read.
+  for (const section of SECTIONS) for (const source of ['unread', 'demo']) {
+    const t = await draw(source, section, outage);
+    const at = section + ', ' + source + ': ' + t.slice(0, 400);
+    assert.doesNotMatch(t, DEMO, at);
+    assert.equal(dollars(t), false, at);
+    assert.doesNotMatch(t, /loads? with|is loading/i, at);
+  }
+  // The plates' own lines: a live coach with no feed (their dashboard feed failed, whatever the
+  // analytics are doing) is told the funnel couldn't be read, as an outage is.
   for (const [source, fetch] of [['live', pending], ['unread', outage], ['demo', outage]]) {
-    const t = await draw(source, 'overview', fetch);
-    assert.match(t, /Couldn't read your funnel just now/, source + ': ' + t.slice(0, 400));
-    assert.doesNotMatch(t, /Your funnel is loading|DEMO FUNNEL|PREVIEW/, source + ': a failed read is neither loading nor the preview');
+    assert.match(await draw(source, 'overview', fetch), /Couldn't read your funnel just now/, source);
   }
-  // The roster outcomes: loading while the analytics are out, unread once they failed.
-  const loading = await draw('demo', 'retention', pending);
-  assert.match(loading, /Roster outcomes load with the analytics rollup\./, loading.slice(0, 400));
-  assert.doesNotMatch(loading, /Couldn't read your roster outcomes/);
-  for (const source of ['unread', 'demo']) {
-    const t = await draw(source, 'retention', outage);
-    assert.match(t, /Couldn't read your roster outcomes just now\./, source + ': ' + t.slice(0, 400));
-    assert.doesNotMatch(t, /Roster outcomes load with/, source + ': a failed read is not one still loading');
-  }
+  assert.match(await draw('unread', 'retention', outage), /Couldn't read your roster outcomes just now\./);
 });
 
 // ── The whole page: the waiting list is valued at the listing price alone (Codex round 7, #2394) ──
