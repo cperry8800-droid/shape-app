@@ -667,6 +667,15 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
       ],
     },
     {
+      section: 'The Business page\'s mutation spec holds again: every catalogue card is tested, and the entries its guards moved from are re-anchored. No migration',
+      items: [
+        { label: 'tests/mutations/business-plan-2026-10-17.mutations.mjs had stopped holding on main (found on #2722, 2026-11-12): the boards of coach dashboard steps 4a and 4b moved the funnel plate, the roster outcomes, Who left by name and Who found whom into the catalogues, off the board until a coach adds them, and the page tests drew the default cards, so seven preview-gate guards stood untested; and fourteen entries no longer found their line', status: 'done' },
+        { label: 'tests/business-plan-page.test.mjs draws every card of every board while the reads are out (nothing a failed or empty read, nor the preview) and after an outage (nothing still loading, nor the preview, nor an unread figure), with each plate\'s own line: the funnel loading or unread, the roster outcomes, the cancellations, where clients came from. A linked Stripe account Stripe couldn\'t be reached for reads as a failed read on Money\'s Stripe and Payout history cards, never as one to set up (dbzStripeState)', status: 'done' },
+        { label: 'Re-anchored where the guard moved: the unread close rate (it reads uncounted consults too; that half is coach-dashboard-p1-2026-11-05\'s), the waiting list\'s net and its price note, a failed Stripe read (dbzStripeState), the application\'s payout lines (signup.jsx is LF now), the workout builder\'s fee note (NwFeeNote says the terms before and after card processing: each entry has a twin), who left\'s window (beside Retention\'s same line), and the preview\'s net on Today', status: 'done' },
+        { label: 'Retired, as their cards went in step 4a: the page\'s own sidebar payout card (two entries; the sidebar\'s own read is business-boards-2026-11-08\'s) and Today\'s "payouts connect soon" card (tests/business-boards.test.mjs holds it gone)', status: 'done' },
+      ],
+    },
+    {
       section: 'Coach fee: 15% on clients who sign up through Shape, no cut on a coach\'s existing clients (owner, 2026-11-12). Migration 2026-11-12-coach-existing-clients.sql, which the owner runs',
       items: [
         { label: 'Owner, 2026-11-12: "Shape takes 15% cut on clients that sign up through Shape. Existing clients, Shape takes no cut from." Asked first how a client counts as existing; the owner chose a list the coach declares by email, open 60 days from joining (from 2026-11-12 for a coach who joined before), and to honour invites and links already sent until they expire', status: 'done' },
