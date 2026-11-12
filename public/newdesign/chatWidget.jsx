@@ -3880,18 +3880,21 @@ function CwNoraWelcome({ name, quick, hints, onAsk }) {
 // `caret` ends the last line with the cursor she writes at, while her reply is still coming.
 const CW_NORA_BULLET = /^\s*(?:[•\-*]|(\d+)[.)])\s+/;
 const CW_NORA_LINK = /(https?:\/\/[^\s<>"']*[^\s<>"'.,!?;:)\]]|[\w.+-]+@[\w-]+(?:\.[\w-]+)*\.[a-z]{2,})/gi;
+// Each match's own index (matchAll), not a replace() callback's argument list, whose offset moves
+// with the number of groups in the pattern.
 function cwNoraLinkify(text) {
+  const s = String(text);
   const out = [];
   let at = 0;
-  String(text).replace(CW_NORA_LINK, (hit, _g, i) => {
-    if (i > at) out.push(text.slice(at, i));
+  for (const m of s.matchAll(CW_NORA_LINK)) {
+    const hit = m[0];
+    if (m.index > at) out.push(s.slice(at, m.index));
     const web = /^https?:\/\//i.test(hit);
     const own = web && hit.startsWith(window.location.origin);
-    out.push(<a key={i} href={web ? hit : `mailto:${hit}`} {...(web && !own ? { target: "_blank", rel: "noopener noreferrer" } : {})}>{hit}</a>);
-    at = i + hit.length;
-    return hit;
-  });
-  if (at < text.length) out.push(text.slice(at));
+    out.push(<a key={m.index} href={web ? hit : `mailto:${hit}`} {...(web && !own ? { target: "_blank", rel: "noopener noreferrer" } : {})}>{hit}</a>);
+    at = m.index + hit.length;
+  }
+  if (at < s.length) out.push(s.slice(at));
   return out;
 }
 function cwNoraBlocks(text) {
