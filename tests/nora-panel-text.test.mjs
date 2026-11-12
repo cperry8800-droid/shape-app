@@ -8,6 +8,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import vm from 'node:vm';
+import { greetingFor, GREETING_KINDS } from '../src/lib/ai/noraGreeting.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const require = createRequire(import.meta.url);
@@ -20,7 +21,7 @@ const WEB = readFileSync(join(ROOT, 'public/newdesign/chatWidget.jsx'), 'utf8');
 const from = WEB.indexOf('const CW_NORA_BULLET =');
 const to = WEB.indexOf('function MicGlyph()');
 assert.ok(from > 0 && to > from, 'the text layout must stay where this test reads it');
-const { code } = babel.transformSync(`${WEB.slice(from, to)}\nthis.CwNoraText = CwNoraText;`, { presets: [presetReact], babelrc: false, configFile: false });
+const { code } = babel.transformSync(`${WEB.slice(from, to)}\nthis.CwNoraText = CwNoraText; this.cwNoraAfterHello = cwNoraAfterHello;`, { presets: [presetReact], babelrc: false, configFile: false });
 const ctx = { React, window: { location: { origin: 'https://www.theshapecommunity.com' } } };
 vm.runInNewContext(code, ctx);
 const html = (text, caret) => renderToStaticMarkup(React.createElement(ctx.CwNoraText, { text, caret }));
@@ -54,4 +55,20 @@ test('the caret ends the last line while she writes', () => {
   assert.match(html('Hello', true), /<p>Hello<span class="cw-nora-caret" aria-hidden="true"><\/span><\/p>/);
   assert.match(html('• One', true), /<li>One<span class="cw-nora-caret"/);
   assert.doesNotMatch(html('Hello'), /cw-nora-caret/);
+});
+
+// The welcome says the account's greeting under its own "Hi there!" (Codex P2 on #2725), so the
+// greeting's own hello goes and the rest, the team's email included, is kept word for word.
+test("the welcome keeps every greeting's words but its first hello", () => {
+  const seed = "Hi, I'm Nora — Shape's concierge. Ask me anything: connecting integrations, your plan, billing, or your account. If I can't sort it out, the Shape team answers at info@theshapecommunity.com.";
+  assert.equal(ctx.cwNoraAfterHello(seed), "I'm Nora — Shape's concierge. Ask me anything: connecting integrations, your plan, billing, or your account. If I can't sort it out, the Shape team answers at info@theshapecommunity.com.");
+  for (const kind of GREETING_KINDS) for (const plain of [false, true]) {
+    const { text } = greetingFor(kind, { plain });
+    const said = ctx.cwNoraAfterHello(text);
+    assert.match(said, /^I'm Nora[.,]/, `${kind}${plain ? ' (plain)' : ''} starts with who she is`);
+    assert.equal(`Hi, ${said}`, text, 'and loses nothing else');
+    assert.match(said, /info@theshapecommunity\.com/, 'the team\'s email stays');
+  }
+  assert.equal(ctx.cwNoraAfterHello('History of Shape.'), 'History of Shape.', 'a word that starts with "hi" is not a hello');
+  assert.equal(ctx.cwNoraAfterHello(''), '', 'nothing, and the welcome says its own line');
 });

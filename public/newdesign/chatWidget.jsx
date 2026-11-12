@@ -2901,7 +2901,8 @@ function ChatWidget(props) {
         .cw-nora-orb img { display: block; width: 100%; height: 100%; border-radius: 999px; object-fit: cover; object-position: 50% 32%; border: 2px solid var(--sh-ground, #1a1612); box-sizing: border-box; }
         .cw-nora-orb::after { content: "✦"; position: absolute; top: -6px; right: -8px; font-size: 16px; line-height: 1; color: var(--sh-accent-ink, #2ee0c4); }
         .cw-nora-hi { margin-top: 18px; font-size: clamp(26px, 3.2vw, 34px); font-weight: 700; letter-spacing: -0.03em; line-height: 1.1; color: var(--sh-ink, #f2ede4); }
-        .cw-nora-sub { margin-top: 8px; font-size: 16px; line-height: 1.45; color: var(--sh-ink2, #a09b94); max-width: 380px; }
+        .cw-nora-sub { margin-top: 10px; font-size: 15px; line-height: 1.5; color: var(--sh-ink2, #a09b94); max-width: 420px; text-wrap: pretty; overflow-wrap: anywhere; }
+        .cw-nora-sub a { color: var(--sh-accent-ink, #2ee0c4); text-decoration: underline; text-underline-offset: 3px; text-decoration-thickness: 1px; }
         .cw-nora-cards { margin-top: 28px; width: 100%; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
         .cw-nora-card { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; min-height: 76px; padding: 14px 15px; border-radius: 14px; border: 1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.1); background: rgba(var(--sh-ink-rgb, 242,237,228),0.035); color: var(--sh-ink, #f2ede4); font-family: inherit; text-align: left; cursor: pointer; transition: border-color .15s ease, background .15s ease, transform .15s ease; animation: cwRise .4s cubic-bezier(.22,.8,.24,1) both; }
         .cw-nora-card:nth-child(2) { animation-delay: .04s } .cw-nora-card:nth-child(3) { animation-delay: .08s } .cw-nora-card:nth-child(4) { animation-delay: .12s }
@@ -3486,7 +3487,7 @@ function ChatWidget(props) {
 
             <div ref={scrollRef} className={noraWelcome ? "cw-nora-dots" : undefined} style={{ flex: 1, overflowY: "auto", padding: isSupport ? "22px 22px 18px" : "18px 20px", display: "flex", flexDirection: "column", gap: isSupport ? 22 : 12 }}>
               {noraWelcome && (
-                <CwNoraWelcome name={myName} quick={active.quick} hints={active.hints} onAsk={(q) => send(q)} />
+                <CwNoraWelcome name={myName} text={active.messages[0].t} quick={active.quick} hints={active.hints} onAsk={(q) => send(q)} />
               )}
               {active && active.channelId && !(active.messages || []).length && (
                 // A real channel with nothing in it yet says what it is for, not a blank page.
@@ -3847,10 +3848,13 @@ function CwNoraCardGlyph({ q }) {
     : <svg aria-hidden width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d={CW_NORA_SPARKLE} /></svg>;
 }
 
-// Nora's welcome: her face, hello (by first name when the account has one), and her suggestions
-// as cards with the line under each that the server gives (src/lib/ai/noraGreeting.mjs).
-// A card asks its suggestion as the member's own question.
-function CwNoraWelcome({ name, quick, hints, onAsk }) {
+// Nora's welcome: her face, hello (by first name when the account has one), her greeting, and her
+// suggestions as cards with the line under each that the server gives (src/lib/ai/noraGreeting.mjs).
+// ⚠ THE GREETING IS THE ACCOUNT'S (her thread's first message): what she can do for a visitor, a
+// member or a coach, and the team's email. The welcome stands in for that message, so it says it
+// (Codex P2 on #2725: a fixed line here dropped it for everyone). A card asks its suggestion as the
+// member's own question.
+function CwNoraWelcome({ name, text, quick, hints, onAsk }) {
   const first = String(name || "").trim().split(/\s+/)[0];
   const cards = Array.isArray(quick) ? quick.filter((q) => typeof q === "string" && q.trim()).slice(0, 4) : [];
   return (
@@ -3859,7 +3863,7 @@ function CwNoraWelcome({ name, quick, hints, onAsk }) {
         <img src="/nora-avatar.png" alt="" onError={cwPhotoError} data-fallback={CW_NORA_MARK} />
       </div>
       <div className="cw-nora-hi">{first && first !== "You" ? `Hi, ${first}!` : "Hi there!"}</div>
-      <div className="cw-nora-sub">I’m Nora, Shape’s concierge. How can I help today?</div>
+      <div className="cw-nora-sub">{cwNoraLinkify(cwNoraAfterHello(text) || "I’m Nora, Shape’s concierge. How can I help today?")}</div>
       {cards.length > 0 && (
         <div data-nora-suggest className="cw-nora-cards">
           {cards.map((q) => (
@@ -3896,6 +3900,10 @@ function cwNoraLinkify(text) {
   }
   if (at < s.length) out.push(s.slice(at));
   return out;
+}
+// Her greeting under the welcome's own "Hi there!": its first word of hello goes, so it isn't said twice.
+function cwNoraAfterHello(text) {
+  return String(text || "").trim().replace(/^(?:hi|hello|hey)\b[^,.!—]*[,.!—]\s*/i, "");
 }
 function cwNoraBlocks(text) {
   const blocks = [];

@@ -1045,7 +1045,7 @@ test('answered as one account while /api/me was unanswered, then the store loads
 
 // Owner, 2026-11-12: "get Nora to look and flow like" Ladder's assistant, "attached to side page".
 test('the docked panel: a welcome with her cards stands in for her greeting, then the question and her answer read as a page; Escape closes', async () => {
-  const m = await mount({ stored: [], greeting: { text: 'Hi, I am Nora.', quick: ['How do I log a meal?', 'Hi'], hints: { 'How do I log a meal?': 'Logged once you confirm it.' } } });
+  const m = await mount({ stored: [], greeting: { text: 'Hi, I am Nora. I can log a meal for you. The Shape team reads info@theshapecommunity.com.', quick: ['How do I log a meal?', 'Hi'], hints: { 'How do I log a meal?': 'Logged once you confirm it.' } } });
   const d = m.w.document;
   // What opened it (the corner launcher, on the site), to come back to.
   const opener = d.createElement('button');
@@ -1060,6 +1060,11 @@ test('the docked panel: a welcome with her cards stands in for her greeting, the
     assert.ok(d.querySelector('.cw-scrim'), 'over the page, dimmed');
     assert.ok(d.querySelector('[data-nora-welcome]'), 'the welcome');
     assert.ok(!d.querySelector('.cw-nora-turn, .cw-nora-q'), 'her greeting is the welcome, not a turn');
+    // The account's greeting is what the welcome says, under its own hello (Codex P2 on #2725: a
+    // fixed line there dropped what she can do for the account, and the team's email).
+    const said = d.querySelector('.cw-nora-sub');
+    assert.equal(said.textContent, 'I am Nora. I can log a meal for you. The Shape team reads info@theshapecommunity.com.');
+    assert.equal(said.querySelector('a').getAttribute('href'), 'mailto:info@theshapecommunity.com');
     const cards = [...d.querySelectorAll('[data-nora-suggest] button')];
     assert.deepEqual(cards.map((c) => c.querySelector('.cw-nora-card-t').textContent), ['How do I log a meal?', 'Hi']);
     assert.equal(cards[0].querySelector('.cw-nora-card-h').textContent, 'Logged once you confirm it.', 'the line the server gives');
@@ -1100,6 +1105,7 @@ test('the popped-out window asks for her greeting at once, so its welcome cards 
     assert.ok(m.calls.includes('GET /api/support/chat'), 'asked without an open');
     const card = m.w.document.querySelector('[data-nora-suggest] button');
     assert.ok(card, 'the welcome is drawn in the window');
+    assert.equal(m.w.document.querySelector('.cw-nora-sub').textContent, 'I am Nora.', "with the account's greeting");
     assert.equal(card.querySelector('.cw-nora-card-h').textContent, 'Logged once you confirm it.');
   } finally {
     await m.done();
