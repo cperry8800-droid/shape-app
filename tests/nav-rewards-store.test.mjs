@@ -40,7 +40,7 @@ function fnSource(name) {
   return SHELL.slice(decl.start, decl.end);
 }
 // The tables, the shell routing that `navGroupsFor` reads, and the three components.
-const tableSrc = ['COACHES_HREF', 'REWARDS_HREF', 'STORE_TAB', 'REWARDS_ITEMS', 'SHAPE_NAV_GROUPS', 'SIGNED_OUT_ONLY', 'PORTAL_NAV', 'DASH_SHELL_STUBS']
+const tableSrc = ['COACHES_HREF', 'COACHES_TAB', 'COACHES_ITEMS', 'REWARDS_HREF', 'STORE_TAB', 'REWARDS_ITEMS', 'SHAPE_NAV_GROUPS', 'SIGNED_OUT_ONLY', 'PORTAL_NAV', 'DASH_SHELL_STUBS']
   .map((n) => statement(SHELL, n)).join('\n');
 const fnSrc = ['dashShellRole', 'dashShellHref', 'navGroupsFor', 'NavCaret', 'NavDropdown', 'MobileDrawer', 'Header'].map(fnSource).join('\n');
 const compiled = babel.transformSync(tableSrc + '\n' + fnSrc, {
@@ -127,6 +127,39 @@ test('signed out, the bar\'s Rewards trigger opens Rewards and its menu opens th
     assert.ok(item, 'hovering Rewards opened no menu');
     assert.equal(item.textContent, 'Shape Store');
     assert.equal(target(item.getAttribute('href')), 'Store.html');
+  } finally { await m.unmount(); }
+});
+
+// ⚠ THE KEYBOARD REACHES EVERY MENU ITEM (Codex P2 on #2723). A menu opened by hover alone
+// kept the Coaches menu's three pages and the Rewards menu's Store from the keyboard: the
+// trigger is a link to its own page, and the items are not in the DOM until the menu opens.
+test('signed out, each bar menu opens on focus, stays open while focus is inside, and Escape closes it', async () => {
+  const { m, row } = await bar(null);
+  try {
+    const want = { Coaches: NAV.COACHES_ITEMS.map(([n]) => n), Rewards: NAV.REWARDS_ITEMS.map(([n]) => n) };
+    for (const [label, names] of Object.entries(want)) {
+      const trigger = row.find((a) => text(a) === label);
+      assert.ok(trigger, 'the signed-out bar has no ' + label + ' tab');
+      const menu = trigger.parentElement;
+      const items = () => [...menu.querySelectorAll('a')].filter((a) => a !== trigger);
+      assert.equal(items().length, 0, label + ' rendered its menu before anything opened it');
+      await act(async () => { trigger.focus(); });
+      assert.deepEqual(items().map((a) => a.textContent), names, 'focusing ' + label + ' did not open its menu');
+      assert.equal(trigger.getAttribute('aria-expanded'), 'true', label + ' does not say its menu is open');
+      // Tab into the menu: it stays open.
+      await act(async () => { items()[0].focus(); });
+      assert.equal(items().length, names.length, label + '\'s menu closed when focus moved into it');
+      // Escape: closed, focus back on the trigger, and that move does not reopen it.
+      await act(async () => { document.activeElement.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); });
+      assert.equal(items().length, 0, 'Escape did not close ' + label + '\'s menu');
+      assert.ok(document.activeElement === trigger, 'Escape did not return focus to ' + label);
+      assert.equal(trigger.getAttribute('aria-expanded'), 'false');
+      // Focus leaving the menu closes it.
+      await act(async () => { trigger.blur(); trigger.focus(); });
+      assert.equal(items().length, names.length, 'refocusing ' + label + ' did not reopen it');
+      await act(async () => { trigger.blur(); });
+      assert.equal(items().length, 0, label + '\'s menu stayed open after focus left it');
+    }
   } finally { await m.unmount(); }
 });
 

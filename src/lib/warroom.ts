@@ -665,6 +665,19 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
       ],
     },
     {
+      section: 'Website footer and nav: the footer regrouped (Legal a column of its own, Join, Apply to the role picker, Rates & payouts gone, Community and Your privacy choices added); Coaches ▾ opens For coaches, For trainers and For nutritionists, signed out. No migration',
+      items: [
+        { label: 'Owner, 2026-11-12, of the website footer: "review these bookmarks/footnotes and make sure each is wired correctly. If the footnote page is no longer live, remove the footnote and link. Make sure these are organized and labeled correctly also. And make sure we aren\'t missing any"; "the apply link should bring you to Landing.html"; of For trainers and For nutritionists, keep the pages and "add them as subtabs under coaches"', status: 'done' },
+        { label: 'Every footer target answered 200 on www.theshapecommunity.com, none a redirect or a sign-in gate, so no link was removed as dead', status: 'done' },
+        { label: 'Both footers (pageShell.jsx Footer, index.html): Product adds Community; For coaches is Overview, Personal trainers, Nutritionists, Apply (Landing.html, where a visitor picks trainer or nutritionist; it opened the trainer application for both); Join is Get started and Pricing; Support is Help, Contact, Code of conduct; Legal is Privacy, Terms, Consumer health data, Data & compliance, Subprocessors, Your privacy choices (/privacy-request.html). Rates & payouts is gone: it opened the member Pricing page', status: 'done' },
+        { label: 'Both bars and drawers: Coaches ▾ holds For coaches, For trainers, For nutritionists signed out; signed in it is the plain link (COACHES_TAB as its signedIn), since the three are sign-up pages and the signed-in row leaves those off. This reverses the 2026-11-08 ruling that removed the menu', status: 'done' },
+        { label: 'Measured in Chromium: the nav row clears its buttons by 18px or more from 1440 down to 1021 on both bars, with no page scroll; no footer link wraps from 1440 down to 390', status: 'done' },
+        { label: 'Codex P2 on #2723: the shared bar\'s menus opened on hover alone, so the keyboard could not reach their items. NavDropdown opens on focus, stays open while focus is inside, closes when it leaves, and Escape closes it and returns to the trigger (aria-expanded says which); checked by keyboard in Chromium. The Rewards menu gets the same', status: 'done' },
+        { label: 'Tests: tests/site-nav.test.mjs (Coaches menu signed out, plain signed in, on both bars and drawers), tests/site-footer.test.mjs (where the coach pages sit in the nav), tests/nav-rewards-store.test.mjs (each menu by keyboard)', status: 'done' },
+        { label: 'OWNER: on the website, hover Coaches: For coaches, For trainers, For nutritionists; check the footer\'s five columns on a desktop and a phone', status: 'manual' },
+      ],
+    },
+    {
       section: 'Weight alerts, from the coach-alerts plan (PR 2): losing fast and a safety red, a weigh-in gap, a slow start on a weight-loss goal, the weight-gain bands, and the GLP-1 question with its own lines. No migration',
       items: [
         { label: 'Owner, 2026-11-11, decision 4: a disordered-eating screen (SCOFF) yes, optional at intake; a positive seen by the nutritionist only; members get a setting that hides the numbers. That is PR 2b (it needs a nutritionist-only read, a migration), after this one', status: 'done' },
