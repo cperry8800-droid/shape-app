@@ -1330,6 +1330,49 @@ test('a live coach whose dashboard feed failed is told the funnel could not be r
   await m.unmount();
 });
 
+// ── The catalogue's cards read as the board's do (coach dashboard steps 4a and 4b) ──
+// The funnel plate (the Overview's "Marketplace funnel", Growth's "Close rate and the benchmark")
+// and the roster outcomes moved into the boards' catalogues, off the board until a coach adds them,
+// and the page tests above draw the default cards: nothing read what the two say any more, and
+// their loading and unread guards stood untested (business-plan-2026-10-17's preview gate).
+// They are drawn here with every card each board declares: the funnel on the Overview, where the
+// plate is the only funnel, and the outcomes on Retention.
+test("the catalogue's funnel and roster outcomes say loading while a read is out, and unread once it failed", async () => {
+  const draw = async (source, section, fetch) => {
+    stubPage({ source, section, all: true });
+    globalThis.fetch = window.fetch = fetch;
+    const m = await mount(React.createElement(window.CoachBusinessPage, { role: 'trainer' }));
+    await settle();
+    const t = m.text();
+    await m.unmount();
+    return t;
+  };
+  const pending = () => new Promise(() => {});
+  const outage = answer(500, { error: 'x' });
+  // Loading: the dashboard hasn't answered, or it resolved a demo the analytics haven't confirmed.
+  for (const source of [null, 'demo']) {
+    const t = await draw(source, 'overview', pending);
+    assert.match(t, /Your funnel is loading…/, source + ': ' + t.slice(0, 400));
+    assert.doesNotMatch(t, /Couldn't read your funnel|DEMO FUNNEL|PREVIEW/, source + ': still loading is not a failed read, nor the preview');
+  }
+  // Unread: a live coach with no feed (their dashboard feed failed, whatever the analytics are
+  // doing), and an analytics outage under a failed roster read or an unconfirmed demo.
+  for (const [source, fetch] of [['live', pending], ['unread', outage], ['demo', outage]]) {
+    const t = await draw(source, 'overview', fetch);
+    assert.match(t, /Couldn't read your funnel just now/, source + ': ' + t.slice(0, 400));
+    assert.doesNotMatch(t, /Your funnel is loading|DEMO FUNNEL|PREVIEW/, source + ': a failed read is neither loading nor the preview');
+  }
+  // The roster outcomes: loading while the analytics are out, unread once they failed.
+  const loading = await draw('demo', 'retention', pending);
+  assert.match(loading, /Roster outcomes load with the analytics rollup\./, loading.slice(0, 400));
+  assert.doesNotMatch(loading, /Couldn't read your roster outcomes/);
+  for (const source of ['unread', 'demo']) {
+    const t = await draw(source, 'retention', outage);
+    assert.match(t, /Couldn't read your roster outcomes just now\./, source + ': ' + t.slice(0, 400));
+    assert.doesNotMatch(t, /Roster outcomes load with/, source + ': a failed read is not one still loading');
+  }
+});
+
 // ── The whole page: the waiting list is valued at the listing price alone (Codex round 7, #2394) ──
 // The card was handed the Plan's starting rate, which falls back to the clients' average ($180
 // here) when the listing price is unread or unset, and printed it as what the waiting members

@@ -687,8 +687,11 @@ export default {
     { name: "today's figures: more signed than consulted is said as nothing to measure yet", file: TODAY,
       find: '  return f.signed90 > (f.consults90 || 0) ? "over" : "none";',
       replace: '  return "none";' },
+    // (Re-anchored on 2026-11-12: the line also says unread for uncounted consults since 2026-11-05.
+    // This drops the whole line, which unread signings catch; the consults half alone is
+    // coach-dashboard-p1-2026-11-05's 'an uncounted consult total reads as "over"'.)
     { name: "today's figures: an unread close rate is said as nothing to measure yet", file: TODAY,
-      find: '  if (f.signed90 == null) return "unread";\n',
+      find: '  if (f.signed90 == null || f.consults90 == null) return "unread";\n',
       replace: '' },
     { name: "today's figures: the funnel says nothing of more signed than consulted", file: TODAY,
       find: '    : why === "over" ? "More clients signed than booked a consult, so there\'s no close rate to show: some signed without one."\n',
