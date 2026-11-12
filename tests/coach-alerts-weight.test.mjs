@@ -128,6 +128,12 @@ test('a weigh-in gap: none for 14 days, for a client who weighed in weekly over 
   assert.equal(flag(feed('nutritionist', weekly(30, { pause: { until: day(5), by: 'client' } })), 'weighin_gap'), null, '5 days back, 30 since the last');
   const ten = DS.resolveThresholds({ WEIGHIN_GAP_DAYS: 10 }, 'nutritionist').thresholds;
   assert.equal(flag(feed('nutritionist', weekly(40, { pause: { until: day(12), by: 'client' } }), ten), 'weighin_gap').reason, 'No weigh-in in the 11 days since their break', 'at a 10-day line');
+  // At the house 14 days and over it, still from the return (Codex on #2721): the other gaps stop reading
+  // a break 14 days back, this one a day past its own line.
+  assert.equal(flag(feed('nutritionist', weekly(40, { pause: { until: day(15), by: 'client' } })), 'weighin_gap').reason, 'No weigh-in in the 14 days since their break', 'at the house line');
+  const twenty = DS.resolveThresholds({ WEIGHIN_GAP_DAYS: 20 }, 'nutritionist').thresholds;
+  assert.equal(flag(feed('nutritionist', weekly(30, { pause: { until: day(16), by: 'client' } }), twenty), 'weighin_gap'), null, '15 days back under a 20-day line');
+  assert.equal(flag(feed('nutritionist', weekly(30, { pause: { until: day(21), by: 'client' } }), twenty), 'weighin_gap').reason, 'No weigh-in in the 20 days since their break');
   const five = DS.resolveThresholds({ WEIGHIN_GAP_DAYS: 5 }, 'nutritionist').thresholds;
   assert.equal(flag(feed('nutritionist', weekly(6, { pause: { until: day(12), by: 'client' } }), five), 'weighin_gap').reason, 'No weigh-in for 6 days', 'weighed in after the break: from that weigh-in');
   // A trainer with a nutritionist on sees it as theirs.

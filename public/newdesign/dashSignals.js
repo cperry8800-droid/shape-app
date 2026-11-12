@@ -469,7 +469,8 @@
   // away, and a coach's surface runs on the coach's day: a coach a day ahead saw "Back from a break"
   // while the member was still away. `backAt` (get_client_pause) is the instant their return day
   // begins, the same in every zone; without it (a snapshot saved before it), the viewer's day.
-  function pauseOf(c, now) {
+  // `bound`: how many days back it still reads (PAUSE_BOUND_DAYS by default); the weigh-in gap reads it longer.
+  function pauseOf(c, now, bound) {
     var p = c && c.pause;
     if (!p || typeof p !== "object" || typeof p.until !== "string" || !ISO_DAY.test(p.until)) return null;
     var by = typeof p.by === "string" ? p.by : null;
@@ -496,7 +497,7 @@
       if (iso(now) <= p.until) return { state: "paused", until: p.until, by: by };
       day = daysBetween(back, now);
     }
-    if (day >= PAUSE_BOUND_DAYS) return null;
+    if (day >= (bound || PAUSE_BOUND_DAYS)) return null;
     return { state: "back", until: p.until, since: iso(back), day: day, fresh: day < PAUSE_BACK_DAYS, by: by };
   }
   // Local midnight of the day they came back from a break, while the gaps still count from it; else null.
@@ -1674,9 +1675,12 @@
     var lastDay = new Date(last.on.getTime()); lastDay.setHours(0, 0, 0, 0);
     var gap = daysBetween(lastDay, now);
     // ⚠ FROM THE DAY THEY CAME BACK, NOT FROM BEFORE A BREAK (as the other gaps): a last weigh-in from
-    // before it counts the days since their return.
-    var backDay = resumeDay(c, now), sinceBreak = false;
-    if (backDay && lastDay < backDay) { gap = resumeDays(c, now); sinceBreak = true; }
+    // before it counts the days since their return. ⚠ FOR AS LONG AS THE LINE (Codex on #2721): the other
+    // gaps stop reading a break 14 days back (PAUSE_BOUND_DAYS), and a line of 14 or more then counted from
+    // before it, so the break is read here until a day past the coach's own line.
+    var bp = pauseOf(c, now, Math.max(PAUSE_BOUND_DAYS, THRESHOLDS.WEIGHIN_GAP_DAYS + 1));
+    var backDay = bp && bp.state === "back" ? toDate(bp.since) : null, sinceBreak = false;
+    if (backDay && lastDay < backDay) { gap = bp.day; sinceBreak = true; }
     if (gap == null || gap < THRESHOLDS.WEIGHIN_GAP_DAYS) return null;
     var before = r.pts.filter(function (p) { return p.on.getTime() <= last.on.getTime() && last.on.getTime() - p.on.getTime() < 28 * DAY; });
     if (before.length < 4) return null;
