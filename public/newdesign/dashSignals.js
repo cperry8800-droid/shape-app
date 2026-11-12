@@ -1678,7 +1678,9 @@
     // before it counts the days since their return. ⚠ UNTIL THEY WEIGH IN AGAIN (Codex on #2721, twice): the
     // other gaps stop reading a break 14 days back (PAUSE_BOUND_DAYS), and a gap still open then went back to
     // counting from before it, a new episode with a new sig, so a dismissed one came back. With no weigh-in
-    // since, the days since the return are the gap, however long ago it was.
+    // since, the days since the return are the gap, however long ago it was. ⚠ THE READ STILL ENDS: the
+    // overview's get_client_pause returns a break only up to 15 days after it ends, so past that this
+    // counts from before it again (War Room: the owner decides on a migration; Codex on #2721).
     var bp = pauseOf(c, now, Infinity);
     var backDay = bp && bp.state === "back" ? toDate(bp.since) : null, sinceBreak = false;
     if (backDay && lastDay < backDay) { gap = bp.day; sinceBreak = true; }
