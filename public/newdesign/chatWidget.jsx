@@ -2783,17 +2783,11 @@ function ChatWidget(props) {
   // Nora's ⋯ menu in the masthead: read aloud, her tone, Clear, Pop out. Shut with the panel.
   const [noraMenu, setNoraMenu] = React.useState(false);
   React.useEffect(() => { if (!isOpen || !isSupport) setNoraMenu(false); }, [isOpen, isSupport]);
-  // ⚠ ON OPEN, FOCUS GOES INTO THE PANEL: it is a modal over a dimmed page, so a screen reader and
-  // Tab start in it. In Nora's door, with a mouse, it goes to her composer so the question can be
-  // typed at once; on a touch screen it does not, so the keyboard does not cover the welcome.
+  // ⚠ THE DOCKED PANEL IS A MODAL OVER A DIMMED PAGE, so the keyboard stays in it (Codex P2 on
+  // #2725): Tab and Shift+Tab wrap at its ends instead of reaching the page behind the dim, Escape
+  // closes what is on top (the menu, then a profile card, then the panel), and on close focus goes
+  // back to what opened it. Declared before the effect below, so `opener` is read before focus moves.
   const panelRef = React.useRef(null);
-  React.useEffect(() => {
-    if (!open || docked || !panelRef.current) return;
-    const fine = typeof window.matchMedia === "function" && window.matchMedia("(pointer: fine)").matches;
-    const box = noraMode && fine ? panelRef.current.querySelector("textarea") : null;
-    try { (box || panelRef.current).focus({ preventScroll: true }); } catch (e) {}
-  }, [open, noraMode, docked]);
-  // Escape closes what is on top: the menu, then a profile card, then the docked panel.
   const escRef = React.useRef(null);
   escRef.current = () => {
     if (noraMenu) setNoraMenu(false);
@@ -2802,10 +2796,36 @@ function ChatWidget(props) {
   };
   React.useEffect(() => {
     if (!open || docked) return undefined;
-    const onKey = (e) => { if (e.key === "Escape" && escRef.current) escRef.current(); };
+    const opener = document.activeElement;
+    // What Tab can reach in the panel: not what a hidden place holds (its subtree is display: none).
+    const reachable = () => [...panelRef.current.querySelectorAll('a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])')]
+      .filter((el) => !el.closest('[style*="display: none"]'));
+    const onKey = (e) => {
+      if (e.key === "Escape") { if (escRef.current) escRef.current(); return; }
+      const panel = panelRef.current;
+      if (e.key !== "Tab" || !panel) return;
+      const items = reachable();
+      const at = document.activeElement;
+      const inside = panel.contains(at) && at !== panel;
+      if (!items.length) { e.preventDefault(); panel.focus(); return; }
+      const wrap = e.shiftKey ? (!inside || at === items[0]) : (!inside || at === items[items.length - 1]);
+      if (wrap) { e.preventDefault(); (e.shiftKey ? items[items.length - 1] : items[0]).focus(); }
+    };
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      try { if (opener && opener !== document.body && document.contains(opener) && opener.focus) opener.focus({ preventScroll: true }); } catch (e) {}
+    };
   }, [open, docked]);
+  // On open, focus goes into the panel, so a screen reader and Tab start in it. In Nora's door, with
+  // a mouse, it goes to her composer so the question can be typed at once; on a touch screen it
+  // does not, so the keyboard does not cover the welcome.
+  React.useEffect(() => {
+    if (!open || docked || !panelRef.current) return;
+    const fine = typeof window.matchMedia === "function" && window.matchMedia("(pointer: fine)").matches;
+    const box = noraMode && fine ? panelRef.current.querySelector("textarea") : null;
+    try { (box || panelRef.current).focus({ preventScroll: true }); } catch (e) {}
+  }, [open, noraMode, docked]);
 
   return (
     <React.Fragment>

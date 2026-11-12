@@ -1047,9 +1047,15 @@ test('answered as one account while /api/me was unanswered, then the store loads
 test('the docked panel: a welcome with her cards stands in for her greeting, then the question and her answer read as a page; Escape closes', async () => {
   const m = await mount({ stored: [], greeting: { text: 'Hi, I am Nora.', quick: ['How do I log a meal?', 'Hi'], hints: { 'How do I log a meal?': 'Logged once you confirm it.' } } });
   const d = m.w.document;
+  // What opened it (the corner launcher, on the site), to come back to.
+  const opener = d.createElement('button');
+  opener.textContent = 'Ask Nora';
+  d.body.appendChild(opener);
+  opener.focus();
   try {
     await m.open();
     const panel = d.querySelector('[data-chat-panel]');
+    assert.ok(panel.contains(d.activeElement), 'focus goes into the panel');
     assert.ok(panel.classList.contains('cw-side'), 'docked to the side of the page');
     assert.ok(d.querySelector('.cw-scrim'), 'over the page, dimmed');
     assert.ok(d.querySelector('[data-nora-welcome]'), 'the welcome');
@@ -1065,9 +1071,22 @@ test('the docked panel: a welcome with her cards stands in for her greeting, the
     assert.equal(d.querySelector('.cw-nora-q').textContent, 'How do I log a meal?', 'the question, in its pill');
     assert.equal(d.querySelector('.cw-nora-turn .cw-nora-a').textContent, 'Tap + on Eat.', 'her answer, as text');
     assert.ok(!d.querySelector('[data-nora-suggest]'), 'the cards are the welcome\'s alone');
+    // A modal keeps the keyboard (Codex P2 on #2725): Tab past its last control comes back to its
+    // first, Shift+Tab from its first goes to its last, and Tab from the page behind lands in it.
+    const tab = (shiftKey) => React.act(async () => { m.w.dispatchEvent(new m.w.KeyboardEvent('keydown', { key: 'Tab', shiftKey, cancelable: true })); });
+    const reach = [...panel.querySelectorAll('a[href], button:not([disabled]), textarea:not([disabled])')].filter((el) => !el.closest('[style*="display: none"]'));
+    reach[reach.length - 1].focus();
+    await tab(false);
+    assert.equal(d.activeElement, reach[0], 'Tab wraps to the first control');
+    await tab(true);
+    assert.equal(d.activeElement, reach[reach.length - 1], 'Shift+Tab wraps to the last');
+    opener.focus();
+    await tab(false);
+    assert.ok(panel.contains(d.activeElement), 'Tab from behind the dim comes back into the panel');
     await React.act(async () => { m.w.dispatchEvent(new m.w.KeyboardEvent('keydown', { key: 'Escape' })); });
     assert.ok(!d.querySelector('[data-chat-panel]'), 'Escape closes the panel');
     assert.ok(!d.querySelector('.cw-scrim'), 'and lifts the dim');
+    assert.equal(d.activeElement, opener, 'focus goes back to what opened it');
   } finally {
     await m.done();
   }
