@@ -667,6 +667,17 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
       ],
     },
     {
+      section: 'For coaches page: the twenty dashboard frames re-shot from main, and the captions that no longer matched them rewritten. No migration',
+      items: [
+        { label: 'Owner, 2026-11-12: "update screenshots of coaches dashboard on website on \'for coaches\' page"', status: 'done' },
+        { label: 'All twenty frames (ten tabs, trainer and nutritionist) re-shot 2026-11-12 by the recipe in coaches.jsx\'s header: 1440×900, dark paper, the demo practice behind a signed-in app bar, JPEG 86. The frames\' ?v is 20261112. They now show the Guide button, the six-card Today board, the cards on Business, Goal and Score, the Climb profile and the 3D mark', status: 'done' },
+        { label: 'The captions that the new frames contradicted: Today (both roles) said "your day on the left" and a tabbed Needs you; the board is six cards, and the queues are a card you add. Profile (both roles) promised a Shape score, a streak and activity, coaching and music tabs; it is the Climb, with rating, open times, a booking bar and the camps. The trainer Clients line named a food-log column the trainer roster does not have. Score (both roles) listed "What the next tier unlocks", a card taken off the page because nothing grants those perks; it lists the fastest way up now', status: 'done' },
+        { label: 'The recipe gains its trap: the css2 answer\'s @font-face needs absolute URLs to the local font files, or every frame is drawn in fallback faces with no error', status: 'done' },
+        { label: 'Checked: the 19 suites that read the page or its frames, 404/404; the page rendered in Chromium with every frame at 1440×900', status: 'done' },
+        { label: 'OWNER: open For coaches and click through both roles\' ten tabs', status: 'manual' },
+      ],
+    },
+    {
       section: 'Coach fee: 15% on clients who sign up through Shape, no cut on a coach\'s existing clients (owner, 2026-11-12). Migration 2026-11-12-coach-existing-clients.sql, which the owner runs',
       items: [
         { label: 'Owner, 2026-11-12: "Shape takes 15% cut on clients that sign up through Shape. Existing clients, Shape takes no cut from." Asked first how a client counts as existing; the owner chose a list the coach declares by email, open 60 days from joining (from 2026-11-12 for a coach who joined before), and to honour invites and links already sent until they expire', status: 'done' },
