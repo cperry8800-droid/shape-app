@@ -141,17 +141,30 @@ async function mount({ signedIn = true, threadGets = [200], stored = [], me = nu
   };
   const threadGetsSoFar = () => calls.filter((c) => c === 'GET /api/nora/thread').length;
   const personButton = () => w.document.querySelector('[data-nora-person]');
-  // Ask Nora by her suggestion chip, which sends through the composer's own send(). (React DOM
-  // loads before jsdom here, so it falls back to an input-event polyfill a typed message trips.)
+  // Ask Nora through the composer's own send(): by her suggestion card while the welcome shows, and
+  // once the conversation is under way (the cards are the welcome's alone since the docked panel,
+  // 2026-11-12) by a draft the opener fills, sent with Send. (React DOM loads before jsdom here, so
+  // it falls back to an input-event polyfill a typed message trips.)
   const say = async (text) => {
-    const chip = [...w.document.querySelectorAll('button')].find((b) => b.textContent === text);
-    assert.ok(chip, `no chip for ${text}`);
-    await React.act(async () => { chip.click(); });
+    const chip = [...w.document.querySelectorAll('[data-nora-suggest] button')].find((b) => b.textContent === text);
+    if (chip) {
+      await React.act(async () => { chip.click(); });
+    } else {
+      await React.act(async () => { w.__openChat({ who: 'Nora', draft: text }, 'nora'); });
+      const send = w.document.querySelector('[data-chat-panel] button[aria-label="Send"]');
+      assert.ok(send && !send.disabled, `could not ask ${text}`);
+      await React.act(async () => { send.click(); });
+    }
     await settle();
   };
   const appended = () => posts.filter(([u]) => u === '/api/nora/thread').map(([, b]) => b.append);
   const release = async (k) => { await React.act(async () => { held[k](); }); await settle(); };
   return { w, calls, posts, deletes, held, reloads, open, close, done, threadGetsSoFar, personButton, say, appended, addTab, release, meReads: () => meReads };
+}
+
+// Clear is in Nora's ⋯ menu since the docked panel (owner, 2026-11-12): open the menu first.
+async function openNoraMenu(w) {
+  await React.act(async () => { w.document.querySelector('[aria-label="Nora\'s settings"]').click(); });
 }
 
 test('a failed first load is tried again when the panel opens, and then Talk to a person shows', async () => {
@@ -343,6 +356,7 @@ test('a Clear pressed while /api/me was unanswered clears the account\'s copy to
   m.w.confirm = () => true;
   try {
     await unknownThenKnown(m, fail, async () => {
+      await openNoraMenu(m.w);
       await React.act(async () => { m.w.document.querySelector('[data-nora-clear]').click(); });
       await settle();
       await m.say('How do I log a meal?');
@@ -715,6 +729,7 @@ test('a Clear while she is writing ends her typing line, and the reply that fini
     await step(() => m.held.streams[0].text('Before the clear'));
     assert.ok(shown('Before the clear'));
     m.w.confirm = () => true;
+    await openNoraMenu(m.w);
     await step(() => m.w.document.querySelector('[data-nora-clear]').click());
     assert.ok(!shown('Before the clear'), 'what she had written goes with the conversation');
     assert.ok(!shown('Nora is typing'), 'and her typing line with it');
@@ -738,6 +753,7 @@ test('an old reply taking back its words does not blank the reply being written 
     await m.say('How do I log a meal?');
     await step(() => m.held.streams[0].text('Before the clear'));
     m.w.confirm = () => true;
+    await openNoraMenu(m.w);
     await step(() => m.w.document.querySelector('[data-nora-clear]').click());
     await m.say('Hi');
     await step(() => m.held.streams[1].text('After the clear, partial'));
@@ -853,6 +869,7 @@ test('every question, save and Clear names the account the copy belongs to', asy
     assert.deepEqual(chatPosts(m).map((b) => b.account), ['u1'], 'the question');
     assert.deepEqual(m.posts.filter(([u]) => u === '/api/nora/thread').map(([, b]) => b.account), ['u1'], 'the save');
     m.w.confirm = () => true;
+    await openNoraMenu(m.w);
     await React.act(async () => { m.w.document.querySelector('[data-nora-clear]').click(); });
     await settle();
     assert.deepEqual(m.deletes, ['/api/nora/thread?account=u1'], 'the Clear');
@@ -972,6 +989,7 @@ test('a Clear refused as another account reloads for the new account and says no
     await m.say('How do I log a meal?');
     c.who = 'u2';
     m.w.confirm = () => true;
+    await openNoraMenu(m.w);
     await React.act(async () => { m.w.document.querySelector('[data-nora-clear]').click(); });
     await settle();
     assert.deepEqual(m.deletes, ['/api/nora/thread?account=u1']);
@@ -1020,6 +1038,36 @@ test('answered as one account while /api/me was unanswered, then the store loads
     assert.deepEqual(m.appended(), [], "u1's exchanges are not sent into u2's conversation");
     assert.ok(!m.w.document.body.textContent.includes('Tap + on Eat.'), 'nor left on screen');
     assert.doesNotMatch(m.w.localStorage.getItem('shape.chat.v2.u2') || '', /Tap \+ on Eat/);
+  } finally {
+    await m.done();
+  }
+});
+
+// Owner, 2026-11-12: "get Nora to look and flow like" Ladder's assistant, "attached to side page".
+test('the docked panel: a welcome with her cards stands in for her greeting, then the question and her answer read as a page; Escape closes', async () => {
+  const m = await mount({ stored: [], greeting: { text: 'Hi, I am Nora.', quick: ['How do I log a meal?', 'Hi'], hints: { 'How do I log a meal?': 'Logged once you confirm it.' } } });
+  const d = m.w.document;
+  try {
+    await m.open();
+    const panel = d.querySelector('[data-chat-panel]');
+    assert.ok(panel.classList.contains('cw-side'), 'docked to the side of the page');
+    assert.ok(d.querySelector('.cw-scrim'), 'over the page, dimmed');
+    assert.ok(d.querySelector('[data-nora-welcome]'), 'the welcome');
+    assert.ok(!d.querySelector('.cw-nora-turn, .cw-nora-q'), 'her greeting is the welcome, not a turn');
+    const cards = [...d.querySelectorAll('[data-nora-suggest] button')];
+    assert.deepEqual(cards.map((c) => c.querySelector('.cw-nora-card-t').textContent), ['How do I log a meal?', 'Hi']);
+    assert.equal(cards[0].querySelector('.cw-nora-card-h').textContent, 'Logged once you confirm it.', 'the line the server gives');
+    assert.ok(!cards[1].querySelector('.cw-nora-card-h'), 'a suggestion without one is its title alone');
+    assert.match(d.querySelector('.cw-nora-badge').textContent, /^Beta$/);
+    await React.act(async () => { cards[0].click(); });
+    await settle();
+    assert.ok(!d.querySelector('[data-nora-welcome]'), 'the welcome gives way to the conversation');
+    assert.equal(d.querySelector('.cw-nora-q').textContent, 'How do I log a meal?', 'the question, in its pill');
+    assert.equal(d.querySelector('.cw-nora-turn .cw-nora-a').textContent, 'Tap + on Eat.', 'her answer, as text');
+    assert.ok(!d.querySelector('[data-nora-suggest]'), 'the cards are the welcome\'s alone');
+    await React.act(async () => { m.w.dispatchEvent(new m.w.KeyboardEvent('keydown', { key: 'Escape' })); });
+    assert.ok(!d.querySelector('[data-chat-panel]'), 'Escape closes the panel');
+    assert.ok(!d.querySelector('.cw-scrim'), 'and lifts the dim');
   } finally {
     await m.done();
   }

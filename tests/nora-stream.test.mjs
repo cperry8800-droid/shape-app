@@ -458,8 +458,9 @@ test('the website panel asks for a stream, reads one only when it gets one, and 
   // and one asked since may be showing its own (chatWidget.jsx, Codex on #2391).
   assert.match(send, /if \(gen !== noraThreadGenRef\.current \|\| acct !== noraAcctRef\.current\) return null;\n\s+setTyping\(false\);\n\s+setNoraLive\(""\);/);
   assert.ok(!/res\.json\(\)/.test(send), 'no path reads the body as JSON without checking for a stream');
-  assert.match(WEB, /\{typing && isSupport && noraLive \? \(\(\) => \{/);
-  assert.match(WEB, /\}\)\(\) : typing && \(\n\s+<div style=\{\{ display: "flex", alignItems: "center", gap: 6/, 'the typing line until her first words');
+  assert.match(WEB, /\{typing && isSupport && noraLive \? \(\n/);
+  assert.match(WEB, /<div data-nora-live className="cw-nora-turn">[\s\S]{0,400}<CwNoraText text=\{noraLive\} caret \/>/, 'drawn as her answers are, with the caret where she writes');
+  assert.match(WEB, /\) : typing && \(\n[^\n]*\n\s+<div className=\{isSupport \? "cw-nora-thinking" : undefined\}/, 'the typing line until her first words');
   assert.match(WEB, /\}, \[tabIdx, activeIdx, active\?\.messages\?\.length, typing, open, noraLive\]\);/, 'it scrolls with her words');
 });
 

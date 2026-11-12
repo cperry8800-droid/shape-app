@@ -294,13 +294,18 @@ function SessionDetailsModal({ p, onClose, onShareImage }) {
 // a property of the page's tag order rather than of this file. The copy below
 // is `trainerDashboard.jsx`'s, which is the one the Community page actually
 // loaded, so the cards render exactly as they shipped.
+// ⚠ IN THE CHAT PANEL THE FEED FILLS THE PANEL (owner, 2026-11-12: "remove the excess gaps around
+// the boxes in the overall pop-up box"). The panel's feed is `compact`: no reading column, closer
+// cards with less padding and no drop shadow. The Community page keeps its column and its cards.
+const CfCompact = React.createContext(false);
 function CfCard({ children, style }) {
+  const compact = React.useContext(CfCompact);
   return <div style={{
     background: "linear-gradient(180deg, rgba(var(--sh-ink-rgb, 242,237,228),0.062), rgba(var(--sh-ink-rgb, 242,237,228),0.035))",
     border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.12)",
-    borderRadius: 22,
-    padding: 24,
-    boxShadow: "0 18px 48px rgba(0,0,0,0.28)",
+    borderRadius: compact ? 16 : 22,
+    padding: compact ? 18 : 24,
+    boxShadow: compact ? "none" : "0 18px 48px rgba(0,0,0,0.28)",
     backdropFilter: "blur(16px)",
     WebkitBackdropFilter: "blur(16px)",
     ...style
@@ -1401,7 +1406,7 @@ function cfMapPost(p, uid) {
   };
 }
 
-function CommunityFeed({ place = "wall" } = {}) {
+function CommunityFeed({ place = "wall", compact = false } = {}) {
   // The member posting: their own name, read with their account below (`meName`). It
   // was a sample person's ("Priya M."), so the composer and a new post's optimistic row
   // named someone else until the feed was read again.
@@ -2078,6 +2083,7 @@ function CommunityFeed({ place = "wall" } = {}) {
     </div>
   );
   return (
+    <CfCompact.Provider value={compact}>
     <div style={{ display: "flex", flexDirection: "column", height: "100%", minHeight: 0 }}>
       <style>{`
         .cf-seg { display: inline-flex; padding: 3px; gap: 2px; border-radius: 999px; background: rgba(var(--sh-ink-rgb, 242,237,228),0.05); border: 1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08); }
@@ -2119,8 +2125,8 @@ function CommunityFeed({ place = "wall" } = {}) {
           <a href="/newdesign/Login.html" style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: TEAL_BRIGHT, textDecoration: "none", whiteSpace: "nowrap" }}>Sign in to post →</a>
         )}
       </div>
-      <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "16px 18px 26px" }}>
-        <div style={{ maxWidth: 680, margin: "0 auto", display: "flex", flexDirection: "column", gap: 14 }}>
+      <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: compact ? "12px 12px 20px" : "16px 18px 26px" }}>
+        <div style={{ maxWidth: compact ? "none" : 680, margin: "0 auto", display: "flex", flexDirection: "column", gap: compact ? 10 : 14 }}>
           {(() => {
             // ⚠ ONE READ, FILED BY PLACE — see `cfInPlace`. What the Wall, Community and
             // role places show is the app's own filing of the same 50 posts, and the
@@ -2315,6 +2321,7 @@ function CommunityFeed({ place = "wall" } = {}) {
         />
       )}
     </div>
+    </CfCompact.Provider>
   );
 }
 

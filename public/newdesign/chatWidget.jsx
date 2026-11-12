@@ -866,7 +866,10 @@ function ChatWidget(props) {
       .then((g) => {
         if (!g || typeof g.text !== "string" || !g.text.trim()) return;
         const quick = Array.isArray(g.quick) ? g.quick.filter((q) => typeof q === "string" && q.trim()).slice(0, 4) : [];
-        setNoraGreeting({ text: g.text, quick });
+        // A line under each welcome card, keyed by its suggestion (src/lib/ai/noraGreeting.mjs).
+        const hints = {};
+        if (g.hints && typeof g.hints === "object") quick.forEach((q) => { if (typeof g.hints[q] === "string") hints[q] = g.hints[q]; });
+        setNoraGreeting({ text: g.text, quick, hints });
       })
       .catch(() => {});
   }, [open]);
@@ -1523,7 +1526,7 @@ function ChatWidget(props) {
     setThreadsByTab((prev) => prev.map((list, i) => (tabs[i] && tabs[i].support) ? list.map((th) => {
       const msgs = th.messages || [];
       if (th.who !== "Nora" || msgs.length !== 1 || msgs[0].me) return th;
-      return { ...th, last: g.text, quick: g.quick, messages: [{ ...msgs[0], t: g.text }] };
+      return { ...th, last: g.text, quick: g.quick, hints: g.hints, messages: [{ ...msgs[0], t: g.text }] };
     }) : list));
   }, [noraGreeting, hydrated, hydrateRuns]);
 
@@ -1834,69 +1837,46 @@ function ChatWidget(props) {
   );
   const tabUnread = (i) => (threadsByTab[i] || []).reduce((a, t) => a + (t.unread || 0), 0);
 
-  // Drag state ------------------------------------------------------------
-  const POS_KEY = "shape.chatWidget.pos";
-  const SIZE_KEY = "shape.chatWidget.size";
-  const DEFAULT_SIZE = { w: 1180, h: 860 };
-  const [pos, setPos] = React.useState(() => {
-    try { const s = localStorage.getItem(POS_KEY); return s ? JSON.parse(s) : null; } catch { return null; }
+  // ── THE PANEL IS DOCKED TO THE PAGE'S RIGHT EDGE (owner, 2026-11-12: "have the nora and popup
+  // chat stay attached to side page like ladder has it"). It replaced a card that was dragged
+  // and resized anywhere on the page. Full height; the page behind is dimmed, and a click there
+  // or Escape closes it. Its left edge still drags to widen it: each door keeps its own width
+  // (Nora reads in a column, Chat holds a list beside a thread). Double-click the edge to reset.
+  const SIDE_KEY = "shape.chatWidget.side";
+  const SIDE_MIN = { nora: 380, chat: 640 };
+  const [sideW, setSideW] = React.useState(() => {
+    try { const s = JSON.parse(localStorage.getItem(SIDE_KEY) || "null"); return s && typeof s === "object" ? s : {}; } catch { return {}; }
   });
-  const [size, setSize] = React.useState(() => {
-    try { const s = localStorage.getItem(SIZE_KEY); return s ? JSON.parse(s) : DEFAULT_SIZE; } catch { return DEFAULT_SIZE; }
-  });
-  const dragRef = React.useRef(null);
-  const resizeRef = React.useRef(null);
-  const PANEL_VISIBLE_GRAB = 84;
-
-  const startResize = (e) => {
-    e.preventDefault(); e.stopPropagation();
-    const panel = e.currentTarget.closest("[data-chat-panel]");
-    const rect = panel.getBoundingClientRect();
-    resizeRef.current = { startX: e.clientX, startY: e.clientY, w: rect.width, h: rect.height };
-    document.body.style.userSelect = "none";
-    window.addEventListener("mousemove", onResize);
-    window.addEventListener("mouseup", endResize);
+  const sideKind = noraMode ? "nora" : "chat";
+  const sideRef = React.useRef(null);
+  const onSideResize = (e) => {
+    const d = sideRef.current; if (!d) return;
+    const w = Math.round(Math.max(SIDE_MIN[d.kind], Math.min(window.innerWidth - 80, window.innerWidth - e.clientX)));
+    setSideW((s) => ({ ...s, [d.kind]: w }));
   };
-  const onResize = (e) => {
-    const d = resizeRef.current; if (!d) return;
-    const w = Math.max(520, Math.min(window.innerWidth - 40, d.w + (e.clientX - d.startX)));
-    const h = Math.max(420, Math.min(window.innerHeight - 40, d.h + (e.clientY - d.startY)));
-    setSize({ w, h });
-  };
-  const endResize = () => {
-    resizeRef.current = null;
+  const endSideResize = () => {
+    sideRef.current = null;
     document.body.style.userSelect = "";
-    window.removeEventListener("mousemove", onResize);
-    window.removeEventListener("mouseup", endResize);
-    setSize(s => { try { localStorage.setItem(SIZE_KEY, JSON.stringify(s)); } catch {} return s; });
+    window.removeEventListener("mousemove", onSideResize);
+    window.removeEventListener("mouseup", endSideResize);
+    setSideW((s) => { try { localStorage.setItem(SIDE_KEY, JSON.stringify(s)); } catch {} return s; });
   };
-  const resetSize = () => { setSize(DEFAULT_SIZE); try { localStorage.removeItem(SIZE_KEY); } catch {} };
-
-  const startDrag = (e) => {
-    if (docked) return;
-    if (e.target.closest("button, input, textarea")) return;
+  const startSideResize = (e) => {
     e.preventDefault();
-    const panel = e.currentTarget.closest("[data-chat-panel]");
-    const rect = panel.getBoundingClientRect();
-    dragRef.current = { offX: e.clientX - rect.left, offY: e.clientY - rect.top, w: rect.width, h: rect.height };
+    sideRef.current = { kind: sideKind };
     document.body.style.userSelect = "none";
-    window.addEventListener("mousemove", onDrag);
-    window.addEventListener("mouseup", endDrag);
+    window.addEventListener("mousemove", onSideResize);
+    window.addEventListener("mouseup", endSideResize);
   };
-  const onDrag = (e) => {
-    const d = dragRef.current; if (!d) return;
-    // Free drag — panel may go fully off-screen; the RESET button
-    // (resetPos) brings it back to the default position.
-    setPos({ x: e.clientX - d.offX, y: e.clientY - d.offY });
-  };
-  const endDrag = () => {
-    dragRef.current = null;
-    document.body.style.userSelect = "";
-    window.removeEventListener("mousemove", onDrag);
-    window.removeEventListener("mouseup", endDrag);
-    setPos(p => { if (p) { try { localStorage.setItem(POS_KEY, JSON.stringify(p)); } catch {} } return p; });
-  };
-  const resetPos = () => { setPos(null); try { localStorage.removeItem(POS_KEY); } catch {} };
+  const resetSideW = () => setSideW((s) => {
+    const n = { ...s }; delete n[sideKind];
+    try { localStorage.setItem(SIDE_KEY, JSON.stringify(n)); } catch {}
+    return n;
+  });
+  // Unset, each door's width follows the window: Nora a reading column, Chat a list and a thread.
+  const sideWidth = Number.isFinite(sideW[sideKind])
+    ? `min(100vw, ${sideW[sideKind]}px)`
+    : noraMode ? "min(100vw, clamp(400px, 36vw, 600px))" : "min(100vw, clamp(720px, 60vw, 1000px))";
 
   const isOpen = docked || open;
   const closePanel = () => {
@@ -2794,6 +2774,39 @@ function ChatWidget(props) {
 
   const currentTab = tabs[tabIdx];
 
+  // Nora's thread holds only her greeting: the welcome (her face, hello, the suggestions as cards)
+  // stands in for it. Her first message is always the greeting; the account's stored thread joins after it.
+  const noraWelcome = isSupport && !typing && !!active && active.who === "Nora"
+    && (active.messages || []).length === 1 && !active.messages[0].me && !active.messages[0].team;
+  // The page Nora is told they asked from, shown over her composer until × takes it off.
+  const noraScreenShown = !noraScreenOff && typeof window !== "undefined" && !!window.__shapeNoraPageName;
+  // Nora's ⋯ menu in the masthead: read aloud, her tone, Clear, Pop out. Shut with the panel.
+  const [noraMenu, setNoraMenu] = React.useState(false);
+  React.useEffect(() => { if (!isOpen || !isSupport) setNoraMenu(false); }, [isOpen, isSupport]);
+  // ⚠ ON OPEN, FOCUS GOES INTO THE PANEL: it is a modal over a dimmed page, so a screen reader and
+  // Tab start in it. In Nora's door, with a mouse, it goes to her composer so the question can be
+  // typed at once; on a touch screen it does not, so the keyboard does not cover the welcome.
+  const panelRef = React.useRef(null);
+  React.useEffect(() => {
+    if (!open || docked || !panelRef.current) return;
+    const fine = typeof window.matchMedia === "function" && window.matchMedia("(pointer: fine)").matches;
+    const box = noraMode && fine ? panelRef.current.querySelector("textarea") : null;
+    try { (box || panelRef.current).focus({ preventScroll: true }); } catch (e) {}
+  }, [open, noraMode, docked]);
+  // Escape closes what is on top: the menu, then a profile card, then the docked panel.
+  const escRef = React.useRef(null);
+  escRef.current = () => {
+    if (noraMenu) setNoraMenu(false);
+    else if (profileFor) setProfileFor(null);
+    else closePanel();
+  };
+  React.useEffect(() => {
+    if (!open || docked) return undefined;
+    const onKey = (e) => { if (e.key === "Escape" && escRef.current) escRef.current(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open, docked]);
+
   return (
     <React.Fragment>
       <style>{`
@@ -2811,7 +2824,6 @@ function ChatWidget(props) {
         /* The masthead's controls: one size, one hover, a visible focus ring. */
         .cw-icon-btn { display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; border: 0; border-radius: 9px; background: transparent; color: var(--sh-ink2, #a09b94); cursor: pointer; transition: background .15s ease, color .15s ease; }
         .cw-icon-btn:hover { background: rgba(var(--sh-ink-rgb, 242,237,228),0.07); color: var(--sh-ink, #f2ede4); }
-        .cw-live-dot { width: 7px; height: 7px; border-radius: 999px; background: var(--sh-accent3, #34d6c5); box-shadow: 0 0 0 3px rgba(var(--sh-accent2-rgb, 10,197,168),0.18); flex: none; }
         /* The places: quiet until chosen; the chosen one carries the accent. */
         .cw-place { flex: none; display: inline-flex; align-items: center; gap: 7px; min-height: 34px; padding: 0 14px; border-radius: 999px; border: 1px solid transparent; background: transparent; color: var(--sh-ink2, #a09b94); font-family: inherit; font-size: 13px; font-weight: 500; letter-spacing: -0.005em; white-space: nowrap; cursor: pointer; transition: background .15s ease, color .15s ease, border-color .15s ease; }
         .cw-place:hover { background: rgba(var(--sh-ink-rgb, 242,237,228),0.06); color: var(--sh-ink, #f2ede4); }
@@ -2821,15 +2833,6 @@ function ChatWidget(props) {
         .cw-seg { display: flex; padding: 3px; gap: 3px; border-radius: 11px; background: rgba(var(--sh-ink-rgb, 242,237,228),0.05); border: 1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08); }
         .cw-seg button { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 32px; border: 0; border-radius: 8px; background: transparent; color: var(--sh-ink2, #a09b94); font-family: inherit; font-size: 12.5px; font-weight: 500; cursor: pointer; }
         .cw-seg button[aria-pressed="true"] { background: rgba(var(--sh-ink-rgb, 242,237,228),0.1); color: var(--sh-ink, #f2ede4); }
-        /* Nora's suggestions: whole rows, each a question she answers. */
-        .cw-suggest { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; min-height: 44px; padding: 10px 14px; border-radius: 12px; border: 1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.1); background: rgba(var(--sh-ink-rgb, 242,237,228),0.03); color: var(--sh-ink, #f2ede4); font-family: inherit; font-size: 13.5px; text-align: left; cursor: pointer; transition: border-color .15s ease, background .15s ease; }
-        .cw-suggest:hover { border-color: rgba(var(--sh-accent2-rgb, 10,197,168),0.55); background: rgba(var(--sh-accent2-rgb, 10,197,168),0.07); }
-        .cw-suggest::after { content: "→"; flex: none; color: var(--sh-accent-ink, #2ee0c4); transition: transform .15s ease; }
-        .cw-suggest:hover::after { transform: translateX(2px); }
-        /* The small controls over Nora's composer: one height, one type. */
-        .cw-ctl { display: inline-flex; align-items: center; gap: 5px; min-height: 28px; padding: 0 10px; border-radius: 999px; border: 1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.14); background: transparent; color: var(--sh-ink2, #a09b94); font-family: 'JetBrains Mono', monospace; font-size: 9.5px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; white-space: nowrap; cursor: pointer; transition: border-color .15s ease, color .15s ease, background .15s ease; }
-        .cw-ctl:hover { border-color: rgba(var(--sh-ink-rgb, 242,237,228),0.3); color: var(--sh-ink, #f2ede4); }
-        .cw-ctl[aria-pressed="true"] { border-color: var(--sh-accent2, #0ac5a8); background: rgba(var(--sh-accent2-rgb, 10,197,168),0.12); color: var(--sh-accent-ink, #2ee0c4); }
         /* The composer: one field holding the words, the microphone and Send. */
         .cw-composer { display: flex; align-items: flex-end; gap: 6px; padding: 6px 6px 6px 14px; border-radius: 16px; border: 1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.12); background: rgba(var(--sh-ink-rgb, 242,237,228),0.04); transition: border-color .15s ease, box-shadow .15s ease; }
         .cw-composer:focus-within { border-color: rgba(var(--sh-accent2-rgb, 10,197,168),0.6); box-shadow: 0 0 0 3px rgba(var(--sh-accent2-rgb, 10,197,168),0.12); }
@@ -2838,52 +2841,145 @@ function ChatWidget(props) {
         .cw-send { flex: none; display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 38px; padding: 0 16px; border: 0; border-radius: 11px; background: var(--sh-accent2, #0ac5a8); color: var(--sh-ground, #1a1612); font-family: inherit; font-size: 13px; font-weight: 600; cursor: pointer; transition: opacity .15s ease, transform .15s ease; }
         .cw-send:hover:not(:disabled) { transform: translateY(-1px); }
         .cw-send:disabled { background: rgba(var(--sh-ink-rgb, 242,237,228),0.08); color: var(--sh-ink3, #75706a); cursor: not-allowed; }
-        @media (prefers-reduced-motion: reduce) { .cw-nora-face { transition: none; } .cw-nora-face::before { animation: none; opacity: .5; } .cw-send, .cw-suggest::after { transition: none; } }
+        /* ── The side panel (owner, 2026-11-12): docked to the right edge over a dimmed page. ── */
+        .cw-scrim { position: fixed; inset: 0; z-index: 179; background: rgba(8,7,6,0.52); backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px); animation: cwFade .24s ease both; }
+        .cw-side { animation: cwSlide .34s cubic-bezier(.22,.8,.24,1) both; }
+        .cw-side:focus { outline: none; }
+        .cw-side-edge { position: absolute; left: 0; top: 0; bottom: 0; width: 7px; cursor: ew-resize; z-index: 6; }
+        .cw-side-edge::after { content: ""; position: absolute; left: 2px; top: 50%; width: 2px; height: 44px; margin-top: -22px; border-radius: 2px; background: transparent; transition: background .15s ease; }
+        .cw-side-edge:hover::after { background: rgba(var(--sh-accent2-rgb, 10,197,168),0.7); }
+        @keyframes cwFade { from { opacity: 0 } to { opacity: 1 } }
+        @keyframes cwSlide { from { transform: translateX(32px); opacity: 0 } to { transform: none; opacity: 1 } }
+        /* Nora's masthead: her face, her name with its badge in the middle, the menu and × at the end. */
+        /* "Nora" and her Beta pill share one centre line, and Beta sits in the middle of its pill. A
+           line box leaves room under the letters for descenders, so capitals ride high in it: each is
+           trimmed to its capitals (text-box), and where that is not supported the pill takes more
+           padding above than below to make up the same 2.75px. */
+        .cw-nora-title { font-size: 17px; font-weight: 650; line-height: 1; letter-spacing: -0.015em; color: var(--sh-ink, #f2ede4); }
+        .cw-nora-badge { display: inline-block; padding: 6px 9px 3.5px; border-radius: 999px; background: var(--sh-accent2, #0ac5a8); color: var(--sh-ground, #1a1612); font-size: 11.5px; font-weight: 700; line-height: 1; letter-spacing: 0.01em; }
+        @supports (text-box: trim-both cap alphabetic) {
+          .cw-nora-title, .cw-nora-badge { text-box: trim-both cap alphabetic; }
+          .cw-nora-badge { padding: 6.5px 9px; }
+        }
+        .cw-menu { position: absolute; top: calc(100% + 6px); right: 0; z-index: 12; width: 260px; padding: 6px; border-radius: 14px; border: 1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.12); background: var(--sh-ground, #1a1612); box-shadow: 0 18px 50px rgba(0,0,0,0.45); animation: cwFade .14s ease both; }
+        .cw-menu-item { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 40px; padding: 0 10px; border: 0; border-radius: 9px; background: transparent; color: var(--sh-ink, #f2ede4); font-family: inherit; font-size: 13.5px; text-align: left; cursor: pointer; }
+        .cw-menu-item:hover { background: rgba(var(--sh-ink-rgb, 242,237,228),0.06); }
+        .cw-menu-item svg { flex: none; color: var(--sh-ink2, #a09b94); }
+        .cw-menu-state { margin-left: auto; font-size: 12px; color: var(--sh-ink2, #a09b94); }
+        .cw-menu-item[aria-pressed="true"] .cw-menu-state { color: var(--sh-accent-ink, #2ee0c4); }
+        .cw-menu-rule { height: 1px; margin: 6px 4px; background: rgba(var(--sh-ink-rgb, 242,237,228),0.08); }
+        .cw-menu-tone { display: flex; align-items: center; gap: 10px; min-height: 40px; padding: 0 6px 0 10px; font-size: 13.5px; color: var(--sh-ink, #f2ede4); }
+        .cw-menu-tone [role="group"] { margin-left: auto; display: inline-flex; padding: 2px; gap: 2px; border-radius: 999px; background: rgba(var(--sh-ink-rgb, 242,237,228),0.06); }
+        .cw-menu-tone [role="group"] button { min-height: 26px; padding: 0 10px; border: 0; border-radius: 999px; background: transparent; color: var(--sh-ink2, #a09b94); font-family: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
+        .cw-menu-tone [role="group"] button[aria-pressed="true"] { background: var(--sh-accent2, #0ac5a8); color: var(--sh-ground, #1a1612); }
+        /* The welcome: her face, hello, and what to ask, as cards, over a quiet dot grid. */
+        .cw-nora-dots { background-image: radial-gradient(rgba(var(--sh-ink-rgb, 242,237,228),0.075) 1px, transparent 1.2px); background-size: 18px 18px; background-position: 9px 9px; }
+        .cw-nora-welcome { margin: auto 0; padding: 12px 4px 8px; display: flex; flex-direction: column; align-items: center; text-align: center; animation: cwRise .4s cubic-bezier(.22,.8,.24,1) both; }
+        .cw-nora-orb { position: relative; width: 64px; height: 64px; border-radius: 999px; padding: 3px; background: conic-gradient(from 200deg, var(--sh-accent3, #34d6c5), rgba(var(--sh-accent2-rgb, 10,197,168),0.15), var(--sh-accent3, #34d6c5)); }
+        .cw-nora-orb img { display: block; width: 100%; height: 100%; border-radius: 999px; object-fit: cover; object-position: 50% 32%; border: 2px solid var(--sh-ground, #1a1612); box-sizing: border-box; }
+        .cw-nora-orb::after { content: "✦"; position: absolute; top: -6px; right: -8px; font-size: 16px; line-height: 1; color: var(--sh-accent-ink, #2ee0c4); }
+        .cw-nora-hi { margin-top: 18px; font-size: clamp(26px, 3.2vw, 34px); font-weight: 700; letter-spacing: -0.03em; line-height: 1.1; color: var(--sh-ink, #f2ede4); }
+        .cw-nora-sub { margin-top: 8px; font-size: 16px; line-height: 1.45; color: var(--sh-ink2, #a09b94); max-width: 380px; }
+        .cw-nora-cards { margin-top: 28px; width: 100%; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .cw-nora-card { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; min-height: 76px; padding: 14px 15px; border-radius: 14px; border: 1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.1); background: rgba(var(--sh-ink-rgb, 242,237,228),0.035); color: var(--sh-ink, #f2ede4); font-family: inherit; text-align: left; cursor: pointer; transition: border-color .15s ease, background .15s ease, transform .15s ease; animation: cwRise .4s cubic-bezier(.22,.8,.24,1) both; }
+        .cw-nora-card:nth-child(2) { animation-delay: .04s } .cw-nora-card:nth-child(3) { animation-delay: .08s } .cw-nora-card:nth-child(4) { animation-delay: .12s }
+        .cw-nora-card:hover { border-color: rgba(var(--sh-accent2-rgb, 10,197,168),0.5); background: rgba(var(--sh-accent2-rgb, 10,197,168),0.07); transform: translateY(-1px); }
+        .cw-nora-card-t { display: flex; align-items: flex-start; gap: 8px; font-size: 14px; font-weight: 600; line-height: 1.3; }
+        .cw-nora-card-t svg { flex: none; margin-top: 1px; color: var(--sh-accent-ink, #2ee0c4); }
+        .cw-nora-card-h { font-size: 12.5px; line-height: 1.4; color: var(--sh-ink2, #a09b94); }
+        @keyframes cwRise { from { transform: translateY(6px); opacity: 0 } to { transform: none; opacity: 1 } }
+        /* A conversation with Nora reads like a page: the question in a soft pill, her answer as text. */
+        .cw-nora-q-row { display: flex; flex-direction: column; align-items: flex-end; animation: cwRise .22s ease both; }
+        .cw-nora-q { max-width: 85%; padding: 10px 16px; border-radius: 20px; background: rgba(var(--sh-ink-rgb, 242,237,228),0.085); color: var(--sh-ink, #f2ede4); font-size: 14.5px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
+        .cw-nora-turn { display: flex; flex-direction: column; align-items: stretch; gap: 8px; animation: cwRise .26s ease both; }
+        .cw-nora-meta { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--sh-ink2, #a09b94); }
+        .cw-nora-meta button { flex: none; width: 22px; height: 22px; padding: 0; border: 0; border-radius: 999px; background: transparent; cursor: pointer; }
+        .cw-nora-meta img { display: block; width: 22px; height: 22px; border-radius: 999px; object-fit: cover; object-position: 50% 32%; }
+        .cw-nora-meta b { font-weight: 600; color: var(--sh-ink, #f2ede4); }
+        .cw-nora-a { font-size: 15px; line-height: 1.62; color: var(--sh-ink, #f2ede4); overflow-wrap: anywhere; }
+        .cw-nora-a p { margin: 0; white-space: pre-wrap; }
+        .cw-nora-a p + p, .cw-nora-a p + ul, .cw-nora-a ul + p, .cw-nora-a p + ol, .cw-nora-a ol + p { margin-top: 12px; }
+        .cw-nora-a ul, .cw-nora-a ol { margin: 0; padding-left: 22px; display: grid; gap: 6px; }
+        .cw-nora-a li::marker { color: var(--sh-accent-ink, #2ee0c4); }
+        .cw-nora-a a { color: var(--sh-accent-ink, #2ee0c4); text-decoration: underline; text-underline-offset: 3px; text-decoration-thickness: 1px; }
+        .cw-nora-caret { display: inline-block; width: 7px; height: 1.05em; margin-left: 2px; vertical-align: -0.15em; border-radius: 2px; background: var(--sh-accent-ink, #2ee0c4); animation: cwBlink 1s steps(2, start) infinite; }
+        @keyframes cwBlink { to { visibility: hidden } }
+        .cw-nora-thinking { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--sh-ink2, #a09b94); }
+        .cw-nora-thinking img { flex: none; display: block; width: 22px; height: 22px; border-radius: 999px; object-fit: cover; object-position: 50% 32%; }
+        .cw-nora-shimmer { display: inline-flex; align-items: center; gap: 8px; background: linear-gradient(90deg, var(--sh-ink2, #a09b94) 20%, var(--sh-ink, #f2ede4) 50%, var(--sh-ink2, #a09b94) 80%); background-size: 200% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; animation: cwShimmer 1.6s linear infinite; }
+        /* Her dots keep the accent: the text is clipped to the shimmer, and they draw in currentColor. */
+        .cw-nora-shimmer .cw-dots > span { background: var(--sh-accent-ink, #2ee0c4) !important; }
+        @keyframes cwShimmer { from { background-position: 100% 0 } to { background-position: -100% 0 } }
+        .cw-nora-links { display: flex; flex-direction: column; align-items: flex-start; gap: 7px; }
+        .cw-nora-link { display: inline-flex; align-items: baseline; gap: 8px; color: var(--sh-ink, #f2ede4); font-size: 13.5px; text-decoration: none; }
+        .cw-nora-link span { text-decoration: underline; text-decoration-color: rgba(var(--sh-ink-rgb, 242,237,228),0.3); text-underline-offset: 3px; }
+        .cw-nora-link:hover span { color: var(--sh-accent-ink, #2ee0c4); text-decoration-color: currentColor; }
+        .cw-nora-link svg { flex: none; align-self: center; color: var(--sh-accent-ink, #2ee0c4); }
+        .cw-nora-link small { font-size: 12px; color: var(--sh-ink3, #75706a); }
+        .cw-nora-tools { display: flex; gap: 4px; }
+        .cw-nora-tool { display: inline-flex; align-items: center; gap: 5px; min-height: 26px; padding: 0 9px; border-radius: 999px; border: 1px solid transparent; background: transparent; color: var(--sh-ink3, #75706a); font-family: inherit; font-size: 12px; cursor: pointer; }
+        .cw-nora-tool:hover, .cw-nora-tool[aria-pressed="true"] { color: var(--sh-ink, #f2ede4); background: rgba(var(--sh-ink-rgb, 242,237,228),0.06); }
+        /* Her composer: a rounded field with a round Send, and a quiet line under it. */
+        .cw-composer--nora { border-radius: 26px; padding: 6px 6px 6px 18px; align-items: flex-end; }
+        .cw-composer--nora textarea { font-size: 15px; }
+        .cw-send--round { width: 38px; padding: 0; border-radius: 999px; }
+        .cw-mic { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 38px; height: 38px; border-radius: 999px; border: 1px solid transparent; background: transparent; color: var(--sh-accent-ink, #2ee0c4); cursor: pointer; }
+        .cw-mic:hover { background: rgba(var(--sh-ink-rgb, 242,237,228),0.07); color: var(--sh-ink, #f2ede4); }
+        .cw-mic[aria-pressed="true"] { border-color: #e0463c; background: rgba(224,70,60,0.16); color: #e0463c; }
+        .cw-nora-foot { padding: 8px 4px 0; text-align: center; font-size: 12px; line-height: 1.4; color: var(--sh-ink3, #75706a); }
+        .cw-nora-foot a, .cw-nora-foot button { border: 0; padding: 0; background: transparent; font: inherit; color: var(--sh-accent-ink, #2ee0c4); text-decoration: none; cursor: pointer; }
+        .cw-nora-foot a:hover, .cw-nora-foot button:hover { text-decoration: underline; }
+        @media (max-width: 520px) { .cw-nora-cards { grid-template-columns: 1fr; } .cw-nora-card { min-height: 0; } }
+        @media (prefers-reduced-motion: reduce) { .cw-nora-face { transition: none; } .cw-nora-face::before { animation: none; opacity: .5; } .cw-send, .cw-nora-card { transition: none; } .cw-scrim, .cw-side, .cw-menu, .cw-nora-welcome, .cw-nora-card, .cw-nora-q-row, .cw-nora-turn, .cw-nora-caret, .cw-nora-shimmer { animation: none; } .cw-nora-shimmer { color: var(--sh-ink2, #a09b94); } }
         @media (max-width: 640px) {
           .chw-bubble { padding: 14px 20px 14px 16px !important; font-size: 14px !important; gap: 10px !important; right: 16px !important; bottom: 16px !important; }
           .chw-bubble svg { width: 18px !important; height: 18px !important; }
         }
       `}</style>
-      {/* The floating launcher bubble is the site-wide globalChatButton.js (a
-          single source on every page). ChatWidget renders only the open panel —
-          opened via window.__openChat — so there's never a second stacked bubble
-          and the launcher doesn't vanish when you open chat. */}
+      {/* The launcher is the site-wide globalChatButton.js (a single source on every
+          page). ChatWidget renders only the open panel, opened via window.__openChat, so
+          there is never a second bubble; the launcher steps aside while the panel is open. */}
 
+      {/* The page behind the docked panel, dimmed; a click there closes the panel. */}
+      {isOpen && !docked && <div className="cw-scrim" aria-hidden onClick={closePanel} />}
       {isOpen && (
         <div
+          ref={panelRef}
+          tabIndex={-1}
           role="dialog"
+          aria-label={noraMode ? "Nora" : "Chat"}
+          aria-modal={docked ? undefined : true}
           data-chat-panel
+          className={docked ? undefined : "cw-side"}
           style={docked ? {
             position: "fixed", inset: 0,
             background: "var(--sh-ground, #1a1612)", color: INK,
             display: "flex", flexDirection: "column",
             fontFamily: sans, overflow: "hidden",
           } : {
-            position: "fixed",
-            ...(pos ? { left: pos.x, top: pos.y } : { right: 28, bottom: 28 }),
-            zIndex: 180,
-            width: noraMode ? Math.min(size.w, 440) : size.w, maxWidth: "calc(100vw - 40px)",
-            height: size.h, maxHeight: "calc(100vh - 40px)",
-            // A faint accent light from the masthead's corner, over the ground.
-            background: "radial-gradient(120% 55% at 0% 0%, rgba(var(--sh-accent2-rgb, 10,197,168),0.07), transparent 60%), var(--sh-ground, #1a1612)", color: INK,
-            border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.12)", borderRadius: 18,
-            boxShadow: "0 32px 90px rgba(0,0,0,0.55), 0 0 0 1px rgba(0,0,0,0.25)",
+            position: "fixed", top: 0, right: 0, bottom: 0, zIndex: 180,
+            width: sideWidth,
+            background: "var(--sh-ground, #1a1612)", color: INK,
+            borderLeft: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.1)",
+            boxShadow: "-28px 0 80px rgba(0,0,0,0.42)",
             display: "flex", flexDirection: "column",
             fontFamily: sans, overflow: "hidden",
           }}>
-          {/* ── The masthead: Nora's face and name in her door; the place's name in Chat,
-              as the app titles its Chat page with the place you are in. ── */}
+          {!docked && <div className="cw-side-edge" onMouseDown={startSideResize} onDoubleClick={resetSideW} title="Drag to widen · double-click to reset" aria-hidden />}
+          {/* ── The masthead. Nora's door: her face, her name in the middle, her menu and ×.
+              Chat: the place's name, as the app titles its Chat page with the place you are in. ── */}
           <div
-            onMouseDown={startDrag}
-            title="Drag to move"
             className="cw-mast"
-            style={{
-              padding: noraMode ? "14px 12px 14px 16px" : "16px 12px 12px 20px",
-              borderBottom: noraMode ? "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)" : "none",
-              cursor: docked ? "default" : "grab", userSelect: "none",
+            style={noraMode ? {
+              padding: "12px 10px 12px 14px",
+              borderBottom: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)",
+              display: "grid", gridTemplateColumns: "1fr auto 1fr", alignItems: "center", gap: 12,
+            } : {
+              padding: "16px 12px 12px 20px",
               display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12,
             }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
+            {/* In Nora's door this group steps aside, so her face and name are the grid's first two cells. */}
+            <div style={noraMode ? { display: "contents" } : { display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
               {isSupport && canVoice && talkSupported && (
                 // Talk to Nora: press her face. Starts inside this tap, then her face takes the pane.
                 <button type="button" data-nora-talk-button onClick={startTalk} disabled={!talkMod}
@@ -2901,27 +2997,71 @@ function ChatWidget(props) {
               )}
               {noraMode && !(isSupport && canVoice && talkSupported) && (
                 // Her face, still: voice is for members, so for everyone else it is who they are asking.
-                <span aria-hidden style={{ position: "relative", flex: "none", width: 42, height: 42 }}>
+                <span aria-hidden style={{ position: "relative", flex: "none", width: 42, height: 42, justifySelf: "start" }}>
                   <img src="/nora-avatar.png" alt="" onError={cwPhotoError} data-fallback={CW_NORA_MARK} style={{ display: "block", width: 42, height: 42, borderRadius: 999, objectFit: "cover", objectPosition: "50% 32%", boxShadow: `0 0 0 2px ${TEAL}` }} />
                   <span style={{ position: "absolute", right: 0, bottom: 0, width: 11, height: 11, borderRadius: 999, background: "var(--sh-accent3, #34d6c5)", boxShadow: "0 0 0 2px var(--sh-ground, #1a1612)" }} />
                 </span>
               )}
-              <div style={{ minWidth: 0 }}>
-                <div style={{ fontFamily: serif, fontSize: noraMode ? 21 : 26, lineHeight: 1.05, letterSpacing: "-0.025em", color: INK, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                  {noraMode ? "Nora" : (inTeam(currentTab) ? "Team" : tabLabel(currentTab))}<span aria-hidden style={{ color: TEAL_BRIGHT }}>.</span>
+              <div style={noraMode ? { display: "flex", alignItems: "center", gap: 8, minWidth: 0 } : { minWidth: 0 }}>
+                <div className={noraMode ? "cw-nora-title" : undefined} style={noraMode ? undefined : { fontFamily: serif, fontSize: 26, lineHeight: 1.05, letterSpacing: "-0.025em", color: INK, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                  {noraMode ? "Nora" : (inTeam(currentTab) ? "Team" : tabLabel(currentTab))}{!noraMode && <span aria-hidden style={{ color: TEAL_BRIGHT }}>.</span>}
                 </div>
-                <div style={{ marginTop: 4, display: "flex", alignItems: "center", gap: 7, fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--sh-ink2, #a09b94)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                  {noraMode
-                    ? <React.Fragment><span aria-hidden className="cw-live-dot" />Shape's concierge · Online</React.Fragment>
-                    : (CW_PLACE_SUBS[currentTab && currentTab.id] || tabSub(currentTab) || (currentTab && currentTab.title) || "")}
-                </div>
+                {noraMode
+                  ? <span className="cw-nora-badge" title="Nora is Shape's AI concierge, in beta">Beta</span>
+                  : <div style={{ marginTop: 4, fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--sh-ink2, #a09b94)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                      {CW_PLACE_SUBS[currentTab && currentTab.id] || tabSub(currentTab) || (currentTab && currentTab.title) || ""}
+                    </div>}
               </div>
             </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 2, flex: "none" }}>
-              {!docked && pos && (
-                <button type="button" onClick={resetPos} title="Put the chat back in the corner" className="cw-icon-btn" style={{ width: "auto", padding: "0 10px", fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.12em" }}>RESET</button>
+            <div style={{ display: "flex", alignItems: "center", gap: 2, flex: "none", justifySelf: "end", position: "relative" }}>
+              {isSupport && (
+                <button type="button" onClick={() => setNoraMenu((v) => !v)} aria-haspopup="true" aria-expanded={noraMenu} aria-label="Nora's settings" title="Nora's settings" className="cw-icon-btn">
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden><circle cx="3.5" cy="8" r="1.4" /><circle cx="8" cy="8" r="1.4" /><circle cx="12.5" cy="8" r="1.4" /></svg>
+                </button>
               )}
-              {!docked && (
+              {isSupport && noraMenu && (
+                <React.Fragment>
+                  {/* A click anywhere else closes the menu (and only the menu). */}
+                  <div aria-hidden onClick={() => setNoraMenu(false)} style={{ position: "fixed", inset: 0, zIndex: 11 }} />
+                  {/* Nora's settings: read aloud and her tone (which follow the account), Clear, Pop out.
+                      An item marked data-menu-close closes the menu once it has done its work. */}
+                  <div className="cw-menu" data-nora-menu aria-label="Nora's settings" onClick={(e) => { if (e.target.closest("[data-menu-close]")) setNoraMenu(false); }}>
+                    {canVoice && (
+                      <button type="button" onClick={() => setNoraEnabled(!noraVoice.enabled)} title="Read Nora's replies aloud" aria-pressed={!!noraVoice.enabled} className="cw-menu-item">
+                        <svg aria-hidden width="15" height="15" viewBox="0 0 14 14" fill="none">
+                          <path d="M2 5.2h2.3L7.5 2.5v9L4.3 8.8H2z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
+                          {noraVoice.enabled
+                            ? <path d="M9.6 5a2.6 2.6 0 0 1 0 4M11.2 3.4a5 5 0 0 1 0 7.2" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+                            : <path d="M9.5 5.3l3 3.4M12.5 5.3l-3 3.4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />}
+                        </svg>
+                        Read replies aloud<span className="cw-menu-state">{noraVoice.enabled ? "On" : "Off"}</span>
+                      </button>
+                    )}
+                    <div className="cw-menu-tone">
+                      Tone
+                      <div role="group" aria-label="Nora's tone">
+                        {["supportive", "direct"].map(tn => (
+                          <button key={tn} type="button" onClick={() => setNoraTone(tn)} aria-pressed={noraVoice.tone === tn} title={tn === "supportive" ? "Warm and encouraging" : "Concise and factual"}>{tn === "supportive" ? "Supportive" : "Direct"}</button>
+                        ))}
+                      </div>
+                    </div>
+                    {((active?.messages?.length || 0) > 1 || !docked) && <div className="cw-menu-rule" />}
+                    {(active?.messages?.length || 0) > 1 && (
+                      <button type="button" data-nora-clear onClick={clearNoraThread} title="Clear your conversation with Nora on every device" className="cw-menu-item" data-menu-close>
+                        <svg aria-hidden width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"><path d="M2.5 4.5h11M6 4.5V3a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v1.5M4 4.5l.7 8.6a1 1 0 0 0 1 .9h4.6a1 1 0 0 0 1-.9l.7-8.6" /></svg>
+                        Clear conversation
+                      </button>
+                    )}
+                    {!docked && (
+                      <button type="button" onClick={popOut} title="Pop out into its own window" className="cw-menu-item" data-menu-close>
+                        <svg aria-hidden width="15" height="15" viewBox="0 0 16 16" fill="none"><path d="M9 3h4v4M13 3 7.4 8.6M11 9.6V12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h2.4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                        Pop out into a window
+                      </button>
+                    )}
+                  </div>
+                </React.Fragment>
+              )}
+              {!docked && !noraMode && (
                 <button type="button" onClick={popOut} title="Pop out into its own window" aria-label="Pop out chat" className="cw-icon-btn">
                   <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden>
                     <path d="M9 3h4v4M13 3 7.4 8.6M11 9.6V12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h2.4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
@@ -2941,9 +3081,8 @@ function ChatWidget(props) {
             <div
               role="tablist"
               aria-label="Chat places"
-              onMouseDown={startDrag}
               className="cw-places"
-              style={{ display: "flex", alignItems: "center", gap: 4, padding: "2px 14px 12px 16px", borderBottom: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)", overflowX: "auto", cursor: docked ? "default" : "grab", userSelect: "none" }}>
+              style={{ display: "flex", alignItems: "center", gap: 4, padding: "2px 14px 12px 16px", borderBottom: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)", overflowX: "auto", userSelect: "none" }}>
               {tabs.map((t, i) => {
                 if (!docked && isNoraTab(t)) return null;
                 if (hasTeamPair && t.id === "friends") return null;
@@ -2969,7 +3108,7 @@ function ChatWidget(props) {
               moving between them keeps what was read rather than reading it again. */}
           {currentTab.feed && (
             <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
-              {React.createElement(window.CommunityFeed, { place: currentTab.place || "wall" })}
+              {React.createElement(window.CommunityFeed, { place: currentTab.place || "wall", compact: true })}
             </div>
           )}
 
@@ -3297,9 +3436,7 @@ function ChatWidget(props) {
             {/* The thread's own head. Not in Nora's door: her masthead already names her. */}
             {!noraMode && (
             <div
-              onMouseDown={startDrag}
-              title="Drag to move"
-              style={{ padding: "12px 18px", borderBottom: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)", display: "flex", justifyContent: "space-between", alignItems: "center", cursor: docked ? "default" : "grab", userSelect: "none" }}>
+              style={{ padding: "12px 18px", borderBottom: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <div style={{ minWidth: 0, display: "flex", alignItems: "center", gap: 11 }}>
                 {active && (active.group
                   ? <CwChannelMark ch={{ name: active.name || active.who, picture: active.picture, official: active.official }} size={32} />
@@ -3325,7 +3462,10 @@ function ChatWidget(props) {
             </div>
             )}
 
-            <div ref={scrollRef} style={{ flex: 1, overflowY: "auto", padding: noraMode ? "20px 18px 16px" : "18px 20px", display: "flex", flexDirection: "column", gap: 12 }}>
+            <div ref={scrollRef} className={noraWelcome ? "cw-nora-dots" : undefined} style={{ flex: 1, overflowY: "auto", padding: isSupport ? "22px 22px 18px" : "18px 20px", display: "flex", flexDirection: "column", gap: isSupport ? 22 : 12 }}>
+              {noraWelcome && (
+                <CwNoraWelcome name={myName} quick={active.quick} hints={active.hints} onAsk={(q) => send(q)} />
+              )}
               {active && active.channelId && !(active.messages || []).length && (
                 // A real channel with nothing in it yet says what it is for, not a blank page.
                 <div data-channel-empty style={{ margin: "auto", maxWidth: 360, textAlign: "center", padding: "24px 8px" }}>
@@ -3340,6 +3480,65 @@ function ChatWidget(props) {
                     <div key={i} style={{ alignSelf: "stretch", textAlign: "center", padding: "10px 6px", borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)", borderBottom: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)" }}>
                       <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.2em", textTransform: "uppercase", color: "var(--sh-ink2, #a09b94)", marginBottom: 5 }}>From Shape</div>
                       <div style={{ fontSize: 13, lineHeight: 1.5, color: "var(--sh-ink, #f2ede4)" }}>{m.t}</div>
+                    </div>
+                  );
+                }
+                // ── A CONVERSATION WITH NORA READS LIKE A PAGE (owner, 2026-11-12, after Ladder's
+                // assistant): the question in a soft pill on the right; her answer as text under her
+                // name, then what she links to and Listen. Her greeting (the thread's first message)
+                // is the welcome drawn above the thread, not a turn in it. A reply from a person on the
+                // Shape team keeps the message look below, so it never reads as hers.
+                if (isSupport && !m.team) {
+                  if (i === 0 && !m.me) return null;
+                  if (m.me) {
+                    return (
+                      <div key={i} className="cw-nora-q-row">
+                        <div className="cw-nora-q">{m.t}</div>
+                        {(m.failed || m.pending) && (
+                          <div data-send-state={m.failed ? "failed" : "pending"} role={m.failed ? "alert" : undefined} style={{ marginTop: 5, fontSize: 11.5, color: m.failed ? "#c0533b" : "var(--sh-ink3, #75706a)" }}>
+                            {m.failed ? "Not sent · " + m.failed : "Sending…"}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  }
+                  const lkey = `${tabIdx}.${activeIdx}.${i}`; // this message in this thread, for Listen
+                  const mine = noraPlaying && noraPlaying.key === lkey;
+                  const links = Array.isArray(m.actions) ? m.actions : [];
+                  return (
+                    <div key={i} className="cw-nora-turn">
+                      <div className="cw-nora-meta">
+                        <button type="button" onClick={() => openProfile(m)} title="About Nora" aria-label="About Nora">
+                          <img src="/nora-avatar.png" alt="" aria-hidden onError={cwPhotoError} data-fallback={CW_NORA_MARK} />
+                        </button>
+                        <b>Nora</b>{m.time && <span>{"· " + m.time}</span>}
+                      </div>
+                      <CwNoraText text={m.t} />
+                      {links.length > 0 && (
+                        // A drafted change or a form she can fill is its own card; anything else is a link.
+                        <div className="cw-nora-links">
+                          {links.map((a, ai) => (
+                            a.type === "proposal"
+                              ? <CwProposalCard key={ai} a={a} />
+                              : a.type === "fill"
+                              ? <CwFillCard key={ai} a={a} />
+                              : <a key={ai} href={a.url || "#"} onClick={(e) => { if (!a.url) e.preventDefault(); }} className="cw-nora-link">
+                                  <svg aria-hidden width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M5 11 11 5M6 5h5v5" /></svg>
+                                  <span>{a.label}</span>
+                                  {a.meta && <small>{a.meta}</small>}
+                                </a>
+                          ))}
+                        </div>
+                      )}
+                      {canVoice && (
+                        <div className="cw-nora-tools">
+                          {/* Loading while her audio is fetched, Stop while it plays. speakNora runs inside
+                              this tap, which is what unlocks her player on a phone. */}
+                          <button type="button" onClick={() => (mine ? stopNora() : speakNora(m.t, { explicit: true, key: lkey }))} title="Read this aloud" aria-label={mine ? "Stop reading" : "Read this aloud"} aria-pressed={!!mine} className="cw-nora-tool">
+                            {mine ? (noraPlaying.playing ? "■ Stop" : "Loading…") : "🔊 Listen"}
+                          </button>
+                        </div>
+                      )}
                     </div>
                   );
                 }
@@ -3361,26 +3560,18 @@ function ChatWidget(props) {
                 // Bubble carries the sender's tier color (incoming = their tier,
                 // mine = my tier) so chat stays coordinated with the avatars/feed.
                 const bubbleTC = cwTierColor(m && m.tier ? String(m.tier) : cwHashTier(m.me ? myName : avatarName, m.me ? myCoach : mCoach));
-                // ⚠ NORA IS STAFF, NOT A MEMBER ON A TIER. Her bubble took a tier colour hashed
-                // from her name, which came out as Form's red: a concierge reading as an alarm.
-                // Hers is the quiet surface with her photo; the member's own, in her door, the
-                // accent. A person from the Shape team keeps the member styling below.
-                const noraMsg = isSupport && !m.me && !m.team;
-                const supportMine = isSupport && m.me;
+                // ⚠ NORA IS STAFF, NOT A MEMBER ON A TIER: her turns are drawn above, never in a
+                // tier-coloured bubble (a colour hashed from her name came out as Form's red, a
+                // concierge reading as an alarm). A person from the Shape team is drawn here.
                 return (
                 <div key={i} style={{ display: "flex", flexDirection: "column", alignItems: m.me ? "flex-end" : "flex-start", position: "relative" }}>
                   <div style={{ display: "flex", alignItems: "flex-start", gap: 11, flexDirection: m.me ? "row-reverse" : "row", maxWidth: "90%" }}>
-                    {!m.me && noraMsg && (
-                      <button type="button" onClick={() => openProfile(m)} title="About Nora" aria-label="About Nora" style={{ alignSelf: "flex-start", flex: "none", width: 30, height: 30, padding: 0, border: 0, borderRadius: 999, background: "transparent", cursor: "pointer" }}>
-                        <img src="/nora-avatar.png" alt="" aria-hidden onError={cwPhotoError} data-fallback={CW_NORA_MARK} style={{ display: "block", width: 30, height: 30, borderRadius: 999, objectFit: "cover", objectPosition: "50% 32%", boxShadow: "0 0 0 1.5px rgba(var(--sh-accent2-rgb, 10,197,168),0.7)" }} />
-                      </button>
-                    )}
-                    {!m.me && !noraMsg && (
+                    {!m.me && (
                       <div style={{ alignSelf: "flex-start" }}>
                         <CwFacetAvatar size={32} c={cwTierColor(m && m.tier ? String(m.tier) : cwHashTier(avatarName, mCoach))} initial={cwInitials(avatarName)} photo={(m && m.userId ? (avatarsByUid[m.userId] || undefined) : cwDemoFace(avatarName))} live={!!(window.ShapeWebPresence && m && m.userId && window.ShapeWebPresence.isOnline(m.userId))} onClick={() => openProfile(m)} />
                       </div>
                     )}
-                    {m.me && !supportMine && (
+                    {m.me && (
                       <div style={{ alignSelf: "flex-start" }}>
                         <CwFacetAvatar size={32} c={cwTierColor(m && m.tier ? String(m.tier) : cwHashTier(myName, myCoach))} initial={cwInitials(myName)} photo={myPhoto || undefined} live={!!(window.ShapeWebPresence && typeof window.ShapeWebPresence.visible === "function" && window.ShapeWebPresence.visible())} />
                       </div>
@@ -3405,17 +3596,13 @@ function ChatWidget(props) {
                       onTouchEnd={cancelLongPress}
                       style={{
                         maxWidth: "100%", width: "fit-content", overflowWrap: "anywhere", whiteSpace: "pre-wrap",
-                        padding: noraMsg || supportMine ? "10px 14px" : "9px 13px", borderRadius: noraMsg || supportMine ? 16 : 12,
-                        background: noraMsg ? "rgba(var(--sh-ink-rgb, 242,237,228),0.055)"
-                          : supportMine ? "rgba(var(--sh-accent2-rgb, 10,197,168),0.16)"
-                          : cwHexA(bubbleTC, m.me ? 0.19 : 0.13),
+                        padding: "9px 13px", borderRadius: 12,
+                        background: cwHexA(bubbleTC, m.me ? 0.19 : 0.13),
                         color: INK,
-                        border: "1px solid " + (noraMsg ? "rgba(var(--sh-ink-rgb, 242,237,228),0.1)"
-                          : supportMine ? "rgba(var(--sh-accent2-rgb, 10,197,168),0.38)"
-                          : cwHexA(bubbleTC, 0.33)),
-                        borderTopRightRadius: m.me ? 4 : (noraMsg || supportMine ? 16 : 12),
-                        borderTopLeftRadius: m.me ? (noraMsg || supportMine ? 16 : 12) : 4,
-                        fontSize: noraMsg || supportMine ? 14 : 13.5, lineHeight: 1.5,
+                        border: "1px solid " + cwHexA(bubbleTC, 0.33),
+                        borderTopRightRadius: m.me ? 4 : 12,
+                        borderTopLeftRadius: m.me ? 12 : 4,
+                        fontSize: 13.5, lineHeight: 1.5,
                         cursor: "pointer", userSelect: "none",
                       }}>{m.t}</div>
                       {m.me && (m.failed || m.pending) && (
@@ -3469,61 +3656,25 @@ function ChatWidget(props) {
                       </div>
                     </div>
                   </div>
-                  <div style={{ fontSize: 10, color: "var(--sh-ink3, #75706a)", fontFamily: "'JetBrains Mono', monospace", marginTop: myReaction ? 10 : 4, padding: noraMsg ? "0 4px 0 45px" : "0 4px" }}>{m.time}</div>
-                  {!m.me && isSupport && canVoice && (() => {
-                    // Loading while her audio is fetched, Stop while it plays. speakNora runs
-                    // inside this tap, which is what unlocks her player on a phone.
-                    const lkey = `${tabIdx}.${activeIdx}.${i}`; // this message in this thread
-                    const mine = noraPlaying && noraPlaying.key === lkey;
-                    return (
-                      <button onClick={() => (mine ? stopNora() : speakNora(m.t, { explicit: true, key: lkey }))} title="Read this aloud" aria-label={mine ? "Stop reading" : "Read this aloud"} aria-pressed={!!mine}
-                        style={{ marginTop: 4, display: "inline-flex", alignItems: "center", gap: 4, padding: "3px 8px", borderRadius: 999, border: `1px solid ${mine ? TEAL : "rgba(var(--sh-ink-rgb, 242,237,228),0.14)"}`, background: mine ? "rgba(var(--sh-accent2-rgb, 10,197,168),0.12)" : "transparent", color: mine ? "var(--sh-accent-ink, #2ee0c4)" : "var(--sh-ink2, #a09b94)", fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", cursor: "pointer" }}>
-                        {mine ? (noraPlaying.playing ? "■ Stop" : "Loading…") : "🔊 Listen"}
-                      </button>
-                    );
-                  })()}
-                  {!m.me && Array.isArray(m.actions) && m.actions.length > 0 && (
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: 7, marginTop: 8, maxWidth: "92%" }}>
-                      {m.actions.map((a, ai) => (
-                        a.type === "proposal"
-                          ? <CwProposalCard key={ai} a={a} />
-                          : a.type === "fill"
-                          ? <CwFillCard key={ai} a={a} />
-                          : <a key={ai} href={a.url || "#"}
-                              onClick={(e) => { if (!a.url) e.preventDefault(); }}
-                              style={{ textDecoration: "none", border: `1px solid ${TEAL}`, background: "rgba(var(--sh-accent2-rgb, 10,197,168),0.10)", color: "var(--sh-accent-ink, #2ee0c4)", borderRadius: 14, padding: "7px 12px", fontFamily: sans, fontSize: 12, fontWeight: 500, cursor: "pointer", display: "inline-flex", flexDirection: "column", lineHeight: 1.3 }}>
-                              <span>{a.label}</span>
-                              {a.meta && <span style={{ fontSize: 10, opacity: 0.7 }}>{a.meta}</span>}
-                            </a>
-                      ))}
-                    </div>
-                  )}
+                  <div style={{ fontSize: 10, color: "var(--sh-ink3, #75706a)", fontFamily: "'JetBrains Mono', monospace", marginTop: myReaction ? 10 : 4, padding: "0 4px" }}>{m.time}</div>
                 </div>
                 );
               })}
-              {typing && isSupport && noraLive ? (() => {
-                // Her reply so far, drawn as her messages are; the finished reply replaces it.
-                const who = (active && active.who) || "Nora";
-                const tc = cwTierColor(cwHashTier(who, /trainer|coach|nutritionist/i.test((active && active.role) || "")));
-                // Drawn as her finished messages are: her photo, the quiet surface.
-                return (
-                  <div data-nora-live style={{ display: "flex", alignItems: "flex-start", gap: 11, maxWidth: "90%" }}>
-                    <img src="/nora-avatar.png" alt="" aria-hidden onError={cwPhotoError} data-fallback={CW_NORA_MARK} style={{ flex: "none", display: "block", width: 30, height: 30, borderRadius: 999, objectFit: "cover", objectPosition: "50% 32%", boxShadow: "0 0 0 1.5px rgba(var(--sh-accent2-rgb, 10,197,168),0.7)" }} />
-                    <div style={{ maxWidth: "100%", width: "fit-content", overflowWrap: "anywhere", whiteSpace: "pre-wrap", padding: "10px 14px", borderRadius: 16, borderTopLeftRadius: 4, background: "rgba(var(--sh-ink-rgb, 242,237,228),0.055)", color: INK, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.1)", fontSize: 14, lineHeight: 1.5 }}>{noraLive}</div>
+              {typing && isSupport && noraLive ? (
+                // Her reply so far, drawn as her finished turns are, with a caret where she is writing;
+                // the finished reply replaces it.
+                <div data-nora-live className="cw-nora-turn">
+                  <div className="cw-nora-meta">
+                    <img src="/nora-avatar.png" alt="" aria-hidden onError={cwPhotoError} data-fallback={CW_NORA_MARK} />
+                    <b>Nora</b>
                   </div>
-                );
-              })() : typing && (
-                <div style={{ display: "flex", alignItems: "center", gap: 6, color: "var(--sh-ink2, #a09b94)", fontSize: 12, fontStyle: "italic" }}>
-                  <TypingDots />{isSupport ? (noraStatus ? cwNoraStatusWords(noraStatus) : "Nora is typing…") : "someone is typing…"}
+                  <CwNoraText text={noraLive} caret />
                 </div>
-              )}
-              {!typing && isSupport && active?.quick?.length > 0 && (
-                // Her suggestions as whole rows under her greeting, each one a question she answers.
-                <div data-nora-suggest style={{ display: "flex", flexDirection: "column", gap: 7, marginTop: 2, marginLeft: 41, maxWidth: 340 }}>
-                  <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.16em", textTransform: "uppercase", color: "var(--sh-ink3, #75706a)", marginBottom: 1 }}>Try asking</div>
-                  {active.quick.map((label) => (
-                    <button key={label} type="button" className="cw-suggest" onClick={() => send(label)}>{label}</button>
-                  ))}
+              ) : typing && (
+                // Before her first words: her face and what she is doing, shimmering (a lookup names itself).
+                <div className={isSupport ? "cw-nora-thinking" : undefined} style={isSupport ? undefined : { display: "flex", alignItems: "center", gap: 6, color: "var(--sh-ink2, #a09b94)", fontSize: 12, fontStyle: "italic" }}>
+                  {isSupport && <img src="/nora-avatar.png" alt="" aria-hidden onError={cwPhotoError} data-fallback={CW_NORA_MARK} />}
+                  <span className={isSupport ? "cw-nora-shimmer" : undefined} style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><TypingDots />{isSupport ? (noraStatus ? cwNoraStatusWords(noraStatus) : "Nora is typing…") : "someone is typing…"}</span>
                 </div>
               )}
             </div>
@@ -3541,8 +3692,8 @@ function ChatWidget(props) {
               </div>
             ) : (
             <React.Fragment>
-            {isSupport && (
-              <div style={{ padding: "10px 16px 0", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            {isSupport && (voiceLocked || noraScreenShown) && (
+              <div style={{ padding: "0 16px 8px", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                 {/* A free account and a visitor: voice is part of the membership, and Join (the
                     checkout for a signed-in account, Pricing for a visitor). A renewal that failed:
                     the owner's past-due line and Update your card (the billing portal). */}
@@ -3560,37 +3711,15 @@ function ChatWidget(props) {
                         : <a href="/pricing" style={{ color: "var(--sh-accent-ink, #2ee0c4)", fontWeight: 600, textDecoration: "none", whiteSpace: "nowrap" }}>Join &rarr;</a>}
                   </div>
                 )}
-                {!noraScreenOff && typeof window !== "undefined" && window.__shapeNoraPageName && (
+                {noraScreenShown && (
                   // What Nora is told about where they are. × takes it off for this visit.
-                  <span data-nora-screen title="Nora knows the page you asked from" style={{ display: "inline-flex", alignItems: "center", gap: 6, minHeight: 28, padding: "0 4px 0 10px", borderRadius: 999, border: "1px dashed rgba(var(--sh-ink-rgb, 242,237,228),0.22)", color: "var(--sh-ink2, #a09b94)", fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, fontWeight: 700, letterSpacing: "0.04em", maxWidth: 200 }}>
+                  <span data-nora-screen title="Nora knows the page you asked from" style={{ display: "inline-flex", alignItems: "center", gap: 7, minHeight: 28, padding: "0 4px 0 11px", borderRadius: 999, background: "rgba(var(--sh-ink-rgb, 242,237,228),0.05)", color: "var(--sh-ink2, #a09b94)", fontFamily: sans, fontSize: 12, maxWidth: "100%" }}>
                     <span aria-hidden style={{ width: 6, height: 6, borderRadius: 999, background: TEAL_BRIGHT, flex: "none" }} />
                     <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>On {window.__shapeNoraPageName()}{window.__shapeNoraProblem && window.__shapeNoraProblem() ? " · with the error" : ""}</span>
                     <button type="button" onClick={() => setNoraScreenOff(true)} aria-label="Don't tell Nora which page you're on" title="Don't tell Nora which page you're on"
-                      style={{ border: 0, background: "transparent", color: "inherit", cursor: "pointer", fontSize: 13, lineHeight: 1, padding: "0 6px", minHeight: 24 }}>×</button>
+                      style={{ border: 0, background: "transparent", color: "inherit", cursor: "pointer", fontSize: 14, lineHeight: 1, padding: "0 7px", minHeight: 24 }}>×</button>
                   </span>
                 )}
-                {(active?.messages?.length || 0) > 1 && (
-                  <button type="button" data-nora-clear onClick={clearNoraThread} title="Clear your conversation with Nora on every device" className="cw-ctl">Clear</button>
-                )}
-                <span aria-hidden style={{ flex: 1 }} />
-                {noraPersonOk && !personForm && (
-                  <button type="button" data-nora-person onClick={openPersonForm} title="Send your question and this conversation to the Shape team. A person replies here and by email." className="cw-ctl" style={{ borderColor: TEAL, color: "var(--sh-accent-ink, #2ee0c4)" }}>Talk to a person</button>
-                )}
-                {canVoice && <button onClick={() => setNoraEnabled(!noraVoice.enabled)} type="button" title="Read Nora's replies aloud" aria-pressed={!!noraVoice.enabled} className="cw-ctl">
-                  <svg aria-hidden width="12" height="12" viewBox="0 0 14 14" fill="none">
-                    <path d="M2 5.2h2.3L7.5 2.5v9L4.3 8.8H2z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
-                    {noraVoice.enabled
-                      ? <path d="M9.6 5a2.6 2.6 0 0 1 0 4M11.2 3.4a5 5 0 0 1 0 7.2" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
-                      : <path d="M9.5 5.3l3 3.4M12.5 5.3l-3 3.4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />}
-                  </svg>
-                  Voice {noraVoice.enabled ? "on" : "off"}
-                </button>}
-                <div role="group" aria-label="Nora's tone" style={{ display: "inline-flex", borderRadius: 999, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.14)", overflow: "hidden", padding: 2, gap: 2 }}>
-                  {["supportive", "direct"].map(tn => (
-                    <button key={tn} type="button" onClick={() => setNoraTone(tn)} aria-pressed={noraVoice.tone === tn} title={tn === "supportive" ? "Warm and encouraging" : "Concise and factual"}
-                      style={{ minHeight: 24, padding: "0 10px", border: 0, borderRadius: 999, background: noraVoice.tone === tn ? TEAL : "transparent", color: noraVoice.tone === tn ? PAPER : "var(--sh-ink2, #a09b94)", fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", cursor: "pointer" }}>{tn}</button>
-                  ))}
-                </div>
               </div>
             )}
             {isSupport && personForm && (
@@ -3628,8 +3757,8 @@ function ChatWidget(props) {
                 <button type="button" className="cw-send" onClick={() => joinChannel(active.channelId)} disabled={joinBusy === active.channelId}>{joinBusy === active.channelId ? "Joining\u2026" : "Join"}</button>
               </div>
             ) : (
-            <div style={{ padding: "10px 14px 14px" }}>
-              <div className="cw-composer">
+            <div style={{ padding: isSupport ? "4px 16px 14px" : "10px 14px 14px" }}>
+              <div className={isSupport ? "cw-composer cw-composer--nora" : "cw-composer"}>
               <textarea
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
@@ -3640,45 +3769,142 @@ function ChatWidget(props) {
               />
               {isSupport && canVoice && voiceSupported && (
                 <button type="button" onClick={toggleVoice} title={voiceState === "listening" ? "Stop listening" : "Speak to Nora"} aria-label={voiceState === "listening" ? "Stop listening" : "Speak to Nora"}
-                  style={{
-                    flex: "0 0 auto", width: 38, height: 38, borderRadius: 11,
-                    cursor: voiceState === "transcribing" ? "default" : "pointer",
-                    border: voiceState === "listening" ? "1px solid #e0463c" : "1px solid transparent",
-                    background: voiceState === "listening" ? "rgba(224,70,60,0.16)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.06)",
-                    color: voiceState === "listening" ? "#e0463c" : TEAL_BRIGHT,
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                  }}>
+                  aria-pressed={voiceState === "listening"} className="cw-mic" style={{ cursor: voiceState === "transcribing" ? "default" : "pointer" }}>
                   {voiceState === "transcribing" ? <TypingDots /> : <MicGlyph />}
                 </button>
               )}
-              <button type="button" onClick={send} disabled={!draft.trim()} className="cw-send">
-                Send
-                <svg aria-hidden width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 6h7.5M6.5 2.8 9.7 6l-3.2 3.2" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg>
+              <button type="button" onClick={send} disabled={!draft.trim()} className={isSupport ? "cw-send cw-send--round" : "cw-send"} aria-label="Send">
+                {isSupport
+                  ? <svg aria-hidden width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 13V3.5M3.8 7.6 8 3.4l4.2 4.2" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                  : <React.Fragment>Send<svg aria-hidden width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 6h7.5M6.5 2.8 9.7 6l-3.2 3.2" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg></React.Fragment>}
               </button>
               </div>
+              {isSupport && (
+                // The line under her composer: what she is, and the way to a person (the Shape team
+                // answers a signed-in account here and by email; anyone else, by email).
+                <div className="cw-nora-foot">
+                  Nora can make mistakes.{" "}
+                  {noraPersonOk && !personForm && (
+                    <button type="button" data-nora-person onClick={openPersonForm} title="Send your question and this conversation to the Shape team. A person replies here and by email.">Talk to a person</button>
+                  )}
+                  {!noraPersonOk && <React.Fragment>The Shape team reads <a href="mailto:info@theshapecommunity.com">info@theshapecommunity.com</a>.</React.Fragment>}
+                </div>
+              )}
             </div>
             )}
             </React.Fragment>
             )}
           </div>
           </div>
-          {/* Resize handle (bottom-right corner) — not shown when popped out */}
-          {!docked && (
-            <div
-              onMouseDown={startResize}
-              onDoubleClick={resetSize}
-              title="Drag to resize · double-click to reset"
-              style={{
-                position: "absolute", right: 0, bottom: 0, width: 18, height: 18,
-                cursor: "nwse-resize",
-                background: "linear-gradient(135deg, transparent 50%, rgba(var(--sh-accent2-rgb, 10,197,168),0.55) 50%, rgba(var(--sh-accent2-rgb, 10,197,168),0.55) 62%, transparent 62%, transparent 72%, rgba(var(--sh-accent2-rgb, 10,197,168),0.35) 72%, rgba(var(--sh-accent2-rgb, 10,197,168),0.35) 84%, transparent 84%)",
-                borderBottomRightRadius: 14,
-              }}
-            />
-          )}
         </div>
       )}
     </React.Fragment>
+  );
+}
+
+// ── Nora's panel, drawn as a modern assistant's (owner, 2026-11-12: "get Nora to look and flow
+// like" Ladder's). The welcome stands in for her greeting; her answers are text, not bubbles.
+
+// Each suggestion card's mark, by what the suggestion is about; a sparkle when nothing fits.
+// Fee and plan questions come before coaches, so "What does Shape take from coaches?" is a price.
+const CW_NORA_GLYPHS = [
+  [/look up/i, "M7 12.5a5.5 5.5 0 1 1 0-11 5.5 5.5 0 0 1 0 11ZM11 11l3.5 3.5"],
+  [/cost|price|membership|cancel|change my plan|take from/i, "M2 8.6V2.75A.75.75 0 0 1 2.75 2H8.6l5.4 5.4-6.6 6.6L2 8.6ZM5.25 5.25h.01"],
+  [/today|needs me/i, "M2.5 4.25h11v9.25h-11zM2.5 7h11M5.5 2.5v3M10.5 2.5v3"],
+  [/week/i, "M3 13.5V9M8 13.5V3M13 13.5V6.5"],
+  [/water/i, "M8 2.25S3.75 7 3.75 9.75a4.25 4.25 0 0 0 8.5 0C12.25 7 8 2.25 8 2.25Z"],
+  [/draft|goal/i, "M10.75 2.75 13.25 5.25 5.5 13H3v-2.5l7.75-7.75Z"],
+  [/verified|badge/i, "M8 14.25a6.25 6.25 0 1 0 0-12.5 6.25 6.25 0 0 0 0 12.5ZM5.25 8.25 7.1 10l3.65-4"],
+  [/coach|client/i, "M8 7.5a2.75 2.75 0 1 0 0-5.5 2.75 2.75 0 0 0 0 5.5ZM2.75 14c.55-2.6 2.6-4.25 5.25-4.25S12.7 11.4 13.25 14"],
+];
+const CW_NORA_SPARKLE = "M8 1.75 9.4 6.6l4.85 1.4L9.4 9.4 8 14.25 6.6 9.4 1.75 8 6.6 6.6 8 1.75Z";
+function CwNoraCardGlyph({ q }) {
+  const hit = CW_NORA_GLYPHS.find(([re]) => re.test(q));
+  return hit
+    ? <svg aria-hidden width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d={hit[1]} /></svg>
+    : <svg aria-hidden width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d={CW_NORA_SPARKLE} /></svg>;
+}
+
+// Nora's welcome: her face, hello (by first name when the account has one), and her suggestions
+// as cards with the line under each that the server gives (src/lib/ai/noraGreeting.mjs).
+// A card asks its suggestion as the member's own question.
+function CwNoraWelcome({ name, quick, hints, onAsk }) {
+  const first = String(name || "").trim().split(/\s+/)[0];
+  const cards = Array.isArray(quick) ? quick.filter((q) => typeof q === "string" && q.trim()).slice(0, 4) : [];
+  return (
+    <div data-nora-welcome className="cw-nora-welcome">
+      <div className="cw-nora-orb" aria-hidden>
+        <img src="/nora-avatar.png" alt="" onError={cwPhotoError} data-fallback={CW_NORA_MARK} />
+      </div>
+      <div className="cw-nora-hi">{first && first !== "You" ? `Hi, ${first}!` : "Hi there!"}</div>
+      <div className="cw-nora-sub">I’m Nora, Shape’s concierge. How can I help today?</div>
+      {cards.length > 0 && (
+        <div data-nora-suggest className="cw-nora-cards">
+          {cards.map((q) => (
+            <button key={q} type="button" className="cw-nora-card" onClick={() => onAsk(q)}>
+              <span className="cw-nora-card-t"><CwNoraCardGlyph q={q} />{q}</span>
+              {hints && typeof hints[q] === "string" && <span className="cw-nora-card-h">{hints[q]}</span>}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Her words, laid out: blank lines part paragraphs, and lines that start with •, -, * or "1."
+// are a list (the route turns a list she writes into • lines, src/lib/ai/replyText.mjs). An
+// address or an email in them is a link. Text only: nothing she writes is read as markup.
+// `caret` ends the last line with the cursor she writes at, while her reply is still coming.
+const CW_NORA_BULLET = /^\s*(?:[•\-*]|(\d+)[.)])\s+/;
+const CW_NORA_LINK = /(https?:\/\/[^\s<>"']*[^\s<>"'.,!?;:)\]]|[\w.+-]+@[\w-]+(?:\.[\w-]+)*\.[a-z]{2,})/gi;
+function cwNoraLinkify(text) {
+  const out = [];
+  let at = 0;
+  String(text).replace(CW_NORA_LINK, (hit, _g, i) => {
+    if (i > at) out.push(text.slice(at, i));
+    const web = /^https?:\/\//i.test(hit);
+    const own = web && hit.startsWith(window.location.origin);
+    out.push(<a key={i} href={web ? hit : `mailto:${hit}`} {...(web && !own ? { target: "_blank", rel: "noopener noreferrer" } : {})}>{hit}</a>);
+    at = i + hit.length;
+    return hit;
+  });
+  if (at < text.length) out.push(text.slice(at));
+  return out;
+}
+function cwNoraBlocks(text) {
+  const blocks = [];
+  String(text || "").split(/\n\s*\n/).forEach((chunk) => {
+    chunk.split("\n").forEach((line) => {
+      const b = line.match(CW_NORA_BULLET);
+      const last = blocks[blocks.length - 1];
+      if (b) {
+        const kind = b[1] ? "ol" : "ul";
+        const item = line.slice(b[0].length);
+        if (last && last.kind === kind && !last.closed) last.items.push(item);
+        else blocks.push({ kind, items: [item] });
+      } else if (line.trim()) {
+        if (last && last.kind === "p" && !last.closed) last.text += "\n" + line;
+        else blocks.push({ kind: "p", text: line });
+      }
+    });
+    if (blocks.length) blocks[blocks.length - 1].closed = true;
+  });
+  return blocks;
+}
+function CwNoraText({ text, caret }) {
+  const blocks = cwNoraBlocks(text);
+  const end = caret ? <span className="cw-nora-caret" aria-hidden /> : null;
+  return (
+    <div className="cw-nora-a">
+      {blocks.map((b, bi) => {
+        const tail = bi === blocks.length - 1 ? end : null;
+        if (b.kind === "p") return <p key={bi}>{cwNoraLinkify(b.text)}{tail}</p>;
+        const List = b.kind;
+        return <List key={bi}>{b.items.map((it, ii) => <li key={ii}>{cwNoraLinkify(it)}{ii === b.items.length - 1 ? tail : null}</li>)}</List>;
+      })}
+      {!blocks.length && end}
+    </div>
   );
 }
 
@@ -3700,7 +3926,7 @@ function TypingDots() {
     return () => clearInterval(id);
   }, []);
   return (
-    <span style={{ display: "inline-flex", gap: 3 }}>
+    <span className="cw-dots" style={{ display: "inline-flex", gap: 3 }}>
       {[0,1,2].map(i => (
         <span key={i} style={{ width: 5, height: 5, borderRadius: 999, background: "currentColor", opacity: n === i ? 1 : 0.3, transition: "opacity 200ms" }} />
       ))}
