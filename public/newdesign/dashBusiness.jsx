@@ -386,9 +386,10 @@ function DbzChurnZone({ live, churn, pace = null, now = Date.now() }) {
   );
 }
 
-// ── Bring your clients — the BYO link block + origin labels (rails #1794) ───
-// Clients a coach brings pay 0% Shape commission; marketplace-delivered
-// clients pay 15%. The link block hands the coach their durable ref-tagged
+// ── Bring your clients — the link block + origin labels (rails #1794) ──────
+// A coach's existing clients pay 0% Shape commission; every client who signs up
+// through Shape pays 15%, the coach's own invite or link included (owner,
+// 2026-11-12). The link block hands the coach their durable ref-tagged
 // URL (copy · email · raw URL for an Instagram bio); the origin zone labels
 // each active client from the STORED fee_bps — never re-derived from origin +
 // the current constant, so a future rate change alters no existing label.
@@ -418,7 +419,7 @@ function dbzDemoOrigin() {
   } catch (e) { /* dashSignals not up yet — no roster, so no rows of it */ }
   return subs.concat(DBZ_DEMO_PURCHASES);
 }
-const DBZ_BYO_PITCH = "Clients you bring pay no Shape commission — you keep your full rate. They join Shape free; the $5/mo membership is theirs to add. Members already in your Shape waiting room count as Shape-found.";
+const DBZ_BYO_PITCH = "Clients who sign up through your link pay Shape's 15%, like every client who signs up through Shape. They join Shape free; the $5/mo membership is theirs to add. Clients you coached before Shape pay no Shape fee: list them in the Shape app, under Clients, then ＋ Add.";
 function DbzBringClientsZone({ live, role, providerId }) {
   // The link (null while it is made, or when it can't be), from the hook Growth's link card reads too
   // (useDbzReferralLink: the link names the role). A refused clipboard (an older browser, a page not
@@ -454,7 +455,7 @@ function DbzBringClientsZone({ live, role, providerId }) {
           </div>
           {copyFailed && <div role="status" style={{ fontFamily: DBZ_MONO, fontSize: 9.5, color: DBZ_AMBER, marginTop: 8 }}>Couldn't copy it here. Select the link above and copy it.</div>}
           <div style={{ fontFamily: DBZ_MONO, fontSize: 8.5, letterSpacing: "0.06em", color: DBZ_INK50, marginTop: 9 }}>
-            Paste the raw URL anywhere — a text, an email signature, your Instagram bio. Anyone who opens it inside 30 days of subscribing counts as yours.
+            Paste the raw URL anywhere — a text, an email signature, your Instagram bio. It opens your profile on Coaching.
           </div>
         </React.Fragment>
       )}
@@ -474,7 +475,7 @@ function DbzOriginZone({ live, byOrigin }) {
   }
   const rows = live ? (Array.isArray(byOrigin) ? byOrigin : []) : dbzDemoOrigin();
   if (live && !rows.length) {
-    return <div style={{ fontSize: 12.5, color: DBZ_INK50, lineHeight: 1.55 }}>Origin labels land here as clients subscribe — "You brought" at your full rate, "Found you on Shape" at the marketplace fee.</div>;
+    return <div style={{ fontSize: 12.5, color: DBZ_INK50, lineHeight: 1.55 }}>Origin labels land here as clients subscribe — "Existing client" at your full rate, "Through Shape" at Shape's fee.</div>;
   }
   // Commission status keys off the STORED fee, never off origin — this surface
   // is the fee pitch, and the row's rate is the billing truth.
@@ -503,7 +504,7 @@ function DbzOriginZone({ live, byOrigin }) {
       <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 12, alignItems: "center", padding: "9px 0", borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.05)" }}>
         <span style={{ fontSize: 13, fontWeight: 500, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.name}</span>
         <span style={{ fontFamily: DBZ_MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: byo ? DBZ_TEAL : DBZ_INK50, whiteSpace: "nowrap" }}>
-          {byo ? "You brought" : "Found you on Shape"} · {fee}{r.kind === "purchase" ? " · one-time" : ""}
+          {byo ? "Existing client" : "Through Shape"} · {fee}{r.kind === "purchase" ? " · one-time" : ""}
         </span>
       </div>
     );
@@ -511,7 +512,7 @@ function DbzOriginZone({ live, byOrigin }) {
   return (
     <div>
       <div style={countStyle}>
-        {brought} you brought · {clients.length - brought} found you on Shape
+        {brought} existing · {clients.length - brought} through Shape
       </div>
       {clients.map(line)}
       {purchases.length > 0 && (
@@ -1062,7 +1063,7 @@ function dbzPlanBase({ live, extra, failed = false, listing, listingRead, listin
       : n.rateFrom === "average" ? "your clients' average" : "no listing price yet · set your own",
     // The brought-in share is per client (the routes' byoMix: one client with two plans is one
     // client). Null is a failed read: the share starts at 0% and says so, never as a measurement.
-    byoNote: n.broughtUnread ? "couldn't read who you brought · set your own" : n.byoClients ? "0% fee · " + n.brought + " of your " + n.byoClients : "0% Shape fee on these",
+    byoNote: n.broughtUnread ? "couldn't read your existing clients · set your own" : n.byoClients ? "0% fee · " + n.brought + " of your " + n.byoClients : "0% Shape fee on these",
   };
 }
 
@@ -1098,7 +1099,7 @@ function DbzEarnZone({ base }) {
       <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr) minmax(0,1fr)", gap: 12 }}>
         <DbzNumberField label="Clients" value={clients} onChange={setClients} max="999" note={"you have " + base.clients + " today"} />
         <DbzNumberField label="Monthly rate" value={rate} onChange={setRate} prefix="$" max="9999" note={base.rateFrom} />
-        <DbzNumberField label="Brought by you" value={byo} onChange={setByo} suffix="%" max="100" note={base.byoNote} />
+        <DbzNumberField label="Your existing clients" value={byo} onChange={setByo} suffix="%" max="100" note={base.byoNote} />
       </div>
       {/* The month and the year sit on one baseline with their labels on one line, and the
           billed and fee line, which is the month's, runs under both (owner, 2026-10-18: "fix look
@@ -1386,8 +1387,8 @@ function dbzDay(v) {
 }
 // ⚠ EVERY RENEWAL SAYS WHY SHAPE TAKES ITS FEE, OR NONE (coach dashboard step 4a: "the 15% fee is
 // never explained"). The fee is the row's STORED one (coach-renewals.mjs `feeBps`), the billing truth
-// the origin list reads too: 0 is a client the coach brought (their link, no fee), anything else one
-// who found them on Shape. A row from a route before the field, or one storing none, is read from what
+// the origin list reads too: 0 is one of the coach's existing clients (no fee), anything else one
+// who signed up through Shape. A row from a route before the field, or one storing none, is read from what
 // it nets (price less net), which is the rate the route cut it at. Neither readable: said so.
 function dbzFeeBps(r) {
   if (r && Number.isFinite(r.feeBps)) return r.feeBps;
@@ -1397,8 +1398,8 @@ function dbzFeeBps(r) {
 function dbzFeeLabel(r) {
   const bps = dbzFeeBps(r);
   if (bps == null) return "fee couldn't be read";
-  if (bps <= 0) return "brought by you · no fee";
-  return "found you on Shape · " + (Math.round(bps / 10) / 10) + "% fee";
+  if (bps <= 0) return "existing client · no fee";
+  return "through Shape · " + (Math.round(bps / 10) / 10) + "% fee";
 }
 // The renewal's status, as a labelled chip: renews (Stripe said so), cancelled (ends that day), or
 // not checked (Stripe couldn't be asked, past the check cap, or no Stripe id).
@@ -1446,7 +1447,7 @@ function DbzRenewalsZone({ live, renewals, clients = [], role = "trainer" }) {
         );
       })}
       <div style={{ ...DBZ_NOTE, marginTop: 8 }}>
-        Net to you, after Shape's fee: {pct}% on a client who found you on Shape, none on a client you brought.{unchecked ? " Some couldn't be checked with Stripe, so they aren't counted above." : ""}
+        Net to you, after Shape's fee: {pct}% on a client who signed up through Shape, none on your existing clients.{unchecked ? " Some couldn't be checked with Stripe, so they aren't counted above." : ""}
       </div>
     </div>
   );
@@ -2214,7 +2215,7 @@ function DbzPlanStartCard({ model }) {
   const { base, start, known } = model;
   const rows = [
     ["New clients pay", dbzRate(start.rate) + " a month", base.rateFrom],
-    ["Brought by you", Math.round(base.byoShare * 100) + "%", base.byoNote],
+    ["Your existing clients", Math.round(base.byoShare * 100) + "%", base.byoNote],
     // With no pace to read, the plan starts from stated defaults, and never calls them "yours".
     [known ? "Your pace" : "A starting pace", start.adds.toFixed(1) + " new · " + dbzPct(start.churnPct) + " leave, a month", known ? dbzPaceWhen(base.pace) : dbzNoHistory(base)],
   ];
@@ -2480,8 +2481,9 @@ function useDbzCopy(text) {
   };
   return { copied, failed, copy };
 }
-// Your profile link, beside the funnel: the board's one filled control, and why it matters (a client
-// who joins through it pays no Shape fee). `pending`: the analytics, which carry the listing id, are
+// Your profile link, beside the funnel: the board's one filled control. It opens the coach's profile on
+// Coaching; it sets no fee (2026-11-12: a client who signs up through it pays Shape's 15%, unless they
+// are on the coach's existing-client list). `pending`: the analytics, which carry the listing id, are
 // still out.
 function DbzProfileLinkCard({ preview, role, providerId, pending }) {
   const ref = useDbzReferralLink(!preview, role, providerId);
@@ -2492,20 +2494,20 @@ function DbzProfileLinkCard({ preview, role, providerId, pending }) {
   return (
     <DbzCard label="Your profile link" lift={2}>
       <div data-dbz-link={status}>
-        <div style={{ fontSize: 13.5, lineHeight: 1.5, marginBottom: 12 }}>Clients who join through your own link pay no Shape fee: you keep your full rate.</div>
+        <div style={{ fontSize: 13.5, lineHeight: 1.5, marginBottom: 12 }}>Your link opens your profile on Coaching, ready to subscribe.</div>
         {url && <div style={{ fontFamily: DBZ_MONO, fontSize: 10, color: DBZ_INK50, padding: "8px 10px", background: "rgba(var(--sh-accent-rgb, 46,224,196),0.06)", border: "1px solid rgba(var(--sh-accent-rgb, 46,224,196),0.18)", borderRadius: 6, wordBreak: "break-all", lineHeight: 1.5, userSelect: "all", marginBottom: 10 }}>{url}</div>}
         {status === "ready" ? <button type="button" onClick={copy} style={big}>{copied ? "Copied ✓" : "Copy profile link"}</button>
           : status === "sample" ? <span aria-disabled="true" title="Copies your own link once you're signed in" style={{ ...big, opacity: 0.6, cursor: "default" }}>Copy profile link</span>
           : <div style={DBZ_NOTE}>{status === "loading" ? "Making your link…" : "Your link couldn't be made just now. Nothing is lost; reload to try again."}</div>}
         {failed && <div role="status" style={{ ...DBZ_NOTE, color: DBZ_AMBER, marginTop: 8 }}>Couldn't copy it here. Select the link above and copy it.</div>}
-        <div style={{ ...DBZ_NOTE, fontSize: 11.5, marginTop: 10 }}>Paste it anywhere: a text, an email signature, your bio. Anyone who subscribes within 30 days of opening it counts as yours.</div>
+        <div style={{ ...DBZ_NOTE, fontSize: 11.5, marginTop: 10 }}>Paste it anywhere: a text, an email signature, your bio. A client who signs up through it pays Shape's 15%. Clients you coached before Shape pay no Shape fee: list them in the Shape app, under Clients, then ＋ Add.</div>
       </div>
     </DbzCard>
   );
 }
 
-// Where clients come from: one bar of what today's clients pay a month, split three ways: the clients
-// the coach brought (no fee, all theirs), those who found them on Shape (theirs after the fee), and
+// Where clients come from: one bar of what today's clients pay a month, split three ways: the coach's
+// existing clients (no fee, all theirs), those who signed up through Shape (theirs after the fee), and
 // Shape's fee, with each group's tier marks. From the analytics' per-client rows (origin-attribution.ts,
 // the origin list's own), at each row's STORED fee. A row whose price couldn't be read, or whose plans
 // carry different fees (no one rate is theirs), is left out of the split and said.
@@ -2531,7 +2533,7 @@ function DbzOriginSplitCard({ model, clients }) {
     return <DbzCard label={label}><div data-dbz-origin={m.state} style={DBZ_NOTE}>{m.state === "loading" ? "Reading where your clients came from…" : "Couldn't read where your clients came from just now. Nothing is lost; reload to try again."}</div></DbzCard>;
   }
   if (!m.count) {
-    return <DbzCard label={label}><div data-dbz-origin="none" style={DBZ_NOTE}>No clients yet. Each one lands here as they subscribe: brought by you, at your full rate, or found you on Shape, at Shape's fee.</div></DbzCard>;
+    return <DbzCard label={label}><div data-dbz-origin="none" style={DBZ_NOTE}>No clients yet. Each one lands here as they subscribe: an existing client, at your full rate, or one who signed up through Shape, at Shape's fee.</div></DbzCard>;
   }
   const nClients = (n) => (n === 1 ? "1 client" : n + " clients");
   const unsplitWhy = "a price that couldn't be read, or plans at different fees";
@@ -2548,9 +2550,9 @@ function DbzOriginSplitCard({ model, clients }) {
     </span>
   );
   const rows = [
-    { k: "brought", label: "Brought by you", sub: nClients(m.brought.length) + " · no fee", cents: m.broughtCents, gems: m.brought },
-    { k: "shape", label: "Found you on Shape", sub: nClients(m.shape.length) + " · yours after the fee", cents: m.shapeNetCents, gems: m.shape },
-    { k: "fee", label: "Shape's fee", sub: "on the clients who found you on Shape", cents: m.feeCents, gems: null },
+    { k: "brought", label: "Your existing clients", sub: nClients(m.brought.length) + " · no fee", cents: m.broughtCents, gems: m.brought },
+    { k: "shape", label: "Through Shape", sub: nClients(m.shape.length) + " · yours after the fee", cents: m.shapeNetCents, gems: m.shape },
+    { k: "fee", label: "Shape's fee", sub: "on the clients who signed up through Shape", cents: m.feeCents, gems: null },
   ];
   return (
     <DbzCard label={label} right={<span style={DBZ_LBL}>{nClients(split)} · {dashMoney(total)} a month</span>}>
@@ -3190,7 +3192,7 @@ function CoachBusinessPage({ role }) {
       </React.Fragment>);
 
   const byo = plate(DBZ_TEAL, <React.Fragment>
-        {head("Bring your clients · 0% commission")}
+        {head("Bring your clients")}
         <DbzBringClientsZone live={isLive} role={role} providerId={extra && extra.providerId} />
       </React.Fragment>);
 
@@ -3299,7 +3301,7 @@ function CoachBusinessPage({ role }) {
     { key: "level", title: "Where it levels off", blurb: "The net a month the plan settles at, and how far that is from the goal.", group: "money", size: "narrow",
       render: () => <DbzLevelCard model={planModel} /> },
     // ── Optional: where the plan starts, and what the Plan tab carried before.
-    { key: "start", title: "Where you start", blurb: "Today's net a month, and the numbers the plan starts from: your price, who you brought, your pace.", optional: true, group: "money", size: "narrow",
+    { key: "start", title: "Where you start", blurb: "Today's net a month, and the numbers the plan starts from: your price, your existing clients, your pace.", optional: true, group: "money", size: "narrow",
       render: () => <DbzPlanStartCard model={planModel} /> },
     { key: "earn", title: "What clients earn you", blurb: "Type a client count and a rate, and read the net a month and a year.", optional: true, group: "money", size: "full",
       render: () => earnPlate },
@@ -3313,18 +3315,18 @@ function CoachBusinessPage({ role }) {
   const growthWidgets = [
     { key: "funnel", title: "Marketplace funnel", blurb: "Profile views, consults and signings, each bar to scale, with the weak step named.", group: "clients", size: "wide",
       render: () => <DbzFunnelCard model={funnelModel} /> },
-    { key: "link", title: "Your profile link", blurb: "Copy the link that brings clients in at no Shape fee.", group: "clients", size: "narrow",
+    { key: "link", title: "Your profile link", blurb: "Copy the link that opens your profile on Coaching.", group: "clients", size: "narrow",
       render: () => <DbzProfileLinkCard preview={preview} role={role} providerId={extra && extra.providerId} pending={!extra && !extraFailed} /> },
-    { key: "origin", title: "Where clients come from", blurb: "Brought by you, found on Shape, and Shape's fee, in one bar, with each client's tier.", group: "money", size: "wide",
+    { key: "origin", title: "Where clients come from", blurb: "Your existing clients, clients through Shape, and Shape's fee, in one bar, with each client's tier.", group: "money", size: "wide",
       render: () => <DbzOriginSplitCard model={originSplit} clients={boardClients} /> },
     { key: "waitlist", title: "Waiting list", blurb: "Who's waiting to join you, what they'd bring in, and reopening a full listing.", group: "clients", size: "narrow",
       render: () => <DbzWaitlistCard preview={preview} waiting={waiting} rateCents={waitRateCents} priceNote={waitPriceNote} capacity={capacity} role={role} onReopened={() => setCapacity({ effective: false })} /> },
     // ── Optional: what the Growth tab carried before.
     { key: "closerate", title: "Close rate and the benchmark", blurb: "The funnel as it was, with your consult close rate against the marketplace's.", optional: true, group: "clients", size: "half",
       render: () => funnel },
-    { key: "whofound", title: "Who found whom", blurb: "Each client by name: brought by you or found you on Shape, at their stored fee.", optional: true, group: "clients", size: "half",
+    { key: "whofound", title: "Who found whom", blurb: "Each client by name: an existing client or through Shape, at their stored fee.", optional: true, group: "clients", size: "half",
       render: () => origin },
-    { key: "byo", title: "Bring your clients", blurb: "Your link, with an email to send it and how a client counts as yours.", optional: true, group: "clients", size: "half",
+    { key: "byo", title: "Bring your clients", blurb: "Your link, with an email to send it, and who pays no Shape fee.", optional: true, group: "clients", size: "half",
       render: () => byo },
   ];
   // Retention. Who left reads the pace "What a client is worth" reads, at the same moment (planNow).

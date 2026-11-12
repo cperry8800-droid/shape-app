@@ -108,6 +108,7 @@ test('an origin this build does not recognise is passed THROUGH, never relabelle
   assert.equal(E.originLabel('marketplace'), 'Marketplace');
   assert.equal(E.originLabel('coach_invite'), 'Coach invite');
   assert.equal(E.originLabel('coach_link'), 'Coach link');
+  assert.equal(E.originLabel('coach_existing'), 'Existing client');
   assert.equal(E.originLabel('partner_2027'), 'partner_2027');
   assert.equal(E.originLabel(null), null);
   assert.equal(E.originLabel('hasOwnProperty'), 'hasOwnProperty', 'a prototype key resolved through Object.prototype');

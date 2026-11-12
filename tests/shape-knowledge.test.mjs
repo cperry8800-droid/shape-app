@@ -56,16 +56,17 @@ test('⚠ THE PRICE AND THE FEE ARE THE PRICING PAGE\'S OWN', () => {
   assert.match(entry('membership').body, /\$5 a month/);
   assert.match(entry('coach-fees').body, /15% platform fee/);
   assert.match(entry('coach-fees').body, /join and list for free/);
-  // The owner's fee terms (2026-10-18), as the code charges them (src/lib/coach-origin.mjs): the 15%
-  // is on a client who found the coach on Shape, nothing on one the coach brought, and Stripe's
+  // The owner's fee terms (2026-10-18; who pays, 2026-11-12), as the code charges them
+  // (src/lib/coach-origin.mjs): the 15% is on a client who signs up through Shape, nothing on one of the
+  // coach's existing clients, and Stripe's
   // card-processing fee comes out of the coach's share. The entry said "15% on everything" and "card processing is separate" after the
   // pages stopped saying it (Codex on #2396).
-  assert.match(PRICING, /nothing on a client who subscribes through their own invite or referral link\. Stripe's card-processing fee comes out of their share\./, 'the pricing page changed its fee terms — update the coach-fees entry');
+  assert.match(PRICING, /when a client who signed up through Shape pays them, and no cut on their existing clients\. Stripe's card-processing fee comes out of their share\./, 'the pricing page changed its fee terms — update the coach-fees entry');
   const fees = entry('coach-fees').body;
-  assert.match(fees, /when a client who found the coach on Shape pays them, and nothing on a client who subscribes through the coach’s own invite or referral link within 30 days of it/);
-  // The 0% is a 30-day window from the invite or the link (resolve_coach_checkout_origin), not a
-  // promise about every client a coach knows (Codex on #2396).
-  assert.doesNotMatch(fees, /nothing on clients the coach brings\b/);
+  assert.match(fees, /when a client who signed up through Shape pays them, whether they found the coach on Shape or came from the coach’s own invite or link, and no cut on the coach’s existing clients: clients they coached before Shape, listed in the app by their Shape email within 60 days of joining/);
+  // The 0% is the coach's existing-client list (2026-11-12-coach-existing-clients.sql), not an invite
+  // or a link (the 2026-07-21 rule), and not every client a coach knows (Codex on #2396).
+  assert.doesNotMatch(fees, /nothing on clients the coach brings\b|within 30 days of it/);
   // Stripe's card-processing fee is the coach's, as the Terms say (owner, 2026-10-18).
   assert.match(fees, /Stripe’s card-processing fee comes out of the coach’s share/);
   // The same labelled estimate the coach pages show (coachForecast.js processingCents, part C).

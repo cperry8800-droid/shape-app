@@ -414,7 +414,7 @@ function rateFromNote(base, tr) {
 // The brought share's note, per client (the routes' byoMix: one client on two plans is one client):
 // an unread share (byoMix null) starts at 0% and says so, never as a measured none.
 function byoNote(base, tr) {
-  if (base.broughtUnread) return tr('coach:business.earn.byoUnread', { defaultValue: "couldn't read who you brought · set your own" });
+  if (base.broughtUnread) return tr('coach:business.earn.byoUnread', { defaultValue: "couldn't read your existing clients · set your own" });
   return base.byoClients ? tr('coach:business.earn.byoNote', { defaultValue: '0% fee · {brought} of your {clients}', brought: base.brought, clients: base.byoClients }) : tr('coach:business.earn.byoNone', { defaultValue: '0% Shape fee on these' });
 }
 
@@ -436,7 +436,7 @@ export function BSBizEarn({ t, base }) {
         <NumberField t={t} label={tr('coach:business.earn.clients', { defaultValue: 'Clients' })} value={clients} onChange={setClients} max="999"
           note={tr('coach:business.earn.today', { defaultValue: 'you have {count} today', count: base.clients })} />
         <NumberField t={t} label={tr('coach:business.earn.rate', { defaultValue: 'Monthly rate' })} value={rate} onChange={setRate} prefix="$" max="9999" note={rateFromNote(base, tr)} />
-        <NumberField t={t} label={tr('coach:business.earn.byo', { defaultValue: 'Brought by you' })} value={byo} onChange={setByo} suffix="%" max="100"
+        <NumberField t={t} label={tr('coach:business.earn.byo', { defaultValue: 'Your existing clients' })} value={byo} onChange={setByo} suffix="%" max="100"
           note={byoNote(base, tr)} />
       </div>
       <div style={{ marginTop: 16, display: 'flex', gap: 24, alignItems: 'flex-end', flexWrap: 'wrap' }}>

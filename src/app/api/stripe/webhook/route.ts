@@ -26,7 +26,7 @@ import { acctOpts, applicationIdOf, checkConnectOrigin, shapeOrUnmarked } from '
 import { discountsExpanded, feeBpsOfSubscription, metadataFromRecord, readCoachCheckout, recurringCents } from '@/lib/coach-checkout';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { coachCutCents, bpsToRate, parseFeeBpsMeta } from '@/lib/platform-fee';
-import { attributionPair, MARKETPLACE_FEE_BPS } from '@/lib/coach-origin.mjs';
+import { attributionPair, KNOWN_ORIGINS, MARKETPLACE_FEE_BPS } from '@/lib/coach-origin.mjs';
 import { isRetryableDbError } from '@/lib/db-retryable';
 import { coachPaid, startCoaching, welcomeMember } from '@/lib/coach-thread';
 import { cancelRefundedSession } from '@/lib/refund-session';
@@ -55,7 +55,7 @@ function splitAtBps(cents: number, bps: unknown): { shape: number; coach: number
 // BYO commission split — persist the origin verdict resolved at checkout onto the
 // money row. Missing/invalid metadata falls back to marketplace / 1500 — fail
 // toward Shape's fee, never toward a free ride.
-const VALID_ORIGINS = new Set(['marketplace', 'coach_invite', 'coach_link']);
+const VALID_ORIGINS = new Set<string>(KNOWN_ORIGINS);
 function originFromMeta(v: string | undefined): string {
   return v && VALID_ORIGINS.has(v) ? v : 'marketplace';
 }

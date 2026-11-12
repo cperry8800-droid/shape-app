@@ -160,7 +160,7 @@ test('what each tab carried before is in its catalogue, the progress data among 
   await p.unmount();
   const { m: g } = await page({ source: 'demo', section: 'growth', all: true }, answer(401, { error: 'x' }));
   assert.match(cardText(g, 'closerate'), /DEMO FUNNEL/);
-  assert.match(cardText(g, 'whofound'), /you brought · \d+ found you on Shape/);
+  assert.match(cardText(g, 'whofound'), /existing · \d+ through Shape/);
   assert.match(cardText(g, 'byo'), /Bring your clients.*Copy link.*Email it/);
   await g.unmount();
   const { m: r } = await page({ source: 'demo', section: 'retention', all: true }, answer(401, { error: 'x' }));
@@ -420,7 +420,7 @@ test('the profile link beside the funnel: the board\'s one filled control, copie
     await settle();
     assert.deepEqual(calls, [['create_coach_referral_link', { p_provider_role: 'nutritionist', p_provider_id: 4 }]]);
     assert.equal(m.div.querySelector('section').getAttribute('data-dash-lift'), '2');
-    assert.match(m.text(), /Clients who join through your own link pay no Shape fee: you keep your full rate\./);
+    assert.match(m.text(), /Your link opens your profile on Coaching, ready to subscribe\./);
     assert.match(m.text(), /MemberProfile\.html\?u=coach-uid&ref=tok-1&role=nutritionist/);
     const btn = filled(m.div);
     assert.deepEqual(btn.map((b) => b.tagName + ':' + b.textContent), ['BUTTON:Copy profile link']);
@@ -466,7 +466,7 @@ test('where clients come from: one bar of brought, found on Shape and Shape\'s f
   const m = await mount(React.createElement(B.DbzOriginSplitCard, { model: s, clients }));
   // The header counts the clients in the split, at what they pay.
   assert.match(m.text(), new RegExp('^Where clients come from3 clients · ' + esc(money(54000)) + ' a month'));
-  assert.match(m.text(), new RegExp('Brought by you1 client · no fee' + esc(money(20000)) + '/moFound you on Shape2 clients · yours after the fee' + esc(money(29300)) + '/moShape\'s fee'));
+  assert.match(m.text(), new RegExp('Your existing clients1 client · no fee' + esc(money(20000)) + '/moThrough Shape2 clients · yours after the fee' + esc(money(29300)) + '/moShape\'s fee'));
   assert.match(m.text(), /2 clients aren't in the split: a price that couldn't be read, or plans at different fees\./);
   assert.deepEqual([...m.div.querySelectorAll('[data-dbz-split]')].map((x) => x.getAttribute('data-dbz-split')), ['brought', 'shape', 'fee']);
   // Each client's tier mark, in their group: a known tier, and a hollow mark for one unknown.

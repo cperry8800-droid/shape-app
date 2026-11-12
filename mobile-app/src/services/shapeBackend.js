@@ -8757,20 +8757,14 @@ async function myCoachIdentity(role = null) {
 }
 window.ShapeCoachLookup = { ownerOf: coachOwnerOf, mine: myCoachIdentity };
 
-// ── BYO coach referrals (spec #1789 · rails #1794) ──────────────────────────
-// The origin ledger's two coach-side writes. Both are auth.uid()-validated
-// DEFINER RPCs (ownership checked in-body); both DEGRADE quietly pre-migration
-// or on failure so the add-client sheet stays usable and can say so honestly.
-async function coachReferralForClient(role, providerId, clientId) {
-  if (!supabase || !state.user?.id || !providerId || !clientId) return { ok: false, reason: 'unavailable' };
-  try {
-    const { error } = await supabase.rpc('create_coach_referral', {
-      p_provider_role: role, p_provider_id: providerId, p_client_id: clientId,
-    });
-    if (error) return { ok: false, reason: error.message || 'failed' };
-    return { ok: true };
-  } catch (e) { return { ok: false, reason: (e && e.message) || 'failed' }; }
-}
+// ── The coach's share link (spec #1789 · rails #1794) ───────────────────────
+// The durable ?ref= token on the coach's listing link: whoever follows it lands
+// on the coach's profile, on Coaching. An auth.uid()-validated DEFINER RPC
+// (ownership checked in-body) that DEGRADES quietly pre-migration or on failure.
+// ⚠ NEITHER THE LINK NOR AN INVITE SETS THE FEE (owner, 2026-11-12): a client
+// who signs up through Shape pays its 15% unless they are on the coach's
+// existing-client list (services/coachExistingClients.mjs). The invite's 0% tag
+// (create_coach_referral) is gone with that rule.
 async function coachReferralLink(role, providerId) {
   if (!supabase || !state.user?.id || !providerId) return null;
   try {
@@ -8781,7 +8775,7 @@ async function coachReferralLink(role, providerId) {
     return data || null; // the durable ?ref= token (uuid) — one per provider, reused
   } catch (e) { return null; }
 }
-window.ShapeReferrals = { forClient: coachReferralForClient, link: coachReferralLink };
+window.ShapeReferrals = { link: coachReferralLink };
 
 // ─── Adjust → full program regeneration (spec #1707, gated by §9.4) ──────────
 // On the coach Adjust page's Apply, the trainer's adjustment rewrites the

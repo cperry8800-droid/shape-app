@@ -833,7 +833,7 @@ test('an unread history, brought share or listing price is said as unread, never
   const extra = { metrics: { activeClients: 12, mrrNetCents: 189000, mrrGrossCents: 216000 }, byOrigin: null, byoMix: null, trajectory: null };
   const b = B.dbzPlanBase({ live: true, extra, listing: null, listingRead: true, listingFailed: true });
   assert.equal(b.pace.unread, true);
-  assert.equal(b.byoNote, "couldn't read who you brought · set your own");
+  assert.equal(b.byoNote, "couldn't read your existing clients · set your own");
   assert.equal(b.rateFrom, "couldn't read your listing price · your clients' average");
   assert.equal(B.dbzPlanBase({ live: true, extra: { ...extra, metrics: { activeClients: 0, mrrNetCents: 0, mrrGrossCents: 0 } }, listing: null, listingRead: true, listingFailed: true }).rateFrom, "couldn't read your listing price · set your own");
   assert.equal(B.dbzPlanBase({ live: true, extra: { ...extra, byOrigin: [], byoMix: { clients: 0, brought: 0 } }, listing: null, listingRead: true }).byoNote, '0% Shape fee on these', 'a read with no subscriptions is not unread');
@@ -845,14 +845,14 @@ test('an unread history, brought share or listing price is said as unread, never
   assert.match(life.text(), /^Couldn't read your subscription history just now/);
   await life.unmount();
   const earn = await mount(React.createElement(B.DbzEarnZone, { base: b }));
-  assert.match(earn.text(), /couldn't read who you brought · set your own/);
+  assert.match(earn.text(), /couldn't read your existing clients · set your own/);
   await earn.unmount();
   // The Goal tab's figures (dashData.jsx) read the same per-client mix, and say when it couldn't be read.
   const data = readFileSync(ND('dashData.jsx'), 'utf8');
-  assert.match(data, /const mix = a\.byoMix \|\| null;\n[^\n]*\n\s+if \(!mix\) return \{ byoShare: null, byoNote: "couldn't read who you brought · set your own" \};\n\s+if \(!mix\.clients\) return \{ byoShare: null, byoNote: null \};\n\s+return \{ byoShare: mix\.brought \/ mix\.clients, byoNote: "0% fee · " \+ mix\.brought \+ " of your " \+ mix\.clients \};/);
+  assert.match(data, /const mix = a\.byoMix \|\| null;\n[^\n]*\n\s+if \(!mix\) return \{ byoShare: null, byoNote: "couldn't read your existing clients · set your own" \};\n\s+if \(!mix\.clients\) return \{ byoShare: null, byoNote: null \};\n\s+return \{ byoShare: mix\.brought \/ mix\.clients, byoNote: "0% fee · " \+ mix\.brought \+ " of your " \+ mix\.clients \};/);
   assert.doesNotMatch(data, /a\.byOrigin/, 'the Goal tab no longer counts rows');
-  const goal = B.dbzGoalEarnBase({ kind: 'live', activeClients: 12, mrrNetCents: 189000, mrrGrossCents: 216000, trajectory: null, byoShare: null, byoNote: "couldn't read who you brought · set your own" });
-  assert.deepEqual([goal.byoShare, goal.byoNote], [0, "couldn't read who you brought · set your own"]);
+  const goal = B.dbzGoalEarnBase({ kind: 'live', activeClients: 12, mrrNetCents: 189000, mrrGrossCents: 216000, trajectory: null, byoShare: null, byoNote: "couldn't read your existing clients · set your own" });
+  assert.deepEqual([goal.byoShare, goal.byoNote], [0, "couldn't read your existing clients · set your own"]);
 });
 
 test('a signed-in coach never sees the preview\'s figures while the page is still reading', async () => {
@@ -984,7 +984,7 @@ test('the preview is for a viewer the analytics answer as signed out or not a co
   // Each preview tab draws the preview's own figures, under the band.
   // The preview's waiting list is valued at its sample rate, as a listing price would value it.
   // (Growth and Retention are boards since step 4b: the funnel names its leak, and Retention who might leave.)
-  for (const [section, re] of [['growth', /Marketplace funnel.*The leak.*Found you on Shape.*3 membersabout \$\d+ a month if they all join at \$\d+, after Shape's fee/], ['retention', /Who might leave, first.*Marcus T\.Needs you.*Devon Sharpe/]]) {
+  for (const [section, re] of [['growth', /Marketplace funnel.*The leak.*Through Shape.*3 membersabout \$\d+ a month if they all join at \$\d+, after Shape's fee/], ['retention', /Who might leave, first.*Marcus T\.Needs you.*Devon Sharpe/]]) {
     stubPage({ source: 'demo', section });
     globalThis.fetch = window.fetch = answer(401, { error: 'x' });
     const m = await mount(React.createElement(window.CoachBusinessPage, { role: 'trainer' }));
@@ -1110,7 +1110,7 @@ test('the preview states one net on every tab: Today, the sidebar, the KPI strip
   assert.match(planTab, new RegExp('Today you have ' + book.clients + ' clients and net ' + esc(money(book.net)) + ' a month\\.'), planTab.slice(0, 600));
   const growthTab = await read('growth');
   // ⚠ "WHO FOUND WHOM" COUNTS CLIENTS, AND THE ONE-TIME PURCHASE IS NOT ONE (the follow-up to #2395).
-  // Its header counted every row, so the brought one-time buyer made it "6 you brought · 5 found
+  // Its header counted every row, so the brought one-time buyer made it "6 existing · 5 found
   // you on Shape", eleven beside the Plan's ten. The header is the clients, the Plan's own count and
   // its brought share, and the purchase has a line of its own over its row.
   const origin = B.dbzDemoOrigin();
@@ -1120,9 +1120,9 @@ test('the preview states one net on every tab: Today, the sidebar, the KPI strip
   assert.ok(purchases.length === 1 && purchases[0].feeBps === 0, 'the preview has no brought purchase, so a header that counts one goes unread');
   assert.equal(clients.length, book.clients, "the origin list's clients are not the Plan's");
   assert.equal(base.byoShare, brought / clients.length, "and its brought ones are not the Plan's share");
-  assert.match(growthTab, new RegExp('who found whom' + brought + ' you brought · ' + (clients.length - brought) + ' found you on Shape' + esc(roster[0].profile.name)), growthTab.slice(0, 600));
-  assert.match(growthTab, new RegExp('fee1 one-time purchase' + esc(purchases[0].name) + 'You brought · 0% fee · one-time'), 'the purchase has no line of its own');
-  for (const c of roster) assert.match(growthTab, new RegExp(esc(c.profile.name) + (c.payments.feeCents ? 'Found you on Shape · 15% fee' : 'You brought · 0% fee')), c.profile.name);
+  assert.match(growthTab, new RegExp('who found whom' + brought + ' existing · ' + (clients.length - brought) + ' through Shape' + esc(roster[0].profile.name)), growthTab.slice(0, 600));
+  assert.match(growthTab, new RegExp('fee1 one-time purchase' + esc(purchases[0].name) + 'Existing client · 0% fee · one-time'), 'the purchase has no line of its own');
+  for (const c of roster) assert.match(growthTab, new RegExp(esc(c.profile.name) + (c.payments.feeCents ? 'Through Shape · 15% fee' : 'Existing client · 0% fee')), c.profile.name);
 });
 
 // ── The follow-up to #2395: "who found whom" counts clients, as the brought-in share does ──
@@ -1163,14 +1163,14 @@ test('"who found whom" counts clients: two plans are one row, a purchase is not 
   const mix = byoMixOf(subs);
   assert.deepEqual(mix, { clients: 3, brought: 2 });
   assert.deepEqual(await originZone(feed), [
-    mix.brought + ' you brought · ' + (mix.clients - mix.brought) + ' found you on Shape',
+    mix.brought + ' existing · ' + (mix.clients - mix.brought) + ' through Shape',
     // Brought by her 0% plan; her other plan pays 15%, so no one rate is printed as hers.
-    ['Ada', 'You brought · 2 plans · different fees'],
-    ['Ben', 'Found you on Shape · 15% fee'],
-    ['Cleo', 'You brought · 2 plans · 0% fee'],
+    ['Ada', 'Existing client · 2 plans · different fees'],
+    ['Ben', 'Through Shape · 15% fee'],
+    ['Cleo', 'Existing client · 2 plans · 0% fee'],
     '2 one-time purchases',
-    ['Ada', 'You brought · 0% fee · one-time'],
-    ['Pia', 'Found you on Shape · 15% fee · one-time'],
+    ['Ada', 'Existing client · 0% fee · one-time'],
+    ['Pia', 'Through Shape · 15% fee · one-time'],
   ]);
 });
 
@@ -1187,10 +1187,10 @@ test('"who found whom" says a full purchases list is only the latest, and prints
   const bought = (n) => Array.from({ length: n }, (_, i) => ({ name: 'Buyer ' + i, kind: 'purchase', origin: 'marketplace', feeBps: 1500, priceCents: 5000 }));
   const counts = async (feed) => (await originZone(feed)).filter((l) => typeof l === 'string');
   // None: no line. A failed purchases read sends none too, so "0 one-time purchases" would be a claim.
-  assert.deepEqual(await counts([ada]), ['1 you brought · 0 found you on Shape']);
-  assert.deepEqual(await counts([ada, ...bought(1)]), ['1 you brought · 0 found you on Shape', '1 one-time purchase']);
-  assert.deepEqual(await counts([ada, ...bought(N - 1)]), ['1 you brought · 0 found you on Shape', (N - 1) + ' one-time purchases']);
-  assert.deepEqual(await counts([ada, ...bought(N)]), ['1 you brought · 0 found you on Shape', 'Your latest ' + N + ' one-time purchases']);
+  assert.deepEqual(await counts([ada]), ['1 existing · 0 through Shape']);
+  assert.deepEqual(await counts([ada, ...bought(1)]), ['1 existing · 0 through Shape', '1 one-time purchase']);
+  assert.deepEqual(await counts([ada, ...bought(N - 1)]), ['1 existing · 0 through Shape', (N - 1) + ' one-time purchases']);
+  assert.deepEqual(await counts([ada, ...bought(N)]), ['1 existing · 0 through Shape', 'Your latest ' + N + ' one-time purchases']);
 });
 
 // ── The outcomes plate is the same roster (the sweep after #2394 round 10) ──
