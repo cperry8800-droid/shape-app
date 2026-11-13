@@ -493,12 +493,12 @@ function _BSHabitStarters({ onQuickAdd, tone, t, tr }) {
       </div>
       <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 13, color: t.INK70 }}>{tr('habits:empty.startHint', { defaultValue: 'One tap adds it, private to you.' })}</div>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 12 }}>
-        {_BS_HABIT_STARTERS.map(([name, type]) => (
-          <button key={name} onClick={() => add(name, type)} disabled={!!saving} aria-busy={saving === name ? 'true' : undefined}
+        {_BS_HABIT_STARTERS.map(([id, en, type]) => { const name = tr(`habits:starter.${id}`, { defaultValue: en }); return (
+          <button key={id} onClick={() => add(name, type)} disabled={!!saving} aria-busy={saving === name ? 'true' : undefined}
             style={{ minHeight: 40, padding: '6px 14px 6px 11px', borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, display: 'inline-flex', alignItems: 'center', gap: 7, cursor: saving ? 'default' : 'pointer', opacity: saving && saving !== name ? 0.5 : 1, fontFamily: t.DISPLAY, fontSize: 13, fontWeight: 600 }}>
             <span aria-hidden style={{ color: tone(type), fontSize: 14, lineHeight: 1 }}>＋</span>{name}
           </button>
-        ))}
+        ); })}
       </div>
       {failed && <div role="alert" style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 13, fontWeight: 600, color: t.RUST }}>{tr('habits:empty.addFailed', { defaultValue: 'Couldn’t add {name}. Try again.', name: failed })}</div>}
     </div>
@@ -509,7 +509,9 @@ function _BSHabitStarters({ onQuickAdd, tone, t, tr }) {
 // then "fix the habits page"). With no habit the page was a line, two buttons and the Shape Score link
 // over an empty screen, which read as broken: no account had saved a habit yet. A few of the add sheet's
 // own suggestions are one tap each, and Progress shows its empty week below (BSHabitsPage).
-const _BS_HABIT_STARTERS = [['Water 3L', 'do'], ['10k steps', 'do'], ['Read 10 pages', 'do'], ['No soda', 'avoid'], ['No snooze', 'avoid']];
+// ⚠ IN THE MEMBER'S LANGUAGE (Codex P2 on #2739): a tap saves the label as the habit's name, so an
+// English label would leave an English habit on a German account. [key, English, type].
+const _BS_HABIT_STARTERS = [['water', 'Water 3L', 'do'], ['steps', '10k steps', 'do'], ['read', 'Read 10 pages', 'do'], ['noSoda', 'No soda', 'avoid'], ['noSnooze', 'No snooze', 'avoid']];
 function BSHabitToday({ habits, onToggle, onRemove, onAdd, onQuickAdd = null, reminders, onReminderChange, watch = null, onShareChange = null }) {
   const t = useBS();
   const tr = useShapeTr();

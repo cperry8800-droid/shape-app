@@ -102,6 +102,23 @@ test('no habits: starters add a private habit in one tap, and a second tap waits
   await m.close();
 });
 
+// Codex P2 on #2739: a tap saves the label as the habit's name, so the starters are in the member's
+// language, and the name saved is the one shown.
+test('no habits: the starters are in the member’s language, and the name saved is the one shown', async () => {
+  const de = JSON.parse(readFileSync(join(ROOT, 'mobile-app/src/i18n/catalogs/de/habits.json'), 'utf8'));
+  const en = W.ShapeI18n;
+  W.ShapeI18n = { t: (key, opts = {}) => { const [ns, k] = key.split(':'); const msg = ns === 'habits' ? de[k] : undefined; return msg == null ? undefined : new IntlMessageFormat(msg, 'de').format(opts); }, intlLocale: () => 'de-DE' };
+  try {
+    const calls = [];
+    const m = await mount(React.createElement(H.BSHabitToday, { habits: [], onToggle() {}, onRemove() {}, onAdd() {}, onQuickAdd: async (h) => { calls.push(h); return true; }, reminders: {} }));
+    assert.doesNotMatch(m.text(), /Water 3L|No soda/, 'an English starter on a German page');
+    await m.click(/3 L Wasser/);
+    await m.click(/Keine Limo/);
+    assert.deepEqual(calls, [{ name: '3 L Wasser', type: 'do' }, { name: 'Keine Limo', type: 'avoid' }]);
+    await m.close();
+  } finally { W.ShapeI18n = en; }
+});
+
 // Codex P2 on #2739: the page's create resolves false on a failed save, and the app's toasts are a
 // no-op, so the starters say it themselves, and clear it on the next try.
 test('no habits: a starter that fails to save says so on the page, and the next tap clears it', async () => {
