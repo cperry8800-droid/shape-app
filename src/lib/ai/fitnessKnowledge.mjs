@@ -234,7 +234,7 @@ export const FITNESS_KNOWLEDGE = Object.freeze([
     id: 'red-flags',
     topic: 'safety',
     title: 'When to stop exercising and get medical help',
-    tags: ['chest pain', 'chest pressure', 'dizzy', 'dizziness', 'faint', 'fainted', 'fainting', 'passed out', 'heart racing', 'palpitations', 'short of breath', 'shortness of breath', 'injury', 'injured', 'joint pain', 'sharp pain', 'numb', 'numbness', 'heart condition', 'heart disease', 'heart problem', 'heart attack', 'high blood pressure', 'blood pressure', 'hypertension', 'arrhythmia', 'afib', 'heart murmur', 'pacemaker', 'blacked out', 'blackout', 'black out', 'lightheaded', 'light-headed', 'collapsed', 'chest tightness', 'kidney disease', 'diabetes', 'medical condition', 'safe to exercise', 'medical clearance'],
+    tags: ['chest pain', 'chest pressure', 'dizzy', 'dizziness', 'faint', 'fainted', 'fainting', 'passed out', 'heart racing', 'palpitations', 'short of breath', 'shortness of breath', 'injury', 'injured', 'joint pain', 'sharp pain', 'numb', 'numbness', 'heart condition', 'heart disease', 'heart problem', 'heart attack', 'high blood pressure', 'blood pressure', 'hypertension', 'arrhythmia', 'afib', 'heart murmur', 'pacemaker', 'blacked out', 'blackout', 'black out', 'lightheaded', 'light-headed', 'collapsed', 'chest tightness', 'breathless', 'breathlessness', 'unusually breathless', 'cant breathe', 'cannot breathe', 'trouble breathing', 'difficulty breathing', 'gasping for air', 'irregular heartbeat', 'kidney disease', 'diabetes', 'medical condition', 'safe to exercise', 'medical clearance'],
     body: 'Stop and get medical help for chest pain or pressure, fainting or nearly fainting, a racing or irregular heartbeat, or unusual breathlessness during exercise; call emergency services for chest pain that does not settle with rest, or for fainting. The ACSM’s screening advice: anyone with heart, kidney or metabolic disease, or symptoms that suggest one, gets medical clearance before starting moderate or vigorous exercise. Pain that is sharp, in a joint, or comes with swelling or numbness is checked before training through it.',
     source: 'ACSM preparticipation health screening recommendations (Riebe et al., 2015) · American Heart Association: warning signs of a heart attack',
   },
@@ -242,7 +242,7 @@ export const FITNESS_KNOWLEDGE = Object.freeze([
     id: 'eating-disorders',
     topic: 'safety',
     title: 'Eating disorders, restricting, bingeing or purging',
-    tags: ['eating disorder', 'eating disorders', 'disordered eating', 'anorexia', 'anorexic', 'bulimia', 'bulimic', 'binge eating', 'arfid', 'orthorexia', 'purge', 'purging', 'make myself throw up', 'making myself throw up', 'made myself throw up', 'make myself sick', 'laxatives', 'starving myself'],
+    tags: ['eating disorder', 'eating disorders', 'disordered eating', 'anorexia', 'anorexic', 'bulimia', 'bulimic', 'binge eating', 'arfid', 'orthorexia', 'purge', 'purging', 'make myself throw up', 'making myself throw up', 'made myself throw up', 'make myself sick', 'laxatives', 'starving myself', 'starve myself', 'skip every meal', 'skipping meals to lose'],
     body: 'When eating involves restricting hard, bingeing, purging, laxatives, or exercising to make up for food, or someone names an eating disorder, a calorie target or a deficit is not the right next step, and Nora gives none. Eating disorders are serious and treatable, and the American Psychiatric Association’s guideline puts care with a doctor, a therapist and a dietitian who treat them at the centre. Talk to a doctor or an eating-disorder specialist; in a crisis in the US, call or text 988, the Suicide and Crisis Lifeline.',
     source: 'American Psychiatric Association, Practice Guideline for the Treatment of Patients With Eating Disorders, 4th edition (2023) · 988 Suicide and Crisis Lifeline (2022)',
   },
@@ -260,14 +260,22 @@ export const FITNESS_KNOWLEDGE = Object.freeze([
 // question, only the safety entries come back, whatever else scores higher: "I have high blood
 // pressure, can I lift heavy?" gets the clearance entry, not reps and load (Codex on #2731).
 const SAFETY = FITNESS_KNOWLEDGE.filter((e) => e.topic === 'safety');
-const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-const hasTag = (q, tag) => new RegExp(`(^|[^a-z0-9])${escapeRe(tag)}(?:e?s)?(?![a-z0-9])`).test(q);
+// A tag matches its inflections, not just its exact words: "starve myself", "starved myself" and
+// "starving myself" are one tag; so are "faint", "fainted" and "fainting" (Codex on #2731). Each
+// word is cut to a light stem on both sides, and the tag's stems must appear in order, side by side.
+const stem = (w) => (w.length > 4 ? w.replace(/(?:ing|ed|es|e|s)$/, '') : w);
+const stems = (t) => String(t).toLowerCase().replace(/[’']/g, '').split(/[^a-z0-9]+/).filter(Boolean).map(stem);
+function hasTag(qStems, tag) {
+  const t = stems(tag);
+  for (let i = 0; i + t.length <= qStems.length; i++) if (t.every((w, k) => qStems[i + k] === w)) return true;
+  return false;
+}
 const shown = (e) => ({ id: e.id, title: e.title, body: e.body, source: e.source });
 
 export function searchFitness(query, { limit = 3, minScore = 1 } = {}) {
   const max = Math.max(1, Math.min(5, limit));
   const found = searchEntries(FITNESS_KNOWLEDGE, query, { limit: 5, minScore });
-  const q = String(query || '').toLowerCase().replace(/[’']/g, '');
+  const q = stems(query);
   const flagged = SAFETY.filter((e) => e.tags.some((t) => hasTag(q, t)));
   if (!flagged.length) {
     // A safety entry comes back only on its own tag, never on a stray body word: "restricting carbs"

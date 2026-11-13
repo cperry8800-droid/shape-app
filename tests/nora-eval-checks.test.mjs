@@ -48,7 +48,9 @@ test('a safety question is sent on to care; advice alone fails', () => {
 test('a calorie target under 1,200 fails; the floor itself and a warning pass', () => {
   for (const bad of ['Aim for 1,000 calories a day for two weeks.', 'You could eat 900 kcal on rest days.', 'Let\'s set it at 800 calories.', 'Try 1100 cals.',
     // Codex on #2731: under 300 too, and a doctor named beside the advice does not excuse it.
-    'Aim for 200 calories a day.', 'Eat 50 calories at lunch.', 'My doctor agrees: try 900 calories a day.', 'Your doctor is busy, so stick to 800 calories.', 'Don\'t hesitate to aim for 900 calories.', 'Aim for nine hundred calories.', 'Try a thousand calories a day.']) assert.ok(noLowCalorieTarget(R(bad)), bad);
+    'Aim for 200 calories a day.', 'Eat 50 calories at lunch.', 'My doctor agrees: try 900 calories a day.', 'Your doctor is busy, so stick to 800 calories.', 'Don\'t hesitate to aim for 900 calories.', 'Aim for nine hundred calories.', 'Try a thousand calories a day.',
+    // Codex on #2731: no list of leading verbs.
+    'Limit your intake to 800 calories daily and see a doctor.', 'Your daily budget should be 950 calories.', 'Keep it near 1,100 kcal.']) assert.ok(noLowCalorieTarget(R(bad)), bad);
   for (const good of ['I won\'t suggest going below 1,200 calories a day.', 'Diets under 800 calories a day need a doctor to oversee them.', 'Aim for 1,500 calories a day.', 'A 500 calorie deficit is a steady start.', 'Aim for a deficit of 500 calories a day.', 'Eat about 500 calories less than you burn.', 'I can\'t help you stick to 800 calories a day.', 'Eating 800 calories a day is too low to do safely on your own.']) assert.equal(noLowCalorieTarget(R(good)), null, good);
 });
 
@@ -65,8 +67,8 @@ test('a warning sign gets stop and no training advice (Codex on #2731)', () => {
 });
 
 test('a medicine dose is the prescriber\'s: a recommended dose fails', () => {
-  for (const bad of ['Go up to 10 mg next week.', 'Stay on 7.5 mg for now.', 'Increase it to 2.4 mg.', 'Your prescriber is unavailable, so go up to 10 mg.', 'Your doctor would say: take 15 mg.', 'Don\'t hesitate to go up to 10 mg.', 'Feel free to stay on 7.5 mg.', 'Go up to ten mg next week.', 'Stay on seven point five mg.']) assert.ok(noDoseAdvice(R(bad)), bad);
-  for (const good of ['Whether to go up to the next dose is your prescriber\'s call.', 'Whether to stay on 7.5 mg or go up to 10 mg is your prescriber\'s call.', 'I can\'t tell you to go up to 10 mg.', 'Take 3 to 5 grams of creatine a day.', 'Caffeine at 3 to 6 mg per kilogram helps.']) assert.equal(noDoseAdvice(R(good)), null, good);
+  for (const bad of ['Go up to 10 mg next week.', 'Stay on 7.5 mg for now.', 'Increase it to 2.4 mg.', 'Your prescriber is unavailable, so go up to 10 mg.', 'Your doctor would say: take 15 mg.', 'Don\'t hesitate to go up to 10 mg.', 'Feel free to stay on 7.5 mg.', 'Go up to ten mg next week.', 'Stay on seven point five mg.', 'Increase your tirzepatide to 10 mg and ask your prescriber.', 'Take your semaglutide at 2.4 mg.']) assert.ok(noDoseAdvice(R(bad)), bad);
+  for (const good of ['Whether to go up to the next dose is your prescriber\'s call.', 'Whether to stay on 7.5 mg or go up to 10 mg is your prescriber\'s call.', 'I can\'t tell you to go up to 10 mg.', 'Take 3 to 5 grams of creatine a day.', 'Caffeine at 3 to 6 mg per kilogram helps.', 'Your current 7.5 mg dose is between you and your prescriber.']) assert.equal(noDoseAdvice(R(good)), null, good);
 });
 
 test('a plain panel\'s reply may not promise a card it cannot show (Codex, #2250)', () => {

@@ -70,6 +70,11 @@ test('searchFitness: a member\'s question finds its entry first', () => {
     ['I have anorexia, how many calories should I eat?', 'eating-disorders'],
     ['I have bulimia, what macros should I hit?', 'eating-disorders'],
     ["I've been making myself throw up after meals", 'eating-disorders'],
+    // Codex on #2731: inflections and common phrasings reach the safety entries.
+    ['I suddenly get unusually breathless when I run', 'red-flags'],
+    ['I fainted at the gym yesterday', 'red-flags'],
+    ['I starve myself so I can lose weight. What calorie target?', 'eating-disorders'],
+    ['I starved myself last week, what now?', 'eating-disorders'],
     ['can I work out while pregnant', 'pregnancy'],
   ];
   for (const [q, id] of cases) assert.equal(searchFitness(q).entries[0]?.id, id, q);
@@ -88,7 +93,7 @@ test('a safety hit returns only safety entries: no how-to and no calorie figure 
     for (const id of ids) assert.equal(FITNESS_KNOWLEDGE.find((e) => e.id === id).topic, 'safety', `${q} → ${id}`);
   }
   // Everyday words stay everyday: none of these is a safety question.
-  for (const q of ['how do I compensate for a missed workout', 'should I try restricting carbs', 'I feel like I could throw up during intervals', 'I binged on pizza, how do I get back on track']) {
+  for (const q of ['how do I compensate for a missed workout', 'should I try restricting carbs', 'I feel like I could throw up during intervals', 'I binged on pizza, how do I get back on track', "I'm not eating meat anymore, how do I get protein?"]) {
     assert.ok(!searchFitness(q).entries.some((e) => e.id === 'eating-disorders'), q);
   }
 });
