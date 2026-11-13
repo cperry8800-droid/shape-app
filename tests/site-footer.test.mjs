@@ -172,11 +172,12 @@ test('the footer still carries the pages nothing else links', () => {
 // ⚠ THE COMMENT ABOVE THE FOOTER TABLE SAYS WHERE ELSE THESE PAGES ARE LINKED, AND
 // A CLAIM ABOUT THE NAV GOES STALE WHEN THE NAV MOVES. It has been wrong twice:
 // #2069 promoted Client.html to the `Members` tab and nothing noticed, and a later
-// PR promoted Recipes.html to `Kitchen`. Now (owner, 2026-11-12, "add them as
-// subtabs under coaches") Coach.html and Nutritionist.html are items of the
-// signed-out Coaches menu and off the signed-in row, which the comment states.
-// This asserts both halves from the nav tables that ship, so moving either fails
-// here, naming the comment.
+// PR promoted Recipes.html to `Kitchen`. Coach.html and Nutritionist.html were
+// items of the signed-out Coaches menu for a day (owner, 2026-11-12, "add them as
+// subtabs under coaches") and left it on 2026-11-13 ("remove the for trainers and
+// for nutritionists"), so the comment calls them footer-only on both rows. This
+// asserts both halves from the nav tables that ship, so moving either fails here,
+// naming the comment.
 //
 // ⚠ AND THE CONTROLS CATCH A PARSER THAT READS NOTHING. A signed-in row that
 // parsed empty would report every page absent and pass the second half vacuously;
@@ -191,8 +192,8 @@ test('the pages the footer comment places in the nav are where it says', () => {
     assert.ok(set.has('Recipes.html'), 'Recipes.html is the Kitchen tab and must parse as present on the ' + where + ' row — if it does not, this guard cannot see a nav link at all');
   }
   for (const page of ['Coach.html', 'Nutritionist.html']) {
-    assert.ok(signedOut.has(page),
-      page + ' left the signed-out Coaches menu, so the footer comment placing it there is false — correct the comment above FOOTER TABLE in pageShell.jsx');
+    assert.ok(!signedOut.has(page),
+      page + ' is on the signed-out row now, so the footer comment calling it footer-only is false — correct the comment above FOOTER TABLE in pageShell.jsx');
     assert.ok(!signedIn.has(page),
       page + ' is on the signed-in row now, so the footer comment calling it footer-only signed in is false — correct the comment above FOOTER TABLE in pageShell.jsx');
   }
