@@ -691,13 +691,13 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
       ],
     },
     {
-      section: 'Nora stops calling a member\'s log a draft: water, a meal, a weigh-in, a habit or a reminder is "ready, tap Confirm below". No migration',
+      section: 'Nora never says she drafts water: a water log is "500 ml of water is ready to log, tap Confirm below". No migration',
       items: [
-        { label: 'Owner, 2026-11-13, on a reply that read "draft things like meal logs or water for you to confirm": "draft things like water? that needs to be changed"', status: 'done' },
-        { label: 'The words came from Nora\'s own description in shape_help (shapeKnowledge.mjs \'nora\': "draft actions you confirm with one tap — a weigh-in, water…"), which the model paraphrased, and from the member prompt\'s "say you\'ve drafted it". The entry now says she logs things or sets reminders for you, each saved when you tap Confirm; the member prompt forbids calling a member\'s log a draft and gives the ready-to-confirm line. A coach\'s workout, program or meal plan is still a draft', status: 'done' },
-        { label: 'Unchanged: every member log still waits for the Confirm tap (the card, its signed token, Undo). The eval\'s noFalseDone check passes the new line', status: 'done' },
-        { label: 'Checked: the 15 suites that read shapeKnowledge.mjs, the chat route or the eval checks, 262/262', status: 'done' },
-        { label: 'OWNER: ask Nora "what can you do?" and "log a glass of water" in the app; neither reply should say draft', status: 'manual' },
+        { label: 'Owner, 2026-11-13, on a reply that read "draft things like meal logs or water for you to confirm": "dont say ill draft water, drafting water, what does that mean? the other stuff makes sense. It was just the water part"', status: 'done' },
+        { label: 'The words came from Nora\'s own description in shape_help (shapeKnowledge.mjs \'nora\': "draft actions you confirm with one tap — a weigh-in, water…"), which the model paraphrased, and from the member prompt\'s "say you\'ve drafted it" for every member action. Water leaves the drafted list in the entry ("and log the water you drank, saved when you tap Confirm"); the member prompt keeps drafting for a weigh-in, a habit, a reminder and a meal, and says water is never a draft, with the ready-to-log line', status: 'done' },
+        { label: 'Unchanged: a water log still waits for the Confirm tap (the card, its signed token, Undo). The eval\'s noFalseDone check passes the new line ("is ready to log" is no done claim)', status: 'done' },
+        { label: 'Checked: the 15 suites that read shapeKnowledge.mjs, the chat route or the eval checks; the 35 that read the War Room', status: 'done' },
+        { label: 'OWNER: ask Nora "what can you do?" and "log a glass of water" in the app; neither reply should say she drafts water', status: 'manual' },
       ],
     },
     {
