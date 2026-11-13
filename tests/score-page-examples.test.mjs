@@ -117,20 +117,15 @@ const STANDING = {
   momentum: { value: 64, bonusThisWeek: false, streakWeeks: 2, points: 0 },
   recent: [{ category: 'workouts', delta: 10, note: 'Upper pull logged', earned_at: '2026-11-11T09:00:00Z' }],
 };
-const dayAt = (base, ago, rows) => ({ date: new Date(Math.floor(base / 86400000) * 86400000 - ago * 86400000).toISOString().slice(0, 10), rows });
-const day = (ago, rows) => dayAt(NOW, ago, rows);
-// The Record as of `base`. ⚠ THE RENDERED PAGE COUNTS THE STREAK FROM THE REAL CLOCK, not NOW, so the
-// record its read answers with is built around Date.now(): a record pinned to Nov 11 read as a broken
-// streak from 2026-11-13 on, and failed main with no change to the page (found on #2730).
-const recordAt = (base) => ({ history: [
-  dayAt(base, 0, [{ delta: 10, source_kind: 'workout' }]),
-  dayAt(base, 1, [{ delta: 12, source_kind: 'session' }, { delta: -7, source_kind: 'penalty' }]),
-  dayAt(base, 2, [{ delta: 30, source_kind: 'workout' }]),
-  dayAt(base, 4, [{ delta: 500, source_kind: 'tier_bonus' }]),
-  dayAt(base, 8, [{ delta: 9, source_kind: 'habit' }]), dayAt(base, 9, [{ delta: 9, source_kind: 'habit' }]),
-  dayAt(base, 10, [{ delta: 9, source_kind: 'habit' }]), dayAt(base, 11, [{ delta: 9, source_kind: 'habit' }]),
-] });
-const RECORD = recordAt(NOW);
+const day = (ago, rows) => ({ date: new Date(Math.floor(NOW / 86400000) * 86400000 - ago * 86400000).toISOString().slice(0, 10), rows });
+const RECORD = { history: [
+  day(0, [{ delta: 10, source_kind: 'workout' }]),
+  day(1, [{ delta: 12, source_kind: 'session' }, { delta: -7, source_kind: 'penalty' }]),
+  day(2, [{ delta: 30, source_kind: 'workout' }]),
+  day(4, [{ delta: 500, source_kind: 'tier_bonus' }]),
+  day(8, [{ delta: 9, source_kind: 'habit' }]), day(9, [{ delta: 9, source_kind: 'habit' }]),
+  day(10, [{ delta: 9, source_kind: 'habit' }]), day(11, [{ delta: 9, source_kind: 'habit' }]),
+] };
 
 test("scView counts the member's own days in their zone, and the week before stays on week_gain's UTC days (Codex on #2701)", () => {
   // 4:30 PM on Nov 9 and 3:30 PM on Nov 10 in Los Angeles: one UTC day (Nov 10), two of the member's.
@@ -214,7 +209,7 @@ test("a signed-in member sees their own standing on every section, with no examp
   fetchImpl = async (url) => {
     const u = String(url);
     if (u.endsWith('/api/client/score')) return { ok: true, status: 200, json: async () => STANDING };
-    if (u.endsWith('/api/client/score-record')) return { ok: true, status: 200, json: async () => recordAt(Date.now()) };
+    if (u.endsWith('/api/client/score-record')) return { ok: true, status: 200, json: async () => RECORD };
     return { ok: false, status: 404, json: async () => ({}) };
   };
   const page = await renderPage();
