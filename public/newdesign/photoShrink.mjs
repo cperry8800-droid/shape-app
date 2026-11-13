@@ -107,13 +107,14 @@ export function imageHeaderDims(buf) {
 }
 
 // The EXIF orientation of a JPEG (1 to 8) from its header: 1 when it carries none, null when it carries
-// one this cannot read. ⚠ A PHONE STORES AN UPRIGHT PHOTO SIDEWAYS AND SAYS SO HERE (orientation 6 or
+// one this cannot read, and null for any other format: a WebP or PNG can carry EXIF too (Codex P2 on
+// #2730), and this does not read theirs, so it never vouches for one being upright. ⚠ A PHONE STORES AN UPRIGHT PHOTO SIDEWAYS AND SAYS SO HERE (orientation 6 or
 // 8), so the frame imageHeaderDims reads is the sensor's, not the photo as it is seen. A decoder that
 // turns the photo upright hands back the other way round; one that is told a size to resize to may
 // apply it before or after turning, and a wrong guess squashes the photo.
 export function jpegOrientation(buf) {
   const b = buf instanceof Uint8Array ? buf : new Uint8Array(buf);
-  if (!(b.length > 4 && b[0] === 0xff && b[1] === 0xd8)) return 1;   // not a JPEG: nothing here to read
+  if (!(b.length > 4 && b[0] === 0xff && b[1] === 0xd8)) return null;   // not a JPEG: not known upright
   let i = 2;
   while (i + 4 <= b.length) {
     if (b[i] !== 0xff) return null;
@@ -254,8 +255,8 @@ export function shrinkPhotoForUpload(file, env = globalThis, { deadlineMs = PHOT
         if (dims.w * dims.h > PHOTO_MAX_PIXELS) {
           // The full bitmap must never exist: downsample during the decode, both axes named.
           if (typeof env.createImageBitmap !== 'function') { done(file); return; }
-          // Only a photo stored upright is resized here: for a turned one the size asked for may be
-          // applied across the wrong axes, and a squashed photo is worse than a large one.
+          // Only a JPEG known to be stored upright is resized here: for a turned one the size asked for
+          // may be applied across the wrong axes, and a squashed photo is worse than a large one.
           if (jpegOrientation(head) !== 1) { done(file); return; }
           const b = await env.createImageBitmap(file, { resizeWidth: target.w, resizeHeight: target.h, resizeQuality: 'high', imageOrientation: 'from-image' });
           if (!keep(b)) return;

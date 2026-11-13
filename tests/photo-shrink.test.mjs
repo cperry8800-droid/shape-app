@@ -174,6 +174,13 @@ test('⚠ PAST 25 MP, ONLY A PHOTO STORED UPRIGHT IS RESIZED; A TURNED ONE GOES 
     assert.equal(await shrinkPhotoForUpload(file, env), file, `orientation ${orientation}`);
     assert.equal(calls.bitmap.length + calls.image, 0, 'nothing decoded');
   }
+  // A WebP or PNG past 25 MP may carry EXIF this does not read, so it goes up as picked (Codex P2 on #2730).
+  for (const [type, bytes] of [['image/png', pngBytes(8000, 6000)], ['image/webp', webpVP8X(8000, 6000, false)]]) {
+    const b = browser();
+    const file = photo({ type, bytes });
+    assert.equal(await shrinkPhotoForUpload(file, b.env), file, type);
+    assert.equal(b.calls.bitmap.length, 0, `${type}: nothing decoded`);
+  }
   const { env, calls } = browser();
   const out = await shrinkPhotoForUpload(photo({ w: 8000, h: 6000, orientation: 1 }), env);
   assert.equal(calls.bitmap.length, 1, 'an EXIF that says upright is resized');
@@ -200,7 +207,7 @@ test('the EXIF orientation is read from the header, in either byte order', () =>
   assert.equal(jpegOrientation(jpegBytes(4032, 3024, 8, true)), 8);
   assert.equal(jpegOrientation(jpegBytes(4032, 3024, 1)), 1);
   assert.equal(jpegOrientation(jpegBytes(4032, 3024, 9)), null, 'an orientation that does not exist');
-  assert.equal(jpegOrientation(pngBytes(10, 10)), 1, 'not a JPEG');
+  assert.equal(jpegOrientation(pngBytes(10, 10)), null, 'not a JPEG: never vouched for as upright');
   assert.equal(jpegOrientation(new Uint8Array(jpegBytes(10, 10, 6)).buffer), 6, 'an ArrayBuffer as the upload hands it');
   const broken = jpegBytes(4032, 3024, 6); broken[12] = 0x58;   // the TIFF byte order (II or MM) is garbage
   assert.equal(jpegOrientation(broken), null);
