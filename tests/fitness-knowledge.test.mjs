@@ -61,6 +61,10 @@ test('searchFitness: a member\'s question finds its entry first', () => {
     ['why did my weight go up overnight', 'scale-swings'],
     ['I am on ozempic, what should I eat', 'glp1'],
     ['I get chest pain when I run', 'red-flags'],
+    // Codex on #2731: the common phrasings of a condition find the clearance entry.
+    ['Is it safe to exercise with heart disease?', 'red-flags'],
+    ['I have high blood pressure, can I lift heavy?', 'red-flags'],
+    ['can I work out with diabetes', 'red-flags'],
     ['can I work out while pregnant', 'pregnancy'],
   ];
   for (const [q, id] of cases) assert.equal(searchFitness(q).entries[0]?.id, id, q);

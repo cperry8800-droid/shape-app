@@ -234,7 +234,7 @@ export const FITNESS_KNOWLEDGE = Object.freeze([
     id: 'red-flags',
     topic: 'safety',
     title: 'When to stop exercising and get medical help',
-    tags: ['chest pain', 'chest pressure', 'dizzy', 'dizziness', 'faint', 'fainted', 'fainting', 'passed out', 'heart racing', 'palpitations', 'short of breath', 'shortness of breath', 'injury', 'injured', 'joint pain', 'sharp pain', 'numb', 'numbness', 'heart condition', 'medical clearance'],
+    tags: ['chest pain', 'chest pressure', 'dizzy', 'dizziness', 'faint', 'fainted', 'fainting', 'passed out', 'heart racing', 'palpitations', 'short of breath', 'shortness of breath', 'injury', 'injured', 'joint pain', 'sharp pain', 'numb', 'numbness', 'heart condition', 'heart disease', 'heart problem', 'heart attack', 'high blood pressure', 'blood pressure', 'kidney disease', 'diabetes', 'medical condition', 'safe to exercise', 'medical clearance'],
     body: 'Stop and get medical help for chest pain or pressure, fainting or nearly fainting, a racing or irregular heartbeat, or unusual breathlessness during exercise; call emergency services for chest pain that does not settle with rest, or for fainting. The ACSM’s screening advice: anyone with heart, kidney or metabolic disease, or symptoms that suggest one, gets medical clearance before starting moderate or vigorous exercise. Pain that is sharp, in a joint, or comes with swelling or numbness is checked before training through it.',
     source: 'ACSM preparticipation health screening recommendations (Riebe et al., 2015) · American Heart Association: warning signs of a heart attack',
   },
@@ -248,6 +248,20 @@ export const FITNESS_KNOWLEDGE = Object.freeze([
   },
 ]);
 
+// ⚠ A WARNING SIGN OR A CONDITION OUTRANKS ANY HOW-TO. When one of a safety entry's own tags is in
+// the question, that entry is answered first, whatever else scores higher: "I have high blood
+// pressure, can I lift heavy?" leads with the clearance entry, not reps and load (Codex on #2731).
+const SAFETY = FITNESS_KNOWLEDGE.filter((e) => e.topic === 'safety');
+const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const hasTag = (q, tag) => new RegExp(`(^|[^a-z0-9])${escapeRe(tag)}(?:e?s)?(?![a-z0-9])`).test(q);
+const shown = (e) => ({ id: e.id, title: e.title, body: e.body, source: e.source });
+
 export function searchFitness(query, { limit = 3, minScore = 1 } = {}) {
-  return searchEntries(FITNESS_KNOWLEDGE, query, { limit, minScore });
+  const max = Math.max(1, Math.min(5, limit));
+  const found = searchEntries(FITNESS_KNOWLEDGE, query, { limit: 5, minScore });
+  const q = String(query || '').toLowerCase().replace(/[’']/g, '');
+  const flagged = SAFETY.filter((e) => e.tags.some((t) => hasTag(q, t)));
+  if (!flagged.length) return found.entries.length ? { entries: found.entries.slice(0, max) } : found;
+  const ids = new Set(flagged.map((e) => e.id));
+  return { entries: [...flagged.map(shown), ...found.entries.filter((e) => !ids.has(e.id))].slice(0, max) };
 }
