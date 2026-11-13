@@ -192,6 +192,7 @@ async function loadChat({ role = 'trainer', user = { id: COACH, email: 'c@x' }, 
     ['@/lib/ai/memberReads.mjs', await import(join(ROOT, 'src/lib/ai/memberReads.mjs'))],
     ['@/lib/ai/memberMornings.mjs', await import(join(ROOT, 'src/lib/ai/memberMornings.mjs'))],
     ['@/lib/ai/shapeKnowledge.mjs', await import(join(ROOT, 'src/lib/ai/shapeKnowledge.mjs'))],
+    ['@/lib/ai/fitnessKnowledge.mjs', await import(join(ROOT, 'src/lib/ai/fitnessKnowledge.mjs'))],
     ['@/lib/ai/voiceLang.mjs', await import(join(ROOT, 'src/lib/ai/voiceLang.mjs'))],
     ['@/lib/ai/noraStatus.mjs', await import(join(ROOT, 'src/lib/ai/noraStatus.mjs'))],
     ['@/lib/request-auth', { clientForRequest: async () => sb }],
@@ -530,7 +531,7 @@ test('Nora with no model: billing, login and the catch-all give the address and 
 });
 
 test('Nora on the website, in the app and in her knowledge base: no promise of a follow-up', () => {
-  for (const rel of ['src/app/api/support/chat/route.ts', 'src/lib/ai/shapeKnowledge.mjs', 'public/newdesign/chatWidget.jsx', 'mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx']) {
+  for (const rel of ['src/app/api/support/chat/route.ts', 'src/lib/ai/shapeKnowledge.mjs', 'src/lib/ai/fitnessKnowledge.mjs', 'public/newdesign/chatWidget.jsx', 'mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx']) {
     const src = readFileSync(join(ROOT, rel), 'utf8')
       // comments describe the old wording; only shipped strings count
       .split('\n').filter((l) => !/^\s*(\/\/|\*)/.test(l)).join('\n');

@@ -55,6 +55,7 @@ import {
 } from '@/lib/coach-catalog';
 import { clientForRequest } from '@/lib/request-auth';
 import { searchKnowledge, YEARLY_PRICE } from '@/lib/ai/shapeKnowledge.mjs';
+import { searchFitness } from '@/lib/ai/fitnessKnowledge.mjs';
 import { languageNameFor, normalizeLocale } from '@/lib/ai/voiceLang.mjs';
 import { proposeChange } from '@/lib/ai/proposals.mjs';
 import { resolveActor, makeCtx, serverRegistry, proposalSecret, casWriteUserGoals, auditSink, type Actor } from '@/lib/ai/server';
@@ -436,6 +437,21 @@ const MEMBER_TOOLS = [
     },
     strict: true,
   },
+  // The sourced training and nutrition library (src/lib/ai/fitnessKnowledge.mjs): position stands,
+  // national guidelines and meta-analyses, each entry naming its source. A read, no card.
+  {
+    type: 'function',
+    name: 'fitness_knowledge',
+    description:
+      "Training, nutrition, recovery and weight — a sourced library of position stands, national guidelines and meta-analyses: protein, carbs, fat, fiber and sugar, creatine, caffeine, hydration, how often to lift, sets, reps, rest, progression and failure, starting out, cardio and steps, warming up and stretching, sleep, soreness, overtraining, cold plunges, how fast to lose weight, calorie targets, keeping muscle, which diet, scale swings, GLP-1 medicines, warning signs to stop exercising, and exercise in pregnancy. Call it for any general training or nutrition question and answer from the entries it returns, naming the source.",
+    parameters: {
+      type: 'object',
+      properties: { question: { type: 'string', description: "The question in the member's own words." } },
+      required: ['question'],
+      additionalProperties: false,
+    },
+    strict: true,
+  },
   // Account setup (src/lib/ai/accountSetup.mjs): the member's own first-run answers, Settings rows,
   // quiet hours and, for a coach, headline and About. DRAFTS one card; the server's allowlist and
   // each field's own rule decide what is set, never the model.
@@ -602,10 +618,17 @@ const CARD_ONLY_REPLY = 'Here it is to review. Nothing on the card changes until
 const MAX_OUTPUT_TOKENS = 6000;
 
 const MEMORY_TOOLS = new Set(['remember', 'forget']);
+// ⚠ THE LIBRARY, THEN THE MEMBER, THEN THE LIMITS. A general training or nutrition answer comes
+// from fitness_knowledge with its source named, is worked out for this member from their own
+// numbers, never overrules their coach, and stops at the safety lines (fitnessKnowledge.mjs).
+const FITNESS_PROMPT_NOTE =
+  "TRAINING AND NUTRITION: For a general question about training, nutrition, supplements, recovery, sleep or weight (how much protein, how many sets, how fast to lose weight, is creatine safe, how much sleep), call fitness_knowledge and answer from the entries it returns, naming the source in a few words (\"the ISSN recommends…\", \"per the ACSM…\"). Never invent a figure, a study or a source; if it returns no entry, give only widely agreed basics, say it is not in your library yet, and suggest their coach. Make it theirs: when the answer depends on their numbers (bodyweight, goal, intake, training days), read them first (get_week_summary for the weigh-in trend and intake, get_training_plan for the training days) and work the figure out for them in their own units (1 kg is 2.2 lb), showing the sum in a clause; if you cannot see the number, give the range per kilogram and per pound and ask. Their coach's plan comes first: explain it, never overrule it, and if the evidence and the plan seem to differ, suggest they ask their coach.\n" +
+  "SAFETY, before any training or diet answer: for chest pain or pressure, fainting, a racing or irregular heartbeat, or unusual breathlessness during exercise, tell them to stop and get medical help (emergency services for chest pain that does not settle, or for fainting) and give no training advice. For sharp or joint pain, swelling, numbness, or dark cola-coloured urine after a hard session, send them to a doctor before they train through it. For pregnancy, postpartum, a heart, kidney or metabolic condition, or diabetes or GLP-1 medicines, give the general entry and say their doctor, obstetric provider or a registered dietitian sets their targets. Never give a medication dose, a diagnosis, or a calorie target below 1,200 a day for a woman or 1,500 for a man. If they describe restricting hard, purging, bingeing or exercising to make up for eating, or name an eating disorder (anorexia, bulimia, binge eating), give no numbers and no deficit: say kindly that a doctor or an eating-disorder specialist can help, and that in a crisis in the US they can call or text 988.";
 const MEMBER_PROMPT_NOTE =
   "MEMORY: The member can ask you to remember or forget personal preferences — use the remember/forget tools (applied immediately, no confirm; managed under Settings → What Nora remembers). If a forget returns candidates, list them and ask which one.\n" +
   "MEMBER ACTIONS: They can also log a weigh-in (log_weigh_in), check off a habit (check_habit), and set reminders (set_reminder) — each DRAFTS a confirm card, so say you've drafted it, never that it's done. They can log water (log_water) too, on the same confirm card, but WATER IS NEVER A DRAFT: never say you drafted water or can draft water; say the amount is ready to log and they can tap Confirm below (\"500 ml of water is ready to log, tap Confirm below\"), and describe it as logging water. For a NAMED food, call find_food first and propose log_meal with the REAL returned macros.\n" +
-  'THE READ TOOLS ARE AVAILABLE on this turn — use them (see LOOKUPS) before answering anything about this member\'s own plan, schedule, progress or numbers. When a TODAY\'S PLAN message is given, today\'s sessions and meals are already read: answer those from it.';
+  'THE READ TOOLS ARE AVAILABLE on this turn — use them (see LOOKUPS) before answering anything about this member\'s own plan, schedule, progress or numbers. When a TODAY\'S PLAN message is given, today\'s sessions and meals are already read: answer those from it.\n' +
+  FITNESS_PROMPT_NOTE;
 // Today's plan, handed over before they ask (speed, 2026-11-01): this header rides the system
 // tier and the plan itself a USER-role data message after it, as the cook context does, because
 // its titles and exercise names are a coach's or the member's own text.
@@ -941,6 +964,13 @@ async function runTool(name: string, args: Record<string, unknown>, propose: Pro
       kcal: r.kcal ?? null, protein: r.p ?? null, carbs: r.c ?? null, fat: r.f ?? null,
     }));
     return { result: { foods: rows }, actions: [] };
+  }
+  if (name === 'fitness_knowledge') {
+    // Member-only READ, like find_food: the schema exists only in a member's tool list, and
+    // memoryCtx is the verified-member marker. Nothing in the library is private.
+    if (!memoryCtx) return { result: { error: 'members_only' }, actions: [] };
+    const question = String(args.question || '').trim().slice(0, 240);
+    return { result: searchFitness(question, { limit: 3 }), actions: [] };
   }
   if (MEMORY_TOOLS.has(name)) {
     if (!memoryCtx) return { result: { error: 'members_only' }, actions: [] };
