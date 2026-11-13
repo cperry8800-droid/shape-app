@@ -230,10 +230,9 @@ function NavCaret({ open }) {
 }
 
 // ⚠ THE TRIGGER IS A LINK, NOT ONLY A MENU BUTTON. "Coaches" is a page AND a
-// menu: clicking it goes to the marketplace, hovering opens Marketplace and the
-// three pages that pitch Shape to coaches. A trigger that only toggles would make
-// the page it names unreachable from the bar — the dead-control class this repo
-// post-mortems. The click
+// menu: clicking it goes to For coaches, hovering opens the three pages that pitch
+// Shape to coaches. A trigger that only toggles would make the page it names
+// unreachable from the bar — the dead-control class this repo post-mortems. The click
 // handler therefore toggles ONLY when there is no `href` to go to.
 function NavDropdown({ label, href, items, active, activeMatch }) {
   const [open, setOpen] = React.useState(false);
@@ -288,29 +287,33 @@ function NavDropdown({ label, href, items, active, activeMatch }) {
   );
 }
 
-// ⚠ COACHES IS A PAGE, NOT A MENU. Clicking goes to Coaches.html, which IS the coach marketplace
-// since 2026-11-05 (owner: "lets change that whole concept and turn coaches page into what you
-// built"): the goal-first matcher, the filters and the cards, trainers and nutritionists on one page
-// with the switch at its top. The old Marketplace.html forwards to Coaches.html and keeps its hash.
+// ⚠ MARKETPLACE IS ITS OWN TAB, FIRST ON THE ROW. Owner, 2026-11-13, after "where did the
+// marketplace page go?": "create an individual nav tab then for marketplace", and of its target,
+// "https://www.theshapecommunity.com/newdesign/Coaches.html - marketplace should be this page".
+// Coaches.html IS the coach marketplace since 2026-11-05 ("turn coaches page into what you built"):
+// the goal-first matcher, the filters and the cards, trainers and nutritionists on one page with the
+// switch at its top. Until this, the Coaches tab opened it and nothing on the bar was named for it.
+// The old Marketplace.html forwards to Coaches.html and keeps its hash. It lights on the marketplace
+// (`marketplace.jsx` passes "Marketplace") and on a coach's public page (`publicProfile.jsx`).
 //
-// ⚠ SIGNED OUT, IT IS A MENU: MARKETPLACE, THEN THE THREE PAGES THAT PITCH SHAPE TO COACHES.
-// Owner, 2026-11-13, after "where did the marketplace page go?": "make marketplace a sub tab under
-// coaches", so the page the tab opens is named in its menu as well. For trainers and For
-// nutritionists stay (owner, 2026-11-12: "add them as subtabs under coaches"; 2026-11-13: "keep for
-// trainers and nutritonist page").
+// ⚠ COACHES IS NOW THE TAB FOR COACHES: it opens For coaches (ForCoaches.html), and its menu holds the
+// three pages that pitch Shape to coaches (owner, 2026-11-12: "add them as subtabs under coaches";
+// 2026-11-13: "keep for trainers and nutritonist page"). The owner picked this over two tabs opening
+// one page. A trigger that is also a page keeps its own page in the menu, as Overview is in the
+// footer's For coaches column.
 //
-// ⚠ SIGNED IN, IT IS A PLAIN LINK AGAIN (`signedIn`), the way Rewards ▾ swaps. Each of the three
-// coach pages ends in a coach application, so they are sign-up pages, and the signed-in row is the
-// site's tabs minus its sign-up pages (owner, 2026-09-23; Pricing is the other); a menu left holding
-// only Marketplace would offer the tab's own page twice. The footer still opens all three for a
-// signed-in visitor. The tab lights on each of them (`match`).
+// ⚠ SIGNED IN, COACHES IS OFF THE ROW (`SIGNED_OUT_ONLY`). Each of its pages ends in a coach
+// application, so it is a tab of sign-up pages, and the signed-in row is the site's tabs minus its
+// sign-up pages (owner, 2026-09-23; Pricing is the other). The footer still opens all three for a
+// signed-in visitor, and Marketplace stays.
 //
-// `tests/site-nav.test.mjs` requires the target to name a file that is in the repo.
-const COACHES_HREF = "Coaches.html";
-const COACHES_TAB = { kind: "link", label: "Coaches", href: COACHES_HREF, match: ["Coaches", "Marketplace", "Trainers", "Nutritionists", "Trainer Overview", "Nutritionist Overview"] };
+// `tests/site-nav.test.mjs` requires each target to name a file that is in the repo.
+const MARKETPLACE_HREF = "Coaches.html";
+const MARKETPLACE_TAB = { kind: "link", label: "Marketplace", href: MARKETPLACE_HREF, match: ["Marketplace"] };
+const COACHES_HREF = "ForCoaches.html";
+const COACHES_TAB = { kind: "link", label: "Coaches", href: COACHES_HREF, match: ["Coaches", "Trainer Overview", "Nutritionist Overview"] };
 const COACHES_ITEMS = [
-  ["Marketplace", COACHES_HREF],
-  ["For coaches", "ForCoaches.html"],
+  ["For coaches", COACHES_HREF],
   ["For trainers", "Coach.html"],
   ["For nutritionists", "Nutritionist.html"],
 ];
@@ -371,7 +374,8 @@ const REWARDS_ITEMS = [
 // `Kitchen` tab, and Coach.html and Nutritionist.html as items of the Coaches
 // menu (owner, 2026-11-12), signed out.
 const SHAPE_NAV_GROUPS = [
-  { ...COACHES_TAB, kind: "drop", items: COACHES_ITEMS, signedIn: [COACHES_TAB] },
+  MARKETPLACE_TAB,
+  { ...COACHES_TAB, kind: "drop", items: COACHES_ITEMS },
   { kind: "link", label: "App", href: "GetApp.html" },
   // ⚠ THE KITCHEN WAS FOOTER-ONLY UNTIL NOW, which is the same standing
   // `Client.html` had before its `Members` tab (#2069). Owner, 2026-09-16:
@@ -416,11 +420,14 @@ const SHAPE_NAV_GROUPS = [
 // same test requires the two lists to agree.
 //
 // ⚠ AN ENTRY WITH `signedIn` IS REPLACED BY THAT LIST ON THIS ROW, in place.
-// Rewards is one (owner, 2026-10-09): its menu's Store becomes a tab beside it.
-// Coaches is the other (2026-11-12): its menu holds the coach sign-up pages, so
-// signed in it is the plain link. The homepage marks the same swaps: each caret
-// and menu is `data-signed-out-only`, and the Store tab is `data-signed-in-only`.
-const SIGNED_OUT_ONLY = ["Pricing"];
+// Rewards is the one (owner, 2026-10-09): its menu's Store becomes a tab beside
+// it. The homepage marks the same swap: its caret and menu are
+// `data-signed-out-only`, and the Store tab is `data-signed-in-only`.
+//
+// ⚠ COACHES IS A SIGN-UP TAB (owner, 2026-11-13): it opens For coaches and its
+// menu holds the other two coach pitch pages, each ending in an application, so
+// signed in it leaves the row whole, menu and all, and Marketplace stays.
+const SIGNED_OUT_ONLY = ["Coaches", "Pricing"];
 const PORTAL_NAV = SHAPE_NAV_GROUPS
   .filter((g) => !SIGNED_OUT_ONLY.includes(g.label))
   .flatMap((g) => g.signedIn || [g]);
@@ -1670,7 +1677,7 @@ function Header({ active }) {
   const ctaBtn = { fontFamily: navSans, fontSize: 13, fontWeight: 600, background: TEAL_APP, color: "var(--sh-deep, #06231f)", padding: "0 15px", height: NAV_PILL_H, clipPath: navChamfer, display: "inline-flex", alignItems: "center", whiteSpace: "nowrap", lineHeight: 1, textDecoration: "none", border: 0, cursor: "pointer", flex: "0 0 auto", transition: "background .16s ease" };
   return (
     <>
-    <header className="shape-header" data-role-switch={hasRoleSwitch ? "" : undefined} data-staff={staffLevel ? "" : undefined} style={{ position: "fixed", top: 0, left: 0, right: 0, zIndex: 60, background: "var(--sh-header-bg, rgba(11,14,12,0.55))", backdropFilter: "blur(20px) saturate(1.05)", WebkitBackdropFilter: "blur(20px) saturate(1.05)", borderBottom: "1px solid rgba(var(--sh-nav-ink-rgb, 245,239,225),0.06)" }}>
+    <header className="shape-header" data-role-switch={hasRoleSwitch ? "" : undefined} data-staff={staffLevel ? "" : undefined} data-nav-dock-icons={authUser ? "" : undefined} style={{ position: "fixed", top: 0, left: 0, right: 0, zIndex: 60, background: "var(--sh-header-bg, rgba(11,14,12,0.55))", backdropFilter: "blur(20px) saturate(1.05)", WebkitBackdropFilter: "blur(20px) saturate(1.05)", borderBottom: "1px solid rgba(var(--sh-nav-ink-rgb, 245,239,225),0.06)" }}>
       <div aria-hidden style={{ position: "absolute", top: 0, left: 0, right: 0, height: 1, background: `linear-gradient(90deg, transparent 0%, ${TEAL} 30%, ${RUST} 70%, transparent 100%)`, opacity: 0.5 }} />
       <ShapeMobileStyles />
       {/* ⚠ FLEX, NOT A 3-COLUMN GRID, and the two outer columns are equal-BASIS
@@ -1988,6 +1995,15 @@ function ShapeMobileStyles() {
          than the sweep did and that block would have to be split first. The
          number is kept and the reason for it is now the measurement, not the
          eighth link. */
+      /* ⚠ SEVEN TABS SIGNED OUT SINCE MARKETPLACE BECAME ONE (owner, 2026-11-13: "create an
+         individual nav tab then for marketplace"). Measured in Chromium in the real faces, swept
+         1px from 1440 to 1016: at the 22px gaps the row ran into the right-hand cluster from
+         1132 down, and at 14px it still did from 1052 (15px over at 1024). 14px from 1140 and
+         10px from 1100 (below) leave 14.6px clear at the tightest, 1024; the homepage takes the
+         same two steps. */
+      @media (max-width: 1140px) {
+        .shape-nav-tabs { gap: 14px !important; }
+      }
       @media (max-width: 1100px) {
         /* ⚠ THE INNER'S OWN PADDING AND GAP TIGHTEN HERE TOO, AND THAT IS THE
            BLOCK SPLIT #2103's NOTE SAID WOULD HAVE TO HAPPEN FIRST. It observed
@@ -2008,7 +2024,7 @@ function ShapeMobileStyles() {
            past the screen edge). 14px clears both with ~11px to spare; nothing
            above 1100 moves. */
         .shape-header-inner { padding: 0 24px !important; gap: 18px !important; }
-        .shape-nav-tabs { gap: 14px !important; }
+        .shape-nav-tabs { gap: 10px !important; }
       }
       /* ⚠ SIGNED IN, THE RIGHT-HAND CLUSTER IS THE WIDE ONE, AND IT IS NOT ONE WIDTH.
          Six tabs came back to the signed-in row on 2026-09-23, and the cluster
@@ -2027,16 +2043,20 @@ function ShapeMobileStyles() {
          Each "needs" below is measured — that rule disabled, the widest width at
          which the row first overhangs its box — and each breakpoint sits above
          it, with room for fonts that render a little wider on another platform:
-           1 · the greeting goes when room runs out — at 1200 for everyone (a
-               150px name needs 1163 to keep it), and at 1340 for a switch account
-               (a 150px name beside the Nutritionist pill needs 1311);
-           2 · a switch account takes the tight GAPS from 1200 rather than 1100:
-               with the greeting gone the Nutritionist pill still needs 1149 at
-               the loose gaps, and left the last tab 1px clear at 1101;
-           3 · a switch account folds to the menu at 1120 rather than 1020. With
-               the tight gaps the Nutritionist pill and six tabs need 1103 to sit
-               without overhanging their box; below that there is nothing left to
-               give that the rest of the site does not depend on.
+           1 · the greeting goes when room runs out — at 1220 for everyone, and
+               at 1370 for a switch account;
+           2 · a switch account takes the tight GAPS from 1220 rather than 1100;
+           3 · a switch account folds to the menu at 1180 rather than 1020; below
+               that there is nothing left to give that the rest of the site does
+               not depend on.
+         ⚠ RE-MEASURED 2026-11-13, when Ask Nora and Chat (globalChatButton.js, a
+         192px pair labelled, 74px as icons) had joined the cluster and Marketplace
+         had replaced Coaches (~30px longer) on this row. With the old 1200 · 1340 ·
+         1120 the tabs ran into the cluster: by 26px at 1284 for a 150px name, by
+         44px at 1344 beside the Nutritionist pill. Signed in, the pair is icons at
+         every width now (data-nav-dock-icons on the header), and judged by 10px of
+         visible clearance a 150px name needs the greeting gone by 1208, the
+         Nutritionist pill by 1356 and its fold by 1164 — hence 1220 · 1370 · 1180.
          ⚠ RULE 2 MOVES THE GAPS AND NEVER THE SIDE PADDING. The padding is the
          page's gutter, and other pages line up with it — the Radio fold steps its
          own padding with this one, and tests/radio-instrument-rules.test.mjs
@@ -2047,39 +2067,39 @@ function ShapeMobileStyles() {
          below it — the 1020 and 900 blocks tighten the gap further and must still
          win for these accounts on a phone.
          After all three, swept every 4px from 1440 to 1016 for seven account
-         shapes: no overhang, 18px clear at the tightest, no sideways scroll.
+         shapes: no sideways scroll, 14.6px clear at the tightest (signed out,
+         seven tabs, 1024), staff below.
          ⚠ STAFF CARRY ONE MORE LINK, AND IT COSTS 39px (49 BESIDE A SWITCH).
          The Admin link sits in the same cluster, so data-staff (stamped by the
-         same level that renders the link) moves each rule up. Measured in
-         Chromium in the real faces, 1px from 1440 to 1016, the current rules
-         applied: a single-profile staff account with a 150px name overhangs at
-         1202 (needs the greeting gone above 1200); beside the Nutritionist
-         pill it overhangs at 1350 with a 150px name, has 3px left at the loose
-         gaps just above 1200, and needs 1152 at the tight gaps. Hence 1240 ·
-         1380 · 1240 · 1170 below, each above its need. */
-      @media (max-width: 1340px) {
+         same level that renders the link) moves each rule up. Re-measured
+         2026-11-13 as above: beside the Nutritionist pill a 150px name needs the
+         greeting gone by 1408, the tight gaps by 1248 and the fold by 1216.
+         Hence 1270 · 1420 · 1270 · 1230 below, each above its need; a
+         single-profile staff account keeps 9.9px at 1024, the narrowest before
+         the everyone-collapse. */
+      @media (max-width: 1370px) {
         .shape-header[data-role-switch] .shape-nav-hi { display: none !important; }
       }
-      @media (max-width: 1200px) {
+      @media (max-width: 1220px) {
         .shape-nav-hi { display: none !important; }
         :where(.shape-header[data-role-switch]) .shape-header-inner { gap: 18px !important; }
         :where(.shape-header[data-role-switch]) .shape-nav-tabs { gap: 16px !important; }
       }
-      @media (max-width: 1120px) {
+      @media (max-width: 1180px) {
         .shape-header[data-role-switch] .shape-nav-tabs { display: none !important; }
         .shape-header[data-role-switch] .shape-nav-auth { display: none !important; }
         .shape-header[data-role-switch] .shape-nav-bell { display: inline-flex !important; }
         .shape-header[data-role-switch] .shape-nav-burger { display: inline-flex !important; }
       }
-      @media (max-width: 1380px) {
+      @media (max-width: 1420px) {
         .shape-header[data-role-switch][data-staff] .shape-nav-hi { display: none !important; }
       }
-      @media (max-width: 1240px) {
+      @media (max-width: 1270px) {
         .shape-header[data-staff] .shape-nav-hi { display: none !important; }
         :where(.shape-header[data-role-switch][data-staff]) .shape-header-inner { gap: 18px !important; }
         :where(.shape-header[data-role-switch][data-staff]) .shape-nav-tabs { gap: 16px !important; }
       }
-      @media (max-width: 1170px) {
+      @media (max-width: 1230px) {
         .shape-header[data-role-switch][data-staff] .shape-nav-tabs { display: none !important; }
         .shape-header[data-role-switch][data-staff] .shape-nav-auth { display: none !important; }
         .shape-header[data-role-switch][data-staff] .shape-nav-bell { display: inline-flex !important; }

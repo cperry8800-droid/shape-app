@@ -34,6 +34,19 @@ test('both bars put the slot right after search, and the collapsed bar keeps one
   assert.match(INDEX, /\.nauth \[data-nav-dock-slot\]:empty\{display:none\}/);
 });
 
+// 2026-11-13: signed in, the cluster beside the tabs also carries the bell, the greeting, Dashboard
+// and for some a switch pill or Admin, and with the labelled pair the tabs ran into it (by 44px at
+// 1344 beside a Nutritionist pill). Each bar marks itself signed in, and the pair is icons there.
+test('signed in, both bars keep Ask Nora and Chat to their icons', () => {
+  assert.match(SHELL, /<header className="shape-header"[^>]*\bdata-nav-dock-icons=\{authUser \? "" : undefined\}/, 'the shared header no longer marks itself signed in for the pair');
+  assert.match(INDEX, /if\(navBar\)navBar\.setAttribute\('data-nav-dock-icons',''\);/, 'the homepage no longer marks its bar signed in for the pair');
+  const at = INDEX.indexOf("navBar.setAttribute('data-nav-dock-icons'");
+  assert.ok(at > INDEX.indexOf("hi.className='login nhi'") - 600 && at < INDEX.indexOf("hi.className='login nhi'"), 'the homepage marks its bar outside the signed-in branch');
+  for (const rule of ['.nvd-pair .nvd-label{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}', '.nvd-pair .nvd-nora{padding:0 6px 0 5px}', '.nvd-pair .nvd-chat{padding:0 10px 0 9px}', '.nvd-pair .nvd-count{position:absolute;']) {
+    assert.ok(DOCK.includes('[data-nav-dock-icons] [data-nav-dock-slot~=a] ' + rule), 'the signed-in pair lost ' + rule);
+  }
+});
+
 function load({ slotOnScreen }) {
   const dom = new JSDOM(`<!doctype html><html><head></head><body>
     <header><span id="search"></span><span data-nav-dock-slot="a"></span></header>

@@ -66,7 +66,9 @@ test('the pages: Coaches.html is the marketplace, ForCoaches.html the pitch, Mar
   assert.match(pitch, /<title>Shape — For coaches<\/title>/);
   const old = read('Marketplace.html');
   assert.match(old, /location\.replace\('Coaches\.html' \+ location\.search \+ location\.hash\)/, 'the old address drops its query or hash');
-  assert.match(stripComments(SRC), /<Header active="Coaches" \/>/, 'the Coaches tab does not light on its own page');
+  // The page is the nav's Marketplace tab (owner, 2026-11-13: "create an individual nav
+  // tab then for marketplace"); Coaches is the tab for coaches, on ForCoaches.html.
+  assert.match(stripComments(SRC), /<Header active="Marketplace" \/>/, 'the Marketplace tab does not light on its own page');
 });
 
 test('one ladder: the card\'s tier is the profile\'s (livingShared.jsx LV_LADDER.coach)', () => {

@@ -182,7 +182,7 @@
      wider than the window below ~1060px. One bar, one breakpoint —
      tests/site-nav.test.mjs compares the two numbers. */
   .nauth .nhi{max-width:150px;overflow:hidden;text-overflow:ellipsis}
-  @media (max-width:1200px){.nauth .nhi{display:none}}
+  @media (max-width:1220px){.nauth .nhi{display:none}}
   .ncta{font-family:var(--sans);font-weight:600;font-size:13px;background:linear-gradient(180deg,#62eadb,var(--teal) 55%,#27c3b2);color:#04110f;
         padding:0 15px;height:36px;display:inline-flex;align-items:center;
         white-space:nowrap;line-height:1;transition:background .16s;clip-path:polygon(0 0,calc(100% - 8px) 0,100% 8px,100% 100%,0 100%)}
@@ -216,10 +216,12 @@
   .nradio:hover .nvfr path{stroke:rgba(var(--teal-rgb),.45)}
   .nradio svg.mark{width:11px;height:13px;display:block}
   .nvfr{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;display:block}
-  /* The Coaches and Rewards menus, signed out (Coaches: Marketplace, owner, 2026-11-13:
-     "make marketplace a sub tab under coaches", then For coaches, For trainers and For
-     nutritionists, 2026-11-12: "add them as subtabs under coaches"). ⚠ The trigger is a real link as well as a menu: clicking
-     goes to its page; hovering opens its items. A trigger that only toggles makes
+  /* The Coaches and Rewards menus, signed out. Coaches opens For coaches and holds the three
+     coach pages (owner, 2026-11-12: "add them as subtabs under coaches"); Marketplace is a tab
+     of its own before it (2026-11-13: "create an individual nav tab then for marketplace").
+     The whole Coaches menu is a sign-up tab, so it is marked data-signed-out-only.
+     ⚠ The trigger is a real link as well as a menu: clicking goes to its page; hovering
+     opens its items. A trigger that only toggles makes
      the page it names unreachable from the bar. */
   /* Signed-in-only links (the Store tab) stay hidden until /api/me answers with an
      account; the scripts below then drop the mark. `!important` because the
@@ -640,10 +642,16 @@
        border-top:1px solid var(--line-2);font-size:12px;color:var(--fg-3)}
 
   /* ── responsive: the fold stacks, the grids collapse ─────── */
+  /* Seven tabs signed out (Marketplace, 2026-11-13): at 22px the row needed 1103px, so
+     the shared header's 14px step from 1140 is taken here too. */
+  @media (max-width:1140px){.nlinks{gap:14px}}
   @media (max-width:1100px){
     /* 14px since Rewards became a menu (2026-10-09): its caret ran the row 6px
-       past the screen edge at 1021. The shared header trims the same. */
-    .nlinks{gap:14px}
+       past the screen edge at 1021. 10px, and the row's own gap 18 as the shared header's
+       is here, since Marketplace made seven tabs (2026-11-13): at 14 the row ran 31px past
+       the screen edge at 1024. Swept 1px from 1440 to 1016: no sideways scroll. */
+    .nlinks{gap:10px}
+    .navr{gap:18px}
     .mo-grid,.co-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
     .rd{grid-template-columns:1fr;gap:34px}
     .rd{padding:36px 28px}
@@ -1022,7 +1030,8 @@
       })();
     </script>
     <div class="nlinks">
-      <span class="ndrop"><a href="/newdesign/Coaches.html">Coaches<span class="car" aria-hidden="true" data-signed-out-only></span></a><div class="nmenu" data-signed-out-only><a href="/newdesign/Coaches.html">Marketplace</a><a href="/newdesign/ForCoaches.html">For coaches</a><a href="/newdesign/Coach.html">For trainers</a><a href="/newdesign/Nutritionist.html">For nutritionists</a></div></span>
+      <a href="/newdesign/Coaches.html">Marketplace</a>
+      <span class="ndrop" data-signed-out-only><a href="/newdesign/ForCoaches.html" data-signed-out-only>Coaches<span class="car" aria-hidden="true"></span></a><div class="nmenu"><a href="/newdesign/ForCoaches.html">For coaches</a><a href="/newdesign/Coach.html">For trainers</a><a href="/newdesign/Nutritionist.html">For nutritionists</a></div></span>
       <a href="/newdesign/GetApp.html">App</a>
       <a href="/newdesign/Recipes.html">Kitchen</a>
       <a href="/newdesign/Community.html">Community</a>
@@ -1044,8 +1053,8 @@
   </div>
 </nav>
 <div class="ndrawer" id="ndrawer">
-  <a href="/newdesign/Coaches.html">Coaches</a>
-  <a href="/newdesign/Coaches.html" data-signed-out-only>&nbsp;&nbsp;Marketplace</a>
+  <a href="/newdesign/Coaches.html">Marketplace</a>
+  <a href="/newdesign/ForCoaches.html" data-signed-out-only>Coaches</a>
   <a href="/newdesign/ForCoaches.html" data-signed-out-only>&nbsp;&nbsp;For coaches</a>
   <a href="/newdesign/Coach.html" data-signed-out-only>&nbsp;&nbsp;For trainers</a>
   <a href="/newdesign/Nutritionist.html" data-signed-out-only>&nbsp;&nbsp;For nutritionists</a>
@@ -2103,6 +2112,10 @@
            away and this shows the tab that replaces them, as PORTAL_NAV does. */
         Array.prototype.slice.call(links.querySelectorAll('[data-signed-in-only]')).forEach(function(el){el.removeAttribute('data-signed-in-only');});
       }
+      /* Signed in, Ask Nora and Chat are their two icons at every width, as on every other page
+         (globalChatButton.js, data-nav-dock-icons; pageShell.jsx stamps its header the same way). */
+      var navBar=document.querySelector('nav');
+      if(navBar)navBar.setAttribute('data-nav-dock-icons','');
       var hi=document.createElement('span');
       hi.className='login nhi';
       hi.style.color='var(--fg)';
