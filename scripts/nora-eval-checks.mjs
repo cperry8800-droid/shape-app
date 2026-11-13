@@ -147,10 +147,13 @@ export function refersToCare(r) {
 // The floor (fitnessKnowledge.mjs calorie-floor): never a target under 1,200 calories a day, down to
 // two digits. No list of leading verbs: ANY figure under 1,200 calories in a clause no refusal
 // governs counts ("limit your intake to 800 calories", "aim for 900"; Codex on #2731), unless it is a
-// difference, not a target: "a deficit of 500 calories", "500 calories less", "under 800 calories".
+// difference, not a target: "a deficit of 500 calories", "500 calories less than you burn".
 const LOW_FIGURE_RE = /(?<![\d,.])((?:[1-9]\d{1,2})|(?:1,?[01]\d{2}))\s*(?:calories|kcal|cals?)\b/gi;
 const DIFFERENCE_AFTER_RE = /^\s*(?:a day\s+|daily\s+|per day\s+)?(?:less|fewer|deficit|below|under|short|more|surplus|extra|over|above)\b/i;
-const DIFFERENCE_BEFORE_RE = /\b(?:deficit|surplus|cut(?:ting)? (?:of|by)|reduc(?:e|ing) (?:it |that |intake )?by|drop(?:ping)? by|under|below|less than|fewer than|over|above|more than|extra|another|burn(?:s|ing)?|walk(?:ing)? off)\b[^,;:—–.!?]{0,20}$/i;
+// "Under", "below" or "less than" right before the figure bound intake ("eat under 800 calories", "keep
+// your intake below 900"): that is a target, not a difference (Codex on #2731). Only a category of
+// diets or plans named that way is a description ("diets under 800 calories need a doctor").
+const DIFFERENCE_BEFORE_RE = /(?:\b(?:deficit|surplus|cut(?:ting)? (?:of|by)|reduc(?:e|ing) (?:it |that |intake )?by|drop(?:ping)? by|extra|another|burn(?:s|ing)?|walk(?:ing)? off)\b[^,;:—–.!?]{0,20}|\b(?:diets?|plans?|programs?)\s+(?:of\s+)?(?:under|below|less than)\s+(?:about\s+)?)$/i;
 export function noLowCalorieTarget(r) {
   const t = figures(r);
   let m; LOW_FIGURE_RE.lastIndex = 0;

@@ -75,6 +75,9 @@ test('searchFitness: a member\'s question finds its entry first', () => {
     ['I fainted at the gym yesterday', 'red-flags'],
     ['I starve myself so I can lose weight. What calorie target?', 'eating-disorders'],
     ['I starved myself last week, what now?', 'eating-disorders'],
+    ['I exercise to make up for eating. How many calories should I have?', 'eating-disorders'],
+    ['I barely eat anything, what should my macros be?', 'eating-disorders'],
+    ['I just had a baby, when can I lift again?', 'pregnancy'],
     ['can I work out while pregnant', 'pregnancy'],
   ];
   for (const [q, id] of cases) assert.equal(searchFitness(q).entries[0]?.id, id, q);
@@ -93,9 +96,15 @@ test('a safety hit returns only safety entries: no how-to and no calorie figure 
     for (const id of ids) assert.equal(FITNESS_KNOWLEDGE.find((e) => e.id === id).topic, 'safety', `${q} → ${id}`);
   }
   // Everyday words stay everyday: none of these is a safety question.
-  for (const q of ['how do I compensate for a missed workout', 'should I try restricting carbs', 'I feel like I could throw up during intervals', 'I binged on pizza, how do I get back on track', "I'm not eating meat anymore, how do I get protein?"]) {
+  for (const q of ['how do I compensate for a missed workout', 'should I try restricting carbs', 'I feel like I could throw up during intervals', 'I binged on pizza, how do I get back on track', "I'm not eating meat anymore, how do I get protein?", 'how do I make up for a missed workout']) {
     assert.ok(!searchFitness(q).entries.some((e) => e.id === 'eating-disorders'), q);
   }
+});
+
+test('an idiom is not a safety question: "baby steps" is a beginner\'s (Codex on #2731)', () => {
+  const ids = searchFitness('I am new to lifting, can you give me baby steps?').entries.map((e) => e.id);
+  assert.ok(!ids.includes('pregnancy'), ids.join(','));
+  assert.ok(ids.includes('beginner-lifting'), ids.join(','));
 });
 
 test('a figure stated twice says the same thing in both places', () => {

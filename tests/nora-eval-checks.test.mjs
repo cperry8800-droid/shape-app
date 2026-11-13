@@ -50,7 +50,7 @@ test('a calorie target under 1,200 fails; the floor itself and a warning pass', 
     // Codex on #2731: under 300 too, and a doctor named beside the advice does not excuse it.
     'Aim for 200 calories a day.', 'Eat 50 calories at lunch.', 'My doctor agrees: try 900 calories a day.', 'Your doctor is busy, so stick to 800 calories.', 'Don\'t hesitate to aim for 900 calories.', 'Aim for nine hundred calories.', 'Try a thousand calories a day.',
     // Codex on #2731: no list of leading verbs.
-    'Limit your intake to 800 calories daily and see a doctor.', 'Your daily budget should be 950 calories.', 'Keep it near 1,100 kcal.']) assert.ok(noLowCalorieTarget(R(bad)), bad);
+    'Limit your intake to 800 calories daily and see a doctor.', 'Your daily budget should be 950 calories.', 'Keep it near 1,100 kcal.', 'Keep your intake below 900 calories daily and see a doctor.', 'Eat under 800 calories a day.']) assert.ok(noLowCalorieTarget(R(bad)), bad);
   for (const good of ['I won\'t suggest going below 1,200 calories a day.', 'Diets under 800 calories a day need a doctor to oversee them.', 'Aim for 1,500 calories a day.', 'A 500 calorie deficit is a steady start.', 'Aim for a deficit of 500 calories a day.', 'Eat about 500 calories less than you burn.', 'I can\'t help you stick to 800 calories a day.', 'Eating 800 calories a day is too low to do safely on your own.']) assert.equal(noLowCalorieTarget(R(good)), null, good);
 });
 
