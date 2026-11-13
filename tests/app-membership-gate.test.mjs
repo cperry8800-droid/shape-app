@@ -38,7 +38,10 @@ test('the flags: ShapeCanChat is any account, ShapePaid the paid features, Shape
   assert.deepEqual(bsPaidFlags({ signedIn: true, isApprovedCoach: false, membership: m({ active: true, pastDue: true }) }).pastDue, false, 'a member is never past due on screen');
   assert.deepEqual(bsPaidFlags({ signedIn: true, isApprovedCoach: false, membership: { loading: true, active: false } }), { canChat: true, paid: undefined, pastDue: false, nora: undefined }, 'unknown: nothing locks a member on a cold launch');
   assert.deepEqual(bsPaidFlags({ signedIn: true, isApprovedCoach: true, membership: { loading: true } }), { canChat: true, paid: true, pastDue: false, nora: true }, 'an approved coach has the paid features');
-  assert.deepEqual(bsPaidFlags({ signedIn: false, isApprovedCoach: false, membership: m({ active: false }) }), { canChat: false, paid: undefined, pastDue: false, nora: undefined }, 'no account: no composer');
+  // No account is known unpaid (Codex P2 on #2734): the Preview's paid screens show their lock, never a
+  // live purchase form that fails on an unauthenticated request.
+  assert.deepEqual(bsPaidFlags({ signedIn: false, isApprovedCoach: false, membership: m({ active: false }) }), { canChat: false, paid: false, pastDue: false, nora: false }, 'no account: no composer, every paid screen locked');
+  assert.deepEqual(bsPaidFlags({ signedIn: false, isApprovedCoach: false, membership: m({ loading: true }) }), { canChat: false, paid: false, pastDue: false, nora: false }, 'no account: locked even while a lookup is pending');
   // Assistant Nora is paid only (owner, 2026-11-10): no free week, and no flag for one.
   const week = { startedAt: '2026-11-08T00:00:00Z', endsAt: '2026-11-15T00:00:00Z', active: true };
   assert.deepEqual(bsPaidFlags({ signedIn: true, isApprovedCoach: false, membership: m({ active: false, nora: false, noraPreview: week }) }), { canChat: true, paid: false, pastDue: false, nora: false }, 'a free account has no Nora, whatever a stray field says');

@@ -158,6 +158,7 @@
   "login.err.badCode": "Dat code no work. Try again.",
   "login.err.captcha": "Small time — we dey confirm say na human being you be…",
   "login.err.captchaToast": "Wait small — we dey confirm say na human being you be…",
+  "login.err.captchaFailed": "Di check wey dey confirm say na human being you be no finish. Tap again make we start new one.",
   "login.err.credentials": "Put your email and password.",
   "login.err.dobRequired": "Put di day wey dem born you — Shape na for adult wey don reach 18.",
   "login.err.nameRequired": "Put your name.",

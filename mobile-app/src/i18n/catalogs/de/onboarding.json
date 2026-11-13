@@ -158,6 +158,7 @@
   "login.err.badCode": "Dieser Code hat nicht funktioniert. Versuche es erneut.",
   "login.err.captcha": "Einen Moment — wir prüfen, ob du ein Mensch bist…",
   "login.err.captchaToast": "Einen Augenblick — wir prüfen, ob du ein Mensch bist…",
+  "login.err.captchaFailed": "Die Prüfung, ob du ein Mensch bist, wurde nicht fertig. Tippe noch einmal, um eine neue zu starten.",
   "login.err.credentials": "Gib deine E-Mail-Adresse und dein Passwort ein.",
   "login.err.dobRequired": "Gib dein Geburtsdatum ein — Shape ist für Erwachsene ab 18 Jahren.",
   "login.err.nameRequired": "Gib deinen Namen ein.",

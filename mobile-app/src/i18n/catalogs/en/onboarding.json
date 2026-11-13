@@ -158,6 +158,7 @@
   "login.err.badCode": "That code did not work. Try again.",
   "login.err.captcha": "Just a moment — confirming you’re human…",
   "login.err.captchaToast": "One moment — confirming you’re human…",
+  "login.err.captchaFailed": "The human check didn’t finish. Tap again to start a new one.",
   "login.err.credentials": "Enter your email and password.",
   "login.err.dobRequired": "Enter your date of birth — Shape is for adults 18 and over.",
   "login.err.nameRequired": "Enter your name.",

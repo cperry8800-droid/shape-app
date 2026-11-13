@@ -158,6 +158,7 @@
   "login.err.badCode": "Wannan lambar ba ta yi aiki ba. Sake gwadawa.",
   "login.err.captcha": "Ɗan jira — muna tabbatar da kai mutum ne…",
   "login.err.captchaToast": "Ɗan lokaci — muna tabbatar da kai mutum ne…",
+  "login.err.captchaFailed": "Tabbatar da kai mutum ne bai kammala ba. Sake taɓawa don fara sabo.",
   "login.err.credentials": "Shigar da imel ɗinka da kalmar sirrinka.",
   "login.err.dobRequired": "Shigar da ranar haihuwarka — Shape na manya ne masu shekaru 18 zuwa sama.",
   "login.err.nameRequired": "Shigar da sunanka.",

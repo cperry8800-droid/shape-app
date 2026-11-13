@@ -158,6 +158,7 @@
   "login.err.badCode": "Bu kod işe yaramadı. Tekrar dene.",
   "login.err.captcha": "Bir saniye — insan olduğunu doğruluyoruz…",
   "login.err.captchaToast": "Bir dakika — insan olduğunu doğruluyoruz…",
+  "login.err.captchaFailed": "İnsan doğrulaması tamamlanmadı. Yenisini başlatmak için tekrar dokun.",
   "login.err.credentials": "E-postanı ve parolanı gir.",
   "login.err.dobRequired": "Doğum tarihini gir — Shape 18 yaş ve üzeri yetişkinler içindir.",
   "login.err.nameRequired": "Adını gir.",

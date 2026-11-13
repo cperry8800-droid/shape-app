@@ -677,7 +677,19 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'Two changes from before: the preview goes straight to the app instead of through the telegram\'s invite edition, and its branch sits after the welcome and the age check and before the date-of-birth check, reached only by a session with no account, so an account never skips a check by previewing', status: 'done' },
         { label: 'The banner\'s words in all 13 locales, restored from their translations before #2675 (paywall.preview, preview.title, preview.body, preview.dismiss); preview.join stays retired', status: 'done' },
         { label: 'Checked in Chromium on the app\'s dev server at /m/, signed out: the Welcome shows the button; it opens Home on the sample member with the banner; Preview as opens the trainer\'s and the nutritionist\'s Today on their sample practices, banner still up; the banner\'s Create account opens Join; with the native bridge present (window.androidBridge) the Welcome offers no Preview. Tests: the 163 files that read the shell, the Welcome, the gate or the catalogs, 2,399 pass', status: 'done' },
+        { label: 'Codex P2 on #2734: in the Preview the paid flags were unknown (window.ShapePaid undefined), and a paid screen locks only on false, so the points Store took the demo profile to redeem and shipping until an unauthenticated request failed. A session with no account is now known unpaid (bsPaidFlags: paid and nora false): every paid screen shows its lock, and the lock\'s Join opens Create account (checked: Talk to Nora → Join · $5/mo → the Join form)', status: 'done' },
         { label: 'OWNER: open the app at /m/ signed out (or in a private window), tap Preview the app first →, then Settings → Preview as for Trainer and Nutrition', status: 'manual' },
+      ],
+    },
+    {
+      section: 'App sign-in waits for the human check: a tap before Turnstile\'s token goes when the token arrives, and a check that fails says so and starts afresh on the next tap. No migration',
+      items: [
+        { label: 'Owner, 2026-11-13, a screenshot of sign-in at /m/ held on "Just a moment — confirming you\'re human…": "this is taking awhile and login not working"', status: 'done' },
+        { label: 'Found: a tap before the token was answered with that line and dropped, so the member had to guess when to tap again; and a check that failed or expired left no token and nothing that started a new one, so the line stayed for good. Reproduced in Chromium with a stand-in Turnstile that errors: the line, forever, and no request. On production the widget renders with Shape\'s key and starts its challenge (the hostname is accepted); a headless browser does not pass it, so the phone\'s own failure was not read', status: 'done' },
+        { label: 'Now (captchaGate.mjs bsCaptchaStep, BSLogin\'s holdForCaptcha): sign in, the phone code and Forgot password each wait for the token and go when it arrives; turnstile.js reports an error, an expiry or a script that never loaded (onError); a held request whose check fails, or gives no token in 20 seconds, says "The human check didn’t finish. Tap again to start a new one." (login.err.captchaFailed, 13 locales), and the next tap renders a fresh widget', status: 'done' },
+        { label: 'Checked in Chromium with the stand-in: a token 2.5 s late sends the sign-in by itself; a failed check says so and the second tap sends it on a fresh check; no answer says so at 20 s. tests/login-captcha-wait.test.mjs (new, 5)', status: 'done' },
+        { label: 'If sign-in still holds on the phone after this ships: the check itself is failing there (content blockers, iCloud Private Relay or Lockdown Mode can stop Cloudflare\'s challenge); the new line says so instead of waiting', status: 'pending' },
+        { label: 'OWNER: sign in at /m/ on the phone once this deploys', status: 'manual' },
       ],
     },
     {

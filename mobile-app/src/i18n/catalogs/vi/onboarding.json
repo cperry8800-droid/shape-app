@@ -158,6 +158,7 @@
   "login.err.badCode": "Mã đó không đúng. Thử lại.",
   "login.err.captcha": "Chờ chút — đang xác nhận bạn là người thật…",
   "login.err.captchaToast": "Chờ một chút — đang xác nhận bạn là người thật…",
+  "login.err.captchaFailed": "Bước xác nhận bạn là người thật chưa hoàn tất. Chạm lại để bắt đầu lần mới.",
   "login.err.credentials": "Nhập email và mật khẩu của bạn.",
   "login.err.dobRequired": "Hãy nhập ngày sinh — Shape dành cho người từ 18 tuổi trở lên.",
   "login.err.nameRequired": "Nhập tên của bạn.",

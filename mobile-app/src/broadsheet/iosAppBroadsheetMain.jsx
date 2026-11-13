@@ -14,6 +14,7 @@ import { BSTimezoneCheck } from './BSTimezone.jsx';
 import { bsLaunchRoute, bsDailyStamp, bsAfterBeat, bsWireLines, bsWireTraining, bsWireCoachNote, bsWireNutrition } from '../services/dailyWire.mjs';
 import { bsCiLeadReason } from './BSCheckinCard.jsx';
 import { bsAccountGate, bsPaidFlags, bsMembershipAfter, bsMembershipSeed, bsPollMembership } from '../services/memberGate.mjs';
+import { bsCaptchaStep, BS_CAPTCHA_WAIT_MS } from '../services/captchaGate.mjs';
 import { BSPlanPickerHost } from './BSPaidLock.jsx';
 import { bsCaptureBoundaryError } from '../sentry.mjs';
 import { shapeScrubLocalUserContent, shapeInstallSignOutListener } from '../services/localScrub.mjs';
@@ -772,18 +773,38 @@ function BSLogin({ onLogin, onApply, onBack, role, setRole, initialMode }) {
     : (authMethod === 'phone' && otpSent) ? null
     : (mode === 'create' && authMethod !== 'phone' && createStep === 1) ? null // the identity step makes no auth request
     : 'form';
+  // ⚠ A TAP BEFORE THE TOKEN WAITS FOR IT (captchaGate.mjs; owner, 2026-11-13, sign-in held on "Just
+  // a moment"). `captchaWaiting` is the request a tap asked for before the token arrived ('auth',
+  // 'phone' or 'forgot'): it goes as soon as the token does. `captchaFailed` is a check that errored,
+  // expired or gave no token in time; the next tap bumps `captchaGen`, which renders a fresh one.
+  const [captchaFailed, setCaptchaFailed] = useStateBSM(false);
+  const [captchaGen, setCaptchaGen] = useStateBSM(0);
+  const [captchaWaiting, setCaptchaWaiting] = useStateBSM(null);
   React.useEffect(() => {
     if (captchaIdRef.current != null) {
       window.ShapeTurnstile.remove?.(captchaIdRef.current);
       captchaIdRef.current = null;
     }
     setCaptchaToken('');
+    setCaptchaFailed(false);
     if (!captchaSlot) return;
     const el = captchaRef.current;
     if (!el) return;
-    window.ShapeTurnstile.render(el, setCaptchaToken).then((id) => { captchaIdRef.current = id; });
-  }, [captchaSlot]);
+    window.ShapeTurnstile.render(el, (tok) => { setCaptchaToken(tok); if (tok) setCaptchaFailed(false); }, () => setCaptchaFailed(true))
+      .then((id) => { captchaIdRef.current = id; });
+  }, [captchaSlot, captchaGen]);
+  // A request waiting in one container is not carried to the next (the verify screen, the code step).
+  React.useEffect(() => { setCaptchaWaiting(null); }, [captchaSlot]);
   const resetCaptcha = () => { setCaptchaToken(''); if (captchaIdRef.current != null) window.ShapeTurnstile.reset(captchaIdRef.current); };
+  // True when the request must wait for the check (it is then held, and "Just a moment" says so).
+  const holdForCaptcha = (kind) => {
+    const step = bsCaptchaStep({ captchaOn, token: captchaToken, failed: captchaFailed });
+    if (step === 'go') return false;
+    if (step === 'retry') { setCaptchaFailed(false); setCaptchaGen((g) => g + 1); }
+    setCaptchaWaiting(kind);
+    setAuthError(tr('login.err.captcha'));
+    return true;
+  };
   const isCreate = mode === 'create';
   const isPhone = authMethod === 'phone';
   // ⚠ JOINING MAKES A MEMBER'S ACCOUNT; A COACH APPLIES (owner, 2026-11-13, the first-run redraw). The
@@ -850,7 +871,7 @@ function BSLogin({ onLogin, onApply, onBack, role, setRole, initialMode }) {
       const d = new Date(dob); const eighteen = new Date(); eighteen.setFullYear(eighteen.getFullYear() - 18);
       if (isNaN(d.getTime()) || d > eighteen) { setCreateStep(1); setAuthError(tr('login.err.under18')); return; }
     }
-    if (captchaOn && !captchaToken) { setAuthError(tr('login.err.captcha')); return; }
+    if (holdForCaptcha('auth')) return;
     setBusy(true);
     try {
       const result = isCreate
@@ -925,7 +946,7 @@ function BSLogin({ onLogin, onApply, onBack, role, setRole, initialMode }) {
       const d = new Date(dob); const eighteen = new Date(); eighteen.setFullYear(eighteen.getFullYear() - 18);
       if (isNaN(d.getTime()) || d > eighteen) { setAuthError(tr('login.err.under18')); return; }
     }
-    if (captchaOn && !captchaToken) { setAuthError(tr('login.err.captcha')); return; }
+    if (holdForCaptcha('phone')) return;
     setPhone(e164);
     setBusy(true);
     try {
@@ -976,7 +997,7 @@ function BSLogin({ onLogin, onApply, onBack, role, setRole, initialMode }) {
     const e = email.trim();
     if (!e) { setAuthError(tr('login.err.forgotEmail')); return; }
     if (!auth?.resetPassword) { setAuthError(tr('login.err.forgotFail')); return; }
-    if (captchaOn && !captchaToken) { setAuthError(tr('login.err.captcha')); return; }
+    if (holdForCaptcha('forgot')) return;
     try {
       await auth.resetPassword(e, captchaOn ? captchaToken : undefined);
       window.__bsToast?.(tr('login.ok.resetSent'), 'ok');
@@ -988,6 +1009,24 @@ function BSLogin({ onLogin, onApply, onBack, role, setRole, initialMode }) {
         : tr('login.err.forgotFail'));
     } finally { if (captchaOn) resetCaptcha(); }
   };
+  // The held request goes the moment the token arrives (and not while another is in flight).
+  React.useEffect(() => {
+    if (!captchaWaiting || !captchaToken || busy) return;
+    const kind = captchaWaiting;
+    setCaptchaWaiting(null);
+    setAuthError('');
+    if (kind === 'auth') submitAuth();
+    else if (kind === 'phone') sendPhoneCode();
+    else if (kind === 'forgot') forgotPassword();
+  }, [captchaWaiting, captchaToken, busy]);
+  // A held request whose check fails, or gives no token in BS_CAPTCHA_WAIT_MS, says so; the next tap
+  // starts a fresh check (holdForCaptcha's 'retry').
+  React.useEffect(() => {
+    if (!captchaWaiting) return undefined;
+    if (captchaFailed) { setCaptchaWaiting(null); setAuthError(tr('login.err.captchaFailed')); return undefined; }
+    const id = setTimeout(() => setCaptchaFailed(true), BS_CAPTCHA_WAIT_MS);
+    return () => clearTimeout(id);
+  }, [captchaWaiting, captchaFailed]);
   // Continue with Apple — uses the auth layer if wired, else a graceful notice.
   const continueWithApple = async () => {
     setAuthError('');

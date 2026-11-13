@@ -39,8 +39,13 @@ export function bsAccountGate({ isApprovedCoach, authReady, signedIn, membership
  * `nora` is the paid features (`member`), and a free account meets her paid lock (Join, or Update
  * your card when past due).
  */
+// ⚠ NO ACCOUNT IS KNOWN UNPAID, NOT UNKNOWN (Codex P2 on #2734). With the welcome's Preview a session
+// with no account is in the app, and a paid screen locks only on an explicit `false`: `undefined`
+// left the points Store open to the demo profile (redeem, shipping details) until an unauthenticated
+// request failed. `false` shows each paid screen's lock, whose Join opens account creation
+// (BSPaidLock's __bsGoAuth('create')).
 export function bsPaidFlags({ signedIn, isApprovedCoach, membership }) {
-  if (!signedIn) return { canChat: false, paid: undefined, pastDue: false, nora: undefined };
+  if (!signedIn) return { canChat: false, paid: false, pastDue: false, nora: false };
   if (isApprovedCoach) return { canChat: true, paid: true, pastDue: false, nora: true };
   const m = membership || {};
   if (m.loading || typeof m.active !== 'boolean') return { canChat: true, paid: undefined, pastDue: false, nora: undefined };
