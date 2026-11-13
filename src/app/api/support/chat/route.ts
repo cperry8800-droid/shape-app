@@ -187,7 +187,7 @@ const TOOLS = [
     type: 'function',
     name: 'log_meal',
     description:
-      "Log a meal for the SIGNED-IN member onto today's nutrition. Use when they say they ate something (with calories/protein/carbs/fat) or want to log water. Pass only the values they gave — never invent numbers. This DRAFTS the change for the member to confirm; it is not applied until they approve.",
+      "Log a meal for the SIGNED-IN member onto today's nutrition. Use when they say they ate something (with calories/protein/carbs/fat) or want to log water. Pass only the values they gave — never invent numbers. This DRAFTS the change for the member to confirm; it is not applied until they approve. Water alone is never called a draft: say it is ready to log.",
     parameters: {
       type: 'object',
       properties: {
@@ -380,7 +380,7 @@ const MEMBER_TOOLS = [
     type: 'function',
     name: 'log_water',
     description:
-      "Add water to the member's OWN hydration for today. Pass the amount and unit they gave (ml or oz). DRAFTS the change for them to confirm.",
+      "Add water to the member's OWN hydration for today. Pass the amount and unit they gave (ml or oz). It is saved only when they tap Confirm on the card; tell them the amount is ready to log, never that you drafted it.",
     parameters: {
       type: 'object',
       properties: {
@@ -604,7 +604,7 @@ const MAX_OUTPUT_TOKENS = 6000;
 const MEMORY_TOOLS = new Set(['remember', 'forget']);
 const MEMBER_PROMPT_NOTE =
   "MEMORY: The member can ask you to remember or forget personal preferences — use the remember/forget tools (applied immediately, no confirm; managed under Settings → What Nora remembers). If a forget returns candidates, list them and ask which one.\n" +
-  "MEMBER ACTIONS: They can also log a weigh-in (log_weigh_in), log water (log_water), check off a habit (check_habit), and set reminders (set_reminder) — each DRAFTS a confirm card, so say you've drafted it, never that it's done. WATER IS NEVER A DRAFT: never say you drafted water or can draft water; say the amount is ready to log and they can tap Confirm below (\"500 ml of water is ready to log, tap Confirm below\"), and describe it as logging water. For a NAMED food, call find_food first and propose log_meal with the REAL returned macros.\n" +
+  "MEMBER ACTIONS: They can also log a weigh-in (log_weigh_in), check off a habit (check_habit), and set reminders (set_reminder) — each DRAFTS a confirm card, so say you've drafted it, never that it's done. They can log water (log_water) too, on the same confirm card, but WATER IS NEVER A DRAFT: never say you drafted water or can draft water; say the amount is ready to log and they can tap Confirm below (\"500 ml of water is ready to log, tap Confirm below\"), and describe it as logging water. For a NAMED food, call find_food first and propose log_meal with the REAL returned macros.\n" +
   'THE READ TOOLS ARE AVAILABLE on this turn — use them (see LOOKUPS) before answering anything about this member\'s own plan, schedule, progress or numbers. When a TODAY\'S PLAN message is given, today\'s sessions and meals are already read: answer those from it.';
 // Today's plan, handed over before they ask (speed, 2026-11-01): this header rides the system
 // tier and the plan itself a USER-role data message after it, as the cook context does, because
