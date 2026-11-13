@@ -16,7 +16,11 @@
 //     the current one raised and no queue, Guided's two steps, the rest card, and every control
 //     (typing a figure, Log set, +30 sec, Skip rest, Previous / Next, the queue, Exercise details,
 //     Quick Log / Timed sets, Add / Remove set, Done in the log, Change view, End workout early, an open
-//     session's name and Add move, the form clip, a live heart rate). Every control is a 44px target.
+//     session's name and Add move, a live heart rate). Every control is a 44px target.
+//   · THE HOW-TO CLIPS (owner, 2026-11-13: "show the videos on the workout exercise modules in all 3
+//     views"): every exercise module draws its clip above its sets, the coach's own over the stock one,
+//     and the frame plays a file in place, loads an embed only when tapped, and opens anything else
+//     outside.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -61,7 +65,7 @@ test('each module exports what it draws, imports no host module, and carries its
   assert.deepEqual([...sessionSrc.matchAll(/^export (?:function|const) (\w+)/gm)].map((m) => m[1]), ['BSWorkoutSession']);
   const importsOf = (src) => [...src.matchAll(/^import .* from '([^']+)';/gm)].map((m) => m[1]);
   assert.deepEqual(importsOf(detailSrc), ['react', 'react-dom', '../services/videoComponents.mjs', './bsCleanType.jsx', './BSMemberBento.jsx', './BSProInstrument.jsx']);
-  assert.deepEqual(importsOf(sessionSrc), ['react', 'react-dom', './bsCleanType.jsx', './BSMemberBento.jsx', './BSProInstrument.jsx']);
+  assert.deepEqual(importsOf(sessionSrc), ['react', 'react-dom', './bsCleanType.jsx', './BSMemberBento.jsx', './BSProInstrument.jsx', '../services/videoComponents.mjs', '../services/exerciseDemo.mjs']);
   for (const src of [detailSrc, sessionSrc]) {
     assert.match(src, /^function useShapeTr\(\) \{/m);
     assert.equal((src.match(/window\.ShapeI18n/g) || []).length, 1, 'window.ShapeI18n is read only inside useShapeTr()');
@@ -391,10 +395,91 @@ test('an open session names its move, offers the swap names, and adds a move', (
   assert.equal(textOf(ofData(s.v().nodes(), 'data-focus-readout')[0]), 'Exercise2/2', 'the move added is the one in hand');
 });
 
-test('a coach\'s form clip opens from the card; a live heart rate rides beside the clock', () => {
-  const s = session('focus', { moves: [{ ...MOVES()[0], video: 'https://example.com/squat.mp4' }] });
-  s.press((n) => buttons(n).find((b) => /^▶ /.test(textOf(b))));
-  assert.ok(s.v().nodes().some((x) => x.props && x.props.role === 'dialog'), 'the clip sheet');
+// The catalog's stock clips, as window.ShapeExerciseDemos hands them over (the read never settles here,
+// so what the view draws is what `cached` already held).
+const STOCK = [
+  { name: 'Back squat', aliases: ['Squat'], demo_url: 'https://cdn.example.com/stock-squat.mp4' },
+  { name: 'Barbell row', aliases: ['Bent-over row', 'BB row'], demo_url: 'https://cdn.example.com/stock-row.mp4' },
+];
+const COACH_CLIP = 'https://example.com/coach-squat.mp4';
+const frames = (nodes) => nodes.filter((x) => typeof x.type === 'function' && x.type.name === 'BSExerciseDemoFrame');
+const withStock = (fn) => {
+  globalThis.ShapeExerciseDemos = { cached: () => STOCK, load: () => new Promise(() => {}) };
+  try { return fn(); } finally { delete globalThis.ShapeExerciseDemos; }
+};
+// The clip of one module, and whether it sits above that module's sets.
+const clipAbove = (module, setsAttr) => {
+  const inside = flatten(module.props.children);
+  const f = frames(inside);
+  assert.ok(f.length <= 1, 'one clip per module');
+  if (!f.length) return null;
+  const sets = inside.findIndex((x) => x.props && x.props[setsAttr] !== undefined);
+  assert.ok(sets > inside.indexOf(f[0]), `${f[0].props.name}: the clip is not above its sets`);
+  return f[0].props.url;
+};
+
+test('every exercise module carries its how-to clip above its sets, in all three views; the coach\'s clip wins', () => withStock(() => {
+  const moves = [{ ...MOVES()[0], video: COACH_CLIP }, MOVES()[1], MOVES()[2]];
+  // Focus: the card's clip is the coach's, not the stock squat; the old pop-up sheet is gone.
+  let n = session('focus', { moves }).v().nodes();
+  assert.equal(clipAbove(ofData(n, 'data-ws-card')[0], 'data-focus-sets'), COACH_CLIP);
+  assert.ok(!n.some((x) => x.props && x.props.role === 'dialog'), 'no clip sheet: the clip is in the module');
+  // Workout log: every exercise's card has its own; Barbell row's is the stock one, Plank has none.
+  n = session('log', { moves }).v().nodes();
+  assert.deepEqual(ofData(n, 'data-ws-move').map((m) => clipAbove(m, 'data-focus-sets')), [COACH_CLIP, 'https://cdn.example.com/stock-row.mp4', null]);
+  // Guided coach: the card's clip, above the step in hand and the set.
+  const g = session('guided', { moves });
+  const card = ofData(g.v().nodes(), 'data-ws-card')[0];
+  assert.equal(clipAbove(card, 'data-ws-step'), COACH_CLIP);
+  // Next exercise: the card follows the move in hand, to its stock clip.
+  g.press((nodes) => buttons(nodes).find((b) => b.props['data-focus-step'] === 'next'));
+  assert.equal(frames(flatten(ofData(g.v().nodes(), 'data-ws-card')[0].props.children))[0].props.url, 'https://cdn.example.com/stock-row.mp4');
+}));
+
+test('no clip and no stock: no frame; an unsafe clip never reaches a frame', () => {
+  const n = session('log', { moves: [{ ...MOVES()[0], video: 'javascript:alert(1)' }, MOVES()[1]] }).v().nodes();
+  assert.deepEqual(frames(n), [], 'no stock read yet, no coach clip that plays');
+});
+
+test('the frame: a file plays in place, an embed loads only when tapped, anything else opens outside', () => withStock(() => {
+  const [proto] = frames(session('focus').v().nodes());
+  assert.ok(proto, 'the stock squat\'s frame');
+  const frame = (url) => drive(proto.type, { ...proto.props, url });
+  // A file: the device's own controls, inline, its first frame as the still.
+  let f = frame(COACH_CLIP);
+  const video = f.nodes().find((x) => x.type === 'video');
+  assert.equal(video.props.src, COACH_CLIP + '#t=0.1');
+  assert.ok(video.props.controls && video.props.playsInline);
+  assert.equal(video.props['aria-label'], 'Back squat demonstration');
+  assert.equal(ofData(f.nodes(), 'data-ws-demo')[0].props['data-ws-demo'], 'file');
+  // YouTube: a ▶ frame, and no player until it is tapped; then the privacy-mode embed.
+  f = frame('https://www.youtube.com/watch?v=dQw4w9WgXcQ');
+  assert.ok(!f.nodes().some((x) => x.type === 'iframe'), 'no third-party player before a tap');
+  const tile = f.nodes().find((x) => x.type === 'button');
+  assert.equal(tile.props['aria-label'], 'How-to · Back squat · YouTube', 'its name carries the word it shows');
+  assert.ok(minH(tile) >= 44);
+  f.click('▶');
+  const iframe = f.nodes().find((x) => x.type === 'iframe');
+  assert.match(iframe.props.src, /^https:\/\/www\.youtube-nocookie\.com\/embed\/dQw4w9WgXcQ\?/);
+  assert.equal(iframe.props.title, 'Back squat demonstration — YouTube');
+  // A page that is not a video: never framed, opened outside.
+  f = frame('https://example.com/how-to-squat');
+  assert.ok(!f.nodes().some((x) => x.type === 'iframe' || x.type === 'video'));
+  const away = f.nodes().find((x) => x.type === 'button');
+  assert.equal(textOf(away), '▶Open externally ↗');
+  assert.equal(away.props['aria-label'], 'How-to · Back squat · Open externally ↗');
+  // A file this device cannot play: the same way out, never a blank frame.
+  f = frame(COACH_CLIP);
+  f.nodes().find((x) => x.type === 'video').props.onError();
+  f.render();
+  assert.ok(!f.nodes().some((x) => x.type === 'video'));
+  assert.equal(textOf(f.nodes().find((x) => x.type === 'button')), '▶Open externally ↗');
+  // Nothing resolve refuses is drawn at all.
+  assert.deepEqual(frame('data:video/mp4;base64,AAAA').nodes(), []);
+}));
+
+test('a live heart rate rides beside the clock', () => {
+  const s = session('focus');
   // A fresh reading: the same view, with BSSession's heart-rate figure in it.
   const props = s.root().props;
   const live = drive(s.root().type, { session: { ...props.session, hrNow: 128 } });

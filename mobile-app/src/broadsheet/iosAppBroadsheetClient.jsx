@@ -4324,9 +4324,9 @@ function bsBuildTrainProgram(workouts, t, tr) {
     const moves = (w.exercises || []).map((e, j) => {
       // Segment rows (a run/ride/swim leg or a Hyrox station) show their free
       // descriptor as the scheme line, with no load column. `video` = the
-      // trainer's form clip — threaded through so the live session's ▶ How-to
-      // chip can reach it (it was dropped here, making the chip unreachable
-      // on real coached plans — CodeRabbit P2 on the Cockpit PR).
+      // trainer's form clip — threaded through so the live session's exercise
+      // modules can show it above their sets (it was dropped here once, making the
+      // clip unreachable on real coached plans — CodeRabbit P2 on the Cockpit PR).
       if (e.seg) return { ...e, n: String(j + 1).padStart(2, '0'), m: e.name, s: e.seg, l: '', video: e.video || null };
       const sr = [e.sets, e.reps].filter(Boolean).join(' × ');
       const s = [sr, e.rest].filter(Boolean).join(' · ');
@@ -30975,7 +30975,7 @@ function BSWorkoutPreview({ program, coach = '', onBack, onStart }) {
                       return (
                         <div style={{ paddingLeft: 29, marginTop: 6 }}>
                           <button type="button" aria-expanded={open} onClick={() => setDemoAt(open ? null : key)} style={{ minHeight: 32, background: 'transparent', border: 0, padding: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.ACCENT }}>
-                            {open ? '▾' : '▸'} {tr('session:player.formClip', { defaultValue: 'How-to · form clip' })}
+                            {open ? '▾' : '▸'} {tr('session:player.formClip')}
                           </button>
                           {open && <ShapeVideoPlayer value={m.video} title={tr('session:player.formClipHead', { defaultValue: 'How-to · {move}', move: m.m })} />}
                         </div>
@@ -31489,17 +31489,6 @@ function BSSession({ moves: movesProp, onBack, title: requestedTitle = '', clien
         : e)));
     if (activeSetKey && activeSetKey.indexOf(`${moveIdx}-`) === 0) { setActiveSetKey(null); setSetStartedAt(null); }
   };
-  // The trainer's form clip for the current move (coach plan block.video —
-  // the #1577 ＋CLIP rails; the plan route + deck builder thread `video`
-  // through). Honest-absent: no clip → no chip. http(s)-only — a stored
-  // javascript:/data: URL must never reach <video src> or window.open (the
-  // member_playlists safeMusicUrl lesson).
-  const clip = (() => {
-    const v = move && move.video;
-    const url = typeof v === 'string' ? v.trim() : (v && typeof v.url === 'string' ? v.url.trim() : '');
-    return /^https?:\/\//i.test(url) ? { url } : null;
-  })();
-  const [clipOpen, setClipOpen] = useStateBSC(false);
   // Open session: append a fresh blank move and jump to it.
   const addMove = () => {
     setMoves((ms) => {
@@ -31671,25 +31660,6 @@ function BSSession({ moves: movesProp, onBack, title: requestedTitle = '', clien
     </BSPage>
   );
 
-  // Trainer form-clip player — a dark portal sheet over the session (the card's ▶ How-to chip opens
-  // it; renders only when the plan move actually carries a coach clip).
-  const clipSheet = clipOpen && clip ? (() => {
-    const sheet = (
-      <div ref={bsDialogRef(() => setClipOpen(false))} onClick={() => setClipOpen(false)} role="dialog" aria-modal="true" aria-label={tr('session:player.clipAria', { move: move.m })} style={{ position: 'absolute', inset: 0, zIndex: 90, background: 'rgba(4,6,6,0.88)', display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: 18 }}>
-        <div onClick={(e) => e.stopPropagation()} style={{ background: '#0b0f0f', color:'#f4ede0', border: '1px solid rgba(56,224,204,0.25)', borderRadius: 12, padding: 14 }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 10 }}>
-            <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: '#38e0cc', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>▶ {tr('session:player.formClipHead', { move: move.m })}</span>
-            <button onClick={() => setClipOpen(false)} aria-label={tr('session:player.closeClipAria')} style={{ background: 'transparent', border: 0, cursor: 'pointer', minHeight: 44, padding: '10px 4px', flexShrink: 0, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#f4ede0' }}>{tr('session:player.closeClip')}</button>
-          </div>
-          <ShapeVideoPlayer key={clip.url} value={clip.url} title={tr('coach:video.namedDemo',{defaultValue:'{name} demonstration',name:move.m})} expanded/>
-          <button onClick={() => { try { window.open(clip.url, '_blank', 'noopener'); } catch (e) {} }} style={{ marginTop: 10, background: 'transparent', border: 0, cursor: 'pointer', padding: '8px 0', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: 'rgba(244,237,224,0.55)' }}>{tr('session:player.openExternally')}</button>
-        </div>
-      </div>
-    );
-    const target = typeof document !== 'undefined' && document.getElementById('bs-phone-surface');
-    return target ? createPortal(sheet, target) : sheet;
-  })() : null;
-
   // The one action's words: the rest's skip, Ready for this set in Guided's prepare step, Start set in
   // timed mode, else Log set; Next exercise / Finish workout once this move's sets are all logged.
   const primaryLabel = activeIdx == null
@@ -31714,10 +31684,10 @@ function BSSession({ moves: movesProp, onBack, title: requestedTitle = '', clien
   return <>
   <BSWorkoutSession session={{
     view, openChooser: () => setViewChooser(true), viewControlRef, viewWarning,
-    title, moves, move, moveIdx, openMode, cue, clip, clipSheet,
+    title, moves, move, moveIdx, openMode, cue,
     goMove: (i) => { setMoveIdx(i); setGuideStep('prepare'); },
     coachCue: <BSWorkoutCoachCue identity={identity} />,
-    renameMove, openClip: () => setClipOpen(true), draftWarning, logStatus,
+    renameMove, draftWarning, logStatus,
     // An open session names its moves as it goes; the list offers the swap library's names.
     moveNames: openMode ? (() => { try { return Object.keys(BS_MOVE_SWAPS || {}).slice(0, 60).map((k) => k.replace(/\b\w/g, (c) => c.toUpperCase())); } catch (e) { return []; } })() : [],
     doneSets, totalSets, pct, moveAllDone,
