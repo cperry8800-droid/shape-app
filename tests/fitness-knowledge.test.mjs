@@ -96,7 +96,7 @@ test('searchFitness: a member\'s question finds its entry first', () => {
 });
 
 test('a safety hit returns only safety entries: no how-to and no calorie figure beside it (Codex P1 on #2731)', () => {
-  for (const q of ['I have anorexia, how many calories should I eat?', 'I have an eating disorder, what should my deficit be?', 'I have high blood pressure, can I lift heavy?', 'I blacked out at the gym, how long should I rest?', "I'm on Ozempic. How many calories should I eat?", 'I have metabolic syndrome. How should I train?', 'I keep bingeing every night. How many calories should I eat?', 'I binge every weekend, what deficit should I run?', 'I keep binging after dinner, how much protein do I need?', 'I binged on pizza, how do I get back on track', "I'm on insulin, can I do fasted cardio?", 'I was diagnosed with prediabetes, how should I train?', 'My blood pressure is high, is running ok?', "I've had a stroke, can I lift?", 'I think I have diabetes, how should I eat around runs?']) {
+  for (const q of ['I have anorexia, how many calories should I eat?', 'I have an eating disorder, what should my deficit be?', 'I have high blood pressure, can I lift heavy?', 'I blacked out at the gym, how long should I rest?', "I'm on Ozempic. How many calories should I eat?", 'I have metabolic syndrome. How should I train?', 'I keep bingeing every night. How many calories should I eat?', 'I binge every weekend, what deficit should I run?', 'I keep binging after dinner, how much protein do I need?', 'I binged on pizza, how do I get back on track', "I'm on insulin, can I do fasted cardio?", 'I was diagnosed with prediabetes, how should I train?', 'My blood pressure is high, is running ok?', "I've had a stroke, can I lift?", 'I think I have diabetes, how should I eat around runs?', 'I suffer from diabetes; is exercise safe for me?', 'I live with type 1 diabetes, can I do HIIT?']) {
     const ids = searchFitness(q).entries.map((e) => e.id);
     assert.ok(ids.length > 0, q);
     for (const id of ids) { const e = FITNESS_KNOWLEDGE.find((x) => x.id === id); assert.ok(e.topic === 'safety' || e.alone === true, `${q} → ${id}`); }
@@ -118,7 +118,7 @@ test('an everyday safety word is not a warning sign: injury prevention and daily
     // A condition named, not had (Codex on #2731): the member has not said it is theirs.
     'Does exercise lower blood pressure?', 'How can I improve insulin sensitivity with exercise?', 'Can lifting prevent a heart attack?', 'Does cardio protect you from heart disease?',
     // Codex on #2732: a having word, "with" or "my" that is not the member's own.
-    'Does exercise have an effect on blood pressure?', 'What exercises help people with diabetes?', 'My father has diabetes; what exercise helps him?', "I'm wondering if exercise lowers blood pressure", 'Can I use exercise to lower blood pressure?']) {
+    'Does exercise have an effect on blood pressure?', 'What exercises help people with diabetes?', 'My father has diabetes; what exercise helps him?', "I'm wondering if exercise lowers blood pressure", 'Can I use exercise to lower blood pressure?', 'I read that exercise prevents heart disease, is that true?', 'I want to lower my risk of heart disease, how much cardio?']) {
     assert.ok(!searchFitness(q).entries.some((e) => e.id === 'red-flags'), q);
   }
 });

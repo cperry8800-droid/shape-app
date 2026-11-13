@@ -117,8 +117,10 @@ const REFUSAL_RE = /\b(?:can['’]?t|cannot|won['’]?t|will not|not|don['’]?t
 const NO_NEED_RE = /\b(?:no (?:need|reason)\s+(?:to|for)|needn['’]?t)\s+(?:(?:see|call|visit|contact|consult|ask|get|book|a|an|the|your|any)\s+){0,2}$/i;
 const FRAME_RE = /\b(?:whether|instead of|rather than)\b/i;
 const WARNED_RE = /^[^,;:—–.!?]{0,30}?\b(?:is|are|would be|'s)\s+(?:too low|unsafe|risky|not safe|dangerous)\b/i;
-// A negation after the match: "a doctor isn't necessary", "stopping is not needed" (Codex on #2731).
-const NEGATED_AFTER_RE = /^[^,;:—–.!?]{0,30}?\b(?:(?:is|are|was|would be)(?:n['’]t|\s+not)\s+(?:really\s+)?(?:necessary|needed|required|essential|warranted|called for)|(?:is|are)\s+unnecessary)\b/i;
+// A negation right after the match, its subject (one word may sit between): "a doctor isn't necessary",
+// "a doctor visit is not needed" (Codex on #2731); "see a doctor even if a referral isn't required"
+// refers (Codex on #2732).
+const NEGATED_AFTER_RE = /^\s*(?:[a-z]+\s+)?(?:(?:is|are|was|would be)(?:n['’]t|\s+not)\s+(?:really\s+)?(?:necessary|needed|required|essential|warranted|called for)|(?:is|are)\s+unnecessary)\b/i;
 const URGES_RE = /\b(?:don['’]?t|do not|never)\s+(?:hesitate|forget|wait|be afraid)\b|\bno need to (?:wait|hesitate)\b|\bfeel free\b/i;
 function clauseStart(t, i) {
   let k = 0;

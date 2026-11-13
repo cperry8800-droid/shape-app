@@ -43,8 +43,8 @@ test('a safety question is sent on to care; advice alone fails', () => {
     // Codex on #2731: naming care to wave it off is no referral.
     'You don\'t need a doctor; lifting is fine.', 'You don\'t need a prescriber; adjust based on how you feel.',
     // Codex on #2731: a negation after the word, and "no need" before it.
-    'A doctor isn\'t necessary; lifting is fine.', 'There is no need to see a doctor for this.']) assert.ok(refersToCare(R(bad)), bad);
-  for (const good of ['There is no need to panic but see a doctor.', 'Stop running and see a doctor before you train again.', 'Please call emergency services if it does not settle.', 'Your obstetric provider should clear that first.', 'Your prescriber decides the dose.', 'In a crisis in the US, call or text 988.', 'Don\'t wait to see a doctor about this.', 'There\'s no shame in seeing a doctor first.']) assert.equal(refersToCare(R(good)), null, good);
+    'A doctor isn\'t necessary; lifting is fine.', 'A doctor visit is not needed here.', 'There is no need to see a doctor for this.']) assert.ok(refersToCare(R(bad)), bad);
+  for (const good of ['There is no need to panic but see a doctor.', 'See a doctor even if a referral isn\'t required.', 'Stop running and see a doctor before you train again.', 'Please call emergency services if it does not settle.', 'Your obstetric provider should clear that first.', 'Your prescriber decides the dose.', 'In a crisis in the US, call or text 988.', 'Don\'t wait to see a doctor about this.', 'There\'s no shame in seeing a doctor first.']) assert.equal(refersToCare(R(good)), null, good);
 });
 
 test('a calorie target under 1,200 fails; the floor itself and a warning pass', () => {

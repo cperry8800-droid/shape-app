@@ -279,23 +279,23 @@ const stems = (t) => String(t).toLowerCase().replace(/[’']/g, '').split(/[^a-z
 const at = (qStems, t, i) => i + t.length <= qStems.length && t.every((w, k) => qStems[i + k] === w);
 // An entry's `except` phrases veto a tag where they start at the same word: "binge" is a tag, and
 // "binge-watched" is not a binge.
-// A condition counts only when the member claims it (Codex on #2732): "I" (or I'm, I've) and then a
-// having word in the five words before it ("I have high blood pressure", "I was diagnosed with
-// prediabetes", "I've had a stroke"); "my" right before it ("my blood pressure is high"); "on", "use" or
-// "using" right before it after a first person ("I'm on insulin"); or "with" right before it when no one
+// A condition counts only when the member claims it (Codex on #2732): "I", "I'm" or "I've" in the six
+// words before it with nothing between that asks about or changes the condition ("I have high blood
+// pressure", "I suffer from diabetes", "I was diagnosed with prediabetes"; not "how can I improve insulin
+// sensitivity", "can I use exercise to lower blood pressure", "I read that exercise prevents heart
+// disease"); "my" right before it ("my blood pressure is high"); or "with" right before it when no one
 // else is named ("is it safe to exercise with heart disease?" asks for the member, "people with
-// diabetes" and "my father has diabetes" do not). "Does exercise have an effect on blood pressure?" and
-// "how can I improve insulin sensitivity?" claim nothing.
+// diabetes" and "my father has diabetes" do not).
 const FIRST_PERSON = new Set(['i', 'im', 'ive']);
-const HAVING = new Set(['have', 'had', 'got', 'take', 'taking', 'took', 'was', 'been', 'diagnosed', 'recovering', 'living', 'treated', 'managing']);
+const NOT_A_CLAIM = new Set(['improve', 'improving', 'lower', 'lowers', 'lowering', 'raise', 'raises', 'reduce', 'reduces', 'reducing', 'prevent', 'prevents', 'preventing', 'increase', 'increases', 'boost', 'affect', 'affects', 'help', 'helps', 'protect', 'protects', 'avoid', 'wonder', 'wondering', 'curious', 'read', 'heard', 'learn', 'learning', 'know', 'worry', 'worried', 'afraid', 'scared', 'about', 'risk']);
 const OTHERS = new Set(['people', 'person', 'someone', 'somebody', 'anyone', 'everyone', 'they', 'them', 'their', 'he', 'him', 'his', 'she', 'her', 'father', 'mother', 'dad', 'mom', 'mum', 'parent', 'parents', 'wife', 'husband', 'partner', 'friend', 'friends', 'client', 'clients', 'patient', 'patients', 'son', 'daughter', 'kid', 'kids', 'child', 'children', 'brother', 'sister', 'grandma', 'grandpa', 'grandmother', 'grandfather']);
 const words = (t) => String(t).toLowerCase().replace(/[’']/g, '').split(/[^a-z0-9]+/).filter(Boolean);
 function claimed(qWords, i) {
   const before = qWords[i - 1];
   if (before === 'my') return true;
-  const w = qWords.slice(Math.max(0, i - 5), i);
-  const p = w.findIndex((x) => FIRST_PERSON.has(x));
-  if (p !== -1 && (w.slice(p + 1).some((x) => HAVING.has(x)) || ['on', 'use', 'using'].includes(before))) return true;
+  const w = qWords.slice(Math.max(0, i - 6), i);
+  const p = w.map((x) => FIRST_PERSON.has(x)).lastIndexOf(true);
+  if (p !== -1 && !w.slice(p + 1).some((x) => NOT_A_CLAIM.has(x))) return true;
   return before === 'with' && !qWords.some((x) => OTHERS.has(x));
 }
 function hasCondition(qWords, qStems, tag) {
