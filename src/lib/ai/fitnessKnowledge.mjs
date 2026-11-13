@@ -116,7 +116,7 @@ export const FITNESS_KNOWLEDGE = Object.freeze([
     id: 'activity-guidelines',
     topic: 'training',
     title: 'How much exercise and cardio a week',
-    tags: ['cardio', 'aerobic', 'how much exercise', 'minutes a week', 'walking', 'running', 'cycling', 'zone 2', 'vigorous', 'moderate', 'heart health'],
+    tags: ['cardio', 'aerobic', 'how much exercise', 'exercise every day', 'work out every day', 'daily exercise', 'minutes a week', 'walking', 'running', 'cycling', 'zone 2', 'vigorous', 'moderate', 'heart health'],
     body: 'For adults, the US Physical Activity Guidelines and the WHO both advise 150 to 300 minutes a week of moderate activity such as brisk walking, or 75 to 150 minutes of vigorous activity such as running or hard intervals, or a mix, plus muscle-strengthening on 2 or more days. More brings further benefit and any amount beats none. Adults 65 and over add balance training.',
     source: 'Physical Activity Guidelines for Americans, 2nd edition (HHS, 2018) · WHO guidelines on physical activity and sedentary behaviour (2020)',
   },
@@ -223,6 +223,8 @@ export const FITNESS_KNOWLEDGE = Object.freeze([
   {
     id: 'glp1',
     topic: 'weight',
+    // Answers alone, like a safety entry: on these medicines the calorie target is the prescriber's.
+    alone: true,
     title: 'Training and eating on GLP-1 medicines (semaglutide, tirzepatide)',
     tags: ['glp-1', 'glp1', 'ozempic', 'wegovy', 'mounjaro', 'zepbound', 'semaglutide', 'tirzepatide', 'weight loss medication', 'weight loss drug'],
     body: 'On GLP-1 medicines such as semaglutide or tirzepatide, appetite drops and part of the weight lost can be muscle. A 2025 joint advisory from the American College of Lifestyle Medicine, the American Society for Nutrition, the Obesity Medicine Association and The Obesity Society stresses enough protein, fluids and fiber, nutrient-dense food, and resistance training to protect muscle. The dose, side effects and any calorie target belong to the prescriber.',
@@ -234,7 +236,7 @@ export const FITNESS_KNOWLEDGE = Object.freeze([
     id: 'red-flags',
     topic: 'safety',
     title: 'When to stop exercising and get medical help',
-    tags: ['chest pain', 'chest pressure', 'dizzy', 'dizziness', 'faint', 'fainted', 'fainting', 'passed out', 'heart racing', 'palpitations', 'short of breath', 'shortness of breath', 'injury', 'injured', 'joint pain', 'sharp pain', 'numb', 'numbness', 'heart condition', 'heart disease', 'heart problem', 'heart attack', 'high blood pressure', 'blood pressure', 'hypertension', 'arrhythmia', 'afib', 'heart murmur', 'pacemaker', 'blacked out', 'blackout', 'black out', 'lightheaded', 'light-headed', 'collapsed', 'chest tightness', 'breathless', 'breathlessness', 'unusually breathless', 'cant breathe', 'cannot breathe', 'trouble breathing', 'difficulty breathing', 'gasping for air', 'irregular heartbeat', 'kidney disease', 'diabetes', 'medical condition', 'safe to exercise', 'medical clearance'],
+    tags: ['chest pain', 'chest pressure', 'dizzy', 'dizziness', 'faint', 'fainted', 'fainting', 'passed out', 'heart racing', 'palpitations', 'short of breath', 'shortness of breath', 'injured my', 'hurt my', 'new injury', 'swollen', 'swelling', 'joint pain', 'sharp pain', 'numb', 'numbness', 'heart condition', 'heart failure', 'stroke', 'metabolic syndrome', 'metabolic disease', 'metabolic condition', 'prediabetes', 'pre-diabetes', 'type 1 diabetes', 'type 2 diabetes', 'insulin', 'chronic kidney disease', 'copd', 'heart disease', 'heart problem', 'heart attack', 'high blood pressure', 'blood pressure', 'hypertension', 'arrhythmia', 'afib', 'heart murmur', 'pacemaker', 'blacked out', 'blackout', 'black out', 'lightheaded', 'light-headed', 'collapsed', 'chest tightness', 'breathless', 'breathlessness', 'unusually breathless', 'cant breathe', 'cannot breathe', 'trouble breathing', 'difficulty breathing', 'gasping for air', 'irregular heartbeat', 'kidney disease', 'diabetes', 'medical condition', 'medical clearance'],
     body: 'Stop and get medical help for chest pain or pressure, fainting or nearly fainting, a racing or irregular heartbeat, or unusual breathlessness during exercise; call emergency services for chest pain that does not settle with rest, or for fainting. The ACSM’s screening advice: anyone with heart, kidney or metabolic disease, or symptoms that suggest one, gets medical clearance before starting moderate or vigorous exercise. Pain that is sharp, in a joint, or comes with swelling or numbness is checked before training through it.',
     source: 'ACSM preparticipation health screening recommendations (Riebe et al., 2015) · American Heart Association: warning signs of a heart attack',
   },
@@ -259,7 +261,9 @@ export const FITNESS_KNOWLEDGE = Object.freeze([
 // ⚠ A WARNING SIGN OR A CONDITION REPLACES ANY HOW-TO. When one of a safety entry's own tags is in the
 // question, only the safety entries come back, whatever else scores higher: "I have high blood
 // pressure, can I lift heavy?" gets the clearance entry, not reps and load (Codex on #2731).
-const SAFETY = FITNESS_KNOWLEDGE.filter((e) => e.topic === 'safety');
+// The entries that answer alone: every safety entry, and any entry marked `alone` (GLP-1 medicines,
+// whose calorie target is the prescriber's; Codex P1 on #2731).
+const SAFETY = FITNESS_KNOWLEDGE.filter((e) => e.topic === 'safety' || e.alone === true);
 // A tag matches its inflections, not just its exact words: "starve myself", "starved myself" and
 // "starving myself" are one tag; so are "faint", "fainted" and "fainting" (Codex on #2731). Each
 // word is cut to a light stem on both sides, and the tag's stems must appear in order, side by side.
