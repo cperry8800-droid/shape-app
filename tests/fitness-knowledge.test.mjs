@@ -118,7 +118,7 @@ test('an everyday safety word is not a warning sign: injury prevention and daily
     // A condition named, not had (Codex on #2731): the member has not said it is theirs.
     'Does exercise lower blood pressure?', 'How can I improve insulin sensitivity with exercise?', 'Can lifting prevent a heart attack?', 'Does cardio protect you from heart disease?',
     // Codex on #2732: a having word, "with" or "my" that is not the member's own.
-    'Does exercise have an effect on blood pressure?', 'What exercises help people with diabetes?', 'My father has diabetes; what exercise helps him?', "I'm wondering if exercise lowers blood pressure", 'Can I use exercise to lower blood pressure?', 'I read that exercise prevents heart disease, is that true?', 'I want to lower my risk of heart disease, how much cardio?', 'Diabetes runs in my family, how much should I walk?', 'Does high blood pressure go down with exercise? I want to know']) {
+    'Does exercise have an effect on blood pressure?', 'What exercises help people with diabetes?', 'My father has diabetes; what exercise helps him?', "I'm wondering if exercise lowers blood pressure", 'Can I use exercise to lower blood pressure?', 'I read that exercise prevents heart disease, is that true?', 'I want to lower my risk of heart disease, how much cardio?', 'Diabetes runs in my family, how much should I walk?', 'Does high blood pressure go down with exercise? I want to know', "Can diabetes develop if I don't exercise?", "I'm asking for a friend. Diabetes and exercise?", 'I think my dad has diabetes, what should he do?']) {
     assert.ok(!searchFitness(q).entries.some((e) => e.id === 'red-flags'), q);
   }
 });

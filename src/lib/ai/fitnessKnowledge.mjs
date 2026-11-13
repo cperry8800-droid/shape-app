@@ -291,12 +291,17 @@ const NOT_A_CLAIM = new Set(['improve', 'improving', 'lower', 'lowers', 'lowerin
 const OTHERS = new Set(['people', 'person', 'someone', 'somebody', 'anyone', 'everyone', 'they', 'them', 'their', 'he', 'him', 'his', 'she', 'her', 'father', 'mother', 'dad', 'mom', 'mum', 'parent', 'parents', 'wife', 'husband', 'partner', 'friend', 'friends', 'client', 'clients', 'patient', 'patients', 'son', 'daughter', 'kid', 'kids', 'child', 'children', 'brother', 'sister', 'grandma', 'grandpa', 'grandmother', 'grandfather']);
 // Words with the clause each sits in (a comma, semicolon, colon or sentence end starts a new one), so a
 // claim after the condition is read only inside its own clause.
+// A conjunction opens a new clause too ("can diabetes develop if I don't exercise?"); a sentence (s) ends
+// only at . ! or ?.
+const CONJUNCTIONS = new Set(['if', 'when', 'whenever', 'because', 'since', 'unless', 'while', 'so', 'and', 'or', 'but', 'though', 'although']);
 function clauseWords(t) {
-  const out = { w: [], c: [] }; let c = 0, last = 0;
+  const out = { w: [], c: [], s: [] }; let c = 0, sn = 0, last = 0;
   const src = String(t).toLowerCase().replace(/[’']/g, '');
   for (const m of src.matchAll(/[a-z0-9]+/g)) {
-    if (/[,;:.!?]/.test(src.slice(last, m.index))) c += 1;
-    out.w.push(m[0]); out.c.push(c); last = m.index + m[0].length;
+    const gap = src.slice(last, m.index);
+    if (/[.!?]/.test(gap)) sn += 1;
+    if (/[,;:.!?]/.test(gap) || CONJUNCTIONS.has(m[0])) c += 1;
+    out.w.push(m[0]); out.c.push(c); out.s.push(sn); last = m.index + m[0].length;
   }
   return out;
 }
@@ -308,9 +313,12 @@ function claimed(q, i, len) {
   const qWords = q.w;
   const before = qWords[i - 1];
   if (before === 'my') return true;
-  const w = qWords.slice(Math.max(0, i - 6), i);
+  // Before it: in its own sentence, with no asking word and no one else named between ("I'm asking for a
+  // friend. Diabetes and exercise?" and "I think my dad has diabetes" claim nothing; Codex on #2732).
+  const from = Math.max(0, i - 6);
+  const w = qWords.slice(from, i).filter((_, k) => q.s[from + k] === q.s[i]);
   const p = w.map((x) => FIRST_PERSON.has(x)).lastIndexOf(true);
-  if (p !== -1 && !w.slice(p + 1).some((x) => NOT_A_CLAIM.has(x))) return true;
+  if (p !== -1 && !w.slice(p + 1).some((x) => NOT_A_CLAIM.has(x) || OTHERS.has(x))) return true;
   const after = [];
   for (let k = i + len; k < Math.min(qWords.length, i + len + 6) && q.c[k] === q.c[i]; k++) after.push(qWords[k]);
   if (after.some((x) => AFTER_CLAIM.has(x)) && !after.some((x) => NOT_A_CLAIM.has(x) || x === 'family' || x === 'genes')) return true;
