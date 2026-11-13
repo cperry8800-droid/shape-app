@@ -953,6 +953,12 @@ function cfDistanceOf(v) {
 function cfUnitPrefs(units) {
   return /metric|\bkg\b|\bkm\b/i.test(String(units || "")) ? { weight: "kg", distance: "km" } : { weight: "lb", distance: "mi" };
 }
+// A feed photo, shrunk before it is uploaded (public/newdesign/photoShrink.mjs). Never rejects: if the
+// module cannot load, the photo as picked goes up, as it always did.
+function cfShrinkPhoto(file) {
+  return import("/newdesign/photoShrink.mjs").then((m) => m.shrinkPhotoForUpload(file)).catch(() => file);
+}
+
 function cfLoadUnits(signedIn) {
   const db = window.shapeDb;
   const setting = (signedIn && db && typeof db.getUserGoals === "function")
@@ -2397,9 +2403,12 @@ function PostComposer({ me, onCancel, onSubmit, editing, where }) {
     const { data: ures } = await client.auth.getUser();
     const user = ures && ures.user;
     if (!user) throw new Error("Sign in to add a photo.");
-    const ext = (((file.type || "").split("/")[1]) || "jpg").replace(/[^a-z0-9]/gi, "") || "jpg";
+    // Shrunk to a 1600 px JPEG first, as the app does (photoShrink.mjs); the photo as picked goes up
+    // whenever it can't be, so a resize never costs the member the post.
+    const photo = await cfShrinkPhoto(file);
+    const ext = (((photo.type || "").split("/")[1]) || "jpg").replace(/[^a-z0-9]/gi, "") || "jpg";
     const path = user.id + "/" + Date.now() + "-" + Math.random().toString(36).slice(2, 7) + "." + ext;
-    const { error } = await client.storage.from("community-photos").upload(path, file, { contentType: file.type || "image/jpeg", upsert: false });
+    const { error } = await client.storage.from("community-photos").upload(path, photo, { contentType: photo.type || "image/jpeg", upsert: false });
     if (error) throw error;
     const { data } = client.storage.from("community-photos").getPublicUrl(path);
     return (data && data.publicUrl) || null;

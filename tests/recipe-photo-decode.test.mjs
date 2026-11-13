@@ -16,6 +16,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { imageHeaderDims } from '../public/newdesign/photoShrink.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const SRC = readFileSync(join(ROOT, 'mobile-app/src/services/shapeBackend.js'), 'utf8');
@@ -56,7 +57,9 @@ const constOf = (name) => {
 
 // ── the header reader ──────────────────────────────────────────────────────
 
-const bsImageHeaderDims = new Function(`${lift('bsImageHeaderDims')}; return bsImageHeaderDims;`)();
+// The header reader lives in public/newdesign/photoShrink.mjs (the feed's photo uploads read it too);
+// it is imported from there and driven exactly as it was when it was lifted out of shapeBackend.js.
+const bsImageHeaderDims = imageHeaderDims;
 
 const png = (w, h) => {
   const b = Buffer.alloc(33);

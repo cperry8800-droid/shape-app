@@ -113,7 +113,7 @@ export const SHAPE_KNOWLEDGE = Object.freeze([
     id: 'nora',
     title: 'What Nora can do',
     tags: ['nora', 'assistant', 'help', 'what can you do', 'voice', 'talk', 'speak', 'listen', 'mic', 'remember', 'memory', 'read aloud'],
-    body: 'With a free account Nora answers questions about Shape, your account and billing, and recommends coaches. With the membership she is also your assistant: she can look up today’s and this week’s plan, recent workouts, the last seven days in numbers, habits and streaks, coaching sessions, reminders and Shape Score points; recommend coaches from the marketplace; and draft actions you confirm with one tap — a weigh-in, water, a habit check, a reminder, a meal log with real macros. She remembers preferences you tell her (managed under Settings → What Nora remembers). Coaches can ask her to look up a client by name and read that client’s snapshot. Voice: in the app and on the website, turn on voice chat and hold the mic to talk; Nora reads replies aloud, and her voice and tone live under Settings → Notifications → Nora’s voice.',
+    body: 'With a free account Nora answers questions about Shape, your account and billing, and recommends coaches. With the membership she is also your assistant: she can look up today’s and this week’s plan, recent workouts, the last seven days in numbers, habits and streaks, coaching sessions, reminders and Shape Score points; answer training and nutrition questions from a sourced library; and draft actions you confirm with one tap — a weigh-in, a habit check, a reminder, a meal log with real macros — and log water, saved when you tap Confirm. She remembers preferences you tell her (managed under Settings → What Nora remembers). Coaches can look up a client by name and read their snapshot. Voice: in the app and on the website, turn on voice chat and hold the mic to talk; Nora reads replies aloud, and her voice and tone live under Settings → Notifications → Nora’s voice.',
     source: 'The app',
   },
   {
@@ -152,9 +152,15 @@ const wordRe = (w) => new RegExp(`(^|[^a-z0-9$])${escapeRe(w)}(?:e?s)?(?![a-z0-9
  * title hit rather than a stray body word.
  */
 export function searchKnowledge(query, { limit = 3, minScore = 1 } = {}) {
+  return searchEntries(SHAPE_KNOWLEDGE, query, { limit, minScore });
+}
+
+// The scorer both sourced libraries share: shape_help's (this file) and fitness_knowledge's
+// (fitnessKnowledge.mjs). A tag in the question is worth 4, a title word 3, a body word 1.
+export function searchEntries(entries, query, { limit = 3, minScore = 1 } = {}) {
   const q = String(query || '').toLowerCase().replace(/[’']/g, '');
   const words = tokens(q);
-  const scored = SHAPE_KNOWLEDGE.map((e) => {
+  const scored = entries.map((e) => {
     let score = 0;
     for (const tag of e.tags) if (wordRe(tag.toLowerCase()).test(q)) score += 4;
     const title = e.title.toLowerCase(); const body = e.body.toLowerCase();
@@ -167,5 +173,5 @@ export function searchKnowledge(query, { limit = 3, minScore = 1 } = {}) {
   }).filter((s) => s.score >= Math.max(1, minScore)).sort((a, b) => b.score - a.score);
   const hits = scored.slice(0, Math.max(1, Math.min(5, limit))).map(({ e }) => ({ id: e.id, title: e.title, body: e.body, source: e.source }));
   if (hits.length) return { entries: hits };
-  return { entries: [], topics: SHAPE_KNOWLEDGE.map((e) => e.title) };
+  return { entries: [], topics: entries.map((e) => e.title) };
 }

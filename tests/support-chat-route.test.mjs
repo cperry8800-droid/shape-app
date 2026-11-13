@@ -83,6 +83,7 @@ async function loadRoute({ user = { id: U, email: 'm@x' }, role = 'client', role
     ['@/lib/ai/memberReads.mjs', memberReads],
     ['@/lib/ai/memberMornings.mjs', memberMornings],
     ['@/lib/ai/shapeKnowledge.mjs', shapeKnowledge],
+    ['@/lib/ai/fitnessKnowledge.mjs', await import(join(ROOT, 'src/lib/ai/fitnessKnowledge.mjs'))],
     ['@/lib/ai/voiceLang.mjs', voiceLang],
     ['@/lib/ai/noraStatus.mjs', noraStatus],
     // The anonymous client a signed-out caller's coach lookup reads the public
