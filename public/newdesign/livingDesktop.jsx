@@ -1272,6 +1272,11 @@ function dkLinkHref(key, val) {
 // profile would then refuse to show.
 const DK_WALL_MIME = { "image/jpeg": "jpg", "image/jpg": "jpg", "image/pjpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/gif": "gif", "image/heic": "heic", "image/heif": "heif" };
 function dkWallExt(file) { return (file && DK_WALL_MIME[String(file.type || "").toLowerCase()]) || null; }
+// A wall or cover photo, shrunk before it is uploaded (public/newdesign/photoShrink.mjs). Never rejects:
+// if the module cannot load, the photo as picked goes up, as it always did.
+function dkShrinkPhoto(file) {
+  return import("/newdesign/photoShrink.mjs").then((m) => m.shrinkPhotoForUpload(file)).catch(() => file);
+}
 function ProfileExtras({ d, owner, coach = false, custom = null, onEdit }) {
   const { INK: LV_INK, ACCENT } = useDkPage(); // the page's colours (above)
   // `custom` is lifted to DesktopProfile so a save reflects in BOTH the hero
@@ -1605,8 +1610,10 @@ function ProfileCustomizer({ initial, c, onClose, onSave, coach = false, ownerUi
     try {
       const cl = window.shapeDb && window.shapeDb.client;
       const { data: u } = await cl.auth.getUser();
-      const path = `${u.user.id}/wall-${Date.now()}-${Math.random().toString(36).slice(2, 7)}.${ext}`;
-      const up = await cl.storage.from("community-photos").upload(path, file, { upsert: true, contentType: file.type });
+      // Shrunk to a 1600 px JPEG first (photoShrink.mjs), or the photo as picked if it can't be.
+      const photo = await dkShrinkPhoto(file);
+      const path = `${u.user.id}/wall-${Date.now()}-${Math.random().toString(36).slice(2, 7)}.${dkWallExt(photo) || ext}`;
+      const up = await cl.storage.from("community-photos").upload(path, photo, { upsert: true, contentType: photo.type });
       if (up.error) throw up.error;
       const { data: pub } = cl.storage.from("community-photos").getPublicUrl(path);
       setWall((prev) => prev.length >= WMAX ? prev : [...prev, { _k: nk(), url: pub.publicUrl, caption: "" }]);
@@ -1669,8 +1676,10 @@ function ProfileCustomizer({ initial, c, onClose, onSave, coach = false, ownerUi
     try {
       const cl = window.shapeDb && window.shapeDb.client;
       const { data: u } = await cl.auth.getUser();
-      const path = `${u.user.id}/cover-${Date.now()}.${ext}`;
-      const up = await cl.storage.from("community-photos").upload(path, file, { upsert: true, contentType: file.type });
+      // Shrunk to a 1600 px JPEG first (photoShrink.mjs), or the photo as picked if it can't be.
+      const photo = await dkShrinkPhoto(file);
+      const path = `${u.user.id}/cover-${Date.now()}.${dkWallExt(photo) || ext}`;
+      const up = await cl.storage.from("community-photos").upload(path, photo, { upsert: true, contentType: photo.type });
       if (up.error) throw up.error;
       const { data: pub } = cl.storage.from("community-photos").getPublicUrl(path);
       setCoverUrl(pub.publicUrl);

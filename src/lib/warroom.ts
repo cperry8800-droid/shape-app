@@ -668,6 +668,19 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
       ],
     },
     {
+      section: 'Feed, wall and cover photos shrunk to a 1600 px JPEG before they upload (hosting review, 2026-11-13). No migration',
+      items: [
+        { label: 'Owner, 2026-11-13, from the hosting and data-cost review (feed and coach cover photos went up and were served at full phone size): "Do this task here: Resize feed and cover photos on upload"', status: 'done' },
+        { label: 'public/newdesign/photoShrink.mjs (the app re-exports it as mobile-app/src/services/photoShrink.mjs): shrinkPhotoForUpload brings the long edge to 1600 px and re-encodes as JPEG 0.82 on a white ground, so EXIF and location go too. It measures pixels from the header first; past 25 MP it decodes only through createImageBitmap\'s resize options. It never loses an upload: a GIF, a HEIC it cannot measure, a photo already 1600 px or less, no canvas or toBlob, a failed or 20-second decode, or a result no smaller than the original all send the photo as picked', status: 'done' },
+        { label: 'Every upload to community-photos sends the shrunk photo: the app\'s uploadCommunityPhoto (feed photo posts, and the coach\'s cover and wall photos in BSMakeItYours), the website feed\'s uploadPhoto (communityFeed.jsx, cfShrinkPhoto) and the profile wall and cover (livingDesktop.jsx, dkShrinkPhoto). The website loads the module by dynamic import and sends the photo as picked if it cannot', status: 'done' },
+        { label: 'The image header reader moved from shapeBackend.js into photoShrink.mjs, so the recipe-photo import and the uploads read one copy; tests/recipe-photo-decode.test.mjs imports it from there and still drives it', status: 'done' },
+        { label: 'Tests: tests/photo-shrink.test.mjs (the size it draws at, the decode path for 12 MP and 48 MP, the white ground, every fall-back to the original, a late bitmap closed, and every upload to the bucket sending the shrunk photo); tests/mutations/photo-shrink-2026-11-13.mutations.mjs', status: 'done' },
+        { label: 'Photos uploaded before this stay full size: shrinking them needs a server job over the bucket', status: 'pending' },
+        { label: 'Not covered: coach-media (listing photos and portraits), member films and the other buckets; a HEIC the browser hands over undecoded goes up as picked (iOS normally hands the page a JPEG)', status: 'pending' },
+        { label: 'OWNER: post a photo to the Wall from the app and from the website, and set a cover photo; check each looks right and opens quickly', status: 'manual' },
+      ],
+    },
+    {
       section: 'Website: Nora and Chat in a panel docked to the page\'s right edge; Nora redrawn after Ladder\'s assistant (a welcome with suggestion cards, answers as text, a Beta pill), and the Wall filling the panel. No migration',
       items: [
         { label: 'Owner, 2026-11-12, with screenshots of Ladder\'s assistant: "Can you get Nora to look and flow like this", "have the nora and popup chat stay attached to side page like ladder has it", "keep the nora/chat bubble though", "keep same shape colors", "need chat flowing that smooth as well. remove the excess gaps around the boxes in the overall pop-up box", "Beta next to Nora, not AI", "make sure beta is cenetered properly within its bubble"', status: 'done' },
