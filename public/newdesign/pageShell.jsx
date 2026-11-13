@@ -230,9 +230,10 @@ function NavCaret({ open }) {
 }
 
 // ⚠ THE TRIGGER IS A LINK, NOT ONLY A MENU BUTTON. "Coaches" is a page AND a
-// menu: clicking it goes to the marketplace, hovering opens Marketplace and For
-// coaches. A trigger that only toggles would make the page it names unreachable
-// from the bar — the dead-control class this repo post-mortems. The click
+// menu: clicking it goes to the marketplace, hovering opens Marketplace and the
+// three pages that pitch Shape to coaches. A trigger that only toggles would make
+// the page it names unreachable from the bar — the dead-control class this repo
+// post-mortems. The click
 // handler therefore toggles ONLY when there is no `href` to go to.
 function NavDropdown({ label, href, items, active, activeMatch }) {
   const [open, setOpen] = React.useState(false);
@@ -292,23 +293,26 @@ function NavDropdown({ label, href, items, active, activeMatch }) {
 // built"): the goal-first matcher, the filters and the cards, trainers and nutritionists on one page
 // with the switch at its top. The old Marketplace.html forwards to Coaches.html and keeps its hash.
 //
-// ⚠ SIGNED OUT, IT IS A MENU: MARKETPLACE, THEN FOR COACHES. Owner, 2026-11-13, after "where did
-// the marketplace page go?": "make marketplace a sub tab under coaches", so the page the tab opens is
-// named in its menu as well, and "remove the for trainers and for nutritionists" (sub tabs since
-// 2026-11-12). Those two pages stay live and stay in the footer's For coaches column.
+// ⚠ SIGNED OUT, IT IS A MENU: MARKETPLACE, THEN THE THREE PAGES THAT PITCH SHAPE TO COACHES.
+// Owner, 2026-11-13, after "where did the marketplace page go?": "make marketplace a sub tab under
+// coaches", so the page the tab opens is named in its menu as well. For trainers and For
+// nutritionists stay (owner, 2026-11-12: "add them as subtabs under coaches"; 2026-11-13: "keep for
+// trainers and nutritonist page").
 //
-// ⚠ SIGNED IN, IT IS A PLAIN LINK AGAIN (`signedIn`), the way Rewards ▾ swaps. For coaches ends in a
-// coach application, so it is a sign-up page, and the signed-in row is the site's tabs minus its
-// sign-up pages (owner, 2026-09-23; Pricing is the other); a menu left holding only Marketplace would
-// offer the tab's own page twice. The footer still opens For coaches for a signed-in visitor. The tab
-// lights on the marketplace, For coaches and a coach's public page (`match`).
+// ⚠ SIGNED IN, IT IS A PLAIN LINK AGAIN (`signedIn`), the way Rewards ▾ swaps. Each of the three
+// coach pages ends in a coach application, so they are sign-up pages, and the signed-in row is the
+// site's tabs minus its sign-up pages (owner, 2026-09-23; Pricing is the other); a menu left holding
+// only Marketplace would offer the tab's own page twice. The footer still opens all three for a
+// signed-in visitor. The tab lights on each of them (`match`).
 //
 // `tests/site-nav.test.mjs` requires the target to name a file that is in the repo.
 const COACHES_HREF = "Coaches.html";
-const COACHES_TAB = { kind: "link", label: "Coaches", href: COACHES_HREF, match: ["Coaches", "Marketplace"] };
+const COACHES_TAB = { kind: "link", label: "Coaches", href: COACHES_HREF, match: ["Coaches", "Marketplace", "Trainers", "Nutritionists", "Trainer Overview", "Nutritionist Overview"] };
 const COACHES_ITEMS = [
   ["Marketplace", COACHES_HREF],
   ["For coaches", "ForCoaches.html"],
+  ["For trainers", "Coach.html"],
+  ["For nutritionists", "Nutritionist.html"],
 ];
 
 // ⚠ THE STORE IS A REWARDS MENU ITEM SIGNED OUT AND A TAB OF ITS OWN SIGNED IN.
@@ -364,8 +368,8 @@ const REWARDS_ITEMS = [
 // `Coach.html`, `Nutritionist.html` and `Recipes.html` kept working and kept
 // their footer links. (`Client.html` was in that list too; it became the
 // `Members` tab, and is now retired, above.) Recipes.html came back as the
-// `Kitchen` tab. Coach.html and Nutritionist.html were items of the Coaches
-// menu for a day (owner, 2026-11-12) and are footer links again (2026-11-13).
+// `Kitchen` tab, and Coach.html and Nutritionist.html as items of the Coaches
+// menu (owner, 2026-11-12), signed out.
 const SHAPE_NAV_GROUPS = [
   { ...COACHES_TAB, kind: "drop", items: COACHES_ITEMS, signedIn: [COACHES_TAB] },
   { kind: "link", label: "App", href: "GetApp.html" },
@@ -1851,12 +1855,12 @@ function Footer({ logoHeight = 36 } = {}) {
                "My Team" page, which has no `id="press"`. Owner's ruling: remove it
                until there is a press page to name.
 
-               ⚠ THE FOOTER IS THE ONLY LINK TO TWO OF THESE PAGES. Coach.html and
-               Nutritionist.html were items of the nav's Coaches menu for a day
-               (owner, 2026-11-12) and left it on 2026-11-13 ("remove the for
-               trainers and for nutritionists"), so a visitor reaches them only from
-               here, signed in or out. `tests/site-footer.test.mjs` holds both halves.
-               Recipes.html is the nav's Kitchen tab as well. */
+               ⚠ SIGNED IN, THE FOOTER IS THE ONLY LINK TO TWO OF THESE PAGES.
+               Coach.html and Nutritionist.html are items of the nav's Coaches menu
+               signed out (owner, 2026-11-12), and the menu is a plain link signed in,
+               so a signed-in visitor reaches them only from here.
+               `tests/site-footer.test.mjs` holds both halves. Recipes.html is the
+               nav's Kitchen tab as well. */
             ["Product",     [["Find a coach", "Coaches.html"], ["The app", "GetApp.html"], ["Shape Score", "Score.html"], ["Shape Store", "Store.html"], ["Radio", "Radio.html"], ["Shape Kitchen", "Recipes.html"], ["Community", "Community.html"]]],
             ["For coaches", [["Overview", "ForCoaches.html"], ["Personal trainers", "Coach.html"], ["Nutritionists", "Nutritionist.html"], ["Apply", "Landing.html"]]],
             ["Join",        [["Get started", "Landing.html"], ["Pricing", "Pricing.html"]]],

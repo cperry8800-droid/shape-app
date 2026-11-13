@@ -96,18 +96,18 @@ test('the Coaches link names a page that exists', () => {
 // its one item was For coaches. Owner, 2026-11-12, of For trainers and For
 // nutritionists, which only the footer linked: "add them as subtabs under coaches".
 // Owner, 2026-11-13, after "where did the marketplace page go?": "make marketplace a
-// sub tab under coaches" and "remove the for trainers and for nutritionists".
+// sub tab under coaches", first in the menu.
 //
-// ⚠ SIGNED OUT ONLY. For coaches ends in a coach application, so it is a sign-up
-// page, and the signed-in row is the site's tabs minus its sign-up pages (owner,
-// 2026-09-23); Marketplace alone would be the tab's own page twice. Signed in,
-// Coaches is the plain link, swapped in place the way Rewards ▾ is, so the
-// signed-in bar is as wide as it was measured.
-test('Coaches is a menu of Marketplace and For coaches signed out, and a plain link signed in, on both bars and both drawers', () => {
+// ⚠ SIGNED OUT ONLY. The three coach pages each end in a coach application, so they
+// are sign-up pages, and the signed-in row is the site's tabs minus its sign-up pages
+// (owner, 2026-09-23); Marketplace alone would be the tab's own page twice. Signed in,
+// Coaches is the plain link, swapped in place the way Rewards ▾ is, so the signed-in
+// bar is as wide as it was measured.
+test('Coaches is a menu of Marketplace and the coach pages signed out, and a plain link signed in, on both bars and both drawers', () => {
   assert.equal(target(NAV_TABLES.COACHES_HREF), 'Coaches.html', 'the Coaches tab no longer opens the marketplace page');
   const items = NAV_TABLES.COACHES_ITEMS.map(([n, h]) => [n, target(h)]);
-  assert.deepEqual(items, [['Marketplace', 'Coaches.html'], ['For coaches', 'ForCoaches.html']],
-    'the Coaches menu is not the owner\'s Marketplace and For coaches');
+  assert.deepEqual(items, [['Marketplace', 'Coaches.html'], ['For coaches', 'ForCoaches.html'], ['For trainers', 'Coach.html'], ['For nutritionists', 'Nutritionist.html']],
+    'the Coaches menu is not the owner\'s Marketplace and three coach pages');
   const out = NAV_TABLES.SHAPE_NAV_GROUPS.find((g) => g.label === 'Coaches');
   assert.equal(out.kind, 'drop', 'signed out, Coaches is not a menu');
   assert.equal(out.items, NAV_TABLES.COACHES_ITEMS, 'the signed-out Coaches menu is not COACHES_ITEMS');
@@ -118,9 +118,10 @@ test('Coaches is a menu of Marketplace and For coaches signed out, and a plain l
   assert.equal(inRow.items, undefined, 'signed in, Coaches carries menu items');
   for (const [name, g] of [['signed out', out], ['signed in', inRow]]) {
     assert.equal(g.href, NAV_TABLES.COACHES_HREF, 'the ' + name + ' Coaches points somewhere else');
-    // It lights on the marketplace (and For coaches, whose page names it) and on a
-    // coach's public page; not on For trainers or For nutritionists, out of its menu.
-    assert.deepEqual(g.match, ['Coaches', 'Marketplace'], 'the ' + name + ' Coaches lights on other pages');
+    // It lights on the marketplace and on every coach page.
+    for (const page of ['Coaches', 'Marketplace', 'Trainer Overview', 'Nutritionist Overview']) {
+      assert.ok((g.match || []).includes(page), 'the ' + name + ' Coaches no longer lights on ' + page);
+    }
   }
   // The shared header's bar and drawer honour a link's `match`.
   assert.match(SHELL, /\{link\(g\.label, g\.href, g\.match\)\}/, 'the bar draws a link without its match');
@@ -142,9 +143,8 @@ test('Coaches is a menu of Marketplace and For coaches signed out, and a plain l
   assert.ok(at >= 0, 'the homepage drawer lost Coaches');
   assert.deepEqual(inDrawer.slice(at + 1, at + 1 + items.length).map((a) => [a[3].replace(/&nbsp;/g, ' ').trim(), target(a[1]), /\bdata-signed-out-only\b/.test(a[2])]),
     items.map(([n, h]) => [n, h, true]), 'the homepage drawer does not carry the Coaches menu under Coaches, marked signed-out-only');
-  // The footer still opens all three coach pages, For trainers and For nutritionists
-  // now from there alone. Read from each footer alone: COACHES_ITEMS spells
-  // ForCoaches.html in the nav.
+  // The footer still opens all three, which a signed-in visitor needs. Read from
+  // each footer alone: COACHES_ITEMS spells the same pairs in the nav.
   const homeFoot = /<footer class="ft">[\s\S]*?<\/footer>/.exec(INDEX);
   const at2 = SHELL.indexOf('function Footer(');
   assert.ok(homeFoot && at2 > 0, 'a footer did not parse — this guard is reading nothing');
