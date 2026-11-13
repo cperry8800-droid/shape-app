@@ -1277,7 +1277,8 @@ function cfSince(iso) {
 // skips a meal by its activity_type.
 function cfKindMarker(post) {
   const k = String((post && post.kind) || '');
-  if (!post || post.video || k === 'milestone' || k === 'video') return null;
+  // A post carrying a video keeps the video's kind; any other kind (post, milestone, video) writes none.
+  if (!post || post.video) return null;
   if (k === 'meal') return 'meal';
   if (k === 'workout' || k === 'run' || k === 'pr') return 'workout';
   return null;
