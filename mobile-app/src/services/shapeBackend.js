@@ -6031,6 +6031,32 @@ async function getPlan() {
 }
 window.ShapePlan = { get: getPlan };
 
+// The stock how-to clips: the exercise catalog's rows that carry one (name, aliases, demo_url), for
+// the live session's exercise modules (services/exerciseDemo.mjs picks a coach's own clip first).
+// The catalog's read policy is public, so this needs no account. Read once per app session; a
+// failed read is not kept, so the next session asks again, and a session without it shows only the
+// coaches' clips.
+let _stockDemoRows = null;
+let _stockDemoRead = null;
+function loadExerciseDemos() {
+  if (_stockDemoRows) return Promise.resolve(_stockDemoRows);
+  if (!supabase) return Promise.resolve([]);
+  if (!_stockDemoRead) {
+    _stockDemoRead = supabase.from('exercise_catalog')
+      .select('name, aliases, demo_url')
+      .not('demo_url', 'is', null)
+      .limit(2000)
+      .then(({ data, error }) => {
+        if (error) throw error;
+        _stockDemoRows = Array.isArray(data) ? data : [];
+        return _stockDemoRows;
+      })
+      .finally(() => { _stockDemoRead = null; });
+  }
+  return _stockDemoRead;
+}
+window.ShapeExerciseDemos = { load: loadExerciseDemos, cached: () => _stockDemoRows };
+
 // Assignment — put a coach's catalogue plan onto a linked client's Train/Eat.
 // Writes the SAME tables the client's /api/client/plan reads: trainer →
 // client_workouts (the gated week-shaped boundary), nutritionist →

@@ -3,6 +3,8 @@ import { createPortal } from 'react-dom';
 import { BS_CLEAN_HEAD, BS_CLEAN_SANS, BSCleanType } from './bsCleanType.jsx';
 import { bsMpGlass } from './BSMemberBento.jsx';
 import { bsRaised } from './BSProInstrument.jsx';
+import { resolveMobileVideo } from '../services/videoComponents.mjs';
+import { exerciseDemo, stockDemoIndex } from '../services/exerciseDemo.mjs';
 // ─── THE LIVE SESSION: Focus · Workout log · Guided coach ────────────────────────────────────────
 // The three views a member picks on "Choose your workout view", redrawn in the glass look the owner
 // picked for the workout pages (owner, 2026-11-04: "new design for not this specific page, but the
@@ -22,6 +24,11 @@ import { bsRaised } from './BSProInstrument.jsx';
 //     other folded to a slot, then the set's figures as lit slots.
 //   · Every view opens on the same lit readouts and ends on the lit chips and rows (the queue on Focus and
 //     Guided coach).
+//   · Every exercise module carries its how-to clip above its sets (owner, 2026-11-13: "videos of each
+//     exercise listed above each set so users can get a visual of the exercise", "show the videos on the
+//     workout exercise modules in all 3 views"): Focus's card and Guided's card under the move's name, and
+//     each of the log's cards under its header. The coach's own clip, else the catalog's stock clip
+//     (services/exerciseDemo.mjs); a move with neither shows no frame.
 // The heart-rate line sits with the session's own controls at the foot; a live reading rides beside
 // the clock, so it is never scrolled away from.
 //
@@ -62,10 +69,82 @@ const tabular = { fontVariantNumeric: 'tabular-nums' };
 const btn0 = { background: 'transparent', border: 0, padding: 0, cursor: 'pointer', minHeight: 44 };
 // The live-effort heat eases from one colour to the next as the effort zone moves (#1575).
 const heatTrans = { transition: 'color 1.2s ease, border-color 1.2s ease, background-color 1.2s ease' };
+
+// ── An exercise's how-to clip, in its module above the sets ──
+// A video file plays in place with the device's own controls (full screen and sound included); a
+// YouTube, Vimeo or Loom clip is a frame with ▶ that loads its player only when tapped, so a log of
+// eight moves loads no third-party player until one is asked for; anything else opens outside.
+// One clip plays at a time: starting one stops the rest (the 'shape-video-open' signal ShapeVideoPlayer
+// already sends, so a clip open on another page stops too).
+// ⚠ THE FRAME IS BLACK IN BOTH THEMES: it is the video's own letterbox, not a surface of the page.
+const DEMO_OPEN = 'shape-video-open';
+function BSExerciseDemoFrame({ url, name, t, tr, ink }) {
+  const source = resolveMobileVideo(url);
+  const [open, setOpen] = React.useState(false);
+  const [failed, setFailed] = React.useState(false);
+  const me = React.useRef({});
+  const vid = React.useRef(null);
+  React.useEffect(() => { setOpen(false); setFailed(false); }, [url]);
+  React.useEffect(() => {
+    const stop = (e) => {
+      if (e.detail === me.current) return;
+      setOpen(false);
+      try { if (vid.current && !vid.current.paused) vid.current.pause(); } catch (err) { /* a detached element */ }
+    };
+    window.addEventListener(DEMO_OPEN, stop);
+    return () => window.removeEventListener(DEMO_OPEN, stop);
+  }, []);
+  if (!source) return null;
+  const announce = () => { try { window.dispatchEvent(new window.CustomEvent(DEMO_OPEN, { detail: me.current })); } catch (err) { /* no CustomEvent */ } };
+  const move = name || tr('session:player.namePlaceholder');
+  const label = tr('session:player.formClipHead', { move });
+  const demoName = tr('coach:video.namedDemo', { name: move });
+  const fill = { position: 'absolute', inset: 0, width: '100%', height: '100%', boxSizing: 'border-box' };
+  const openOutside = () => { try { window.open(source.url, '_blank', 'noopener,noreferrer'); } catch (err) { /* blocked */ } };
+  // The tile's name carries the words it shows (a name that drops them fails voice control).
+  const tile = (onClick, text) => (
+    <button type="button" onClick={onClick} aria-label={`${label} · ${text}`} style={{ ...fill, minHeight: 44, border: 0, padding: 12, cursor: 'pointer', background: 'transparent', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10, color: '#f4ede0' }}>
+      <span aria-hidden style={{ width: 46, height: 46, borderRadius: 999, border: '1.5px solid rgba(244,237,224,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, paddingLeft: 3, boxSizing: 'border-box' }}>▶</span>
+      <span style={{ ...kick(t, 8, 'rgba(244,237,224,0.8)'), maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{text}</span>
+    </button>
+  );
+  let body;
+  if (source.kind === 'file' && !failed) {
+    // `#t=0.1` asks for the first frame as the still, where a phone would otherwise show black.
+    const src = source.src.indexOf('#') === -1 ? `${source.src}#t=0.1` : source.src;
+    body = <video ref={vid} src={src} controls playsInline preload="metadata" aria-label={demoName} onPlay={announce} onError={() => setFailed(true)} style={{ ...fill, display: 'block', objectFit: 'contain', background: '#000' }} />;
+  } else if (source.kind === 'embed') {
+    body = open
+      ? <iframe src={source.src} title={`${demoName} — ${source.provider}`} allow="autoplay; encrypted-media; fullscreen; picture-in-picture" allowFullScreen referrerPolicy="strict-origin-when-cross-origin" style={{ ...fill, border: 0, display: 'block' }} />
+      : tile(() => { announce(); setOpen(true); }, source.provider);
+  } else {
+    // A page that is not a video, or a file this device could not play: the member opens it outside.
+    body = tile(openOutside, tr('session:player.openExternally'));
+  }
+  return (
+    <div data-ws-demo={source.kind} style={{ position: 'relative', marginTop: 12, width: '100%', aspectRatio: '16 / 9', maxHeight: 240, borderRadius: 14, overflow: 'hidden', background: '#000', border: `1px solid ${hexA(ink, 0.12)}` }}>
+      {body}
+    </div>
+  );
+}
+
 export function BSWorkoutSession({ session: S }) {
   const { useBS, BSPage, bsSdReduced } = window;
   const tr = useShapeTr();
   const t0 = useBS();
+  // The stock clips, read once per app session (window.ShapeExerciseDemos); until they arrive, or if the
+  // read fails, the modules show the coaches' own clips only.
+  const [stockRows, setStockRows] = React.useState(() => {
+    try { return (window.ShapeExerciseDemos && window.ShapeExerciseDemos.cached && window.ShapeExerciseDemos.cached()) || null; } catch (e) { return null; }
+  });
+  React.useEffect(() => {
+    let live = true;
+    let read = null;
+    try { read = window.ShapeExerciseDemos && window.ShapeExerciseDemos.load && window.ShapeExerciseDemos.load(); } catch (e) { read = null; }
+    if (read && typeof read.then === 'function') read.then((rows) => { if (live && Array.isArray(rows)) setStockRows(rows); }, () => {});
+    return () => { live = false; };
+  }, []);
+  const stock = React.useMemo(() => stockDemoIndex(stockRows), [stockRows]);
   // The clean type (Geist heads, Inter Tight words), as Home, Train and Eat set theirs.
   const t = { ...t0, DISPLAY: BS_CLEAN_SANS, BODY: BS_CLEAN_SANS, HEAD: BS_CLEAN_HEAD };
   const HEAD = BS_CLEAN_HEAD, SANS = BS_CLEAN_SANS;
@@ -214,9 +293,12 @@ export function BSWorkoutSession({ session: S }) {
   const nameEl = S.openMode
     ? <input value={move.m} onChange={(e) => S.renameMove(e.target.value)} list="bs-session-move-names" placeholder={tr('session:player.namePlaceholder')} style={{ ...nameStyle, width: '100%', boxSizing: 'border-box', background: 'transparent', border: 0, borderBottom: `1px solid ${hexA(INK, 0.2)}`, outline: 'none', padding: '2px 0 6px' }} />
     : <div style={nameStyle}>{move.m}</div>;
-  const clipBtn = S.clip ? (
-    <button onClick={S.openClip} style={{ ...btn0, marginTop: 8, display: 'inline-flex', alignItems: 'center', gap: 6, padding: '0 12px', borderRadius: 999, border: `1px solid ${hexA(heat, 0.45)}`, ...kick(t, 8, heat) }}>▶ {tr('session:player.formClip')}</button>
-  ) : null;
+  // A move's how-to clip, in its module above the sets: the coach's own, else the stock one.
+  const demoFor = (mv) => {
+    const d = exerciseDemo(mv, stock);
+    return d ? <BSExerciseDemoFrame key={d.url} url={d.url} name={mv.m} t={t} tr={tr} ink={INK} /> : null;
+  };
+  const demoEl = demoFor(move);
   const focusLines = isFocus ? (
     <div style={{ marginTop: 8 }}>
       <div style={{ fontFamily: t.MONO, fontSize: 11, color: t.INK70, letterSpacing: '0.02em' }}>{move.s || `${move.sets} × ${move.reps || '—'}`}{targetRpe}</div>
@@ -278,7 +360,7 @@ export function BSWorkoutSession({ session: S }) {
   const card = isLog ? null : (
     <div data-ws-card="" style={{ marginTop: 12, ...bsRaised(t, heat), borderRadius: 22, padding: '16px 14px' }}>
       {nameEl}
-      {clipBtn}
+      {demoEl}
       {focusLines}
       {guided}
       {setBlock}
@@ -316,6 +398,7 @@ export function BSWorkoutSession({ session: S }) {
               <span style={{ display: 'block', fontFamily: HEAD, fontSize: 16.5, fontWeight: 700, letterSpacing: '-0.02em', color: INK, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{rowMove.m || tr('session:player.namePlaceholder')}{cur && <span data-ws-now="" style={{ marginLeft: 8, ...kick(t, 7.5, heat, { fontWeight: 700 }), ...glowT(heat) }}>{tr('session:player.now')}</span>}</span>
               <span style={{ display: 'block', marginTop: 2, fontFamily: t.MONO, fontSize: 9.5, color: t.INK50 }}>{rowMove.s || `${rowMove.sets} × ${rowMove.reps || '—'}`}{rowMove.l ? ` · ${rowMove.l}` : ''}</span>
             </button>
+            {demoFor(rowMove)}
             {setRowsFor(rowMove, rowMoveIdx, `bs-log-move-${rowMoveIdx}`)}
           </section>
         );
@@ -422,7 +505,7 @@ export function BSWorkoutSession({ session: S }) {
           <div style={{ minWidth: 0, flex: 1 }}>{nameEl}</div>
           <span style={{ paddingTop: 9 }}>{setDots}</span>
         </div>
-        {clipBtn}
+        {demoEl}
         {focusLines}
         <div style={{ marginTop: 14, ...kick(t, 8.5, heat), ...heatTrans }}>
           {S.activeIdx != null ? tr(S.activeRunning ? 'session:player.setLive' : 'session:player.setUp', { n: pad2(S.activeIdx + 1) }) : tr('session:player.allSetsLogged')}
@@ -469,7 +552,6 @@ export function BSWorkoutSession({ session: S }) {
       </BSCleanType>
       {S.openMode && <datalist id="bs-session-move-names">{S.moveNames.map((n) => <option key={n} value={n} />)}</datalist>}
       {surface ? createPortal(action, surface) : action}
-      {S.clipSheet}
     </BSPage>
   );
 }

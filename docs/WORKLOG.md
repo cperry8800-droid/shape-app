@@ -103,7 +103,9 @@ The rules and the code map. Every session loads it: when a rule changes, replace
   Night-before prep: `services/prepAhead.mjs` (Eat and the cron), `services/mealDays.mjs`
   (account-bound, compare-and-set), `BSPlanDay.jsx`. Check-ins: one on Home, the Morning check-in
   (`BSCheckinCard.jsx`); the coach's Weekly check-in is a line on Team (`BSHomeTeam.jsx`), its page
-  `BSWeeklyCheckin.jsx`. A profile photo is placed before it is saved (`BSAvatarPositioner.jsx`,
+  `BSWeeklyCheckin.jsx`. The live session (`BSWorkoutSession.jsx`) shows each exercise's how-to clip above
+  its sets in all three views: the coach's own, else the catalog's stock `demo_url` (`services/exerciseDemo.mjs`,
+  `window.ShapeExerciseDemos`). A profile photo is placed before it is saved (`BSAvatarPositioner.jsx`,
   `services/avatarCrop.mjs`): the 256px square in `client_identity.photo`, the photo as picked in
   `client_photo_source` for Reposition.
 - ⚠ **Window globals** (`Object.assign(window, …)`): read one before its module defines it
