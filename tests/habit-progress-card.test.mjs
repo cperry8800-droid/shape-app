@@ -76,7 +76,81 @@ test('today with no habits asks for the first one', async () => {
   const m = await mount(React.createElement(H.BSHabitToday, { habits: [], onToggle() {}, onRemove() {}, onAdd() {}, reminders: {} }));
   assert.match(m.text(), /Add a habit — daily points live here\./);
   assert.ok(!m.host.querySelector('[role="progressbar"]'), 'no progress bar without habits');
+  assert.doesNotMatch(m.text(), /Start with one/, 'starters show only where a page can add them');
   await m.close();
+});
+
+// Owner, 2026-11-13: "what happened to the habits page on app?" — with no habit the page was a line,
+// two buttons and a link over an empty screen. It now offers starters, one tap each.
+test('no habits: starters add a private habit in one tap, and a second tap waits for the first', async () => {
+  const calls = [];
+  let release;
+  const onQuickAdd = (h) => { calls.push(h); return new Promise((r) => { release = r; }); };
+  const m = await mount(React.createElement(H.BSHabitToday, { habits: [], onToggle() {}, onRemove() {}, onAdd() {}, onQuickAdd, reminders: {} }));
+  assert.match(m.text(), /Start with one/);
+  assert.match(m.text(), /One tap adds it, private to you\./);
+  for (const name of ['Water 3L', '10k steps', 'Read 10 pages', 'No soda', 'No snooze']) assert.ok(m.btn(new RegExp(name)), 'no starter ' + name);
+  await m.click(/Water 3L/);
+  assert.deepEqual(calls, [{ name: 'Water 3L', type: 'do' }]);
+  assert.equal(m.btn(/Water 3L/).getAttribute('aria-busy'), 'true');
+  assert.ok(m.btn(/No soda/).disabled, 'another starter is tappable while one saves');
+  await React.act(async () => { release(true); });
+  assert.ok(!m.btn(/No soda/).disabled, 'the starters stay locked after the save');
+  await m.click(/No soda/);
+  assert.deepEqual(calls[1], { name: 'No soda', type: 'avoid' }, 'a to-don’t starter is added as one');
+  await React.act(async () => { release(true); });
+  await m.close();
+});
+
+// Codex P2 on #2739: a tap saves the label as the habit's name, so the starters are in the member's
+// language, and the name saved is the one shown.
+test('no habits: the starters are in the member’s language, and the name saved is the one shown', async () => {
+  const de = JSON.parse(readFileSync(join(ROOT, 'mobile-app/src/i18n/catalogs/de/habits.json'), 'utf8'));
+  const en = W.ShapeI18n;
+  W.ShapeI18n = { t: (key, opts = {}) => { const [ns, k] = key.split(':'); const msg = ns === 'habits' ? de[k] : undefined; return msg == null ? undefined : new IntlMessageFormat(msg, 'de').format(opts); }, intlLocale: () => 'de-DE' };
+  try {
+    const calls = [];
+    const m = await mount(React.createElement(H.BSHabitToday, { habits: [], onToggle() {}, onRemove() {}, onAdd() {}, onQuickAdd: async (h) => { calls.push(h); return true; }, reminders: {} }));
+    assert.doesNotMatch(m.text(), /Water 3L|No soda/, 'an English starter on a German page');
+    await m.click(/3 L Wasser/);
+    await m.click(/Keine Limo/);
+    assert.deepEqual(calls, [{ name: '3 L Wasser', type: 'do' }, { name: 'Keine Limo', type: 'avoid' }]);
+    await m.close();
+  } finally { W.ShapeI18n = en; }
+});
+
+// Codex P2 on #2739: the page's create resolves false on a failed save, and the app's toasts are a
+// no-op, so the starters say it themselves, and clear it on the next try.
+test('no habits: a starter that fails to save says so on the page, and the next tap clears it', async () => {
+  const results = [false, true];
+  const m = await mount(React.createElement(H.BSHabitToday, { habits: [], onToggle() {}, onRemove() {}, onAdd() {}, onQuickAdd: async () => results.shift(), reminders: {} }));
+  assert.ok(!m.host.querySelector('[role="alert"]'));
+  await m.click(/Water 3L/);
+  const alert = m.host.querySelector('[role="alert"]');
+  assert.ok(alert, 'a failed save says nothing on the page');
+  assert.equal(alert.textContent, 'Couldn’t add Water 3L. Try again.');
+  assert.ok(!m.btn(/Water 3L/).disabled, 'the starter is not there to tap again');
+  await m.click(/Water 3L/);
+  assert.ok(!m.host.querySelector('[role="alert"]'), 'the message stays after a save that worked');
+  await m.close();
+});
+
+test('no habits: Progress shows its empty week, and no By habit heading over nothing', async () => {
+  const m = await mount(React.createElement(H.BSHabitProgress, { habits: [] }));
+  assert.match(m.text(), /Your week\./);
+  assert.match(m.text(), /No habits to count yet/);
+  assert.equal(m.host.querySelectorAll('[aria-label="Habits kept each day"] button').length, 7, 'the week still draws its seven days');
+  assert.doesNotMatch(m.text(), /By habit/);
+  assert.doesNotMatch(m.text(), /Last week avg/, 'no last-week line from nothing');
+  await m.close();
+});
+
+test('the page shows Progress from the first visit, and hands the starters its create', () => {
+  const src = readFileSync(join(ROOT, 'mobile-app/src/broadsheet/iosAppBroadsheetHabits.jsx'), 'utf8');
+  const page = src.slice(src.indexOf('function BSHabitsPage('), src.indexOf('// _bsUseServerHabits: Home'));
+  assert.ok(page.length > 500, 'could not slice BSHabitsPage');
+  assert.match(page, /\{status === 'ready' && <BSHabitProgress habits=\{habits\} archived=\{archived\} \/>\}/, 'Progress waits for a habit again');
+  assert.match(page, /onQuickAdd=\{\(\{ name, type \}\) => create\(\{ name, type, visibility: 'private' \}\)\}/, 'the starters do not create through the page’s store, privately');
 });
 
 test('the week: a column a day, today’s open habits, a tapped day’s detail, no paging past today', async () => {
