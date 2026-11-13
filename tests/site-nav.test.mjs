@@ -95,16 +95,19 @@ test('the Coaches link names a page that exists', () => {
 // marketplace. Owner, 2026-11-08: "remove the sub tab ... no longer needed", when
 // its one item was For coaches. Owner, 2026-11-12, of For trainers and For
 // nutritionists, which only the footer linked: "add them as subtabs under coaches".
+// Owner, 2026-11-13, after "where did the marketplace page go?": "make marketplace a
+// sub tab under coaches", first in the menu.
 //
-// ⚠ SIGNED OUT ONLY. The three pages each end in a coach application, so they are
-// sign-up pages, and the signed-in row is the site's tabs minus its sign-up pages
-// (owner, 2026-09-23). Signed in, Coaches is the plain link, swapped in place the
-// way Rewards ▾ is, so the signed-in bar is as wide as it was measured.
-test('Coaches is a menu of the coach pages signed out, and a plain link signed in, on both bars and both drawers', () => {
+// ⚠ SIGNED OUT ONLY. The three coach pages each end in a coach application, so they
+// are sign-up pages, and the signed-in row is the site's tabs minus its sign-up pages
+// (owner, 2026-09-23); Marketplace alone would be the tab's own page twice. Signed in,
+// Coaches is the plain link, swapped in place the way Rewards ▾ is, so the signed-in
+// bar is as wide as it was measured.
+test('Coaches is a menu of Marketplace and the coach pages signed out, and a plain link signed in, on both bars and both drawers', () => {
   assert.equal(target(NAV_TABLES.COACHES_HREF), 'Coaches.html', 'the Coaches tab no longer opens the marketplace page');
   const items = NAV_TABLES.COACHES_ITEMS.map(([n, h]) => [n, target(h)]);
-  assert.deepEqual(items, [['For coaches', 'ForCoaches.html'], ['For trainers', 'Coach.html'], ['For nutritionists', 'Nutritionist.html']],
-    'the Coaches menu is not the owner\'s three coach pages');
+  assert.deepEqual(items, [['Marketplace', 'Coaches.html'], ['For coaches', 'ForCoaches.html'], ['For trainers', 'Coach.html'], ['For nutritionists', 'Nutritionist.html']],
+    'the Coaches menu is not the owner\'s Marketplace and three coach pages');
   const out = NAV_TABLES.SHAPE_NAV_GROUPS.find((g) => g.label === 'Coaches');
   assert.equal(out.kind, 'drop', 'signed out, Coaches is not a menu');
   assert.equal(out.items, NAV_TABLES.COACHES_ITEMS, 'the signed-out Coaches menu is not COACHES_ITEMS');

@@ -216,9 +216,9 @@
   .nradio:hover .nvfr path{stroke:rgba(var(--teal-rgb),.45)}
   .nradio svg.mark{width:11px;height:13px;display:block}
   .nvfr{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;display:block}
-  /* The Coaches and Rewards menus, signed out (Coaches got its menu back on the
-     owner's word, 2026-11-12: "add them as subtabs under coaches", For trainers
-     and For nutritionists with For coaches). ⚠ The trigger is a real link as well as a menu: clicking
+  /* The Coaches and Rewards menus, signed out (Coaches: Marketplace, owner, 2026-11-13:
+     "make marketplace a sub tab under coaches", then For coaches, For trainers and For
+     nutritionists, 2026-11-12: "add them as subtabs under coaches"). ⚠ The trigger is a real link as well as a menu: clicking
      goes to its page; hovering opens its items. A trigger that only toggles makes
      the page it names unreachable from the bar. */
   /* Signed-in-only links (the Store tab) stay hidden until /api/me answers with an
@@ -237,10 +237,18 @@
      mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 5'%3E%3Cpath d='M1 1l3 3 3-3' fill='none' stroke='%23000' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/8px 5px no-repeat;
      transition:transform .18s ease}
   .ndrop:hover>a .car,.ndrop:focus-within>a .car{transform:rotate(180deg)}
+  /* ⚠ THE POINTER HAS TO GET FROM THE TAB TO THE MENU WITHOUT IT CLOSING (owner, 2026-11-13:
+     "the drop down isn't going away when i hover over and try to click on a sub tab"). The panel
+     sits 6px under a tab only as tall as its text, so the pointer crossing that gap left .ndrop and
+     the menu vanished under it. ::before bridges the gap (it belongs to the panel, so hovering it
+     keeps .ndrop:hover), and the panel hides 150ms after the pointer leaves rather than at once,
+     the grace pageShell.jsx's NavDropdown gives the other 67 pages with its own bridge and timer.
+     Hidden is visibility, not display, so the delay can apply; a hidden panel takes no pointer. */
   .nmenu{position:absolute;top:calc(100% + 6px);left:50%;transform:translateX(-50%);min-width:200px;
          padding:8px;border-radius:8px;background:rgba(6,9,15,.98);border:1px solid var(--line);
-         box-shadow:0 20px 50px rgba(0,0,0,.5);display:none;z-index:70}
-  .ndrop:hover .nmenu,.ndrop:focus-within .nmenu{display:block}
+         box-shadow:0 20px 50px rgba(0,0,0,.5);display:block;visibility:hidden;transition:visibility 0s linear .15s;z-index:70}
+  .nmenu::before{content:"";position:absolute;left:0;right:0;bottom:100%;height:8px}
+  .ndrop:hover .nmenu,.ndrop:focus-within .nmenu{visibility:visible;transition-delay:0s}
   .nmenu a{display:block;padding:10px 14px;border-radius:5px;font-size:13.5px;font-weight:500;
            color:var(--fg-2);white-space:nowrap;line-height:1.2}
   .nmenu a:hover{background:rgba(var(--teal-rgb),.12);color:var(--fg)}
@@ -1014,7 +1022,7 @@
       })();
     </script>
     <div class="nlinks">
-      <span class="ndrop"><a href="/newdesign/Coaches.html">Coaches<span class="car" aria-hidden="true" data-signed-out-only></span></a><div class="nmenu" data-signed-out-only><a href="/newdesign/ForCoaches.html">For coaches</a><a href="/newdesign/Coach.html">For trainers</a><a href="/newdesign/Nutritionist.html">For nutritionists</a></div></span>
+      <span class="ndrop"><a href="/newdesign/Coaches.html">Coaches<span class="car" aria-hidden="true" data-signed-out-only></span></a><div class="nmenu" data-signed-out-only><a href="/newdesign/Coaches.html">Marketplace</a><a href="/newdesign/ForCoaches.html">For coaches</a><a href="/newdesign/Coach.html">For trainers</a><a href="/newdesign/Nutritionist.html">For nutritionists</a></div></span>
       <a href="/newdesign/GetApp.html">App</a>
       <a href="/newdesign/Recipes.html">Kitchen</a>
       <a href="/newdesign/Community.html">Community</a>
@@ -1037,6 +1045,7 @@
 </nav>
 <div class="ndrawer" id="ndrawer">
   <a href="/newdesign/Coaches.html">Coaches</a>
+  <a href="/newdesign/Coaches.html" data-signed-out-only>&nbsp;&nbsp;Marketplace</a>
   <a href="/newdesign/ForCoaches.html" data-signed-out-only>&nbsp;&nbsp;For coaches</a>
   <a href="/newdesign/Coach.html" data-signed-out-only>&nbsp;&nbsp;For trainers</a>
   <a href="/newdesign/Nutritionist.html" data-signed-out-only>&nbsp;&nbsp;For nutritionists</a>
