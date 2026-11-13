@@ -46,7 +46,9 @@ test('every website page that runs something the choice gates can show the banne
     if (!SHELL_TAG.test(html)) missing.push(rel);
   }
   assert.deepEqual(missing, [], 'these pages wait on a choice they never ask for');
-  assert.ok(direct >= 13, 'only ' + direct + ' pages without the shell load the banner');
+  // 12 since public/reset-password.html was retired (2026-11-13): /reset-password is the Next page,
+  // which has the banner from the Next layout (the test below).
+  assert.ok(direct >= 12, 'only ' + direct + ' pages without the shell load the banner');
   for (const rel of REDIRECTS) {
     assert.match(read(rel), /location\.replace\(/, rel + ' no longer redirects at once, so it needs the banner');
   }
