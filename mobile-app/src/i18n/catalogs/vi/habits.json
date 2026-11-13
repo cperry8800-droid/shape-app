@@ -35,6 +35,8 @@
   "row.stayedClean": "✓ Vẫn sạch",
   "row.workTag": "Công việc · ",
   "score.emptyEmph": "điểm mỗi ngày ở đây.",
+  "empty.startWith": "Bắt đầu với một thói quen",
+  "empty.startHint": "Chạm một lần để thêm, chỉ mình bạn thấy.",
   "score.emptyLead": "Thêm một thói quen —",
   "score.shapeScore": "Shape Score",
   "toast.addError": "Không thể thêm thói quen",

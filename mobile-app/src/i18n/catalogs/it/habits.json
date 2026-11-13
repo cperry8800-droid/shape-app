@@ -35,6 +35,8 @@
   "row.stayedClean": "✓ Senza cedere",
   "row.workTag": "Lavoro · ",
   "score.emptyEmph": "qui vivono i punti giornalieri.",
+  "empty.startWith": "Inizia con una",
+  "empty.startHint": "Un tocco la aggiunge, solo per te.",
   "score.emptyLead": "Aggiungi un’abitudine —",
   "score.shapeScore": "Lo Shape Score",
   "toast.addError": "Impossibile aggiungere l’abitudine",

@@ -35,6 +35,8 @@
   "row.stayedClean": "✓ Temiz kaldı",
   "row.workTag": "İş · ",
   "score.emptyEmph": "günlük puanlar burada.",
+  "empty.startWith": "Bir tanesiyle başla",
+  "empty.startHint": "Tek dokunuş ekler, yalnızca sen görürsün.",
   "score.emptyLead": "Bir alışkanlık ekle —",
   "score.shapeScore": "Shape Score",
   "toast.addError": "Alışkanlık eklenemedi",

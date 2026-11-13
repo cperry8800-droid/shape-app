@@ -469,7 +469,40 @@ function BSHabitRow({ habit, accent, onToggle, onRemove, reminder, onReminderCha
 
 // Today: the dial (the points banked against the points on offer) beside the two add keys, then every
 // habit as a button.
-function BSHabitToday({ habits, onToggle, onRemove, onAdd, reminders, onReminderChange, watch = null, onShareChange = null }) {
+// One tap adds a starter as a private habit. A tap while one is saving does nothing, so a double tap
+// cannot make it twice; a starter that failed to save stays to be tapped again.
+function _BSHabitStarters({ onQuickAdd, tone, t, tr }) {
+  const [saving, setSaving] = React.useState(null);
+  const add = async (name, type) => {
+    if (saving) return;
+    setSaving(name);
+    try { await onQuickAdd({ name, type }); } finally { setSaving(null); }
+  };
+  return (
+    <div style={{ marginTop: 22 }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 9 }}>
+        <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK70 }}>{tr('habits:empty.startWith', { defaultValue: 'Start with one' })}</span>
+        <span aria-hidden style={{ flex: 1, borderBottom: `1px dotted ${t.INK}47`, transform: 'translateY(-3px)' }} />
+      </div>
+      <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 13, color: t.INK70 }}>{tr('habits:empty.startHint', { defaultValue: 'One tap adds it, private to you.' })}</div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 12 }}>
+        {_BS_HABIT_STARTERS.map(([name, type]) => (
+          <button key={name} onClick={() => add(name, type)} disabled={!!saving} aria-busy={saving === name ? 'true' : undefined}
+            style={{ minHeight: 40, padding: '6px 14px 6px 11px', borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, display: 'inline-flex', alignItems: 'center', gap: 7, cursor: saving ? 'default' : 'pointer', opacity: saving && saving !== name ? 0.5 : 1, fontFamily: t.DISPLAY, fontSize: 13, fontWeight: 600 }}>
+            <span aria-hidden style={{ color: tone(type), fontSize: 14, lineHeight: 1 }}>＋</span>{name}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ⚠ THE EMPTY PAGE OFFERS A START (owner, 2026-11-13: "what happened to the habits page on app?",
+// then "fix the habits page"). With no habit the page was a line, two buttons and the Shape Score link
+// over an empty screen, which read as broken: no account had saved a habit yet. A few of the add sheet's
+// own suggestions are one tap each, and Progress shows its empty week below (BSHabitsPage).
+const _BS_HABIT_STARTERS = [['Water 3L', 'do'], ['10k steps', 'do'], ['Read 10 pages', 'do'], ['No soda', 'avoid'], ['No snooze', 'avoid']];
+function BSHabitToday({ habits, onToggle, onRemove, onAdd, onQuickAdd = null, reminders, onReminderChange, watch = null, onShareChange = null }) {
   const t = useBS();
   const tr = useShapeTr();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
@@ -505,6 +538,7 @@ function BSHabitToday({ habits, onToggle, onRemove, onAdd, reminders, onReminder
           {tr('habits:score.emptyLead', { defaultValue: 'Add a habit —' })} <span style={{ fontStyle: 'italic', color: teal }}>{tr('habits:score.emptyEmph', { defaultValue: 'daily points live here.' })}</span>
         </div>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 12 }}>{addKey('do')}{addKey('avoid')}</div>
+        {onQuickAdd && <_BSHabitStarters onQuickAdd={onQuickAdd} tone={tone} t={t} tr={tr} />}
       </div>
     );
   }
@@ -752,7 +786,7 @@ function BSHabitProgress({ habits, archived = [] }) {
       )}
       {month && <BSHabitCalendar month={month} firstDay={firstDay} selected={selected} onSelect={setSelected} />}
       <BSHabitDayDetail col={picked} />
-      <div style={{ ...eyebrow, marginTop: 14 }}>{tr('habits:progress.byHabit', { defaultValue: 'By habit' })}</div>
+      {byHabit.length > 0 && <div style={{ ...eyebrow, marginTop: 14 }}>{tr('habits:progress.byHabit', { defaultValue: 'By habit' })}</div>}
       <div style={{ marginTop: 4 }}>
         {byHabit.map(r => {
           const c = r.habit.type === 'avoid' ? t.RUST : teal;
@@ -998,8 +1032,9 @@ function BSHabitsPage({ onBack, onOpenScore, tweaks, setTweak, accent }) {
         title={<>{tr('habits:page.titleLead', { defaultValue: 'Daily' })} <span style={{ color: teal }}>{tr('habits:page.titleAccent', { defaultValue: 'habits' })}</span></>}
       />
       {status !== 'ready' && <div role="status" style={{ padding: `16px ${t.padX}px 0`, color: t.INK }}><button onClick={retry} style={{ minHeight: 44 }}>{status === 'loading' ? tr('habits:page.loading', { defaultValue: 'Loading…' }) : tr('habits:toast.updateError', { defaultValue: 'Could not update habit' }) + ' ↻'}</button></div>}
-      {status === 'ready' && <BSHabitToday habits={habits} onToggle={toggle} onRemove={removeHabit} onAdd={setAdding} reminders={reminders} onReminderChange={loadReminders} watch={watch} onShareChange={loadWatch} />}
-      {status === 'ready' && (habits.length > 0 || archived.length > 0) && <BSHabitProgress habits={habits} archived={archived} />}
+      {status === 'ready' && <BSHabitToday habits={habits} onToggle={toggle} onRemove={removeHabit} onAdd={setAdding} onQuickAdd={({ name, type }) => create({ name, type, visibility: 'private' })} reminders={reminders} onReminderChange={loadReminders} watch={watch} onShareChange={loadWatch} />}
+      {/* Progress shows from the first visit, its week empty until a habit is kept (owner, 2026-11-13). */}
+      {status === 'ready' && <BSHabitProgress habits={habits} archived={archived} />}
       <div style={{ padding: `14px ${t.padX}px 0` }}>
         <button onClick={onOpenScore} style={{ width: '100%', textAlign: 'left', background: 'transparent', border: 0, cursor: 'pointer', display: 'flex', alignItems: 'baseline', gap: 9, minHeight: 44, boxSizing: 'border-box', padding: '9px 0 0' }}>
           <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK70 }}>{tr('habits:score.shapeScore', { defaultValue: 'The Shape Score' })}</span>

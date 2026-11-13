@@ -35,6 +35,8 @@
   "row.stayedClean": "✓ Stayed clean",
   "row.workTag": "Work · ",
   "score.emptyEmph": "daily points live here.",
+  "empty.startWith": "Start with one",
+  "empty.startHint": "One tap adds it, private to you.",
   "score.emptyLead": "Add a habit —",
   "score.shapeScore": "The Shape Score",
   "toast.addError": "Could not add habit",

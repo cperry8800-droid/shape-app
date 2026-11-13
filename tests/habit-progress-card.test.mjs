@@ -76,7 +76,48 @@ test('today with no habits asks for the first one', async () => {
   const m = await mount(React.createElement(H.BSHabitToday, { habits: [], onToggle() {}, onRemove() {}, onAdd() {}, reminders: {} }));
   assert.match(m.text(), /Add a habit — daily points live here\./);
   assert.ok(!m.host.querySelector('[role="progressbar"]'), 'no progress bar without habits');
+  assert.doesNotMatch(m.text(), /Start with one/, 'starters show only where a page can add them');
   await m.close();
+});
+
+// Owner, 2026-11-13: "what happened to the habits page on app?" — with no habit the page was a line,
+// two buttons and a link over an empty screen. It now offers starters, one tap each.
+test('no habits: starters add a private habit in one tap, and a second tap waits for the first', async () => {
+  const calls = [];
+  let release;
+  const onQuickAdd = (h) => { calls.push(h); return new Promise((r) => { release = r; }); };
+  const m = await mount(React.createElement(H.BSHabitToday, { habits: [], onToggle() {}, onRemove() {}, onAdd() {}, onQuickAdd, reminders: {} }));
+  assert.match(m.text(), /Start with one/);
+  assert.match(m.text(), /One tap adds it, private to you\./);
+  for (const name of ['Water 3L', '10k steps', 'Read 10 pages', 'No soda', 'No snooze']) assert.ok(m.btn(new RegExp(name)), 'no starter ' + name);
+  await m.click(/Water 3L/);
+  assert.deepEqual(calls, [{ name: 'Water 3L', type: 'do' }]);
+  assert.equal(m.btn(/Water 3L/).getAttribute('aria-busy'), 'true');
+  assert.ok(m.btn(/No soda/).disabled, 'another starter is tappable while one saves');
+  await React.act(async () => { release(true); });
+  assert.ok(!m.btn(/No soda/).disabled, 'the starters stay locked after the save');
+  await m.click(/No soda/);
+  assert.deepEqual(calls[1], { name: 'No soda', type: 'avoid' }, 'a to-don’t starter is added as one');
+  await React.act(async () => { release(true); });
+  await m.close();
+});
+
+test('no habits: Progress shows its empty week, and no By habit heading over nothing', async () => {
+  const m = await mount(React.createElement(H.BSHabitProgress, { habits: [] }));
+  assert.match(m.text(), /Your week\./);
+  assert.match(m.text(), /No habits to count yet/);
+  assert.equal(m.host.querySelectorAll('[aria-label="Habits kept each day"] button').length, 7, 'the week still draws its seven days');
+  assert.doesNotMatch(m.text(), /By habit/);
+  assert.doesNotMatch(m.text(), /Last week avg/, 'no last-week line from nothing');
+  await m.close();
+});
+
+test('the page shows Progress from the first visit, and hands the starters its create', () => {
+  const src = readFileSync(join(ROOT, 'mobile-app/src/broadsheet/iosAppBroadsheetHabits.jsx'), 'utf8');
+  const page = src.slice(src.indexOf('function BSHabitsPage('), src.indexOf('// _bsUseServerHabits: Home'));
+  assert.ok(page.length > 500, 'could not slice BSHabitsPage');
+  assert.match(page, /\{status === 'ready' && <BSHabitProgress habits=\{habits\} archived=\{archived\} \/>\}/, 'Progress waits for a habit again');
+  assert.match(page, /onQuickAdd=\{\(\{ name, type \}\) => create\(\{ name, type, visibility: 'private' \}\)\}/, 'the starters do not create through the page’s store, privately');
 });
 
 test('the week: a column a day, today’s open habits, a tapped day’s detail, no paging past today', async () => {

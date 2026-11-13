@@ -35,6 +35,8 @@
   "row.stayedClean": "✓ Sans faute",
   "row.workTag": "Travail · ",
   "score.emptyEmph": "les points quotidiens vivent ici.",
+  "empty.startWith": "Commence par une",
+  "empty.startHint": "Un appui l’ajoute, visible par toi seul.",
   "score.emptyLead": "Ajoute une habitude —",
   "score.shapeScore": "Le Shape Score",
   "toast.addError": "Impossible d’ajouter l’habitude",

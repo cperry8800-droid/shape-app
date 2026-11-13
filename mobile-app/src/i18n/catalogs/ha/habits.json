@@ -35,6 +35,8 @@
   "row.stayedClean": "✓ An guje",
   "row.workTag": "Aiki · ",
   "score.emptyEmph": "maki na yau da kullum suna nan.",
+  "empty.startWith": "Fara da ɗaya",
+  "empty.startHint": "Taɓa sau ɗaya don ƙara shi, kai kaɗai za ka gani.",
   "score.emptyLead": "Ƙara al'ada —",
   "score.shapeScore": "Shape Score",
   "toast.addError": "An kasa ƙara al'ada",

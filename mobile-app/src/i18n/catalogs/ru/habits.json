@@ -35,6 +35,8 @@
   "row.stayedClean": "✓ Без срывов",
   "row.workTag": "Работа · ",
   "score.emptyEmph": "здесь живут ежедневные баллы.",
+  "empty.startWith": "Начни с одной",
+  "empty.startHint": "Одно касание добавит её, видно только тебе.",
   "score.emptyLead": "Добавь привычку —",
   "score.shapeScore": "Shape Score",
   "toast.addError": "Не удалось добавить привычку",
