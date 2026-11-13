@@ -289,18 +289,36 @@ const at = (qStems, t, i) => i + t.length <= qStems.length && t.every((w, k) => 
 const FIRST_PERSON = new Set(['i', 'im', 'ive']);
 const NOT_A_CLAIM = new Set(['improve', 'improving', 'lower', 'lowers', 'lowering', 'raise', 'raises', 'reduce', 'reduces', 'reducing', 'prevent', 'prevents', 'preventing', 'increase', 'increases', 'boost', 'affect', 'affects', 'help', 'helps', 'protect', 'protects', 'avoid', 'wonder', 'wondering', 'curious', 'read', 'heard', 'learn', 'learning', 'know', 'worry', 'worried', 'afraid', 'scared', 'about', 'risk']);
 const OTHERS = new Set(['people', 'person', 'someone', 'somebody', 'anyone', 'everyone', 'they', 'them', 'their', 'he', 'him', 'his', 'she', 'her', 'father', 'mother', 'dad', 'mom', 'mum', 'parent', 'parents', 'wife', 'husband', 'partner', 'friend', 'friends', 'client', 'clients', 'patient', 'patients', 'son', 'daughter', 'kid', 'kids', 'child', 'children', 'brother', 'sister', 'grandma', 'grandpa', 'grandmother', 'grandfather']);
-const words = (t) => String(t).toLowerCase().replace(/[’']/g, '').split(/[^a-z0-9]+/).filter(Boolean);
-function claimed(qWords, i) {
+// Words with the clause each sits in (a comma, semicolon, colon or sentence end starts a new one), so a
+// claim after the condition is read only inside its own clause.
+function clauseWords(t) {
+  const out = { w: [], c: [] }; let c = 0, last = 0;
+  const src = String(t).toLowerCase().replace(/[’']/g, '');
+  for (const m of src.matchAll(/[a-z0-9]+/g)) {
+    if (/[,;:.!?]/.test(src.slice(last, m.index))) c += 1;
+    out.w.push(m[0]); out.c.push(c); last = m.index + m[0].length;
+  }
+  return out;
+}
+// The member's own condition, claimed before it or after it in its clause: "diabetes makes it hard for
+// me to exercise", "high blood pressure makes my workouts difficult" (Codex on #2732); "diabetes runs
+// in my family" is history, not a claim.
+const AFTER_CLAIM = new Set(['me', 'my', 'i', 'im', 'ive']);
+function claimed(q, i, len) {
+  const qWords = q.w;
   const before = qWords[i - 1];
   if (before === 'my') return true;
   const w = qWords.slice(Math.max(0, i - 6), i);
   const p = w.map((x) => FIRST_PERSON.has(x)).lastIndexOf(true);
   if (p !== -1 && !w.slice(p + 1).some((x) => NOT_A_CLAIM.has(x))) return true;
+  const after = [];
+  for (let k = i + len; k < Math.min(qWords.length, i + len + 6) && q.c[k] === q.c[i]; k++) after.push(qWords[k]);
+  if (after.some((x) => AFTER_CLAIM.has(x)) && !after.some((x) => NOT_A_CLAIM.has(x) || x === 'family' || x === 'genes')) return true;
   return before === 'with' && !qWords.some((x) => OTHERS.has(x));
 }
-function hasCondition(qWords, qStems, tag) {
+function hasCondition(q, qStems, tag) {
   const t = stems(tag);
-  for (let i = 0; i + t.length <= qStems.length; i++) if (at(qStems, t, i) && claimed(qWords, i)) return true;
+  for (let i = 0; i + t.length <= qStems.length; i++) if (at(qStems, t, i) && claimed(q, i, t.length)) return true;
   return false;
 }
 function hasTag(qStems, tag, except = []) {
@@ -315,7 +333,7 @@ export function searchFitness(query, { limit = 3, minScore = 1 } = {}) {
   const max = Math.max(1, Math.min(5, limit));
   const found = searchEntries(FITNESS_KNOWLEDGE, query, { limit: 5, minScore });
   const q = stems(query);
-  const qWords = words(query);
+  const qWords = clauseWords(query);
   const flagged = SAFETY.filter((e) => e.tags.some((t) => hasTag(q, t, e.except)) || (e.conditions || []).some((t) => hasCondition(qWords, q, t)));
   if (!flagged.length) {
     // A safety entry comes back only on its own tag, never on a stray body word: "restricting carbs"
