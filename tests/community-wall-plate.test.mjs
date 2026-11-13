@@ -2,8 +2,9 @@
 //
 // ⚠ THE CLAIM THIS FILE EXISTS TO CHECK IS PARITY, NOT PRETTINESS. The chat
 // bubble's Wall tab draws the app's record card (`BSActivityCard variant="wall"`)
-// — a dot-matrix hero figure, a heat-tinted record pill, the two facts beside the
-// figure, the stat grid, the HR zones bar and the trace. The port could not
+// — a hero figure, a heat-tinted record pill, the two facts beside the figure,
+// the stat grid, the HR zones bar and the trace. The figure itself is set as the
+// app's Wall sets a record now (its magazine story, `BSWallStoryRecord`). The port could not
 // import any of it: the app's helpers live behind `useBS()` and `tr()`, and the
 // one web module that already mirrors one of them (`shareCard.mjs`) is loaded by
 // THREE pages while the bubble mounts on 35. So the helpers are copies, and a
@@ -54,44 +55,27 @@ function glyphs(src, name) {
   return table;
 }
 
-test('the web matrix can spell exactly what the app\'s can, dot for dot', () => {
-  // ⚠ THIS IS THE PARITY CLAIM. A figure is DRAWN rather than typeset, so "the
-  // same number reads the same on both surfaces" is a statement about these
-  // bitmaps and nothing else. A single flipped bit is a digit that renders as a
-  // different digit on one surface only.
-  const app = glyphs(APP, 'BS_DOT_GLYPHS');
-  const web = glyphs(FEED, 'CF_DOT_GLYPHS');
-  assert.deepEqual(Object.keys(web).sort(), Object.keys(app).sort(),
-    'the two matrices no longer carry the same characters');
-  for (const ch of Object.keys(app)) {
-    assert.deepEqual(web[ch], app[ch], `the glyph for "${ch}" differs between the app and the web`);
-  }
-});
-
-test('the renderability gate refuses what the app\'s refuses', () => {
-  // ⚠ WITHOUT THIS GATE A COMPOUND VALUE DRAWS AS A DIFFERENT NUMBER. The
-  // matrix DROPS what it cannot spell, silently, and the leftovers still look
-  // like a reading — "8h 10m" becomes "8 10". The vectors are the app's own
-  // (tests/wall-dot-numeral.test.mjs), so the two gates cannot diverge.
-  const scope = {};
-  // ⚠ THE TABLE HAS TO COME WITH THEM. Both helpers close over CF_DOT_GLYPHS,
-  // so lifting the functions alone throws a ReferenceError from inside the
-  // assertion — which reads as "the gate is broken" rather than "the harness is
-  // incomplete".
-  const table = JSON.stringify(glyphs(FEED, 'CF_DOT_GLYPHS'));
-  // eslint-disable-next-line no-new-func
-  new Function('S', `const CF_DOT_GLYPHS = ${table};\n${lift(FEED, 'cfDotChars')}\n${lift(FEED, 'cfDotRenderable')}\nS.chars=cfDotChars;S.ok=cfDotRenderable;`)(scope);
-  for (const ok of ['245', '18.2', '1,240', '8:42', '2:38:14', '91', '-3', '1/2', '8 10']) {
-    assert.ok(scope.ok(ok), `${ok} is fully representable and must be drawn`);
-  }
-  for (const bad of ['8h 10m', '2.4 · MO', '4.2 · HI', '178 spm', 'lb', '38 SWOLF']) {
-    assert.ok(!scope.ok(bad), `${bad} must fall back to type, not be drawn as its digits`);
-  }
-  // Distinct from "every character is representable", which is vacuously true
-  // of '' and would mount a zero-width svg where a figure belongs.
-  for (const empty of ['', '   ', null, undefined]) assert.ok(!scope.ok(empty));
-  // And the drop itself still drops rather than gapping.
-  assert.equal(scope.chars('2a4b5').join(''), '245');
+test('the hero figure is set in the app\'s record type: Saira 600 at 48, its unit beside it', () => {
+  // Owner, 2026-11-13: "have the number font match what is on ap", of the plate's 225 and 52. The app's
+  // Wall is its magazine story (`variant="magazine"`), and a record's one number there is
+  // `BSWallStoryRecord`'s. Read from the app's source, so a change there fails here.
+  const STORY = readFileSync('mobile-app/src/broadsheet/BSWallStory.jsx', 'utf8');
+  const rec = STORY.slice(STORY.indexOf('export function BSWallStoryRecord('), STORY.indexOf('export function BSWallStoryQuote('));
+  assert.ok(rec.length > 200, 'BSWallStoryRecord moved — re-anchor this guard');
+  assert.match(APP, /variant="magazine"/, 'the app\'s Wall is no longer its magazine story');
+  assert.match(rec, /fontFamily: bsWsHead\(t\), fontWeight: 600, lineHeight: 0\.9/, 'the app\'s record type changed');
+  assert.match(rec, /fontSize: 48, letterSpacing: '0\.005em', fontVariantNumeric: 'tabular-nums'/, 'the app\'s record size changed');
+  assert.match(rec, /fontSize: 16, color: t\.INK50, textTransform: 'uppercase'/, 'the app\'s unit changed');
+  const MAG = readFileSync('mobile-app/src/broadsheet/bsMagazine.mjs', 'utf8');
+  assert.match(MAG, /export const bsWsHead = \(t\) => t\.DISPLAY;/, 'the story\'s headline face is no longer the app\'s display face');
+  // The web's figure, in the same type: the display face (Saira), 600, 48, the unit at 16 in the same face.
+  const plate = FEED.slice(FEED.indexOf('function CfWallPlate('), FEED.indexOf('function CfWallEvidence('));
+  assert.match(FEED, /const CF_DISP = "'Saira'/, 'the web display face is no longer Saira');
+  assert.match(plate, /data-cf-wall-figure="" style=\{\{ display: "inline-flex", alignItems: "baseline", gap: 5, fontFamily: CF_DISP, fontWeight: 600, lineHeight: 0\.9, color: INK \}\}/);
+  assert.match(plate, /fontSize: 48, letterSpacing: "0\.005em", fontVariantNumeric: "tabular-nums"/);
+  assert.match(plate, /fontSize: 16, color: cfHexA\(INK, 0\.5\), textTransform: "uppercase"/);
+  // And the dot matrix the app's Wall no longer draws is gone from the web's.
+  assert.doesNotMatch(FEED, /CfDotNumber|CF_DOT_GLYPHS/, 'the plate draws the retired dot matrix again');
 });
 
 test('the unit splitter and the hero rule are the ones the other surfaces use', () => {
@@ -186,7 +170,7 @@ test('the wall helpers are self-contained — they may not reach for ShapeShareC
   // plate that resolved its hero through that module would draw a figure on the
   // app shells and nothing on the other thirty-two, with no error anywhere.
   const src = stripComments(FEED);
-  const from = src.indexOf('const CF_DOT_GLYPHS');
+  const from = src.indexOf('function cfHexA(');
   const to = src.indexOf('function CommunityFeed(');
   assert.ok(from >= 0 && to > from, 'the wall block moved — re-anchor this guard');
   assert.doesNotMatch(src.slice(from, to), /ShapeShareCard/,

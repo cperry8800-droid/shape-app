@@ -2730,6 +2730,35 @@ function ChatWidget(props) {
     setCreating(false);
     setSearchQ("");
   };
+  // ── NORA ⇄ CHAT IN THE OPEN PANEL (owner, 2026-11-13: "create option to switch back and forth
+  // between nora and chat once pop up is opened instead of having to exit out and reopen") ──
+  // The two doors are one widget in two modes, so the switch flips the mode and the tab together.
+  // Back to Chat lands on the place it left (the Wall, a thread's tab), else Chat's first place.
+  // Not in a popped-out window: Nora is a tab there.
+  const noraTabIdx = tabs.findIndex(isNoraTab);
+  const lastChatTabRef = React.useRef(null);
+  React.useEffect(() => { if (!isNoraTab(tabs[tabIdx])) lastChatTabRef.current = tabIdx; }, [tabIdx]);
+  const switchDoor = (toNora) => {
+    if (toNora === noraMode) return;
+    // Her ⋯ menu closes with her door, or it stood open again on the way back. (Voice talk ends on
+    // its own: it ends whenever her tab is not the one up.)
+    setNoraMenu(false);
+    if (toNora) {
+      if (noraTabIdx < 0) return;
+      setNoraMode(true);
+      selectTab(noraTabIdx);
+      return;
+    }
+    const back = lastChatTabRef.current;
+    const ok = Number.isInteger(back) && back >= 0 && back < tabs.length && !isNoraTab(tabs[back]);
+    setNoraMode(false);
+    selectTab(ok ? back : Math.max(0, tabs.findIndex((t) => !isNoraTab(t))));
+  };
+  // What waits in Chat while Nora is open: the places' own counts, summed, from LIVE threads only. A
+  // signed-out visitor's places hold the sample cast, whose counts are fiction (the header's count
+  // reads only live threads too, globalChatButton.js `unreadCount`).
+  const liveTab = (t) => !!(t && threadsLive && typeof threadsLive === "object" && Object.prototype.hasOwnProperty.call(threadsLive, t.id));
+  const chatUnread = tabs.reduce((a, t, i) => a + (isNoraTab(t) || !liveTab(t) ? 0 : tabUnread(i)), 0);
 
   const [createErr, setCreateErr] = React.useState("");
   const createChannel = () => {
@@ -2846,6 +2875,23 @@ function ChatWidget(props) {
         /* The masthead's controls: one size, one hover, a visible focus ring. */
         .cw-icon-btn { display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; border: 0; border-radius: 9px; background: transparent; color: var(--sh-ink2, #a09b94); cursor: pointer; transition: background .15s ease, color .15s ease; }
         .cw-icon-btn:hover { background: rgba(var(--sh-ink-rgb, 242,237,228),0.07); color: var(--sh-ink, #f2ede4); }
+        /* Nora ⇄ Chat: the same two doors as the header's, as a switch in the open panel. The words drop
+           where the masthead has no room for them (Nora's door is 400 to 600 wide). */
+        .cw-side { container-type: inline-size; }
+        .cw-doors { flex: none; display: inline-flex; align-items: center; gap: 2px; padding: 2px; margin-right: 6px; border-radius: 999px; background: rgba(var(--sh-ink-rgb, 242,237,228),0.05); border: 1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.09); }
+        .cw-doors button { position: relative; display: inline-flex; align-items: center; gap: 7px; min-height: 30px; padding: 0 12px 0 5px; border: 0; border-radius: 999px; background: transparent; color: var(--sh-ink2, #a09b94); font-family: inherit; font-size: 12.5px; font-weight: 500; white-space: nowrap; cursor: pointer; transition: background .15s ease, color .15s ease; }
+        .cw-doors button + button { padding: 0 12px 0 10px; }
+        .cw-doors button:hover { color: var(--sh-ink, #f2ede4); }
+        .cw-doors button[aria-pressed="true"] { background: rgba(var(--sh-ink-rgb, 242,237,228),0.12); color: var(--sh-ink, #f2ede4); cursor: default; }
+        .cw-doors button:focus-visible { outline: 2px solid var(--sh-accent-ink, #2ee0c4); outline-offset: 1px; }
+        .cw-doors img { display: block; width: 22px; height: 22px; border-radius: 999px; object-fit: cover; object-position: 50% 32%; box-shadow: 0 0 0 1.5px var(--sh-accent3, #34d6c5); }
+        .cw-doors svg { flex: none; width: 15px; height: 15px; color: var(--sh-accent-ink, #2ee0c4); }
+        .cw-doors .cw-count { margin-left: -1px; }
+        @container (max-width: 599px) {
+          .cw-doors-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+          .cw-doors button { padding: 0 5px; }
+          .cw-doors button + button { padding: 0 9px; }
+        }
         /* The places: quiet until chosen; the chosen one carries the accent. */
         .cw-place { flex: none; display: inline-flex; align-items: center; gap: 7px; min-height: 34px; padding: 0 14px; border-radius: 999px; border: 1px solid transparent; background: transparent; color: var(--sh-ink2, #a09b94); font-family: inherit; font-size: 13px; font-weight: 500; letter-spacing: -0.005em; white-space: nowrap; cursor: pointer; transition: background .15s ease, color .15s ease, border-color .15s ease; }
         .cw-place:hover { background: rgba(var(--sh-ink-rgb, 242,237,228),0.06); color: var(--sh-ink, #f2ede4); }
@@ -2953,7 +2999,7 @@ function ChatWidget(props) {
         .cw-nora-foot a, .cw-nora-foot button { border: 0; padding: 0; background: transparent; font: inherit; color: var(--sh-accent-ink, #2ee0c4); text-decoration: none; cursor: pointer; }
         .cw-nora-foot a:hover, .cw-nora-foot button:hover { text-decoration: underline; }
         @media (max-width: 520px) { .cw-nora-cards { grid-template-columns: 1fr; } .cw-nora-card { min-height: 0; } }
-        @media (prefers-reduced-motion: reduce) { .cw-nora-face { transition: none; } .cw-nora-face::before { animation: none; opacity: .5; } .cw-send, .cw-nora-card { transition: none; } .cw-scrim, .cw-side, .cw-menu, .cw-nora-welcome, .cw-nora-card, .cw-nora-q-row, .cw-nora-turn, .cw-nora-caret, .cw-nora-shimmer { animation: none; } .cw-nora-shimmer { color: var(--sh-ink2, #a09b94); } }
+        @media (prefers-reduced-motion: reduce) { .cw-nora-face { transition: none; } .cw-nora-face::before { animation: none; opacity: .5; } .cw-send, .cw-nora-card { transition: none; } .cw-scrim, .cw-side, .cw-menu, .cw-nora-welcome, .cw-nora-card, .cw-nora-q-row, .cw-nora-turn, .cw-nora-caret, .cw-nora-shimmer { animation: none; } .cw-nora-shimmer { color: var(--sh-ink2, #a09b94); } .cw-side { transition: none !important; } }
         @media (max-width: 640px) {
           .chw-bubble { padding: 14px 20px 14px 16px !important; font-size: 14px !important; gap: 10px !important; right: 16px !important; bottom: 16px !important; }
           .chw-bubble svg { width: 18px !important; height: 18px !important; }
@@ -2982,6 +3028,8 @@ function ChatWidget(props) {
           } : {
             position: "fixed", top: 0, right: 0, bottom: 0, zIndex: 180,
             width: sideWidth,
+            // Nora's door is narrower than Chat's: the switch eases between them, a drag does not.
+            transition: sideRef.current ? "none" : "width .3s cubic-bezier(.22,.8,.24,1)",
             background: "var(--sh-ground, #1a1612)", color: INK,
             borderLeft: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.1)",
             boxShadow: "-28px 0 80px rgba(0,0,0,0.42)",
@@ -3037,6 +3085,19 @@ function ChatWidget(props) {
               </div>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 2, flex: "none", justifySelf: "end", position: "relative" }}>
+              {!docked && noraTabIdx >= 0 && (
+                <div className="cw-doors" role="group" aria-label="Nora or Chat" data-cw-doors>
+                  <button type="button" aria-pressed={noraMode} onClick={() => switchDoor(true)} title="Ask Nora" aria-label="Ask Nora">
+                    <img src="/nora-avatar.png" alt="" aria-hidden onError={cwPhotoError} data-fallback={CW_NORA_MARK} />
+                    <span className="cw-doors-label">Nora</span>
+                  </button>
+                  <button type="button" aria-pressed={!noraMode} onClick={() => switchDoor(false)} title="Chat" aria-label={noraMode && chatUnread > 0 ? `Chat, ${chatUnread} unread` : "Chat"}>
+                    <svg viewBox="0 0 16 16" fill="none" aria-hidden><path d="M2 6.5a4 4 0 0 1 4-4h4a3 3 0 0 1 3 3v3a3 3 0 0 1-3 3H6.5L3.5 14V8.5a3.5 3.5 0 0 1-1.5-2Z" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" /></svg>
+                    <span className="cw-doors-label">Chat</span>
+                    {noraMode && chatUnread > 0 && <span className="cw-count" aria-hidden>{chatUnread > 99 ? "99+" : chatUnread}</span>}
+                  </button>
+                </div>
+              )}
               {isSupport && (
                 <button type="button" onClick={() => setNoraMenu((v) => !v)} aria-haspopup="true" aria-expanded={noraMenu} aria-label="Nora's settings" title="Nora's settings" className="cw-icon-btn">
                   <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden><circle cx="3.5" cy="8" r="1.4" /><circle cx="8" cy="8" r="1.4" /><circle cx="12.5" cy="8" r="1.4" /></svg>

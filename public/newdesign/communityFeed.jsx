@@ -367,80 +367,12 @@ function cfEnsureWallFonts() {
 // pages and nothing on the other thirty-two. The helpers below are therefore
 // self-contained in this file, which every widget host already loads.
 //
-// ⚠ AND THE FIGURE IS DRAWN, NOT TYPESET. That is the whole difference between
-// this and what shipped: a record is a reading, so the app sets it in a 5×7 dot
-// matrix rather than in the page's serif. The glyph table, the geometry and the
-// renderability gate below are byte-equivalent to the app's, so a figure reads
-// the same on both surfaces. `tests/wall-dot-numeral.test.mjs` guards the app's
-// copy; `tests/community-wall-plate.test.mjs` guards this one against it.
-const CF_DOT_GLYPHS = {
-  "0": ["01110", "10001", "10011", "10101", "11001", "10001", "01110"],
-  "1": ["00100", "01100", "00100", "00100", "00100", "00100", "01110"],
-  "2": ["01110", "10001", "00001", "00010", "00100", "01000", "11111"],
-  "3": ["11111", "00010", "00100", "00010", "00001", "10001", "01110"],
-  "4": ["00010", "00110", "01010", "10010", "11111", "00010", "00010"],
-  "5": ["11111", "10000", "11110", "00001", "00001", "10001", "01110"],
-  "6": ["00110", "01000", "10000", "11110", "10001", "10001", "01110"],
-  "7": ["11111", "00001", "00010", "00100", "01000", "01000", "01000"],
-  "8": ["01110", "10001", "10001", "01110", "10001", "10001", "01110"],
-  "9": ["01110", "10001", "10001", "01111", "00001", "00010", "01100"],
-  ".": ["00000", "00000", "00000", "00000", "00000", "00000", "00110"],
-  ",": ["00000", "00000", "00000", "00000", "00000", "00110", "01100"],
-  "-": ["00000", "00000", "00000", "01110", "00000", "00000", "00000"],
-  ":": ["00000", "00110", "00110", "00000", "00110", "00110", "00000"],
-  "/": ["00001", "00001", "00010", "00100", "01000", "10000", "10000"],
-};
-const CF_DOT_COLS = 5;
-const CF_DOT_ROWS = 7;
-
-// A character the matrix has no glyph for is DROPPED, not drawn as a blank
-// cell: a silent gap in a number reads as a different number.
-function cfDotChars(text) {
-  return String(text == null ? "" : text).split("").filter((ch) => ch === " " || CF_DOT_GLYPHS[ch]);
-}
-
-// ⚠ CAN THE MATRIX SAY THIS VALUE AT ALL? Dropping is right for a stray
-// character inside a figure the matrix mostly knows and WRONG for a value built
-// out of letters, because the drop is silent and the leftovers still look like a
-// reading — "8h 10m" would draw as "8 10". A caller asks first and typesets what
-// the matrix cannot spell. Empty is NOT renderable: an empty grid says nothing.
-function cfDotRenderable(text) {
-  const s = String(text == null ? "" : text);
-  return s.trim().length > 0 && s.split("").every((ch) => ch === " " || CF_DOT_GLYPHS[ch]);
-}
-
-function CfDotNumber({ text, size = 34, color, dim, gap = 1, title }) {
-  const ink = color || INK;
-  const off = dim || cfHexA(ink, 0.13);
-  const chars = cfDotChars(text);
-  if (!chars.length) return null;
-  // One dot is `unit` tall; a glyph is 7 units, so `size` IS the cap height —
-  // which is what lets type set beside it sit on the same baseline.
-  const unit = size / CF_DOT_ROWS;
-  const advance = (CF_DOT_COLS + gap) * unit;
-  const width = chars.length * advance - gap * unit;
-  const r = unit * 0.36;
-  const dots = [];
-  chars.forEach((ch, i) => {
-    const rows = CF_DOT_GLYPHS[ch];
-    if (!rows) return;                       // a space advances and draws nothing
-    for (let y = 0; y < CF_DOT_ROWS; y++) {
-      for (let x = 0; x < CF_DOT_COLS; x++) {
-        dots.push(<rect key={`${i}-${y}-${x}`}
-          x={i * advance + x * unit + (unit - r * 2) / 2}
-          y={y * unit + (unit - r * 2) / 2}
-          width={r * 2} height={r * 2} rx={r * 0.35}
-          fill={rows[y][x] === "1" ? ink : off} />);
-      }
-    }
-  });
-  return (
-    <svg width={width} height={size} viewBox={`0 0 ${width} ${size}`}
-      role={title ? "img" : undefined} aria-label={title || undefined}
-      aria-hidden={title ? undefined : true}
-      style={{ display: "block", flexShrink: 0 }}>{dots}</svg>
-  );
-}
+// ⚠ AND THE FIGURE IS SET IN THE APP'S RECORD TYPE, NOT DRAWN (owner, 2026-11-13: "have the number
+// font match what is on ap", of 225 and 52). The plate drew it in a 5×7 dot matrix, the app's record
+// card's; the app's Wall has been its magazine story since 2026-10-23 (`variant="magazine"` on all three
+// of its Wall surfaces), which sets a record's one number in the headline face, Saira at 600, its unit
+// beside it in the same face (`BSWallStoryRecord`, BSWallStory.jsx). The figure here follows that, and the
+// matrix it no longer needs is gone. `tests/community-wall-plate.test.mjs` holds the two to one type.
 
 // The app's `bsTHexA`. Every colour the plate tints is a 6-digit hex, so this
 // never has to handle an rgba() input — and it must not be handed one: a hex
@@ -642,15 +574,12 @@ function CfWallPlate({ p, model, title }) {
         <div>
           <div style={{ fontFamily: mono, fontSize: 7.5, letterSpacing: "0.2em", textTransform: "uppercase", color: cfHexA(INK, 0.5), marginTop: 10 }}>{heroStat[0]}</div>
           <div style={{ display: "flex", alignItems: "flex-end", gap: 10, marginTop: 2, flexWrap: "wrap" }}>
-            {/* ⚠ DRAWN WHERE THE MATRIX CAN SPELL IT, TYPESET WHERE IT CANNOT.
-                The fallback is not a nicety: `cfDotChars` DROPS an unknown
-                character, so a compound value would render as a different,
-                plausible-looking number ("8h 10m" → "8 10") with nothing on
-                screen saying so. */}
-            {cfDotRenderable(u.num)
-              ? <CfDotNumber text={u.num} size={38} color={INK} title={`${u.num}${u.unit ? " " + u.unit : ""}`} />
-              : <span style={{ fontFamily: CF_DISP, fontSize: 34, fontWeight: 700, color: INK, letterSpacing: "-0.035em", lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>{u.num}</span>}
-            {u.unit ? <span style={{ fontFamily: mono, fontSize: 12, fontWeight: 700, color: cfHexA(INK, 0.55), lineHeight: 1.6 }}>{u.unit}</span> : null}
+            {/* The app's record number (`BSWallStoryRecord`): Saira 600 at 48, its unit beside it in the
+                same face. A compound value ("8h 10m") is set whole, as the app sets it. */}
+            <span data-cf-wall-figure="" style={{ display: "inline-flex", alignItems: "baseline", gap: 5, fontFamily: CF_DISP, fontWeight: 600, lineHeight: 0.9, color: INK }}>
+              <span style={{ fontSize: 48, letterSpacing: "0.005em", fontVariantNumeric: "tabular-nums" }}>{u.num}</span>
+              {u.unit ? <span style={{ fontSize: 16, color: cfHexA(INK, 0.5), textTransform: "uppercase" }}>{u.unit}</span> : null}
+            </span>
             {facts.length > 0 && (
               <div style={{ display: "flex", flexDirection: "column", gap: 2, marginLeft: 4, paddingBottom: 2 }}>
                 {facts.map(([k, v]) => (
