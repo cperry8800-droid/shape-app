@@ -234,9 +234,17 @@ export const FITNESS_KNOWLEDGE = Object.freeze([
     id: 'red-flags',
     topic: 'safety',
     title: 'When to stop exercising and get medical help',
-    tags: ['chest pain', 'chest pressure', 'dizzy', 'dizziness', 'faint', 'fainted', 'fainting', 'passed out', 'heart racing', 'palpitations', 'short of breath', 'shortness of breath', 'injury', 'injured', 'joint pain', 'sharp pain', 'numb', 'numbness', 'heart condition', 'heart disease', 'heart problem', 'heart attack', 'high blood pressure', 'blood pressure', 'kidney disease', 'diabetes', 'medical condition', 'safe to exercise', 'medical clearance'],
+    tags: ['chest pain', 'chest pressure', 'dizzy', 'dizziness', 'faint', 'fainted', 'fainting', 'passed out', 'heart racing', 'palpitations', 'short of breath', 'shortness of breath', 'injury', 'injured', 'joint pain', 'sharp pain', 'numb', 'numbness', 'heart condition', 'heart disease', 'heart problem', 'heart attack', 'high blood pressure', 'blood pressure', 'hypertension', 'arrhythmia', 'afib', 'heart murmur', 'pacemaker', 'blacked out', 'blackout', 'black out', 'lightheaded', 'light-headed', 'collapsed', 'chest tightness', 'kidney disease', 'diabetes', 'medical condition', 'safe to exercise', 'medical clearance'],
     body: 'Stop and get medical help for chest pain or pressure, fainting or nearly fainting, a racing or irregular heartbeat, or unusual breathlessness during exercise; call emergency services for chest pain that does not settle with rest, or for fainting. The ACSM’s screening advice: anyone with heart, kidney or metabolic disease, or symptoms that suggest one, gets medical clearance before starting moderate or vigorous exercise. Pain that is sharp, in a joint, or comes with swelling or numbness is checked before training through it.',
     source: 'ACSM preparticipation health screening recommendations (Riebe et al., 2015) · American Heart Association: warning signs of a heart attack',
+  },
+  {
+    id: 'eating-disorders',
+    topic: 'safety',
+    title: 'Eating disorders, restricting, bingeing or purging',
+    tags: ['eating disorder', 'eating disorders', 'disordered eating', 'anorexia', 'anorexic', 'bulimia', 'bulimic', 'binge eating', 'arfid', 'orthorexia', 'purge', 'purging', 'make myself throw up', 'making myself throw up', 'made myself throw up', 'make myself sick', 'laxatives', 'starving myself'],
+    body: 'When eating involves restricting hard, bingeing, purging, laxatives, or exercising to make up for food, or someone names an eating disorder, a calorie target or a deficit is not the right next step, and Nora gives none. Eating disorders are serious and treatable, and the American Psychiatric Association’s guideline puts care with a doctor, a therapist and a dietitian who treat them at the centre. Talk to a doctor or an eating-disorder specialist; in a crisis in the US, call or text 988, the Suicide and Crisis Lifeline.',
+    source: 'American Psychiatric Association, Practice Guideline for the Treatment of Patients With Eating Disorders, 4th edition (2023) · 988 Suicide and Crisis Lifeline (2022)',
   },
   {
     id: 'pregnancy',
@@ -248,9 +256,9 @@ export const FITNESS_KNOWLEDGE = Object.freeze([
   },
 ]);
 
-// ⚠ A WARNING SIGN OR A CONDITION OUTRANKS ANY HOW-TO. When one of a safety entry's own tags is in
-// the question, that entry is answered first, whatever else scores higher: "I have high blood
-// pressure, can I lift heavy?" leads with the clearance entry, not reps and load (Codex on #2731).
+// ⚠ A WARNING SIGN OR A CONDITION REPLACES ANY HOW-TO. When one of a safety entry's own tags is in the
+// question, only the safety entries come back, whatever else scores higher: "I have high blood
+// pressure, can I lift heavy?" gets the clearance entry, not reps and load (Codex on #2731).
 const SAFETY = FITNESS_KNOWLEDGE.filter((e) => e.topic === 'safety');
 const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const hasTag = (q, tag) => new RegExp(`(^|[^a-z0-9])${escapeRe(tag)}(?:e?s)?(?![a-z0-9])`).test(q);
@@ -261,7 +269,13 @@ export function searchFitness(query, { limit = 3, minScore = 1 } = {}) {
   const found = searchEntries(FITNESS_KNOWLEDGE, query, { limit: 5, minScore });
   const q = String(query || '').toLowerCase().replace(/[’']/g, '');
   const flagged = SAFETY.filter((e) => e.tags.some((t) => hasTag(q, t)));
-  if (!flagged.length) return found.entries.length ? { entries: found.entries.slice(0, max) } : found;
-  const ids = new Set(flagged.map((e) => e.id));
-  return { entries: [...flagged.map(shown), ...found.entries.filter((e) => !ids.has(e.id))].slice(0, max) };
+  if (!flagged.length) {
+    // A safety entry comes back only on its own tag, never on a stray body word: "restricting carbs"
+    // is a nutrition question, not an eating-disorder one.
+    const everyday = found.entries.filter((e) => !SAFETY.some((x) => x.id === e.id));
+    return everyday.length ? { entries: everyday.slice(0, max) } : { entries: [], topics: FITNESS_KNOWLEDGE.map((e) => e.title) };
+  }
+  // Only the safety entries: a how-to or a calorie figure beside them would ground exactly the
+  // answer the safety line forbids ("I have anorexia, how many calories?"; Codex P1 on #2731).
+  return { entries: flagged.map(shown).slice(0, max) };
 }

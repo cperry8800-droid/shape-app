@@ -65,6 +65,11 @@ test('searchFitness: a member\'s question finds its entry first', () => {
     ['Is it safe to exercise with heart disease?', 'red-flags'],
     ['I have high blood pressure, can I lift heavy?', 'red-flags'],
     ['can I work out with diabetes', 'red-flags'],
+    ['I blacked out at the gym', 'red-flags'],
+    ['I have hypertension, can I exercise?', 'red-flags'],
+    ['I have anorexia, how many calories should I eat?', 'eating-disorders'],
+    ['I have bulimia, what macros should I hit?', 'eating-disorders'],
+    ["I've been making myself throw up after meals", 'eating-disorders'],
     ['can I work out while pregnant', 'pregnancy'],
   ];
   for (const [q, id] of cases) assert.equal(searchFitness(q).entries[0]?.id, id, q);
@@ -74,6 +79,18 @@ test('searchFitness: a member\'s question finds its entry first', () => {
   const none = searchFitness('zzqx');
   assert.equal(none.entries.length, 0);
   assert.equal(none.topics.length, FITNESS_KNOWLEDGE.length);
+});
+
+test('a safety hit returns only safety entries: no how-to and no calorie figure beside it (Codex P1 on #2731)', () => {
+  for (const q of ['I have anorexia, how many calories should I eat?', 'I have an eating disorder, what should my deficit be?', 'I have high blood pressure, can I lift heavy?', 'I blacked out at the gym, how long should I rest?']) {
+    const ids = searchFitness(q).entries.map((e) => e.id);
+    assert.ok(ids.length > 0, q);
+    for (const id of ids) assert.equal(FITNESS_KNOWLEDGE.find((e) => e.id === id).topic, 'safety', `${q} → ${id}`);
+  }
+  // Everyday words stay everyday: none of these is a safety question.
+  for (const q of ['how do I compensate for a missed workout', 'should I try restricting carbs', 'I feel like I could throw up during intervals', 'I binged on pizza, how do I get back on track']) {
+    assert.ok(!searchFitness(q).entries.some((e) => e.id === 'eating-disorders'), q);
+  }
 });
 
 test('a figure stated twice says the same thing in both places', () => {
@@ -109,7 +126,7 @@ test('the member prompt carries the library rule and the safety lines', () => {
   assert.match(note, /call fitness_knowledge and answer from the entries it returns, naming the source/);
   assert.match(note, /Never invent a figure, a study or a source/);
   assert.match(note, /Their coach's plan comes first: explain it, never overrule it/);
-  for (const sign of ['chest pain', 'fainting', 'irregular heartbeat', 'breathlessness', 'joint pain', 'cola-coloured urine', 'pregnancy', 'GLP-1', 'medication dose', 'diagnosis', 'purging', '988']) {
+  for (const sign of ['chest pain', 'fainting', 'irregular heartbeat', 'breathlessness', 'joint pain', 'cola-coloured urine', 'pregnancy', 'GLP-1', 'medication dose', 'diagnosis', 'purging', 'anorexia, bulimia, binge eating', '988']) {
     assert.ok(note.includes(sign), `the safety line names ${sign}`);
   }
   // It rides the member note, so it reaches exactly the callers who have the tool.
