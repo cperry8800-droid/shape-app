@@ -1424,6 +1424,9 @@ function CommunityFeed({ place = "wall", compact = false } = {}) {
   // posting for a signed-in member for as long as the read takes.
   const [signedIn, setSignedIn] = React.useState(null);
   const [composerOpen, setComposerOpen] = React.useState(false);
+  // The kind the message box's chip opened the composer on (Workout, PR, …); "post" from the field.
+  const [composerKind, setComposerKind] = React.useState("post");
+  const openComposer = (k) => { setComposerKind(k || "post"); setComposerOpen(true); };
   // "+25 · CAREER" confirmation — shown ONLY when award_work_milestone
   // actually granted (spec 2026-07-13; a same-month duplicate shows nothing).
   const [careerToast, setCareerToast] = React.useState(false);
@@ -2108,31 +2111,58 @@ function CommunityFeed({ place = "wall", compact = false } = {}) {
         .cf-skel { border-radius: 22px; border: 1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08); background: rgba(var(--sh-ink-rgb, 242,237,228),0.04); animation: cfPulse 1.6s ease-in-out infinite; }
         @media (prefers-reduced-motion: reduce) { .cf-skel { animation: none; } .cf-btn-primary:hover:not(:disabled) { transform: none; } }
         @media (max-width: 560px) { .cf-bar-sub { display: none; } }
+        .cf-compose { border-radius: 18px; border: 1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.12); background: linear-gradient(180deg, rgba(var(--sh-ink-rgb, 242,237,228),0.06), rgba(var(--sh-ink-rgb, 242,237,228),0.03)); transition: border-color .15s ease, box-shadow .15s ease; }
+        .cf-compose:hover, .cf-compose:focus-within { border-color: rgba(var(--sh-accent2-rgb, 10,197,168),0.45); box-shadow: 0 0 0 3px rgba(var(--sh-accent2-rgb, 10,197,168),0.08); }
+        .cf-compose-top { display: flex; align-items: center; gap: 12px; padding: 14px 16px 12px; }
+        .cf-compose-me { flex: none; width: 40px; height: 40px; border-radius: 999px; display: grid; place-items: center; background: linear-gradient(135deg, rgba(var(--sh-accent2-rgb, 10,197,168),0.45), rgba(var(--sh-accent2-rgb, 10,197,168),0.14)); box-shadow: 0 0 0 1.5px rgba(var(--sh-accent2-rgb, 10,197,168),0.5); color: var(--sh-ink, #f2ede4); font-size: 13.5px; font-weight: 700; letter-spacing: 0.02em; }
+        .cf-compose-field { flex: 1; min-width: 0; min-height: 44px; display: flex; align-items: center; padding: 0 16px; border-radius: 999px; border: 1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.1); background: rgba(var(--sh-ink-rgb, 242,237,228),0.045); color: var(--sh-ink2, #a09b94); font-family: inherit; font-size: 15px; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: text; transition: background .15s ease, color .15s ease; }
+        button.cf-compose-field:hover:not(:disabled) { background: rgba(var(--sh-ink-rgb, 242,237,228),0.075); color: var(--sh-ink, #f2ede4); }
+        .cf-compose-field:disabled, .cf-compose-field[aria-disabled="true"] { cursor: default; }
+        .cf-compose-bar { display: flex; align-items: center; gap: 6px; padding: 10px 12px 10px 16px; border-top: 1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.07); flex-wrap: wrap; }
+        .cf-compose-kind { display: inline-flex; align-items: center; gap: 6px; min-height: 30px; padding: 0 11px; border-radius: 999px; border: 1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.09); background: transparent; color: rgba(var(--sh-ink-rgb, 242,237,228),0.72); font-family: 'JetBrains Mono', monospace; font-size: 10.5px; font-weight: 600; letter-spacing: 0.1em; cursor: pointer; transition: border-color .15s ease, background .15s ease, color .15s ease; }
+        .cf-compose-kind::before { content: "＋"; color: var(--sh-accent-ink, #2ee0c4); font-size: 11px; letter-spacing: 0; }
+        .cf-compose-kind:hover:not(:disabled) { border-color: rgba(var(--sh-accent2-rgb, 10,197,168),0.45); background: rgba(var(--sh-accent2-rgb, 10,197,168),0.08); color: var(--sh-ink, #f2ede4); }
+        .cf-compose-kind:disabled { opacity: .45; cursor: default; }
+        .cf-compose-hint { font-size: 12.5px; color: var(--sh-ink3, #75706a); }
+        .cf-compose .cf-btn-primary { margin-left: auto; min-height: 36px; padding: 0 20px; }
+        @media (max-width: 560px) { .cf-compose-kind--more { display: none; } }
       `}</style>
       <div style={{ flex: "none", display: "flex", alignItems: "center", gap: 10, padding: "12px 18px", borderBottom: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)", flexWrap: "wrap" }}>
         {lens}
         <span aria-hidden style={{ flex: 1 }} />
         {signedIn === true && <button type="button" className="cf-btn" onClick={() => setMyPostsOnly(v => !v)} aria-pressed={myPostsOnly}>{myPostsOnly ? "All posts" : "My posts"}</button>}
-        {/* ⚠ GATED, AND IT DID NOT USED TO NEED TO BE. As a dashboard page this
-            composer was already behind a signed-in shell. The feed now renders in
-            the site-wide chat bubble, which mounts on Landing and Login too — so a
-            signed-out visitor could compose, the row would paint optimistically,
-            and /api/community/feed would answer 401 into a `.then` that only ever
-            read the response for milestone posts. The post was never published and
-            the screen said it was (review: Codex P1).
-            It RENDERS rather than disappearing, and says why — the roster-CSV
-            precedent: a control that is simply absent is not discoverable, and one
-            that leads nowhere costs more trust than one that explains itself. */}
-        <button type="button" className="cf-btn cf-btn-primary" onClick={() => setComposerOpen(true)} disabled={signedIn !== true || roleUnsure}
-          title={signedIn === false ? "Sign in to post" : (signedIn === null || roleUnsure) ? "Checking your account…" : `Post to ${placeName}`}>
-          <span aria-hidden style={{ fontSize: 15, lineHeight: 1 }}>＋</span> New post
-        </button>
-        {signedIn === false && (
-          <a href="/newdesign/Login.html" style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: TEAL_BRIGHT, textDecoration: "none", whiteSpace: "nowrap" }}>Sign in to post →</a>
-        )}
       </div>
-      <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: compact ? "12px 12px 20px" : "16px 18px 26px" }}>
-        <div style={{ maxWidth: compact ? "none" : 680, margin: "0 auto", display: "flex", flexDirection: "column", gap: compact ? 10 : 14 }}>
+      {/* ⚠ NO READING COLUMN IN THE PANEL, AND A BUFFER ROUND THE CARDS (owner, 2026-11-13: "wall and
+          community dont need a reading column", "some buffer on the screen layout"). The cards fill
+          the panel as the 2026-11-12 ruling has them; the 12px gutter they ran to the edge with is 24. */}
+      <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: compact ? "18px 24px 28px" : "16px 18px 26px" }}>
+        <div style={{ maxWidth: compact ? "none" : 680, margin: "0 auto", display: "flex", flexDirection: "column", gap: 14 }}>
+          {/* ⚠ THE MESSAGE BOX (owner, 2026-11-13: "where is the message box for those pages").
+              A field at the head of the feed, shaped like Chat's composer, in place of the toolbar's
+              "+ New post"; a click opens the full composer. GATED AS THAT BUTTON WAS: the feed renders
+              in the site-wide panel, which mounts on Landing and Login too, and a signed-out post
+              painted optimistically and was never published (review: Codex P1). Signed out it stays
+              in view and says why, with the way in beside it. */}
+          <div className="cf-compose" data-cf-compose>
+            <div className="cf-compose-top">
+              <span aria-hidden className="cf-compose-me">{signedIn === true && meName ? cfInitials(meName) : "＋"}</span>
+              {signedIn === false
+                ? <span className="cf-compose-field" aria-disabled="true">Sign in to post on the {placeName}.</span>
+                : <button type="button" className="cf-compose-field" onClick={() => openComposer("post")} disabled={signedIn !== true || roleUnsure}>
+                    {signedIn === null || roleUnsure ? "Checking your account…" : place === "community" ? "Ask the community something…" : place === "role" ? `Post to other ${placeName.toLowerCase()}s…` : "Share a workout, a PR or a photo…"}
+                  </button>}
+            </div>
+            <div className="cf-compose-bar">
+              {signedIn === false
+                ? <span className="cf-compose-hint">Members share workouts, PRs, runs and meals here.</span>
+                : [["workout", "WORKOUT"], ["pr", "PR"], ["run", "RUN"], ["meal", "MEAL"], ["milestone", "MILESTONE"]].map(([k, lab], i) => (
+                    <button key={k} type="button" className={i < 3 ? "cf-compose-kind" : "cf-compose-kind cf-compose-kind--more"} onClick={() => openComposer(k)} disabled={signedIn !== true || roleUnsure}>{lab}</button>
+                  ))}
+              {signedIn === false
+                ? <a href="/newdesign/Login.html" className="cf-btn cf-btn-primary">Log in</a>
+                : <button type="button" className="cf-btn cf-btn-primary" onClick={() => openComposer("post")} disabled={signedIn !== true || roleUnsure} title={`Post to ${placeName}`}>Post</button>}
+            </div>
+          </div>
           {(() => {
             // ⚠ ONE READ, FILED BY PLACE — see `cfInPlace`. What the Wall, Community and
             // role places show is the app's own filing of the same 50 posts, and the
@@ -2218,6 +2248,7 @@ function CommunityFeed({ place = "wall", compact = false } = {}) {
         <PostComposer
           me={{ who: meName || "You", role: meRoleLabel }}
           where={placeName}
+          startKind={composerKind}
           editing={editingPost}
           onCancel={() => { setComposerOpen(false); setEditingPost(null); }}
           onSubmit={(post) => {
@@ -2331,7 +2362,7 @@ function CommunityFeed({ place = "wall", compact = false } = {}) {
   );
 }
 
-function PostComposer({ me, onCancel, onSubmit, editing, where }) {
+function PostComposer({ me, onCancel, onSubmit, editing, where, startKind }) {
   const KINDS = [
     { value: "post", label: "Post", tag: "" },
     { value: "pr", label: "PR", tag: "STRENGTH" },
@@ -2342,7 +2373,7 @@ function PostComposer({ me, onCancel, onSubmit, editing, where }) {
     { value: "video", label: "Video", tag: "" },
   ];
   const ed = editing || null;
-  const [kind, setKind] = React.useState(ed ? (ed.kind || ((ed.video || ed.videoUrl) ? "video" : "post")) : "post");
+  const [kind, setKind] = React.useState(ed ? (ed.kind || ((ed.video || ed.videoUrl) ? "video" : "post")) : (KINDS.some(k => k.value === startKind) ? startKind : "post"));
   const [body, setBody] = React.useState(ed ? (ed.body || "") : "");
   // THE APPOINTMENTS (spec 2026-07-13): a required headline + a canonical
   // stamp; the textarea becomes the optional one-line detail. Mobile parity.
