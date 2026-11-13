@@ -40,7 +40,7 @@ function fnSource(name) {
   return SHELL.slice(decl.start, decl.end);
 }
 // The tables, the shell routing that `navGroupsFor` reads, and the three components.
-const tableSrc = ['COACHES_HREF', 'COACHES_TAB', 'COACHES_ITEMS', 'REWARDS_HREF', 'STORE_TAB', 'REWARDS_ITEMS', 'SHAPE_NAV_GROUPS', 'SIGNED_OUT_ONLY', 'PORTAL_NAV', 'DASH_SHELL_STUBS']
+const tableSrc = ['MARKETPLACE_HREF', 'MARKETPLACE_TAB', 'COACHES_HREF', 'COACHES_TAB', 'COACHES_ITEMS', 'REWARDS_HREF', 'STORE_TAB', 'REWARDS_ITEMS', 'SHAPE_NAV_GROUPS', 'SIGNED_OUT_ONLY', 'PORTAL_NAV', 'DASH_SHELL_STUBS']
   .map((n) => statement(SHELL, n)).join('\n');
 const fnSrc = ['dashShellRole', 'dashShellHref', 'navGroupsFor', 'NavCaret', 'NavDropdown', 'MobileDrawer', 'Header'].map(fnSource).join('\n');
 const compiled = babel.transformSync(tableSrc + '\n' + fnSrc, {
@@ -190,9 +190,11 @@ test('signed out, the drawer offers Rewards as a link with the Shape Store under
     assert.notEqual(at, -1, 'the drawer offers no Rewards link, so a phone cannot reach the page: ' + links.map(([n]) => n).join(' · '));
     assert.equal(links[at][1], 'Score.html');
     assert.deepEqual(links[at + 1], ['Shape Store', 'Store.html'], 'the Shape Store is not under Rewards in the drawer');
-    // ⚠ A MENU'S TAB IS A PAGE: Coaches was a <div> here, so a phone reached
-    // Coaches.html only from the homepage drawer.
-    assert.ok(links.some(([n, h]) => n === 'Coaches' && h === 'Coaches.html'), 'the drawer\'s Coaches is not a link to its page');
+    // ⚠ A MENU'S TAB IS A PAGE: Coaches was a <div> here, so a phone reached its
+    // page only from the homepage drawer. It opens For coaches since 2026-11-13, and
+    // Marketplace, the tab before it, opens the marketplace.
+    assert.ok(links.some(([n, h]) => n === 'Coaches' && h === 'ForCoaches.html'), 'the drawer\'s Coaches is not a link to its page');
+    assert.ok(links.some(([n, h]) => n === 'Marketplace' && h === 'Coaches.html'), 'the drawer offers no Marketplace link');
     assert.ok(!links.some(([n]) => n === 'Store'), 'the drawer offers a Store tab signed out');
   } finally { await m.unmount(); }
 });

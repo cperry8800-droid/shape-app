@@ -294,6 +294,12 @@
       // Icon-only where the bar runs short of room (measured: see NAV DOCK), and always in the collapsed header.
       ".nvd-label{white-space:nowrap}",
       "@media (max-width:1280px){.nvd-pair .nvd-label{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}.nvd-pair .nvd-nora{padding:0 6px 0 5px}.nvd-pair .nvd-chat{padding:0 10px 0 9px}.nvd-pair .nvd-count{position:absolute;top:-5px;right:-4px;min-width:16px;height:16px;padding:0 4px;font-size:9px;line-height:16px;box-shadow:0 0 0 2px var(--sh-ground, #1a1612)}}",
+      // ⚠ SIGNED IN, ICONS AT EVERY WIDTH (2026-11-13). A bar marked data-nav-dock-icons (pageShell's
+      // header and the homepage's nav, once /api/me answers with an account) keeps the pair to its two
+      // icons: the signed-in cluster also carries the bell, the greeting, Dashboard and for some a
+      // switch pill or Admin, and with the 192px labelled pair beside them the tabs ran into it (by
+      // 44px at 1344 for a Nutritionist switch). Icons are 74px; each keeps its aria-label and title.
+      "[data-nav-dock-icons] [data-nav-dock-slot~=a] .nvd-pair .nvd-label{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}[data-nav-dock-icons] [data-nav-dock-slot~=a] .nvd-pair .nvd-nora{padding:0 6px 0 5px}[data-nav-dock-icons] [data-nav-dock-slot~=a] .nvd-pair .nvd-chat{padding:0 10px 0 9px}[data-nav-dock-icons] [data-nav-dock-slot~=a] .nvd-pair .nvd-count{position:absolute;top:-5px;right:-4px;min-width:16px;height:16px;padding:0 4px;font-size:9px;line-height:16px;box-shadow:0 0 0 2px var(--sh-ground, #1a1612)}",
       // The collapsed header's column ("m") and the homepage's spot by its menu button ("nm") only
       // ever show collapsed.
       "[data-nav-dock-slot~=m] .nvd-pair .nvd-label{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}",

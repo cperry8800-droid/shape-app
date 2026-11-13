@@ -70,81 +70,83 @@ test('the homepage bar and the shared header offer the same links, in the same o
     'the two bars point the same labels at different pages');
 });
 
-// ⚠ THE PLACEHOLDER MUST NOT OUTLIVE ITS REASON. For one PR this pointed at
-// `Marketplace.html`, because Coaches.html did not exist yet and a nav entry to a
-// 404 on all 70 pages is worse than one to the next-best page. That is a debt,
-// and a debt with nothing watching it is a permanent feature — so the target has
-// to be a file that is actually in the repo.
-test('the Coaches link names a page that exists', () => {
-  const href = NAV_TABLES.COACHES_HREF;
-  assert.ok(href, 'COACHES_HREF did not parse out of pageShell.jsx');
-  assert.ok(existsSync(path.join(ND, target(href))),
-    'the nav\'s Coaches points at ' + href + ', which is not in public/newdesign');
-  // Both tables read the same constant, so neither bar can be pointed somewhere
-  // else without the other following.
+// ⚠ THE PLACEHOLDER MUST NOT OUTLIVE ITS REASON. For one PR the Coaches tab pointed
+// at `Marketplace.html`, because Coaches.html did not exist yet and a nav entry to a
+// 404 on all 70 pages is worse than one to the next-best page. That is a debt, and a
+// debt with nothing watching it is a permanent feature — so each target has to be a
+// file that is actually in the repo.
+test('the Marketplace and Coaches links name pages that exist', () => {
+  for (const [name, href] of [['MARKETPLACE_HREF', NAV_TABLES.MARKETPLACE_HREF], ['COACHES_HREF', NAV_TABLES.COACHES_HREF]]) {
+    assert.ok(href, name + ' did not parse out of pageShell.jsx');
+    assert.ok(existsSync(path.join(ND, target(href))), 'the nav\'s ' + name + ' is ' + href + ', which is not in public/newdesign');
+  }
+  // Both tables read the same entry, so neither bar can be pointed somewhere else
+  // without the other following. Coaches is signed out only (below).
   for (const [name, groups] of [['signed out', NAV_TABLES.SHAPE_NAV_GROUPS], ['signed in', NAV_TABLES.PORTAL_NAV]]) {
-    const coaches = groups.find((g) => g.label === 'Coaches');
-    assert.ok(coaches, 'the ' + name + ' row has no Coaches entry');
-    assert.equal(coaches.href, href, 'the ' + name + ' row points Coaches somewhere else');
+    const market = groups.find((g) => g.label === 'Marketplace');
+    assert.ok(market, 'the ' + name + ' row has no Marketplace tab');
+    assert.equal(market.href, NAV_TABLES.MARKETPLACE_HREF, 'the ' + name + ' row points Marketplace somewhere else');
   }
 });
 
 // Owner, 2026-09-14: "just have 1 link" — the menu used to carry Trainers and
 // Nutritionists, each deep-linking one of the marketplace's own two tabs. Owner,
-// 2026-11-05: "turn coaches page into what you built" — the Coaches page IS the
-// marketplace. Owner, 2026-11-08: "remove the sub tab ... no longer needed", when
-// its one item was For coaches. Owner, 2026-11-12, of For trainers and For
-// nutritionists, which only the footer linked: "add them as subtabs under coaches".
-// Owner, 2026-11-13, after "where did the marketplace page go?": "make marketplace a
-// sub tab under coaches", first in the menu.
+// 2026-11-05: "turn coaches page into what you built" — Coaches.html IS the
+// marketplace. Owner, 2026-11-12, of For trainers and For nutritionists, which only
+// the footer linked: "add them as subtabs under coaches". Owner, 2026-11-13, after
+// "where did the marketplace page go?": "create an individual nav tab then for
+// marketplace", which "should be this page" (Coaches.html); asked where Coaches then
+// goes, the owner picked For coaches.
 //
-// ⚠ SIGNED OUT ONLY. The three coach pages each end in a coach application, so they
-// are sign-up pages, and the signed-in row is the site's tabs minus its sign-up pages
-// (owner, 2026-09-23); Marketplace alone would be the tab's own page twice. Signed in,
-// Coaches is the plain link, swapped in place the way Rewards ▾ is, so the signed-in
-// bar is as wide as it was measured.
-test('Coaches is a menu of Marketplace and the coach pages signed out, and a plain link signed in, on both bars and both drawers', () => {
-  assert.equal(target(NAV_TABLES.COACHES_HREF), 'Coaches.html', 'the Coaches tab no longer opens the marketplace page');
+// ⚠ COACHES IS SIGNED OUT ONLY. Its three pages each end in a coach application, so
+// it is a tab of sign-up pages, and the signed-in row is the site's tabs minus its
+// sign-up pages (owner, 2026-09-23). Marketplace is on both rows.
+test('Marketplace is a tab of its own, first, and Coaches is a signed-out menu of the coach pages, on both bars and both drawers', () => {
+  assert.equal(target(NAV_TABLES.MARKETPLACE_HREF), 'Coaches.html', 'the Marketplace tab no longer opens the marketplace page');
+  assert.equal(target(NAV_TABLES.COACHES_HREF), 'ForCoaches.html', 'the Coaches tab no longer opens For coaches');
   const items = NAV_TABLES.COACHES_ITEMS.map(([n, h]) => [n, target(h)]);
-  assert.deepEqual(items, [['Marketplace', 'Coaches.html'], ['For coaches', 'ForCoaches.html'], ['For trainers', 'Coach.html'], ['For nutritionists', 'Nutritionist.html']],
-    'the Coaches menu is not the owner\'s Marketplace and three coach pages');
-  const out = NAV_TABLES.SHAPE_NAV_GROUPS.find((g) => g.label === 'Coaches');
-  assert.equal(out.kind, 'drop', 'signed out, Coaches is not a menu');
-  assert.equal(out.items, NAV_TABLES.COACHES_ITEMS, 'the signed-out Coaches menu is not COACHES_ITEMS');
-  assert.deepEqual(out.signedIn, [NAV_TABLES.COACHES_TAB], 'signed in, Coaches is not swapped for its plain link');
-  const inRow = NAV_TABLES.PORTAL_NAV.find((g) => g.label === 'Coaches');
-  assert.equal(inRow, NAV_TABLES.COACHES_TAB, 'the signed-in Coaches is not the plain tab');
-  assert.equal(inRow.kind, 'link', 'signed in, Coaches is drawn as a menu');
-  assert.equal(inRow.items, undefined, 'signed in, Coaches carries menu items');
-  for (const [name, g] of [['signed out', out], ['signed in', inRow]]) {
-    assert.equal(g.href, NAV_TABLES.COACHES_HREF, 'the ' + name + ' Coaches points somewhere else');
-    // It lights on the marketplace and on every coach page.
-    for (const page of ['Coaches', 'Marketplace', 'Trainer Overview', 'Nutritionist Overview']) {
-      assert.ok((g.match || []).includes(page), 'the ' + name + ' Coaches no longer lights on ' + page);
-    }
+  assert.deepEqual(items, [['For coaches', 'ForCoaches.html'], ['For trainers', 'Coach.html'], ['For nutritionists', 'Nutritionist.html']],
+    'the Coaches menu is not the owner\'s three coach pages');
+  const outLabels = NAV_TABLES.SHAPE_NAV_GROUPS.map((g) => g.label);
+  assert.deepEqual(outLabels.slice(0, 2), ['Marketplace', 'Coaches'], 'the row does not open on Marketplace, then Coaches');
+  const market = NAV_TABLES.SHAPE_NAV_GROUPS[0];
+  assert.equal(market, NAV_TABLES.MARKETPLACE_TAB, 'the first tab is not MARKETPLACE_TAB');
+  assert.equal(market.kind, 'link', 'Marketplace is drawn as a menu');
+  const coaches = NAV_TABLES.SHAPE_NAV_GROUPS[1];
+  assert.equal(coaches.kind, 'drop', 'signed out, Coaches is not a menu');
+  assert.equal(coaches.items, NAV_TABLES.COACHES_ITEMS, 'the signed-out Coaches menu is not COACHES_ITEMS');
+  assert.equal(coaches.href, NAV_TABLES.COACHES_HREF, 'the Coaches trigger opens another page');
+  assert.equal(coaches.signedIn, undefined, 'Coaches is swapped signed in rather than kept off');
+  assert.ok(NAV_TABLES.SIGNED_OUT_ONLY.includes('Coaches'), 'Coaches is not kept off the signed-in row');
+  assert.ok(!NAV_TABLES.PORTAL_NAV.some((g) => g.label === 'Coaches'), 'signed in, the row still offers Coaches');
+  assert.equal(NAV_TABLES.PORTAL_NAV[0], NAV_TABLES.MARKETPLACE_TAB, 'signed in, the row does not open on Marketplace');
+  // Each tab lights on its own pages, and not on the other's.
+  assert.deepEqual(market.match, ['Marketplace'], 'Marketplace lights on other pages');
+  for (const page of ['Coaches', 'Trainer Overview', 'Nutritionist Overview']) {
+    assert.ok(coaches.match.includes(page), 'Coaches no longer lights on ' + page);
   }
+  assert.ok(!coaches.match.includes('Marketplace'), 'Coaches lights on the marketplace as well as Marketplace does');
   // The shared header's bar and drawer honour a link's `match`.
   assert.match(SHELL, /\{link\(g\.label, g\.href, g\.match\)\}/, 'the bar draws a link without its match');
   assert.match(SHELL, /const on = match \? match\.includes\(active\) : active === name;/);
   assert.match(SHELL, /color: \(g\.match \? g\.match\.includes\(active\) : active === g\.label\) \? TEAL : INK/, 'the drawer lights a link only on its own name');
-  // The homepage's static bar: the same menu, its caret and panel marked signed-out-only.
+  // The homepage's static bar: Marketplace, then the Coaches menu, the whole of it
+  // marked signed-out-only (its trigger too, which the marks test below reads).
   const row = /<div class="nlinks">([\s\S]*?)<\/div>\s*<div class="nauth">/.exec(INDEX);
   assert.ok(row, 'the homepage nav\'s .nlinks block is gone');
-  const drop = /<span class="ndrop"><a href="\/newdesign\/Coaches\.html">Coaches<span class="car"[^>]*\bdata-signed-out-only\b[^>]*><\/span><\/a><div class="nmenu" data-signed-out-only>([\s\S]*?)<\/div><\/span>/.exec(row[1]);
-  assert.ok(drop, 'the homepage Coaches is not a menu whose caret and panel go on sign-in');
-  assert.deepEqual([...drop[1].matchAll(/<a href="([^"]+)">([^<]+)<\/a>/g)].map((a) => [a[2], target(a[1])]), items,
+  const head = /^\s*<a href="\/newdesign\/Coaches\.html">Marketplace<\/a>\s*<span class="ndrop" data-signed-out-only><a href="\/newdesign\/ForCoaches\.html" data-signed-out-only>Coaches<span class="car"[^>]*><\/span><\/a><div class="nmenu">([\s\S]*?)<\/div><\/span>/.exec(row[1]);
+  assert.ok(head, 'the homepage bar does not open on Marketplace, then a Coaches menu marked signed-out-only');
+  assert.deepEqual([...head[1].matchAll(/<a href="([^"]+)">([^<]+)<\/a>/g)].map((a) => [a[2], target(a[1])]), items,
     'the homepage Coaches menu is not the shared header\'s');
-  assert.equal((row[1].match(/<span class="ndrop">/g) || []).length, NAV_TABLES.SHAPE_NAV_GROUPS.filter((g) => g.kind === 'drop').length, 'the homepage draws a different number of menus than the shared header');
-  // Both drawers: Coaches, then its items indented and marked signed-out-only.
+  // The homepage drawer: Marketplace, then Coaches and its items, all signed-out-only.
   const drawer = /<div class="ndrawer" id="ndrawer">([\s\S]*?)<\/div>/.exec(INDEX);
   assert.ok(drawer, 'the homepage has no drawer');
-  const inDrawer = [...drawer[1].matchAll(/<a href="([^"]+)"([^>]*)>([\s\S]*?)<\/a>/g)];
-  const at = inDrawer.findIndex((a) => target(a[1]) === 'Coaches.html' && a[3].trim() === 'Coaches');
-  assert.ok(at >= 0, 'the homepage drawer lost Coaches');
-  assert.deepEqual(inDrawer.slice(at + 1, at + 1 + items.length).map((a) => [a[3].replace(/&nbsp;/g, ' ').trim(), target(a[1]), /\bdata-signed-out-only\b/.test(a[2])]),
-    items.map(([n, h]) => [n, h, true]), 'the homepage drawer does not carry the Coaches menu under Coaches, marked signed-out-only');
-  // The footer still opens all three, which a signed-in visitor needs. Read from
-  // each footer alone: COACHES_ITEMS spells the same pairs in the nav.
+  const inDrawer = [...drawer[1].matchAll(/<a href="([^"]+)"([^>]*)>([\s\S]*?)<\/a>/g)]
+    .map((a) => [a[3].replace(/&nbsp;/g, ' ').trim(), target(a[1]), /\bdata-signed-out-only\b/.test(a[2])]);
+  assert.deepEqual(inDrawer.slice(0, 2 + items.length),
+    [['Marketplace', 'Coaches.html', false], ['Coaches', 'ForCoaches.html', true], ...items.map(([n, h]) => [n, h, true])],
+    'the homepage drawer does not open on Marketplace, then Coaches and its menu marked signed-out-only');
+  // The footer still opens all three coach pages, which a signed-in visitor needs.
   const homeFoot = /<footer class="ft">[\s\S]*?<\/footer>/.exec(INDEX);
   const at2 = SHELL.indexOf('function Footer(');
   assert.ok(homeFoot && at2 > 0, 'a footer did not parse — this guard is reading nothing');
@@ -338,11 +340,13 @@ const DASHBOARD_TABS = ['Workouts', 'Nutrition', 'Progress', 'Schedule', 'Client
 // row, so Store ends it.
 test('the signed-in row is the site\'s tabs minus the sign-up page, and none of the dashboard\'s', () => {
   const labels = NAV_TABLES.PORTAL_NAV.map((g) => g.label);
-  assert.deepEqual(labels, ['Coaches', 'App', 'Kitchen', 'Community', 'Rewards', 'Store'],
+  // Owner, 2026-11-13: Marketplace is a tab of its own, and Coaches, a menu of the
+  // coach sign-up pages, stays off this row.
+  assert.deepEqual(labels, ['Marketplace', 'App', 'Kitchen', 'Community', 'Rewards', 'Store'],
     'the signed-in row is not the owner\'s pick: ' + labels.join(' · '));
   // Owner, 2026-11-09: "remove the members page from website" — Members, the
   // other sign-up page, left both rows with it.
-  assert.deepEqual(NAV_TABLES.SIGNED_OUT_ONLY, ['Pricing'],
+  assert.deepEqual(NAV_TABLES.SIGNED_OUT_ONLY, ['Coaches', 'Pricing'],
     'the sign-up pages kept off the signed-in row changed: ' + NAV_TABLES.SIGNED_OUT_ONLY.join(' · '));
   for (const tab of DASHBOARD_TABS) {
     assert.ok(!labels.includes(tab), tab + ' is on the nav AND is a tab of the dashboard — the duplication the owner asked to remove');
@@ -428,9 +432,12 @@ test('the homepage marks exactly the sign-up pages, on its bar and in its drawer
   const outLabels = new Set(NAV_TABLES.SHAPE_NAV_GROUPS.map((g) => g.label));
   const menuItems = swapped.flatMap((g) => (g.items || []).map(([n, h]) => [n, target(h)]));
   const signedInOnly = swapped.flatMap((g) => g.signedIn).filter((r) => !outLabels.has(r.label)).map((r) => [r.label, target(r.href)]);
-  const byName = (a, b) => a[0].localeCompare(b[0]);
-  assert.deepEqual(markedLinks(drawer[1]).sort(byName), [...expected, ...menuItems].sort(byName),
-    'the homepage drawer marks a different set of signed-out links than the sign-up pages and the replaced menus\' items');
+  // A sign-up tab that is a menu (Coaches) leaves the drawer with its inlined items.
+  const keptOffItems = NAV_TABLES.SHAPE_NAV_GROUPS.filter((g) => NAV_TABLES.SIGNED_OUT_ONLY.includes(g.label))
+    .flatMap((g) => (g.items || []).map(([n, h]) => [n, target(h)]));
+  const byName = (a, b) => a[0].localeCompare(b[0]) || a[1].localeCompare(b[1]);
+  assert.deepEqual(markedLinks(drawer[1]).sort(byName), [...expected, ...keptOffItems, ...menuItems].sort(byName),
+    'the homepage drawer marks a different set of signed-out links than the sign-up pages, their items and the replaced menus\' items');
   assert.deepEqual(markedLinks(bar[1], 'data-signed-in-only'), signedInOnly, 'the homepage bar marks a different set of signed-in-only tabs than PORTAL_NAV adds');
   assert.deepEqual(markedLinks(drawer[1], 'data-signed-in-only'), signedInOnly, 'the homepage drawer marks a different set of signed-in-only tabs than PORTAL_NAV adds');
   // The bar's replaced menu loses its caret and its panel on sign-in.
