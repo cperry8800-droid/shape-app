@@ -708,6 +708,7 @@ async function loadChat({ user = { id: ME, email: 'm@x' }, role = 'client', isMe
     // #2558's lookups named while they run.
     ['@/lib/ai/noraStatus.mjs', await import(join(ROOT, 'src/lib/ai/noraStatus.mjs'))],
     ['@/lib/ai/shapeKnowledge.mjs', await import(join(ROOT, 'src/lib/ai/shapeKnowledge.mjs'))],
+    ['@/lib/ai/fitnessKnowledge.mjs', await import(join(ROOT, 'src/lib/ai/fitnessKnowledge.mjs'))],
     ['@/lib/ai/voiceLang.mjs', await import(join(ROOT, 'src/lib/ai/voiceLang.mjs'))],
     ['@/lib/request-auth', { clientForRequest: async () => sb }],
     ['@/lib/ai/noraLimits', noraLimits],
