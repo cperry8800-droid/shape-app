@@ -89,8 +89,9 @@ test('the shell uses those rules, asks /api/me/membership, and re-checks when it
   assert.match(main, /: \{ loading: false, active, ageRestricted, pastDue: undefined, nora: active \? true : undefined, includedWithCoach: false \}\);/);
   assert.doesNotMatch(main, /noraPreview|ShapeNoraPreview/, 'the shell carries no free week');
   assert.match(main, /window\.ShapeCanChat = paidFlags\.canChat;\n\s+window\.ShapePaid = paidFlags\.paid;\n\s+window\.ShapePastDue = paidFlags\.pastDue;\n\s+window\.ShapeNora = paidFlags\.nora;\n\s+window\.ShapeIncludedWithCoach = includedWithCoach;\n\s+window\.dispatchEvent\(new Event\('shape:canchat'\)\);\n\s+window\.dispatchEvent\(new Event\('shape:paid'\)\);/);
-  // The signed-out Preview and Browse are gone, and every way back to them.
-  for (const gone of [/previewMode|setPreviewMode/, /browseMode|setBrowseMode/, /BSPreviewBanner/, /shape:exitPreview/, /bannerDismissed|noticeDismissed/, /onBrowse/, /onPreview/, /paywall\.preview/]) {
+  // Browse is gone, and the paywall's ways back to it. The welcome's Preview came back (owner,
+  // 2026-11-13; tests/app-free-accounts.test.mjs holds it to the app URL and to sessions with no account).
+  for (const gone of [/browseMode|setBrowseMode/, /shape:exitPreview/, /bannerDismissed|noticeDismissed/, /onBrowse/]) {
     assert.doesNotMatch(main, gone, `the shell still carries ${gone}`);
   }
   // Codex on #2353: computeMembership's rule, a coach role (dietitians included) as the primary

@@ -5,8 +5,9 @@
 // and a signed-in adult account that has not paid is a free account that gets in: logging,
 // Home, programs, the leaderboards, the coaches and messaging them, and help-desk Nora. The
 // $5 membership (or an approved coach, or an admin) adds the paid features: assistant Nora and
-// her voice, Shape Radio, the AI helpers, Cook Mode's voice and the points Store. There is no
-// preview of the app with no account any more, and no free trial.
+// her voice, Shape Radio, the AI helpers, Cook Mode's voice and the points Store. There is no free
+// trial. The one way in with no account is the welcome's Preview at the app's URL (owner,
+// 2026-11-13): the app on its demo data behind a banner, decided in the shell, not by this gate.
 //
 // ⚠ PAST DUE IS FREE. A member whose $5 renewal failed while Stripe retries keeps the account and
 // every free feature, and loses the paid ones until the card is updated. The server answers
