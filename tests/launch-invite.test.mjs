@@ -2,11 +2,11 @@
 // session falls back to). Owner, 2026-11-09, over a screenshot of it: "also make sure this is wired
 // properly. and remove that one line" — the "To: You · Invitation" address line.
 //
-// ⚠ IT IS NO LONGER A DOOR (owner, 2026-11-10: an account is required; the signed-out Preview that
-// reached it from the paywall is gone). Only a signed-in account reaches the telegram now, so the
-// shell hands the splash no signed-out answer; the invite edition stays as the fallback for a
-// session that never restores, and Step inside, a tap anywhere and the keyboard each still leave it
-// for the app.
+// ⚠ IT IS NO LONGER A DOOR (owner, 2026-11-10: an account is required). Only a signed-in account
+// reaches the telegram now, so the shell hands the splash no signed-out answer: the welcome's Preview,
+// back on 2026-11-13, goes straight to the app, never through it. The invite edition stays as the
+// fallback for a session that never restores, and Step inside, a tap anywhere and the keyboard each
+// still leave it for the app.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -41,9 +41,13 @@ test('the invite edition opens on the pitch, with no address line over it', () =
   }
 });
 
-test('no Preview reaches it any more, and every way out enters the app', () => {
-  assert.doesNotMatch(SHELL, /onPreview|setPreviewMode|previewMode/, 'the signed-out Preview is back');
+test('the Preview goes straight to the app, never through it, and every way out enters the app', () => {
+  // Both of the welcome's Previews skip the telegram: the gate's goes to the app stage, the app stage's
+  // stays on it, and the telegram reads no preview state.
+  assert.match(SHELL, /onPreview=\{\(\) => \{ setPreviewMode\(true\); setStage\('app'\); \}\}/, "the gate's Preview no longer goes straight to the app");
+  assert.doesNotMatch(SHELL, /setPreviewMode\(true\); setStage\('daily'\)/, 'the Preview goes through the telegram again');
   const daily = SHELL.slice(SHELL.indexOf("{stage === 'daily' && <BSSplash"), SHELL.indexOf("{stage === 'login'"));
+  assert.doesNotMatch(daily, /previewMode/, 'the telegram reads the preview');
   assert.match(daily, /if \(authUserId\) \{ try \{ localStorage\.setItem\('shape\.dailySeen'/, 'only an account stamps the seen-marker');
   assert.match(daily, /setStage\('app'\);/, 'leaving the invite no longer enters the app');
   // Step inside, the whole screen, and a real keyboard control.

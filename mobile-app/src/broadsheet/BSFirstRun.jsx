@@ -21,7 +21,10 @@ import { FR, FR_HEAD, FR_MONO, FRScreen, FRHeader, FRPanel, FRField, FRError, FR
 // What a free account gets as five tiles, three over two (Training, Nutrition, Coaches; Community, Music),
 // the membership on one line under the buttons. Music carries the line's ✦: Shape Radio is the
 // membership's, not the free account's (shapeKnowledge.mjs 'radio'), and the line says so.
-export function BSWelcomeScreen({ price, onCreate, onSignIn }) {
+// Preview the app (owner, 2026-11-13: "bring back the preview button … so i can see what app would look
+// like with example data", "just the same as it was", at the app URL): a quiet third door under Sign in,
+// only where the shell hands one in (the app at /m/; the installed apps keep the account-only welcome).
+export function BSWelcomeScreen({ price, onCreate, onSignIn, onPreview = null }) {
   const { tr } = useTr('onboarding');
   const tiles = [
     ['train', tr('paywall.feat.training')],
@@ -48,6 +51,7 @@ export function BSWelcomeScreen({ price, onCreate, onSignIn }) {
       <FRPanel style={{ margin: '0 10px max(10px, env(safe-area-inset-bottom, 0px))', padding: '18px 16px 14px', gap: 10 }}>
         <button type="button" data-auth-create="" onClick={onCreate} style={frButton('primary')}>{tr('fr.welcome.create')}</button>
         <button type="button" data-auth-signin="" onClick={onSignIn} style={frButton('outline')}>{tr('fr.signIn')}</button>
+        {onPreview ? <button type="button" data-auth-preview="" onClick={onPreview} style={frButton('text')}>{tr('paywall.preview')}</button> : null}
         <div data-bs-welcome-membership="" style={{ textAlign: 'center', fontFamily: FR_HEAD, fontSize: 13, lineHeight: 1.4, color: FR.ink3, paddingTop: 2 }}>
           <span aria-hidden="true" style={{ color: FR.teal }}>✦</span> {tr('welcome.membership', { price })}
         </div>

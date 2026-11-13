@@ -48,10 +48,14 @@ if (typeof window !== 'undefined') {
     enabled: () => !!window.SHAPE_TURNSTILE_SITEKEY,
     siteKey: () => window.SHAPE_TURNSTILE_SITEKEY || '',
     // Render an explicit widget into `el`. onToken(token) on solve; onToken('')
-    // on expire/error. Resolves to the widget id (or null when disabled / failed).
-    render(el, onToken) {
+    // on expire/error, and onError(code) too, so a form can tell a check that
+    // failed from one still running (captchaGate.mjs). Resolves to the widget id
+    // (or null when disabled / failed, after onError('load') when the script or
+    // the render itself failed).
+    render(el, onToken, onError) {
       if (!el || !window.SHAPE_TURNSTILE_SITEKEY) return Promise.resolve(null);
       const cb = (tok) => { try { onToken(tok || ''); } catch (e) {} };
+      const fail = (code) => { cb(''); try { if (onError) onError(String(code || 'error')); } catch (e) {} };
       return load()
         .then((ts) => ts.render(el, {
           sitekey: window.SHAPE_TURNSTILE_SITEKEY,
@@ -60,10 +64,10 @@ if (typeof window !== 'undefined') {
           theme: 'dark',
           appearance: 'interaction-only',
           callback: cb,
-          'expired-callback': () => cb(''),
-          'error-callback': () => cb(''),
+          'expired-callback': () => fail('expired'),
+          'error-callback': (code) => fail(code),
         }))
-        .catch((e) => { console.warn('[shape] turnstile render failed', e); return null; });
+        .catch((e) => { console.warn('[shape] turnstile render failed', e); fail('load'); return null; });
     },
     reset(id) { try { if (window.turnstile && id != null) window.turnstile.reset(id); } catch (e) {} },
     // Destroy a widget when its container unmounts so a fresh one renders next

@@ -2,6 +2,7 @@ import { effectiveAppPaper, appearancePatch, saveAppearancePatch, paperColorMode
 import '../../../public/newdesign/splitGlassMark.js'; // window.SplitGlassMark, shared with the website's splash
 import React from 'react';
 import * as ReactDOM from 'react-dom/client';
+import { Capacitor } from '@capacitor/core';
 import { createPortal } from 'react-dom';
 import { I18nextProvider } from 'react-i18next';
 import { initI18n, applyDir, useTr, i18n as bsI18n } from '../i18n/index.js';
@@ -13,6 +14,7 @@ import { BSTimezoneCheck } from './BSTimezone.jsx';
 import { bsLaunchRoute, bsDailyStamp, bsAfterBeat, bsWireLines, bsWireTraining, bsWireCoachNote, bsWireNutrition } from '../services/dailyWire.mjs';
 import { bsCiLeadReason } from './BSCheckinCard.jsx';
 import { bsAccountGate, bsPaidFlags, bsMembershipAfter, bsMembershipSeed, bsPollMembership } from '../services/memberGate.mjs';
+import { bsCaptchaStep, BS_CAPTCHA_WAIT_MS } from '../services/captchaGate.mjs';
 import { BSPlanPickerHost } from './BSPaidLock.jsx';
 import { bsCaptureBoundaryError } from '../sentry.mjs';
 import { shapeScrubLocalUserContent, shapeInstallSignOutListener } from '../services/localScrub.mjs';
@@ -48,7 +50,7 @@ try { (window.requestIdleCallback || ((fn) => setTimeout(fn, 3000)))(() => windo
 const { useState: useStateBSM, useEffect: useEffectBSM } = React;
 const {
   useBS, BSProvider, BSPhone, BSLogo,
-  BSRadioProvider,
+  BSRadioProvider, useBSRadio,
 } = window;
 
 // The membership price, interpolated into every CTA that quotes it. One
@@ -520,8 +522,8 @@ function BSSplash({ onDone, style = 'wire-beat' }) {
   // The Daily digest: when the "classified" (daily) splash mounts, fetch the
   // member's real day. Fully guarded; null = still loading. Tap-to-advance works
   // the whole time regardless of fetch state.
-  // Only a signed-in account reaches the telegram now (owner, 2026-11-10: the signed-out Preview is
-  // gone, so the shell never hands it a visitor with no session). Its reads are a free account's
+  // Only a signed-in account reaches the telegram now (owner, 2026-11-10; the welcome's Preview, back
+  // on 2026-11-13, goes straight to the app, so the shell never hands it a visitor with no session). Its reads are a free account's
   // too: the daily briefing is free. The retries below are for an account whose session is still
   // restoring; the invite edition is what a digest that never found the session falls back to.
   const [bsDigest, setBsDigest] = useStateBSM(null);
@@ -771,18 +773,40 @@ function BSLogin({ onLogin, onApply, onBack, role, setRole, initialMode }) {
     : (authMethod === 'phone' && otpSent) ? null
     : (mode === 'create' && authMethod !== 'phone' && createStep === 1) ? null // the identity step makes no auth request
     : 'form';
+  // ⚠ A TAP BEFORE THE TOKEN WAITS FOR IT (captchaGate.mjs; owner, 2026-11-13, sign-in held on "Just
+  // a moment"). `captchaWaiting` is the request a tap asked for before the token arrived ('auth',
+  // 'phone' or 'forgot'): it goes as soon as the token does. `captchaFailed` is a check that errored,
+  // expired or gave no token in time; the next tap bumps `captchaGen`, which renders a fresh one.
+  const [captchaFailed, setCaptchaFailed] = useStateBSM(false);
+  const [captchaGen, setCaptchaGen] = useStateBSM(0);
+  const [captchaWaiting, setCaptchaWaiting] = useStateBSM(null);
   React.useEffect(() => {
     if (captchaIdRef.current != null) {
       window.ShapeTurnstile.remove?.(captchaIdRef.current);
       captchaIdRef.current = null;
     }
     setCaptchaToken('');
+    setCaptchaFailed(false);
     if (!captchaSlot) return;
     const el = captchaRef.current;
     if (!el) return;
-    window.ShapeTurnstile.render(el, setCaptchaToken).then((id) => { captchaIdRef.current = id; });
-  }, [captchaSlot]);
+    window.ShapeTurnstile.render(el, (tok) => { setCaptchaToken(tok); if (tok) setCaptchaFailed(false); }, () => setCaptchaFailed(true))
+      .then((id) => { captchaIdRef.current = id; });
+  }, [captchaSlot, captchaGen]);
+  // A request waiting in one container is not carried to the next (the verify screen, the code step),
+  // nor across Email and Phone or Sign in and Join (Codex P2 on #2734): it was asked of the form as it
+  // was, so a token arriving after the switch would send the old request with the new form's fields.
+  React.useEffect(() => { setCaptchaWaiting(null); }, [captchaSlot, authMethod, mode]);
   const resetCaptcha = () => { setCaptchaToken(''); if (captchaIdRef.current != null) window.ShapeTurnstile.reset(captchaIdRef.current); };
+  // True when the request must wait for the check (it is then held, and "Just a moment" says so).
+  const holdForCaptcha = (kind) => {
+    const step = bsCaptchaStep({ captchaOn, token: captchaToken, failed: captchaFailed });
+    if (step === 'go') return false;
+    if (step === 'retry') { setCaptchaFailed(false); setCaptchaGen((g) => g + 1); }
+    setCaptchaWaiting(kind);
+    setAuthError(tr('login.err.captcha'));
+    return true;
+  };
   const isCreate = mode === 'create';
   const isPhone = authMethod === 'phone';
   // ⚠ JOINING MAKES A MEMBER'S ACCOUNT; A COACH APPLIES (owner, 2026-11-13, the first-run redraw). The
@@ -849,7 +873,7 @@ function BSLogin({ onLogin, onApply, onBack, role, setRole, initialMode }) {
       const d = new Date(dob); const eighteen = new Date(); eighteen.setFullYear(eighteen.getFullYear() - 18);
       if (isNaN(d.getTime()) || d > eighteen) { setCreateStep(1); setAuthError(tr('login.err.under18')); return; }
     }
-    if (captchaOn && !captchaToken) { setAuthError(tr('login.err.captcha')); return; }
+    if (holdForCaptcha('auth')) return;
     setBusy(true);
     try {
       const result = isCreate
@@ -924,7 +948,7 @@ function BSLogin({ onLogin, onApply, onBack, role, setRole, initialMode }) {
       const d = new Date(dob); const eighteen = new Date(); eighteen.setFullYear(eighteen.getFullYear() - 18);
       if (isNaN(d.getTime()) || d > eighteen) { setAuthError(tr('login.err.under18')); return; }
     }
-    if (captchaOn && !captchaToken) { setAuthError(tr('login.err.captcha')); return; }
+    if (holdForCaptcha('phone')) return;
     setPhone(e164);
     setBusy(true);
     try {
@@ -975,7 +999,7 @@ function BSLogin({ onLogin, onApply, onBack, role, setRole, initialMode }) {
     const e = email.trim();
     if (!e) { setAuthError(tr('login.err.forgotEmail')); return; }
     if (!auth?.resetPassword) { setAuthError(tr('login.err.forgotFail')); return; }
-    if (captchaOn && !captchaToken) { setAuthError(tr('login.err.captcha')); return; }
+    if (holdForCaptcha('forgot')) return;
     try {
       await auth.resetPassword(e, captchaOn ? captchaToken : undefined);
       window.__bsToast?.(tr('login.ok.resetSent'), 'ok');
@@ -987,6 +1011,24 @@ function BSLogin({ onLogin, onApply, onBack, role, setRole, initialMode }) {
         : tr('login.err.forgotFail'));
     } finally { if (captchaOn) resetCaptcha(); }
   };
+  // The held request goes the moment the token arrives (and not while another is in flight).
+  React.useEffect(() => {
+    if (!captchaWaiting || !captchaToken || busy) return;
+    const kind = captchaWaiting;
+    setCaptchaWaiting(null);
+    setAuthError('');
+    if (kind === 'auth') submitAuth();
+    else if (kind === 'phone') sendPhoneCode();
+    else if (kind === 'forgot') forgotPassword();
+  }, [captchaWaiting, captchaToken, busy]);
+  // A held request whose check fails, or gives no token in BS_CAPTCHA_WAIT_MS, says so; the next tap
+  // starts a fresh check (holdForCaptcha's 'retry').
+  React.useEffect(() => {
+    if (!captchaWaiting) return undefined;
+    if (captchaFailed) { setCaptchaWaiting(null); setAuthError(tr('login.err.captchaFailed')); return undefined; }
+    const id = setTimeout(() => setCaptchaFailed(true), BS_CAPTCHA_WAIT_MS);
+    return () => clearTimeout(id);
+  }, [captchaWaiting, captchaFailed]);
   // Continue with Apple — uses the auth layer if wired, else a graceful notice.
   const continueWithApple = async () => {
     setAuthError('');
@@ -1065,17 +1107,57 @@ function BSLegalLinks({ color }) {
   );
 }
 
-// The welcome, for a session with no account: the app's only door now (owner, 2026-11-10: "An
-// account is REQUIRED to use the app. The signed-out Preview mode and Browse mode are REMOVED").
-// Create account or Sign in; what a free account gets, as lit chips; and one plate saying that the
+// The welcome, for a session with no account (owner, 2026-11-10: "An account is REQUIRED to use the
+// app"; Browse mode stays removed, and the Preview came back at the app's URL on 2026-11-13, below).
+// Create account or Sign in, and Preview where it is offered; what a free account gets, as lit chips; and one plate saying that the
 // $5 membership adds Nora and Shape Radio. A signed-in account never sees it, paid or not:
 // a free account is in the app. Fixed-dark (a launch surface), so it does NOT follow the paper
 // theme, matching the beat and the telegram. `paywall_viewed` stays its analytics name: it is the
 // funnel's whitelisted event for this screen (src/lib/funnel.mjs).
-function BSWelcome({ onCreate, onSignIn }) {
+function BSWelcome({ onCreate, onSignIn, onPreview }) {
   ensureWireStyles();
   React.useEffect(() => { try { window.ShapeAnalytics?.track?.('paywall_viewed'); } catch (e) {} }, []);
-  return <BSWelcomeScreen price={BS_PRICE} onCreate={onCreate} onSignIn={onSignIn} />;
+  return <BSWelcomeScreen price={BS_PRICE} onCreate={onCreate} onSignIn={onSignIn} onPreview={BS_PREVIEW_OFFERED ? onPreview : null} />;
+}
+
+// ⚠ THE PREVIEW IS BACK, AT THE APP'S URL ONLY (owner, 2026-11-13: "bring back the preview button on app so
+// i can see what app would look like with example data", "Its fine if its for everyone", "just the main
+// /m/", "just the same as it was"). The welcome's "Preview the app first →" opens the app with no account,
+// on the demo data every screen already draws for a session with no account, behind the banner below;
+// Settings' "Preview as" switches between the member, trainer and nutritionist apps, as before 2026-11-10.
+// The installed iOS and Android apps keep the account-only welcome: the button is offered in a browser only.
+// The check shapeBackend.js makes: Capacitor's own answer, from the native bridge, not window.Capacitor
+// (which the web build's own copy of @capacitor/core replaces). A check that throws offers nothing.
+const BS_PREVIEW_OFFERED = (() => {
+  try { return !Capacitor.isNativePlatform(); } catch (e) { return false; }
+})();
+
+// The "you're previewing" banner over the app, so the example numbers are never mistaken for a real
+// account's. Compact (owner, 2026-11-10: "make this pop-up box smaller"): Home's own face at 11.5px, a
+// small pill and a lighter shadow. Its button makes the free account (the welcome's Create account).
+function BSPreviewBanner({ t, onCreate }) {
+  const { tr } = useTr('onboarding');
+  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+  const [dismissed, setDismissed] = useStateBSM(false);
+  if (dismissed) return null;
+  return (
+    <div data-bs-preview-banner="" style={{ position: 'absolute', left: 12, right: 12, bottom: 78, zIndex: 150, display: 'flex', alignItems: 'center', gap: 6, padding: '7px 4px 7px 12px', borderRadius: 12, background: t.INK, color: t.PAPER, boxShadow: '0 6px 18px rgba(0,0,0,0.3)' }}>
+      <div style={{ minWidth: 0, flex: 1 }}>
+        <div style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: teal }}>{tr('preview.title')}</div>
+        <div style={{ fontFamily: BS_CLEAN_SANS, fontSize: 11.5, fontWeight: 500, marginTop: 2, lineHeight: 1.3 }}>{tr('preview.body')}</div>
+      </div>
+      <button type="button" onClick={onCreate} style={{ flexShrink: 0, padding: '7px 11px', borderRadius: 999, border: 0, background: t.PAPER, color: t.INK, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}>{tr('login.createAccount')}</button>
+      <button type="button" onClick={() => setDismissed(true)} aria-label={tr('preview.dismiss')} style={{ flexShrink: 0, width: 26, height: 26, borderRadius: 999, border: 0, background: 'transparent', color: t.PAPER, opacity: 0.7, cursor: 'pointer', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, lineHeight: 1 }}>✕</button>
+    </div>
+  );
+}
+
+// Not over the full-screen Radio prompt: held until that is answered. Reads the radio context, so it
+// renders inside BSRadioProvider (it does, beside <App>).
+function BSPreviewBannerGated({ t, onCreate }) {
+  const r = useBSRadio();
+  if (r?.showPrompt) return null;
+  return <BSPreviewBanner t={t} onCreate={onCreate} />;
 }
 
 // ⚠ PHONE NOTIFICATIONS ARE ASKED FOR WHEN THEY MEAN SOMETHING (client-onboarding review, L5). The
@@ -1210,6 +1292,9 @@ function BSAppShell({ tweaks, setTweak }) {
   // restored. (getCurrentSession runs during the splash, so this is resolved by
   // the time we reach the app stage.)
   const [authReady, setAuthReady] = useStateBSM(() => !authConfigured);
+  // The welcome's Preview (BS_PREVIEW_OFFERED): the app with no account, on its demo data, behind the
+  // banner. Signing in ends it.
+  const [previewMode, setPreviewMode] = useStateBSM(false);
   const t = useBS();
 
   useEffectBSM(() => {
@@ -1437,7 +1522,7 @@ function BSAppShell({ tweaks, setTweak }) {
   // ── App-wide account gate ─────────────────────────────────────────────────
   // An account is the gate (owner, 2026-11-10): a signed-in adult account is in the app, paid or
   // not, and approved coaches (authoritative profile role) are in at once. With no account the
-  // welcome is the only screen; there is no preview and no browse mode.
+  // welcome is the door, and its Preview (at the app's URL) the only way in; there is no browse mode.
   const realRole = authState?.profile?.role;
   // computeMembership's rule: a coach role (dietitians are coaches too, roles.mjs COACH_ROLES) as
   // the primary role or among roles[]. Narrower, an approved coach met the paywall whenever the
@@ -1634,6 +1719,9 @@ function BSAppShell({ tweaks, setTweak }) {
     // override (e.g. a previous "client" pick) can't pull a coach back to client.
     const r = st?.profile?.role;
     if (r) { setRole(r); setTweak('role', r); }
+    // A previewer who signs in is not previewing any more: left on, the preview would skip the age
+    // check for the rest of the session (client-onboarding review L2).
+    setPreviewMode(false);
     setLoginMode('signin');
     setStage('app');
   };
@@ -1750,6 +1838,7 @@ function BSAppShell({ tweaks, setTweak }) {
             <BSWelcome
               onCreate={() => { setLoginMode('create'); setStage('login'); }}
               onSignIn={() => { setLoginMode('signin'); setStage('login'); }}
+              onPreview={() => { setPreviewMode(true); setStage('app'); }}
             />
           )
         )}
@@ -1773,16 +1862,17 @@ function BSAppShell({ tweaks, setTweak }) {
           : <div style={{ margin: 18, padding: 14, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase' }}>{tr('shell.loading')}</div>)}
         {stage === 'app' && (
           // Gate order matters: a session with no account meets the welcome FIRST
-          // (it doesn't need the role bundle). Every signed-in adult account, paid
+          // (it doesn't need the role bundle) unless it chose Preview. Every signed-in adult account, paid
           // or not, falls through to the real app; the paid features lock inside it.
           gateLoading ? (
             <BSWireHold />
           ) : ageBlocked ? (
             <BSDobGate blocked="age_restricted" onLogout={handleLogout} />
-          ) : !accountAllowed ? (
+          ) : (!accountAllowed && !previewMode) ? (
             <BSWelcome
               onCreate={() => { setLoginMode('create'); setStage('login'); }}
               onSignIn={() => { setLoginMode('signin'); setStage('login'); }}
+              onPreview={() => setPreviewMode(true)}
             />
           ) : bundleError ? (
             <div style={{ margin: 18, padding: 14, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase' }}>
@@ -1797,9 +1887,17 @@ function BSAppShell({ tweaks, setTweak }) {
             <div style={{ margin: 18, padding: 14, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase' }}>
               {tr('shell.loadingApp')}
             </div>
+          ) : !accountAllowed ? (
+            // The welcome's Preview, with no account: the real app on its demo data behind the
+            // banner, so a visitor never takes the example numbers for real tracking. Only a session
+            // with no account reaches this branch, so an account never skips the checks below.
+            <>
+              <App onLogout={handleLogout} authState={authState} tweaks={tweaks} setTweak={setTweak} {...appProps} />
+              <BSPreviewBannerGated t={t} onCreate={() => { setPreviewMode(false); setLoginMode('create'); setStage('login'); }} />
+            </>
           ) : dobState.needed ? (
             // Last gate before the app, for a signed-in account by construction:
-            // the welcome branch above already returned for a session with none.
+            // the welcome and preview branches above already returned for a session with none.
             <BSDobGate
               blocked={dobState.blocked}
               onSaved={() => setDobState({ needed: false, blocked: '' })}

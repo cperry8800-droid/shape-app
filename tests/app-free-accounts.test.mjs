@@ -105,10 +105,20 @@ test('a free account and a member are both in the app; ShapeCanChat is true for 
   const free = gate.bsPaidFlags({ signedIn: true, isApprovedCoach: false, membership: { loading: false, active: false } });
   assert.equal(free.canChat, true, 'messaging a coach is free');
   assert.equal(free.paid, false);
-  // The shell: a session with no account meets the welcome; every account falls through to <App>.
+  // The shell: a session with no account meets the welcome unless it chose Preview; every account
+  // falls through to <App>.
   const app = MAIN.slice(MAIN.indexOf("{stage === 'app' && ("), MAIN.indexOf('{noraHere && noraSheet'));
-  assert.ok(app.indexOf(') : !accountAllowed ? (') > 0 && app.indexOf(') : !accountAllowed ? (') < app.indexOf('<BSWelcome'), 'only a session with no account meets the welcome');
-  assert.equal((app.match(/<App onLogout=/g) || []).length, 1, 'one app, for every account: no preview copy of it');
+  const welcomeAt = app.indexOf(') : (!accountAllowed && !previewMode) ? (');
+  assert.ok(welcomeAt > 0 && welcomeAt < app.indexOf('<BSWelcome'), 'only a session with no account, not previewing, meets the welcome');
+  // Two renders of the one app (owner, 2026-11-13: the Preview is back): the preview's, with no account,
+  // behind the banner, and every account's. The preview's comes after the welcome and the age check
+  // and before the date-of-birth check, and only a session with no account reaches it, so an account
+  // never skips a check by previewing.
+  assert.equal((app.match(/<App onLogout=/g) || []).length, 2, 'the preview and the account render the same app');
+  const previewAt = app.indexOf(') : !accountAllowed ? (');
+  assert.ok(previewAt > welcomeAt && previewAt < app.indexOf(') : dobState.needed ? ('), 'the preview branch sits after the welcome and before the DOB check');
+  assert.ok(app.indexOf('<BSPreviewBannerGated') > previewAt && app.indexOf('<BSPreviewBannerGated') < app.indexOf(') : dobState.needed ? ('), 'the preview renders behind its banner');
+  assert.ok(app.indexOf(') : ageBlocked ? (') < welcomeAt, 'a known minor meets the age message before any preview');
   assert.doesNotMatch(app, /memberAllowed|BSPaywall/, 'no membership wall in front of the app');
   // The DOB check, the time-zone question and the same-day skip key on the account, not the membership.
   assert.match(MAIN, /if \(!authReady \|\| !authUserId \|\| !accountAllowed\) return undefined;/);
@@ -116,26 +126,39 @@ test('a free account and a member are both in the app; ShapeCanChat is true for 
   assert.doesNotMatch(MAIN, /memberCached/);
 });
 
-test('signed out: the welcome offers Create account and Sign in, says what membership adds, and has no Preview', () => {
-  // Main's BSWelcome hands the price and the two doors to the first-run screen that draws it.
+test('signed out: the welcome offers Create account and Sign in, says what membership adds, and Preview at the app URL only', () => {
+  // Main's BSWelcome hands the price, the two doors and the Preview to the first-run screen that draws it.
   const welcome = MAIN.slice(MAIN.indexOf('function BSWelcome('), MAIN.indexOf('// ⚠ PHONE NOTIFICATIONS ARE ASKED'));
-  assert.match(welcome, /<BSWelcomeScreen price=\{BS_PRICE\} onCreate=\{onCreate\} onSignIn=\{onSignIn\} \/>/);
+  assert.match(welcome, /<BSWelcomeScreen price=\{BS_PRICE\} onCreate=\{onCreate\} onSignIn=\{onSignIn\} onPreview=\{BS_PREVIEW_OFFERED \? onPreview : null\} \/>/);
   assert.match(WELCOME_SCREEN, /<button type="button" data-auth-create="" onClick=\{onCreate\}[^>]*>\{tr\('fr\.welcome\.create'\)\}<\/button>/);
   assert.match(WELCOME_SCREEN, /<button type="button" data-auth-signin="" onClick=\{onSignIn\}[^>]*>\{tr\('fr\.signIn'\)\}<\/button>/);
   assert.match(WELCOME_SCREEN, /\{tr\('welcome\.membership', \{ price \}\)\}/);
-  for (const src of [welcome, WELCOME_SCREEN]) assert.doesNotMatch(src, /preview|Preview|onJoin|startCheckout/, 'no Preview, and no checkout before there is an account');
+  // The Preview (owner, 2026-11-13): drawn only when the shell hands one in, and the shell hands one in
+  // only off the installed apps, by Capacitor's own answer from the native bridge.
+  assert.match(WELCOME_SCREEN, /export function BSWelcomeScreen\(\{ price, onCreate, onSignIn, onPreview = null \}\)/);
+  assert.match(WELCOME_SCREEN, /\{onPreview \? <button type="button" data-auth-preview="" onClick=\{onPreview\}[^>]*>\{tr\('paywall\.preview'\)\}<\/button> : null\}/);
+  assert.match(MAIN, /import \{ Capacitor \} from '@capacitor\/core';/);
+  assert.match(MAIN, /const BS_PREVIEW_OFFERED = \(\(\) => \{\n\s+try \{ return !Capacitor\.isNativePlatform\(\); \} catch \(e\) \{ return false; \}\n\}\)\(\);/);
+  // Both welcomes start it; signing in ends it; its banner's button makes the free account.
+  assert.match(MAIN, /onPreview=\{\(\) => \{ setPreviewMode\(true\); setStage\('app'\); \}\}/);
+  assert.match(MAIN, /onPreview=\{\(\) => setPreviewMode\(true\)\}/);
+  const onLogin = MAIN.slice(MAIN.indexOf('const handleLogin = (nextAuthState) => {'), MAIN.indexOf('const handleLogout = async () => {'));
+  assert.match(onLogin, /setPreviewMode\(false\);/, 'signing in leaves the preview');
+  assert.match(MAIN, /<BSPreviewBannerGated t=\{t\} onCreate=\{\(\) => \{ setPreviewMode\(false\); setLoginMode\('create'\); setStage\('login'\); \}\} \/>/);
+  for (const src of [welcome, WELCOME_SCREEN]) assert.doesNotMatch(src, /onJoin|startCheckout/, 'no checkout before there is an account');
   assert.match(EN.onboarding['welcome.membership'], /Nora/);
   assert.match(EN.onboarding['welcome.membership'], /Shape Radio/);
   assert.match(EN.onboarding['welcome.membership'], /\{price\}/);
-  // Gone everywhere in the app: the preview modes, the banner, the composer's door back to the paywall.
+  // Still gone everywhere in the app: Browse mode and the composer's door back to the paywall.
   for (const f of readdirSync(join(ROOT, 'mobile-app/src/broadsheet')).filter((n) => /\.jsx?$/.test(n))) {
     const src = read(`mobile-app/src/broadsheet/${f}`);
-    assert.doesNotMatch(src, /shape:exitPreview|BSPreviewBanner|previewMode|browseMode|onBrowse=/, `${f} still carries the signed-out preview`);
+    assert.doesNotMatch(src, /shape:exitPreview|browseMode|onBrowse=/, `${f} still carries Browse or the paywall's door`);
   }
-  // The preview-only words are out of every catalog, and the welcome's are in every one.
+  // The preview's words are in every catalog again; the paywall's Join words stay out; the welcome's are in.
   for (const loc of LOCALES) {
     const on = cat(loc, 'onboarding');
-    for (const k of ['paywall.preview', 'paywall.createJoin', 'preview.title', 'preview.body', 'preview.join', 'preview.dismiss']) assert.ok(!(k in on), `${loc}: ${k} is read by nothing now`);
+    for (const k of ['paywall.preview', 'preview.title', 'preview.body', 'preview.dismiss', 'login.createAccount']) assert.ok(String(on[k] || '').trim(), `${loc}: ${k}`);
+    for (const k of ['paywall.createJoin', 'preview.join']) assert.ok(!(k in on), `${loc}: ${k} is read by nothing now`);
     for (const k of ['fr.welcome.titlePre', 'fr.welcome.titleAccent', 'fr.welcome.sub', 'fr.welcome.create', 'fr.signIn', 'welcome.membership']) assert.ok(String(on[k] || '').trim(), `${loc}: ${k}`);
     assert.match(on['welcome.membership'], /\{price\}/, `${loc}: the price is interpolated, never baked in`);
   }

@@ -38,7 +38,10 @@ test('the flags: ShapeCanChat is any account, ShapePaid the paid features, Shape
   assert.deepEqual(bsPaidFlags({ signedIn: true, isApprovedCoach: false, membership: m({ active: true, pastDue: true }) }).pastDue, false, 'a member is never past due on screen');
   assert.deepEqual(bsPaidFlags({ signedIn: true, isApprovedCoach: false, membership: { loading: true, active: false } }), { canChat: true, paid: undefined, pastDue: false, nora: undefined }, 'unknown: nothing locks a member on a cold launch');
   assert.deepEqual(bsPaidFlags({ signedIn: true, isApprovedCoach: true, membership: { loading: true } }), { canChat: true, paid: true, pastDue: false, nora: true }, 'an approved coach has the paid features');
-  assert.deepEqual(bsPaidFlags({ signedIn: false, isApprovedCoach: false, membership: m({ active: false }) }), { canChat: false, paid: undefined, pastDue: false, nora: undefined }, 'no account: no composer');
+  // No account is known unpaid (Codex P2 on #2734): the Preview's paid screens show their lock, never a
+  // live purchase form that fails on an unauthenticated request.
+  assert.deepEqual(bsPaidFlags({ signedIn: false, isApprovedCoach: false, membership: m({ active: false }) }), { canChat: false, paid: false, pastDue: false, nora: false }, 'no account: no composer, every paid screen locked');
+  assert.deepEqual(bsPaidFlags({ signedIn: false, isApprovedCoach: false, membership: m({ loading: true }) }), { canChat: false, paid: false, pastDue: false, nora: false }, 'no account: locked even while a lookup is pending');
   // Assistant Nora is paid only (owner, 2026-11-10): no free week, and no flag for one.
   const week = { startedAt: '2026-11-08T00:00:00Z', endsAt: '2026-11-15T00:00:00Z', active: true };
   assert.deepEqual(bsPaidFlags({ signedIn: true, isApprovedCoach: false, membership: m({ active: false, nora: false, noraPreview: week }) }), { canChat: true, paid: false, pastDue: false, nora: false }, 'a free account has no Nora, whatever a stray field says');
@@ -89,8 +92,9 @@ test('the shell uses those rules, asks /api/me/membership, and re-checks when it
   assert.match(main, /: \{ loading: false, active, ageRestricted, pastDue: undefined, nora: active \? true : undefined, includedWithCoach: false \}\);/);
   assert.doesNotMatch(main, /noraPreview|ShapeNoraPreview/, 'the shell carries no free week');
   assert.match(main, /window\.ShapeCanChat = paidFlags\.canChat;\n\s+window\.ShapePaid = paidFlags\.paid;\n\s+window\.ShapePastDue = paidFlags\.pastDue;\n\s+window\.ShapeNora = paidFlags\.nora;\n\s+window\.ShapeIncludedWithCoach = includedWithCoach;\n\s+window\.dispatchEvent\(new Event\('shape:canchat'\)\);\n\s+window\.dispatchEvent\(new Event\('shape:paid'\)\);/);
-  // The signed-out Preview and Browse are gone, and every way back to them.
-  for (const gone of [/previewMode|setPreviewMode/, /browseMode|setBrowseMode/, /BSPreviewBanner/, /shape:exitPreview/, /bannerDismissed|noticeDismissed/, /onBrowse/, /onPreview/, /paywall\.preview/]) {
+  // Browse is gone, and the paywall's ways back to it. The welcome's Preview came back (owner,
+  // 2026-11-13; tests/app-free-accounts.test.mjs holds it to the app URL and to sessions with no account).
+  for (const gone of [/browseMode|setBrowseMode/, /shape:exitPreview/, /bannerDismissed|noticeDismissed/, /onBrowse/]) {
     assert.doesNotMatch(main, gone, `the shell still carries ${gone}`);
   }
   // Codex on #2353: computeMembership's rule, a coach role (dietitians included) as the primary
