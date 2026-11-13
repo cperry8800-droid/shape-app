@@ -123,6 +123,10 @@ export default function Turnstile({
         if (cancelled || !ref.current || !ts) return;
         idRef.current = ts.render(ref.current, {
           sitekey: SITE_KEY,
+          // Dark and the card's full width, as the website's Log in draws it: the one form this
+          // widget is in (/forgot-password) sits on Log in's dark card (AuthScene).
+          theme: 'dark',
+          size: 'flexible',
           callback: (tok: string) => set(tok || ''),
           'expired-callback': () => set(''),
           'error-callback': () => set(''),

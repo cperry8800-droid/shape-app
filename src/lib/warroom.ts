@@ -669,6 +669,18 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
       ],
     },
     {
+      section: 'Set a new password works for an account with two-factor sign-in (it asks for the authenticator code), and it and Forgot password are drawn as the website\'s Log in page. No migration',
+      items: [
+        { label: 'Owner, 2026-11-13, two screenshots of /reset-password: "Need to update to current design and also this error"; the error was Supabase\'s "AAL2 session is required to update email or password when MFA is enabled."', status: 'done' },
+        { label: 'Found: the reset link\'s session (/auth/confirm) is aal1, and Supabase saves no new password for an account with a verified factor until the session is aal2. The page never asked for the code, so a staff account (the only ones with an authenticator, /api/staff/two-factor) could not reset its password at all. The old static copy, public/reset-password.html, had the same gap', status: 'done' },
+        { label: 'Now: the page asks for the authenticator code with the new password when the session is short of aal2 and the account has a verified authenticator app (password-reset-step.mjs resetNeedsCode). updatePassword verifies it (mfa.challengeAndVerify) and then saves on the same client, which holds the aal2 session; @supabase/ssr writes it to the cookies. A wrong or expired code says so and keeps the passwords typed; Supabase\'s refusals read in Shape\'s words (the same password, the link ended, a second step this page cannot take). Accounts without two-factor keep the one step', status: 'done' },
+        { label: 'The design: /reset-password and /forgot-password stand where Log in does (AuthScene.tsx, auth-scene.module.css): the spotlight photograph, the glass card with the teal edge, Log in\'s bar and foot, the site\'s faces (Anybody, Schibsted Grotesk, JetBrains Mono, self-hosted in src/app/fonts with their OFL). The site nav and footer stay off both paths. The Turnstile widget on Forgot password is dark and full width, as on Log in', status: 'done' },
+        { label: 'public/reset-password.html is retired: no email links to it, and /reset-password.html redirects to /reset-password', status: 'done' },
+        { label: 'Checked on the Next dev server with a stand-in Supabase Auth: a two-factor account sees the code field; a wrong code says so and saves nothing; the right one (typed "123 456") verifies, the password saves on an aal2 session and the page lands on /dashboard, whose own request is aal2 too; an account without two-factor sees no code field and saves in one step. tests/password-reset-two-factor.test.mjs (new, 9) drives the real action on a stand-in client', status: 'done' },
+        { label: 'OWNER: ask for a reset from Forgot password, open the email\'s link, and set a password with your authenticator code', status: 'manual' },
+      ],
+    },
+    {
       section: 'The app\'s Preview is back at /m/: "Preview the app first →" on the Welcome opens the app on its example data with no account, behind the "Preview · demo data" banner; Settings\' Preview as switches between the member, trainer and nutritionist apps. No migration',
       items: [
         { label: 'Owner, 2026-11-13: "can you bring back the preview button on app so i can see what app would look like with example data"; asked who gets it: "Just add a preview button for now so I can see. Its fine if its for everyone", the member, trainer and nutritionist apps, "just the main /m/", "the app URL", "just the same as it was"', status: 'done' },

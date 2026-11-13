@@ -4,7 +4,8 @@
 import Link from 'next/link';
 import { headers } from 'next/headers';
 
-const HIDE_FOOTER_PREFIXES = ['/purchase', '/subscribe', '/connect'];
+// The two password pages draw their own foot, as the website's Log in page does (AuthScene.tsx).
+const HIDE_FOOTER_PREFIXES = ['/purchase', '/subscribe', '/connect', '/forgot-password', '/reset-password'];
 
 export default async function Footer() {
   const pathname = (await headers()).get('x-pathname') ?? '';

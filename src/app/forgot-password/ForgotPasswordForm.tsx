@@ -1,9 +1,9 @@
 'use client';
 
 import { useActionState, useState, useEffect } from 'react';
-import Link from 'next/link';
 import { requestPasswordReset } from '../login/actions';
 import Turnstile, { turnstileEnabled } from '@/components/Turnstile';
+import styles from '@/components/auth-scene.module.css';
 
 type State = { error: string } | { ok: true; email: string } | null;
 
@@ -16,6 +16,7 @@ async function resetAction(_prev: State, formData: FormData): Promise<State> {
 
 export default function ForgotPasswordForm() {
   const [state, formAction, pending] = useActionState<State, FormData>(resetAction, null);
+  const [email, setEmail] = useState('');
   const [captchaToken, setCaptchaToken] = useState('');
   const [captchaUnavailable, setCaptchaUnavailable] = useState(false);
   const [captchaKey, setCaptchaKey] = useState(0);
@@ -32,45 +33,47 @@ export default function ForgotPasswordForm() {
 
   if (state && 'ok' in state) {
     return (
-      <div className="text-sm text-teal-400 bg-teal-400/10 border border-teal-400/20 rounded-lg px-4 py-3 text-center">
-        Check your email — we sent a reset link to {state.email}.
+      <div role="status" className={styles.ok}>
+        <strong>Check your email.</strong>
+        If {state.email} has a Shape account, a link to set a new password is on its way. It works once, for a
+        limited time, in any browser.
       </div>
     );
   }
 
   return (
-    <form action={formAction} className="flex flex-col gap-4">
-      <label className="flex flex-col gap-1.5">
-        <span className="text-xs uppercase tracking-wider text-neutral-400">Email</span>
+    <form action={formAction} className={styles.form}>
+      <div className={styles.field}>
+        <label className={styles.label} htmlFor="email">
+          Email
+        </label>
         <input
+          id="email"
           type="email"
           name="email"
+          className={styles.input}
+          autoComplete="email"
+          autoCapitalize="none"
           required
-          className="px-4 py-2.5 rounded-lg bg-neutral-950 border border-neutral-800 text-sm outline-none focus:border-teal-400 transition-colors"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          placeholder="you@example.com"
         />
-      </label>
+      </div>
 
-      {state && 'error' in state && (
-        <div className="text-sm text-red-400 bg-red-400/10 border border-red-400/20 rounded-lg px-3 py-2">
+      {state && 'error' in state ? (
+        <div role="alert" className={styles.err}>
           {state.error}
         </div>
-      )}
+      ) : null}
 
-      <Turnstile key={captchaKey} onToken={setCaptchaToken} onUnavailable={() => setCaptchaUnavailable(true)} />
+      <div className={styles.captcha}>
+        <Turnstile key={captchaKey} onToken={setCaptchaToken} onUnavailable={() => setCaptchaUnavailable(true)} />
+      </div>
 
-      <button
-        type="submit"
-        disabled={pending || captchaPending}
-        className="text-sm font-medium bg-teal-400 text-neutral-950 rounded-full px-6 py-3 hover:bg-teal-300 transition-colors disabled:opacity-50"
-      >
-        {pending ? 'Sending...' : captchaPending ? 'Confirming you’re human…' : 'Send reset link'}
+      <button type="submit" className={styles.submit} disabled={pending || captchaPending}>
+        {pending ? 'Sending…' : captchaPending ? 'Confirming you’re human…' : 'Send reset link →'}
       </button>
-
-      <p className="text-sm text-neutral-400 text-center">
-        <Link href="/login" className="text-teal-400 hover:text-teal-300">
-          Back to sign in
-        </Link>
-      </p>
     </form>
   );
 }

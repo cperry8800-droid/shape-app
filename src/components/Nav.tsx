@@ -10,7 +10,9 @@ import SignOutButton from '@/components/SignOutButton';
 // Routes that get a minimal layout (no marketing nav). The pathname is
 // forwarded by the proxy via the x-pathname header.
 // /connect: the installed app's in-app browser, which has its own Done button and no site to browse.
-const HIDE_NAV_PREFIXES = ['/purchase', '/subscribe', '/connect'];
+// /forgot-password, /reset-password: drawn as the website's Log in page is (src/components/AuthScene.tsx),
+// with its own bar, as Login.html has no site nav (owner, 2026-11-13: "update to current design").
+const HIDE_NAV_PREFIXES = ['/purchase', '/subscribe', '/connect', '/forgot-password', '/reset-password'];
 
 export default async function Nav() {
   const pathname = (await headers()).get('x-pathname') ?? '';
