@@ -161,13 +161,17 @@ const DIFFERENCE_AFTER_RE = /^\s*(?:a day\s+|daily\s+|per day\s+)?(?:less|fewer|
 // your intake below 900"): that is a target, not a difference (Codex on #2731). Only a category of
 // diets or plans named that way is a description ("diets under 800 calories need a doctor").
 const DIFFERENCE_BEFORE_RE = /(?:\b(?:deficit|surplus|cut(?:ting)? (?:of|by)|reduc(?:e|ing) (?:it |that |intake )?by|drop(?:ping)? by|extra|another|burn(?:s|ing)?|walk(?:ing)? off)\b[^,;:—–.!?]{0,20}|\b(?:diets?|plans?|programs?)\s+(?:of\s+)?(?:under|below|less than)\s+(?:about\s+)?)$/i;
+// A portion noun right after the figure is not a daily target: "a 200-calorie snack", "500 calories per
+// meal"; "eat 50 calories at lunch" is still a target
+// (Codex on #2732).
+const PORTION_AFTER_RE = /^\s*(?:a |an |per |each )?(?:snack|meal|breakfast|lunch|dinner|serving|portion|bar|shake|smoothie|drink|treat|dessert)s?\b/i;
 export function noLowCalorieTarget(r) {
   const t = figures(r);
   let m; LOW_FIGURE_RE.lastIndex = 0;
   while ((m = LOW_FIGURE_RE.exec(t))) {
     const end = m.index + m[0].length;
     const lead = t.slice(clauseStart(t, m.index), m.index);
-    if (DIFFERENCE_AFTER_RE.test(t.slice(end)) || DIFFERENCE_BEFORE_RE.test(lead)) continue;
+    if (DIFFERENCE_AFTER_RE.test(t.slice(end)) || DIFFERENCE_BEFORE_RE.test(lead) || PORTION_AFTER_RE.test(t.slice(end))) continue;
     if (declined(t, m.index, end)) continue;
     return `suggests a calorie target under 1,200: "${(lead + m[0]).trim()}"`;
   }
