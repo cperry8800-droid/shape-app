@@ -102,8 +102,9 @@ test('no page loads Vercel\'s script outright, and every page that counted views
   assert.deepEqual(direct.map((p) => p.slice(ROOT.length)), [], 'pages load Vercel\'s script without the gate');
   const gated = pages.filter((p) => readFileSync(p, 'utf8').includes('<script defer src="/consent-insights.js"></script>'));
   // A floor on the scan, not a quota: 69 since the members page (Client.html) was
-  // retired on 2026-11-09.
-  assert.ok(gated.length >= 69, 'only ' + gated.length + ' pages load the gate');
+  // retired on 2026-11-09, 68 since public/reset-password.html was (2026-11-13; /reset-password
+  // is the Next page, gated by the layout's ConsentAnalytics, the test below).
+  assert.ok(gated.length >= 68, 'only ' + gated.length + ' pages load the gate');
 });
 
 test('the banner says when it is answered, and the Next app checks every event', () => {

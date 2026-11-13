@@ -7,6 +7,7 @@ import { safeReturnPath } from '@/lib/safe-redirect.mjs';
 import { headers } from 'next/headers';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { requestPasswordResetEmail, requestIp } from '@/lib/password-reset';
+import { RESET_MIN_LENGTH, RESET_OTHER_FACTOR, cleanCode, resetCodeError, resetNeedsCode, resetPasswordError } from '@/lib/password-reset-step.mjs';
 
 export async function login(formData: FormData): Promise<{ error: string } | void> {
   const email = String(formData.get('email') ?? '');
@@ -65,15 +66,59 @@ export async function requestPasswordReset(
   return result.ok ? { ok: true } : { error: result.error };
 }
 
-export async function updatePassword(
-  formData: FormData
-): Promise<{ error: string } | void> {
+/** What the set-password form hears back: the line to show, whether to ask for the authenticator
+ *  code, whether the link has ended, and whether a code was verified (the field then goes). */
+export type UpdatePasswordResult = { error: string; needsCode?: boolean; expired?: boolean; codeDone?: boolean };
+
+// ⚠ AN ACCOUNT WITH TWO-FACTOR SIGN-IN SAVES ONLY AFTER ITS CODE (owner, 2026-11-13: the page answered
+// "AAL2 session is required to update email or password when MFA is enabled."). The reset link's
+// session is 'aal1', and Supabase refuses a new password until it is 'aal2'. So the code is verified
+// first, on this same client: it keeps the upgraded session in memory, so updateUser sends the 'aal2'
+// token, and @supabase/ssr writes it to the cookies (MFA_CHALLENGE_VERIFIED). Rules and wording:
+// src/lib/password-reset-step.mjs.
+export async function updatePassword(formData: FormData): Promise<UpdatePasswordResult | void> {
   const password = String(formData.get('password') ?? '');
+  if (password.length < RESET_MIN_LENGTH) {
+    return { error: `Choose a longer password: ${RESET_MIN_LENGTH} characters at least.` };
+  }
   const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: 'This reset link has ended. Ask for a new one from Forgot password.', expired: true };
+
+  // Authenticator-app factors only, as /staff-verify counts them: a code field for a phone factor
+  // would have nothing to verify against.
+  const factor = (user.factors ?? []).find((f) => f.status === 'verified' && f.factor_type === 'totp');
+  let codeDone = false;
+  if (resetNeedsCode({ currentLevel: await sessionLevel(supabase), verifiedFactors: factor ? 1 : 0 }) && factor) {
+    const code = cleanCode(formData.get('code'));
+    if (!code) return { error: 'Enter the 6-digit code from your authenticator app.', needsCode: true };
+    const { error } = await supabase.auth.mfa.challengeAndVerify({ factorId: factor.id, code });
+    if (error) return { error: resetCodeError(error), needsCode: true };
+    codeDone = true;
+  }
+
   const { error } = await supabase.auth.updateUser({ password });
-  if (error) return { error: error.message };
+  if (error) {
+    const said = resetPasswordError(error);
+    // A second factor this page has no field for (Shape enrolls authenticator apps only): asking for
+    // a code here would go round in a circle.
+    if (said.needsCode && !factor) return { error: RESET_OTHER_FACTOR };
+    return { ...said, ...(codeDone ? { codeDone: true } : {}) };
+  }
   revalidatePath('/', 'layout');
   redirect('/dashboard');
+}
+
+/** The session's assurance level from its verified token ('aal1', 'aal2'), or null when unreadable. */
+async function sessionLevel(supabase: Awaited<ReturnType<typeof createClient>>): Promise<string | null> {
+  try {
+    const { data, error } = await supabase.auth.getClaims();
+    return error ? null : ((data?.claims as { aal?: string } | undefined)?.aal ?? null);
+  } catch {
+    return null;
+  }
 }
 
 export async function logout(_formData?: FormData): Promise<void> {

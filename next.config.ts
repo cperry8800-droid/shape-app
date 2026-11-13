@@ -104,6 +104,11 @@ const nextConfig: NextConfig = {
       ]),
       { source: '/index.html', destination: '/', permanent: true },
       { source: '/login.html', destination: '/newdesign/Login.html', permanent: true },
+      // The old static Set a new password (public/reset-password.html, retired 2026-11-13). It saved
+      // with the browser client and no authenticator step, so an account with two-factor sign-in
+      // got "AAL2 session is required…" there too. No email links to it (the reset email opens
+      // /auth/confirm, then /reset-password), so an old bookmark lands on the one page.
+      { source: '/reset-password.html', destination: '/reset-password', permanent: true },
       // On the matching side of the marketplace (it reads #trainers / #nutritionists). The
       // marketplace is the Coaches page since 2026-11-05 (owner: "turn coaches page into what you
       // built"); Marketplace.html forwards there too, below.
