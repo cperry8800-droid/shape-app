@@ -1698,9 +1698,8 @@ function Header({ active }) {
         <div style={{ display: "flex", alignItems: "center", gap: 12, justifyContent: "flex-end", flex: "1 1 0", minWidth: "max-content" }}>
         <div className="shape-nav-auth" style={{ display: "flex", alignItems: "center", gap: 12, flexShrink: 0 }}>
           <SiteSearch signedIn={!!authUser} />
-          {/* Ask Nora and Chat (owner, 2026-11-13): empty slots that globalChatButton.js fills, "a"
-              beside search and "b" after Radio, the one in force shown. While the owner compares the
-              two, ?navdock=a|b|off picks one (globalChatButton.js, NAV DOCK). */}
+          {/* Ask Nora and Chat, beside search (owner, 2026-11-13): an empty slot globalChatButton.js
+              fills (NAV DOCK). Collapsed, they move to the bell's column below. */}
           <span data-nav-dock-slot="a" />
           <DashInbox signedIn={!!authUser} role={authUser && authUser.role} roles={authUser && authUser.roles} inbox={inbox} />
           {authUser ? (
@@ -1750,7 +1749,6 @@ function Header({ active }) {
               <RadioWordmark />
             </>
           )}
-          <span data-nav-dock-slot="b" />
         </div>
         {/* The mobile render site. Exclusive with the one above — exactly one of the
             two is displayed at any width — so the shared feed can never be shown twice. */}
