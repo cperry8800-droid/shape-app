@@ -53,11 +53,11 @@ test('the slot is filled with Ask Nora and Chat, and the corner pill steps aside
   const w = load({ slotOnScreen: true });
   await frame(w);
   const slot = w.document.querySelector('[data-nav-dock-slot="a"]');
-  assert.ok(slot.querySelector('.nvd-nora[aria-label="Ask Nora"]'), 'no Ask Nora in the slot');
-  assert.ok(slot.querySelector('.nvd-chat[aria-label="Open Shape chat"]'), 'no Chat in the slot');
-  assert.ok(w.document.getElementById('shape-global-chat-button'), 'the pill is still mounted (pages .click() it)');
+  assert.ok(!!slot.querySelector('.nvd-nora[aria-label="Ask Nora"]'), 'no Ask Nora in the slot');
+  assert.ok(!!slot.querySelector('.nvd-chat[aria-label="Open Shape chat"]'), 'no Chat in the slot');
+  assert.ok(!!w.document.getElementById('shape-global-chat-button'), 'the pill is still mounted (pages .click() it)');
   assert.equal(w.document.documentElement.classList.contains('shape-nav-dock'), true, 'the pill did not step aside');
-  assert.equal(w.document.getElementById('shape-global-chat-spacer'), null, 'the corner is still reserved');
+  assert.ok(!w.document.getElementById('shape-global-chat-spacer'), 'the corner is still reserved');
   // Ask Nora opens her door, as the pill's Nora half did.
   const asked = [];
   w.__openChatTo = (o) => asked.push(o);
