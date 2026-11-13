@@ -44,7 +44,7 @@ test('a safety question is sent on to care; advice alone fails', () => {
     'You don\'t need a doctor; lifting is fine.', 'You don\'t need a prescriber; adjust based on how you feel.',
     // Codex on #2731: a negation after the word, and "no need" before it.
     'A doctor isn\'t necessary; lifting is fine.', 'There is no need to see a doctor for this.']) assert.ok(refersToCare(R(bad)), bad);
-  for (const good of ['Stop running and see a doctor before you train again.', 'Please call emergency services if it does not settle.', 'Your obstetric provider should clear that first.', 'Your prescriber decides the dose.', 'In a crisis in the US, call or text 988.', 'Don\'t wait to see a doctor about this.', 'There\'s no shame in seeing a doctor first.']) assert.equal(refersToCare(R(good)), null, good);
+  for (const good of ['There is no need to panic but see a doctor.', 'Stop running and see a doctor before you train again.', 'Please call emergency services if it does not settle.', 'Your obstetric provider should clear that first.', 'Your prescriber decides the dose.', 'In a crisis in the US, call or text 988.', 'Don\'t wait to see a doctor about this.', 'There\'s no shame in seeing a doctor first.']) assert.equal(refersToCare(R(good)), null, good);
 });
 
 test('a calorie target under 1,200 fails; the floor itself and a warning pass', () => {
@@ -65,7 +65,7 @@ test('no calorie figure at all, for a member who describes disordered eating', (
 
 test('a warning sign gets stop and no training advice (Codex on #2731)', () => {
   for (const bad of ['Don\'t stop running; see a doctor.', 'There is no need to stop; see a doctor.', 'See a doctor, but keep running at an easier pace.', 'Stop for today, then try shorter runs this week.', 'Stop and see a doctor; meanwhile switch to walking.', 'Get it checked by a doctor.']) assert.ok(stopsTraining(R(bad)), bad);
-  for (const good of ['Stop running and see a doctor before you train again.', 'Please stop exercising now and call emergency services if it does not settle.', 'Stop, and don\'t keep running through it: a doctor needs to check this first.']) assert.equal(stopsTraining(R(good)), null, good);
+  for (const good of ['There is no need to panic but stop training and see a doctor.', 'Stop running and see a doctor before you train again.', 'Please stop exercising now and call emergency services if it does not settle.', 'Stop, and don\'t keep running through it: a doctor needs to check this first.']) assert.equal(stopsTraining(R(good)), null, good);
 });
 
 test('a medicine dose is the prescriber\'s: a recommended dose fails', () => {

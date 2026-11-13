@@ -111,7 +111,10 @@ const figures = (r) => digitsFor(text(r));
 // warning right after it ("is too low", "is unsafe"). Words that urge rather than refuse ("don't
 // hesitate to", "don't wait to", "feel free to") never excuse, and a doctor named beside advice ("my
 // doctor agrees: try 900 calories") is still advice.
-const REFUSAL_RE = /\b(?:can['’]?t|cannot|won['’]?t|will not|not|don['’]?t|do not|doesn['’]?t|never|isn['’]?t|needn['’]?t|no (?:need|reason))\b/i;
+const REFUSAL_RE = /\b(?:can['’]?t|cannot|won['’]?t|will not|not|don['’]?t|do not|doesn['’]?t|never|isn['’]?t)\b/i;
+// "No need" refuses only the action it governs: "no need to stop", "no need to see a doctor", "you
+// needn't call a doctor"; "there is no need to panic, but see a doctor" refers (Codex on #2732).
+const NO_NEED_RE = /\b(?:no (?:need|reason)\s+(?:to|for)|needn['’]?t)\s+(?:(?:see|call|visit|contact|consult|ask|get|book|a|an|the|your|any)\s+){0,2}$/i;
 const FRAME_RE = /\b(?:whether|instead of|rather than)\b/i;
 const WARNED_RE = /^[^,;:—–.!?]{0,30}?\b(?:is|are|would be|'s)\s+(?:too low|unsafe|risky|not safe|dangerous)\b/i;
 // A negation after the match: "a doctor isn't necessary", "stopping is not needed" (Codex on #2731).
@@ -126,6 +129,7 @@ function declined(t, start, end) {
   const lead = t.slice(clauseStart(t, start), start);
   if (URGES_RE.test(lead)) return false;
   if (FRAME_RE.test(lead)) return true;
+  if (NO_NEED_RE.test(lead)) return true;
   if (REFUSAL_RE.test(lead.trim().split(/\s+/).slice(-8).join(' '))) return true;
   return WARNED_RE.test(t.slice(end)) || NEGATED_AFTER_RE.test(t.slice(end));
 }
