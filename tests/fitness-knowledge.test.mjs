@@ -82,6 +82,8 @@ test('searchFitness: a member\'s question finds its entry first', () => {
     ["I'm on Ozempic. How many calories should I eat?", 'glp1'],
     ['I have metabolic syndrome. How should I train?', 'red-flags'],
     ['I injured my knee yesterday, can I still squat?', 'red-flags'],
+    ["I've hurt my shoulder benching, should I keep going?", 'red-flags'],
+    ['I think I just hurt my back deadlifting', 'red-flags'],
     ['can I work out while pregnant', 'pregnancy'],
   ];
   for (const [q, id] of cases) assert.equal(searchFitness(q).entries[0]?.id, id, q);
@@ -94,13 +96,13 @@ test('searchFitness: a member\'s question finds its entry first', () => {
 });
 
 test('a safety hit returns only safety entries: no how-to and no calorie figure beside it (Codex P1 on #2731)', () => {
-  for (const q of ['I have anorexia, how many calories should I eat?', 'I have an eating disorder, what should my deficit be?', 'I have high blood pressure, can I lift heavy?', 'I blacked out at the gym, how long should I rest?', "I'm on Ozempic. How many calories should I eat?", 'I have metabolic syndrome. How should I train?']) {
+  for (const q of ['I have anorexia, how many calories should I eat?', 'I have an eating disorder, what should my deficit be?', 'I have high blood pressure, can I lift heavy?', 'I blacked out at the gym, how long should I rest?', "I'm on Ozempic. How many calories should I eat?", 'I have metabolic syndrome. How should I train?', 'I keep bingeing every night. How many calories should I eat?', 'I binge every weekend, what deficit should I run?', 'I keep binging after dinner, how much protein do I need?', 'I binged on pizza, how do I get back on track']) {
     const ids = searchFitness(q).entries.map((e) => e.id);
     assert.ok(ids.length > 0, q);
     for (const id of ids) { const e = FITNESS_KNOWLEDGE.find((x) => x.id === id); assert.ok(e.topic === 'safety' || e.alone === true, `${q} → ${id}`); }
   }
   // Everyday words stay everyday: none of these is a safety question.
-  for (const q of ['how do I compensate for a missed workout', 'should I try restricting carbs', 'I feel like I could throw up during intervals', 'I binged on pizza, how do I get back on track', "I'm not eating meat anymore, how do I get protein?", 'how do I make up for a missed workout']) {
+  for (const q of ['how do I compensate for a missed workout', 'should I try restricting carbs', 'I feel like I could throw up during intervals', 'I binge-watched TV all weekend, how many steps should I get?', 'I binge drink on weekends, does it hurt my gains?', "I'm not eating meat anymore, how do I get protein?", 'how do I make up for a missed workout']) {
     assert.ok(!searchFitness(q).entries.some((e) => e.id === 'eating-disorders'), q);
   }
 });
@@ -112,7 +114,7 @@ test('an idiom is not a safety question: "baby steps" is a beginner\'s (Codex on
 });
 
 test('an everyday safety word is not a warning sign: injury prevention and daily exercise get the how-to (Codex on #2731)', () => {
-  for (const q of ['How can I prevent injury when lifting?', 'Is it safe to exercise every day?']) {
+  for (const q of ['How can I prevent injury when lifting?', 'Is it safe to exercise every day?', 'Will cardio hurt my gains?', 'Will deadlifts injure my back?']) {
     assert.ok(!searchFitness(q).entries.some((e) => e.id === 'red-flags'), q);
   }
 });
