@@ -236,7 +236,11 @@ export const FITNESS_KNOWLEDGE = Object.freeze([
     id: 'red-flags',
     topic: 'safety',
     title: 'When to stop exercising and get medical help',
-    tags: ['chest pain', 'chest pressure', 'dizzy', 'dizziness', 'faint', 'fainted', 'fainting', 'passed out', 'heart racing', 'palpitations', 'short of breath', 'shortness of breath', 'i injured my', 'ive injured my', 'i have injured my', 'just injured my', 'i hurt my', 'ive hurt my', 'i have hurt my', 'just hurt my', 'new injury', 'swollen', 'swelling', 'joint pain', 'sharp pain', 'numb', 'numbness', 'heart condition', 'heart failure', 'stroke', 'metabolic syndrome', 'metabolic disease', 'metabolic condition', 'prediabetes', 'pre-diabetes', 'type 1 diabetes', 'type 2 diabetes', 'insulin', 'chronic kidney disease', 'copd', 'heart disease', 'heart problem', 'heart attack', 'high blood pressure', 'blood pressure', 'hypertension', 'arrhythmia', 'afib', 'heart murmur', 'pacemaker', 'blacked out', 'blackout', 'black out', 'lightheaded', 'light-headed', 'collapsed', 'chest tightness', 'breathless', 'breathlessness', 'unusually breathless', 'cant breathe', 'cannot breathe', 'trouble breathing', 'difficulty breathing', 'gasping for air', 'irregular heartbeat', 'kidney disease', 'diabetes', 'medical condition', 'medical clearance'],
+    tags: ['chest pain', 'chest pressure', 'dizzy', 'dizziness', 'faint', 'fainted', 'fainting', 'passed out', 'heart racing', 'palpitations', 'short of breath', 'shortness of breath', 'i injured my', 'ive injured my', 'i have injured my', 'just injured my', 'i hurt my', 'ive hurt my', 'i have hurt my', 'just hurt my', 'new injury', 'swollen', 'swelling', 'joint pain', 'sharp pain', 'numb', 'numbness', 'blacked out', 'blackout', 'black out', 'lightheaded', 'light-headed', 'collapsed', 'chest tightness', 'breathless', 'breathlessness', 'unusually breathless', 'cant breathe', 'cannot breathe', 'trouble breathing', 'difficulty breathing', 'gasping for air', 'irregular heartbeat', 'medical clearance'],
+    // A condition counts only when the member claims it (claimed(), below): "I have high blood pressure",
+    // "I'm on insulin", "with heart disease". "Does exercise lower blood pressure?" and "insulin
+    // sensitivity" are ordinary questions (Codex on #2731 and #2732).
+    conditions: ['heart condition', 'heart failure', 'stroke', 'metabolic syndrome', 'metabolic disease', 'metabolic condition', 'prediabetes', 'pre-diabetes', 'type 1 diabetes', 'type 2 diabetes', 'insulin', 'chronic kidney disease', 'copd', 'heart disease', 'heart problem', 'heart attack', 'high blood pressure', 'blood pressure', 'hypertension', 'arrhythmia', 'afib', 'heart murmur', 'pacemaker', 'kidney disease', 'diabetes', 'medical condition'],
     body: 'Stop and get medical help for chest pain or pressure, fainting or nearly fainting, a racing or irregular heartbeat, or unusual breathlessness during exercise; call emergency services for chest pain that does not settle with rest, or for fainting. The ACSM’s screening advice: anyone with heart, kidney or metabolic disease, or symptoms that suggest one, gets medical clearance before starting moderate or vigorous exercise. Pain that is sharp, in a joint, or comes with swelling or numbness is checked before training through it.',
     source: 'ACSM preparticipation health screening recommendations (Riebe et al., 2015) · American Heart Association: warning signs of a heart attack',
   },
@@ -275,6 +279,56 @@ const stems = (t) => String(t).toLowerCase().replace(/[’']/g, '').split(/[^a-z
 const at = (qStems, t, i) => i + t.length <= qStems.length && t.every((w, k) => qStems[i + k] === w);
 // An entry's `except` phrases veto a tag where they start at the same word: "binge" is a tag, and
 // "binge-watched" is not a binge.
+// A condition counts only when the member claims it (Codex on #2732): "I", "I'm" or "I've" in the six
+// words before it with nothing between that asks about or changes the condition ("I have high blood
+// pressure", "I suffer from diabetes", "I was diagnosed with prediabetes"; not "how can I improve insulin
+// sensitivity", "can I use exercise to lower blood pressure", "I read that exercise prevents heart
+// disease"); "my" right before it ("my blood pressure is high"); or "with" right before it when no one
+// else is named ("is it safe to exercise with heart disease?" asks for the member, "people with
+// diabetes" and "my father has diabetes" do not).
+const FIRST_PERSON = new Set(['i', 'im', 'ive']);
+const NOT_A_CLAIM = new Set(['improve', 'improving', 'lower', 'lowers', 'lowering', 'raise', 'raises', 'reduce', 'reduces', 'reducing', 'prevent', 'prevents', 'preventing', 'increase', 'increases', 'boost', 'affect', 'affects', 'help', 'helps', 'protect', 'protects', 'avoid', 'wonder', 'wondering', 'curious', 'read', 'heard', 'learn', 'learning', 'know', 'worry', 'worried', 'afraid', 'scared', 'about', 'risk']);
+const OTHERS = new Set(['people', 'person', 'someone', 'somebody', 'anyone', 'everyone', 'they', 'them', 'their', 'he', 'him', 'his', 'she', 'her', 'father', 'mother', 'dad', 'mom', 'mum', 'parent', 'parents', 'wife', 'husband', 'partner', 'friend', 'friends', 'client', 'clients', 'patient', 'patients', 'son', 'daughter', 'kid', 'kids', 'child', 'children', 'brother', 'sister', 'grandma', 'grandpa', 'grandmother', 'grandfather']);
+// Words with the clause each sits in (a comma, semicolon, colon or sentence end starts a new one), so a
+// claim after the condition is read only inside its own clause.
+// A conjunction opens a new clause too ("can diabetes develop if I don't exercise?"); a sentence (s) ends
+// only at . ! or ?.
+const CONJUNCTIONS = new Set(['if', 'when', 'whenever', 'because', 'since', 'unless', 'while', 'so', 'and', 'or', 'but', 'though', 'although']);
+function clauseWords(t) {
+  const out = { w: [], c: [], s: [] }; let c = 0, sn = 0, last = 0;
+  const src = String(t).toLowerCase().replace(/[’']/g, '');
+  for (const m of src.matchAll(/[a-z0-9]+/g)) {
+    const gap = src.slice(last, m.index);
+    if (/[.!?]/.test(gap)) sn += 1;
+    if (/[,;:.!?]/.test(gap) || CONJUNCTIONS.has(m[0])) c += 1;
+    out.w.push(m[0]); out.c.push(c); out.s.push(sn); last = m.index + m[0].length;
+  }
+  return out;
+}
+// The member's own condition, claimed before it or after it in its clause: "diabetes makes it hard for
+// me to exercise", "high blood pressure makes my workouts difficult" (Codex on #2732); "diabetes runs
+// in my family" is history, not a claim.
+const AFTER_CLAIM = new Set(['me', 'my', 'i', 'im', 'ive']);
+function claimed(q, i, len) {
+  const qWords = q.w;
+  const before = qWords[i - 1];
+  if (before === 'my') return true;
+  // Before it: in its own sentence, with no asking word and no one else named between ("I'm asking for a
+  // friend. Diabetes and exercise?" and "I think my dad has diabetes" claim nothing; Codex on #2732).
+  const from = Math.max(0, i - 6);
+  const w = qWords.slice(from, i).filter((_, k) => q.s[from + k] === q.s[i]);
+  const p = w.map((x) => FIRST_PERSON.has(x)).lastIndexOf(true);
+  if (p !== -1 && !w.slice(p + 1).some((x) => NOT_A_CLAIM.has(x) || OTHERS.has(x))) return true;
+  const after = [];
+  for (let k = i + len; k < Math.min(qWords.length, i + len + 6) && q.c[k] === q.c[i]; k++) after.push(qWords[k]);
+  if (after.some((x) => AFTER_CLAIM.has(x)) && !after.some((x) => NOT_A_CLAIM.has(x) || x === 'family' || x === 'genes')) return true;
+  return before === 'with' && !qWords.some((x) => OTHERS.has(x));
+}
+function hasCondition(q, qStems, tag) {
+  const t = stems(tag);
+  for (let i = 0; i + t.length <= qStems.length; i++) if (at(qStems, t, i) && claimed(q, i, t.length)) return true;
+  return false;
+}
 function hasTag(qStems, tag, except = []) {
   const t = stems(tag);
   const vetoes = except.map(stems);
@@ -287,7 +341,8 @@ export function searchFitness(query, { limit = 3, minScore = 1 } = {}) {
   const max = Math.max(1, Math.min(5, limit));
   const found = searchEntries(FITNESS_KNOWLEDGE, query, { limit: 5, minScore });
   const q = stems(query);
-  const flagged = SAFETY.filter((e) => e.tags.some((t) => hasTag(q, t, e.except)));
+  const qWords = clauseWords(query);
+  const flagged = SAFETY.filter((e) => e.tags.some((t) => hasTag(q, t, e.except)) || (e.conditions || []).some((t) => hasCondition(qWords, q, t)));
   if (!flagged.length) {
     // A safety entry comes back only on its own tag, never on a stray body word: "restricting carbs"
     // is a nutrition question, not an eating-disorder one.
