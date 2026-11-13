@@ -1,4 +1,5 @@
 import { validateFile as validateVideoFile } from '../../../public/newdesign/shapeVideo.mjs';
+import { imageHeaderDims as bsImageHeaderDims, shrinkPhotoForUpload } from './photoShrink.mjs';
 import { captureFromWindow, sourceFromWindow, trackingAllowed } from '../../../src/lib/signup-source.mjs';
 import { Capacitor } from '@capacitor/core';
 import { createClient } from '@supabase/supabase-js';
@@ -5544,80 +5545,8 @@ const BS_RECIPE_PHOTO_MAX_PIXELS = 25_000_000;
 // megabytes; the cost of leaving it narrow is refusing someone's cookbook.
 const BS_RECIPE_PHOTO_HEADER_BYTES = 2 * 1024 * 1024;
 
-// Width and height out of an image's HEADER — no decode, no bitmap, no canvas.
-// Returns null when the format is not one of the four the route accepts or the
-// header is truncated; the caller treats null as "unknown" rather than as a
-// refusal, because a format we cannot measure is not the same as one we know is
-// too large.
-function bsImageHeaderDims(buf) {
-  const b = buf instanceof Uint8Array ? buf : new Uint8Array(buf);
-  const be16 = (i) => (b[i] << 8) | b[i + 1];
-  const be32 = (i) => (((b[i] << 24) | (b[i + 1] << 16) | (b[i + 2] << 8) | b[i + 3]) >>> 0);
-  const le32 = (i) => ((b[i] | (b[i + 1] << 8) | (b[i + 2] << 16) | (b[i + 3] << 24)) >>> 0);
-  // PNG — 8-byte signature, then IHDR's width/height at 16/20.
-  // ⚠ THE CHUNK TYPE IS CHECKED, NOT ASSUMED. The spec requires IHDR first, but
-  // this function now decides whether an image is decoded at all, so a file that
-  // merely starts with the PNG signature must not be able to hand back whatever
-  // happens to sit at those offsets — a fabricated small size is a full decode of
-  // something arbitrarily large.
-  if (b.length > 24 && b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47
-      && b[12] === 0x49 && b[13] === 0x48 && b[14] === 0x44 && b[15] === 0x52) {
-    return { w: be32(16), h: be32(20) };
-  }
-  // GIF — little-endian logical screen size at 6/8.
-  if (b.length > 10 && b[0] === 0x47 && b[1] === 0x49 && b[2] === 0x46) {
-    return { w: b[6] | (b[7] << 8), h: b[8] | (b[9] << 8) };
-  }
-  // JPEG — walk the marker chain to a start-of-frame. ⚠ The chain must be
-  // walked rather than scanned for 0xFFC0: those two bytes occur constantly
-  // inside EXIF and thumbnail payloads, and a scan lands on one of them and
-  // reports a thumbnail's size as the photo's.
-  if (b.length > 4 && b[0] === 0xff && b[1] === 0xd8) {
-    let i = 2;
-    while (i + 9 < b.length) {
-      if (b[i] !== 0xff) return null;            // out of sync: refuse to guess
-      const m = b[i + 1];
-      if (m === 0xff) { i += 1; continue; }      // fill byte
-      if (m === 0x01 || (m >= 0xd0 && m <= 0xd9)) { i += 2; continue; }  // standalone
-      if (m === 0xda) return null;               // scan data: no SOF before it
-      const len = be16(i + 2);
-      if (len < 2) return null;
-      // SOF0-SOF15, excluding DHT (c4), DAC (c8) and DNL (cc), which share the range.
-      if (m >= 0xc0 && m <= 0xcf && m !== 0xc4 && m !== 0xc8 && m !== 0xcc) {
-        // ⚠ THE SEGMENT MUST BE BIG ENOUGH TO CONTAIN WHAT WE ARE ABOUT TO READ.
-        // A frame header is length(2) + precision(1) + height(2) + width(2) +
-        // components(1) = 8 bytes minimum, and without that check a hostile file
-        // can declare a two-byte SOF while planting small values at the offsets
-        // below — dimensions that are not inside the segment at all. They would
-        // pass the pixel budget and send the file to the full decode, where a
-        // permissive decoder skips the bogus frame, finds the real one, and
-        // recreates exactly the unbounded decode this whole guard exists to stop.
-        // The declared segment must also fit in the buffer, so a truncated file
-        // cannot have its tail read as a dimension.
-        if (len < 8 || i + 2 + len > b.length) return null;
-        return { h: be16(i + 5), w: be16(i + 7) };
-      }
-      i += 2 + len;
-    }
-    return null;
-  }
-  // WebP — RIFF container, three body formats, each with its own size encoding.
-  if (b.length > 30 && b[0] === 0x52 && b[1] === 0x49 && b[2] === 0x46 && b[3] === 0x46
-      && b[8] === 0x57 && b[9] === 0x45 && b[10] === 0x42 && b[11] === 0x50) {
-    const fmt = String.fromCharCode(b[12], b[13], b[14], b[15]);
-    // ⚠ The lossy branch checks VP8's 3-byte sync code (9d 01 2a) before reading
-    // the size after it — same reason as PNG's IHDR: without it a truncated or
-    // hostile RIFF hands back two arbitrary bytes as a dimension.
-    if (fmt === 'VP8 ' && b[23] === 0x9d && b[24] === 0x01 && b[25] === 0x2a) {
-      return { w: (b[26] | (b[27] << 8)) & 0x3fff, h: (b[28] | (b[29] << 8)) & 0x3fff };
-    }
-    if (fmt === 'VP8L') { const n = le32(21); return { w: (n & 0x3fff) + 1, h: ((n >> 14) & 0x3fff) + 1 }; }
-    if (fmt === 'VP8X') {
-      return { w: (b[24] | (b[25] << 8) | (b[26] << 16)) + 1, h: (b[27] | (b[28] << 8) | (b[29] << 16)) + 1 };
-    }
-  }
-  return null;
-}
+// The header reader (bsImageHeaderDims) moved to public/newdesign/photoShrink.mjs, so the feed's photo
+// uploads measure pixels with the same copy; it is imported at the top of this file.
 // ⚠ AND A DECODE THAT NEVER SETTLES MUST NOT LOCK THE SHEET. The sheet disables
 // its backdrop and its Cancel while a read is in flight, so a promise that never
 // resolves leaves the member force-quitting the app. An <img> handed a HEIC or a
@@ -8109,9 +8038,12 @@ window.ShapeMessages = {
 async function uploadCommunityPhoto(file) {
   if (!supabase || !state.user?.id) throw new Error('Sign in to add a photo.');
   if (!file) throw new Error('No photo selected.');
-  const ext = ((file.type && file.type.split('/')[1]) || 'jpg').replace(/[^a-z0-9]/gi, '') || 'jpg';
+  // Shrunk to a 1600 px JPEG before it goes up (photoShrink.mjs); the photo as picked goes up
+  // whenever it can't be, so a resize never costs the member their upload.
+  const photo = await shrinkPhotoForUpload(file);
+  const ext = ((photo.type && photo.type.split('/')[1]) || 'jpg').replace(/[^a-z0-9]/gi, '') || 'jpg';
   const path = `${state.user.id}/${Date.now()}-${Math.random().toString(36).slice(2, 7)}.${ext}`;
-  const { error } = await supabase.storage.from('community-photos').upload(path, file, { contentType: file.type || 'image/jpeg', upsert: false });
+  const { error } = await supabase.storage.from('community-photos').upload(path, photo, { contentType: photo.type || 'image/jpeg', upsert: false });
   if (error) throw error;
   const { data } = supabase.storage.from('community-photos').getPublicUrl(path);
   return data?.publicUrl || null;
