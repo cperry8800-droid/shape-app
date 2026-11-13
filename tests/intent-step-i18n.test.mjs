@@ -24,6 +24,9 @@ const LOCALES = ['en', 'es', 'pt-BR', 'fr', 'de', 'it', 'id', 'vi', 'tr', 'ha', 
 
 const src = fs.readFileSync(CLIENT, 'utf8');
 const AST = parse(src, { sourceType: 'module', plugins: ['jsx'] });
+// The goal step itself is in its own module since 2026-11-13 (the first-run redraw); the client imports it.
+const STEPS_SRC = fs.readFileSync(path.join('mobile-app', 'src', 'broadsheet', 'BSFirstRunSteps.jsx'), 'utf8');
+const STEPS_AST = parse(STEPS_SRC, { sourceType: 'module', plugins: ['jsx'] });
 
 // ⚠ BS_PRIMARY_GOALS is a module-scope const inside the JSX file, not an
 // importable module — so it is READ OUT OF THE SOURCE, never re-typed here. A
@@ -44,9 +47,10 @@ const BS_PRIMARY_GOALS = (() => {
 // PARAMETER, and a bare-name marker extracts a two-word fragment. This repo
 // has paid for that trap already.
 function intentRegion() {
-  for (const n of AST.program.body) {
+  for (const top of STEPS_AST.program.body) {
+    const n = top.type === 'ExportNamedDeclaration' && top.declaration ? top.declaration : top;
     if (n.type === 'FunctionDeclaration' && n.id && n.id.name === 'BSIntentStep') {
-      return src.slice(n.start, n.end);
+      return STEPS_SRC.slice(n.start, n.end);
     }
   }
   throw new Error('BSIntentStep not found');
@@ -95,11 +99,13 @@ const cats = Object.fromEntries(LOCALES.map((l) => {
 const FRAME = ['intent.becomingPre', 'intent.becomingPost',
                'intent.titlePre', 'intent.titleAccent', 'intent.titlePost'];
 
-test('guard-the-guard: the region is the component and it derives 32 keys', () => {
+test('guard-the-guard: the region is the component and it derives 31 keys', () => {
   assert.ok(region.includes('const IDENTITY = {'), 'the region carries the IDENTITY table');
   assert.ok(region.includes('identityOf'), 'the region carries the resolver');
   assert.ok(!/\bfunction BSHealthIntake\b/.test(region), 'the region stops at the next component');
-  assert.equal(KEYS.length, 32, '15 chrome keys (two of them "Set up with Nora") + 12 identity sentences + the save-failed line it shares with the coaching step + the 4 own-goal words it shares with the Goals picker');
+  // 31 since the first-run redraw (2026-11-13): the "You're in" eyebrow is gone from the step, whose header
+  // is the mark and the headline now.
+  assert.equal(KEYS.length, 31, '14 chrome keys (two of them "Set up with Nora") + 12 identity sentences + the save-failed line it shares with the coaching step + the 4 own-goal words it shares with the Goals picker');
   assert.equal(LOCALES.length, 13);
   for (const k of KEYS) assert.ok(k.startsWith('intent.') || k === 'firstRun.saveFailed' || k.startsWith('goal:primary.custom'), `${k} is namespaced under intent.`);
 });

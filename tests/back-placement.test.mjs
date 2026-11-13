@@ -192,7 +192,9 @@ test('only the shared row draws the Back button, but for the two screens with no
     const src = read(f);
     if (/<BSBackButton\b|<window\.BSBackButton\b|window\.BSBackButton\b/.test(src)) hits.push(f);
   }
-  assert.deepEqual(hits.sort(), ['iosAppBroadsheetMain.jsx', 'iosAppBroadsheetProviderApply.jsx']);
+  // The two: the first-run screens' top bar (BSFirstRunKit.jsx, the redraw of 2026-11-13; it was Main's
+  // sign-in screen) and the coach application.
+  assert.deepEqual(hits.sort(), ['BSFirstRunKit.jsx', 'iosAppBroadsheetProviderApply.jsx']);
   for (const f of hits) {
     assert.match(read(f), /BS_BACK_SLOT_TOP_CSS/, `${f} places its Back at the slot's y`);
     assert.match(read(f), /BackButton compact onClick=\{onBack\}/, `${f} draws the small ←`);

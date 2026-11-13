@@ -29,6 +29,9 @@ import * as babelParser from '@babel/parser';
 const FILES = [
   'mobile-app/src/broadsheet/iosAppBroadsheetMain.jsx',
   'mobile-app/src/services/dailyWire.mjs',
+  // The welcome, join, sign in and check-your-email screens Main draws (the first-run redraw, 2026-11-13),
+  // `useTr('onboarding')` like the shell.
+  'mobile-app/src/broadsheet/BSFirstRun.jsx',
 ];
 // `useTr('onboarding')` in the shell; the wire prefixes every key explicitly.
 const DEFAULT_NS = 'onboarding';
@@ -142,23 +145,30 @@ deleting the assertion: ${unresolved.join(', ')}`);
   // run over nothing at all. The launch shell + wire carry ~100 distinct keys.
   assert.ok(out.exact.size >= 90,
     `resolved only ${out.exact.size} keys — the walk stopped seeing call sites`);
-  assert.ok(out.prefixes.size >= 2, 'a concatenated key family stopped being seen');
+  // One since the first-run redraw (2026-11-13): the welcome's mapped `paywall.feat.' + k` list became
+  // literal tile keys (checked below); the wire's family remains.
+  assert.ok(out.prefixes.size >= 1, 'a concatenated key family stopped being seen');
   assert.ok(out.spans.size >= 1, 'the prefix+suffix family (home:lead.*.head) stopped being seen');
 });
 
-test('the paywall feature family is fully authored, not partially', () => {
-  // `tr('paywall.feat.' + k)` maps a literal array; a missing member renders the
-  // raw key inside the welcome's list, mid-sentence. Five since 2026-11-10: the welcome lists
-  // what a free account gets, and Radio moved to the membership's own line.
-  const src = fs.readFileSync(FILES[0], 'utf8');
-  const m = src.match(/\[([^\]]*)\]\s*\.map\(\(k\)\s*=>\s*tr\('paywall\.feat\.'/);
-  assert.ok(m, 'the paywall feature list stopped being a mapped literal array');
-  const suffixes = [...m[1].matchAll(/'([^']+)'/g)].map((x) => x[1]);
-  assert.ok(suffixes.length >= 5, `expected the full feature list, saw ${suffixes.length}`);
-  assert.ok(!suffixes.includes('radio'), 'Shape Radio is a paid feature: the welcome says so on the membership line');
+test('the welcome\'s feature tiles are fully authored, and Radio is never sold as free', () => {
+  // The welcome (BSFirstRun.jsx's BSWelcomeScreen since the first-run redraw, 2026-11-13) lists what a
+  // free account gets as tiles, each its own literal key; a missing one renders the raw key on the tile.
+  // Five since 2026-11-10 were the free parts; Music is the sixth (owner, 2026-11-13: "include music")
+  // and the only one marked as the membership's, which the membership line under the buttons names.
+  const src = fs.readFileSync(FILES[2], 'utf8');
+  const welcome = src.slice(src.indexOf('export function BSWelcomeScreen('), src.indexOf('// ── CHECK YOUR EMAIL'));
+  const m = welcome.match(/const tiles = \[([\s\S]*?)\n\s*\];/);
+  assert.ok(m, 'the welcome\'s tiles stopped being a literal list');
+  const tiles = [...m[1].matchAll(/\['(\w+)', tr\('([^']+)'\)(, true)?\]/g)].map((x) => ({ icon: x[1], key: x[2], member: !!x[3] }));
+  assert.ok(tiles.length >= 5, `expected the full tile list, saw ${tiles.length}`);
   const cat = catalog('onboarding');
-  const absent = suffixes.filter((s) => !(`paywall.feat.${s}` in cat));
-  assert.deepEqual(absent, [], `paywall.feat.* missing from en: ${absent.join(', ')}`);
+  const absent = tiles.filter((t) => !(t.key in cat)).map((t) => t.key);
+  assert.deepEqual(absent, [], `welcome tile keys missing from en: ${absent.join(', ')}`);
+  const member = tiles.filter((t) => t.member);
+  assert.deepEqual(member.map((t) => t.icon), ['music'], 'only Music is the membership\'s');
+  assert.ok(!tiles.some((t) => !t.member && /radio|music/i.test(t.key)), 'Shape Radio is a paid feature: never among the free tiles');
+  assert.match(welcome, /\{tr\('welcome\.membership', \{ price \}\)\}/, 'the membership line names it');
 });
 
 // ── The same rule, one surface over: the live session player ─────────────────
