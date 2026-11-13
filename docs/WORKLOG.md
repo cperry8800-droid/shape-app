@@ -70,7 +70,9 @@ The rules and the code map. Every session loads it: when a rule changes, replace
   (`marketplace.jsx`) are the coach's look through the kit's `bsCoachPagePalette` (null: the Climb),
   as are the app's coach page (`BSCoachClimb.jsx` `bsClimbTheme`) and Coaches cards (`coachCardLook.mjs`).
   `chatWidget.jsx` is Nora and Chat: one panel docked to the right edge over a dimmed page; Nora's
-  door opens on a welcome with suggestion cards, and her answers read as text, not bubbles.
+  door opens on a welcome with suggestion cards, and her answers read as text, not bubbles. Their
+  doors are in the header: `globalChatButton.js` fills its `data-nav-dock-slot`s (the floating pill
+  only where no slot is on screen).
 - **Next.js (`src/`):** API routes, `/dashboard`, `/admin`. Read the Next docs first;
   CI typechecks (`npx tsc --noEmit`). A new route goes in the War Room's `RAW_ROUTES`. A
   route the app calls reads the caller with `clientForRequest`/`currentUser`

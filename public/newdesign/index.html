@@ -172,6 +172,8 @@
   .nlinks a{font-size:13.5px;font-weight:500;color:var(--fg-2);transition:color .16s}
   .nlinks a:hover{color:var(--fg)}
   .nauth{flex:1 1 0;min-width:max-content;display:flex;align-items:center;justify-content:flex-end;gap:12px}
+  /* Ask Nora and Chat's slots (globalChatButton.js fills them): an empty one takes no gap. */
+  .nauth [data-nav-dock-slot]:empty{display:none}
   .nauth .login{font-size:13.5px;font-weight:500;color:var(--fg-2);white-space:nowrap;line-height:1}
   .nauth .login:hover{color:var(--fg)}
   /* The signed-in greeting ("Hi, name"), added by the /api/me script below. The
@@ -185,6 +187,15 @@
         padding:0 15px;height:36px;display:inline-flex;align-items:center;
         white-space:nowrap;line-height:1;transition:background .16s;clip-path:polygon(0 0,calc(100% - 8px) 0,100% 8px,100% 100%,0 100%)}
   .ncta:hover{background:linear-gradient(180deg,#7cf0e3,#4ce4d4 55%,#34d6c5)}
+  /* ⚠ ASK NORA AND CHAT IN THE BAR TAKE ROOM FROM THE LOGO'S PHONE RULE ABOVE (owner, 2026-11-13; globalChatButton.js, NAV
+     DOCK). Only while the bar carries them (html.shape-nav-dock). Measured in Chromium with the menu
+     button kept inside the 16px edge: the gaps go 12 to 8 and Get started's sides 15 to 12, so the logo
+     keeps 42px from 375 up and is 36 at 360. At 400 and under, Nora alone, as the corner had her on a
+     phone (Chat was never in this bar's menu); at 340 and under the gaps tighten again and the logo holds
+     at 26px (34 before), the one size given up. Below .ncta's own rule, which a test reads first. */
+  @media (max-width:480px){html.shape-nav-dock .nauth{gap:8px}html.shape-nav-dock .nauth .ncta{padding:0 12px}html.shape-nav-dock .brand img{height:min(42px,calc((100vw - 318px) / 2.12))}}
+  @media (max-width:400px){html.shape-nav-dock .nauth .nvd-chat{display:none}html.shape-nav-dock .brand img{height:min(42px,calc((100vw - 284px) / 2.12))}}
+  @media (max-width:340px){html.shape-nav-dock .nauth{gap:5px}html.shape-nav-dock .nauth .ncta{padding:0 9px}html.shape-nav-dock .brand img{height:max(26px,calc((100vw - 270px) / 2.12))}}
   /* ⚠ The permanent "ON AIR" chip is GONE. Measured 2026-09-11: public.radio_station
      does not exist in production, so /api/radio/now-playing falls through to the mock
      provider and the station is not broadcasting. A chip that always says ON AIR is a
@@ -1013,9 +1024,13 @@
     </div>
     <div class="nauth">
       <span id="shape-nav-search" style="display:inline-flex;align-items:center"></span>
+      <!-- Ask Nora and Chat, beside search (owner, 2026-11-13): slots globalChatButton.js fills (NAV DOCK).
+           From 1020 down they sit by the menu button ("nm"). -->
+      <span data-nav-dock-slot="a"></span>
       <a class="login" href="/newdesign/Login.html">Log in</a>
       <a class="ncta" href="/newdesign/Landing.html">Get started</a>
       <a class="nradio" href="/newdesign/Radio.html" aria-label="Shape Radio"><svg class="nvfr" aria-hidden="true"><path fill="none" stroke="rgba(238,243,240,.14)" stroke-width="1"/></svg><svg class="mark" aria-hidden="true" viewBox="8 8 79 98"><polygon points="14,47 14,100 51,73" fill="#34d6c5"/><polygon points="81,14 81,65 44,39" fill="rgba(238,243,240,.92)"/></svg>Radio</a>
+      <span data-nav-dock-slot="nm"></span>
       <button class="nburger" id="nburger" aria-label="Menu" aria-expanded="false" aria-controls="ndrawer"><span></span></button>
     </div>
   </div>

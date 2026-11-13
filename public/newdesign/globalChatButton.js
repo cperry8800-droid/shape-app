@@ -267,7 +267,39 @@
       "#shape-global-chat-panel .sgc-row .ls{font-size:12px;color:rgba(var(--sh-ink-rgb, 242,237,228),.6);grid-column:1/-1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}",
       "#shape-global-chat-panel .sgc-back{border:0;background:transparent;color:var(--sh-accent, #2ee0c4);font:600 12px 'Schibsted Grotesk','Schibsted Fallback',Inter,Arial,sans-serif;cursor:pointer;display:inline-flex;align-items:center;gap:6px;padding:0;margin-bottom:2px}",
       "#shape-global-chat-panel .sgc-from{font-family:'JetBrains Mono',Consolas,monospace;font-size:9px;letter-spacing:.08em;color:rgba(var(--sh-ink-rgb, 242,237,228),.42);margin:-3px 0 -2px}",
-      "@media (max-width:640px){#shape-global-chat-button{right:max(16px,env(safe-area-inset-right));bottom:max(16px,env(safe-area-inset-bottom));font-size:13px}#shape-global-chat-button .shape-global-chat-count{min-width:20px;height:18px;font-size:10px}#shape-global-chat-panel{right:16px;bottom:72px;width:calc(100vw - 32px);height:min(560px,calc(100vh - 94px));max-height:calc(100vh - 94px)}}"
+      "@media (max-width:640px){#shape-global-chat-button{right:max(16px,env(safe-area-inset-right));bottom:max(16px,env(safe-area-inset-bottom));font-size:13px}#shape-global-chat-button .shape-global-chat-count{min-width:20px;height:18px;font-size:10px}#shape-global-chat-panel{right:16px;bottom:72px;width:calc(100vw - 32px);height:min(560px,calc(100vh - 94px));max-height:calc(100vh - 94px)}}",
+      // ── Ask Nora and Chat in the nav (see NAV DOCK below). "a" beside search; "m" the collapsed
+      // header's column (pageShell's bell column), shown whenever its column is.
+      "[data-nav-dock-slot]{display:none;align-items:center;flex:none}",
+      "[data-nav-dock-slot~=a],[data-nav-dock-slot~=m]{display:inline-flex}",
+      // The homepage's bar keeps its cluster on a phone: from 1020 down the pair sits by the menu button.
+      "@media (max-width:1020px){[data-nav-dock-slot~=a]{display:none}[data-nav-dock-slot~=nm]{display:inline-flex}}",
+      "html.shape-nav-dock #shape-global-chat-button{display:none!important}",
+      // ⚠ OUT OF REACH WHILE A MENU IS OPEN, AS THE PILL IS (Codex P2 on #2736): the homepage's drawer
+      // opens under its bar, and every chat panel is hidden until it closes, so a tap opened one unseen.
+      "body.shape-drawer-open [data-nav-dock-slot]{visibility:hidden!important}",
+      ".nvd-pair{position:relative;display:inline-flex;align-items:stretch;height:36px;flex:none;border-radius:999px;border:1px solid rgba(var(--sh-nav-ink-rgb, 245,239,225),.15);background:linear-gradient(180deg,rgba(var(--sh-nav-ink-rgb, 245,239,225),.06),rgba(var(--sh-nav-ink-rgb, 245,239,225),.025));box-shadow:inset 0 1px 0 rgba(var(--sh-nav-ink-rgb, 245,239,225),.05)}",
+      ".nvd-seg{position:relative;display:inline-flex;align-items:center;gap:8px;border:0;margin:0;background:transparent;color:rgba(var(--sh-nav-ink-rgb, 245,239,225),.86);font:500 13.5px/1 'Schibsted Grotesk','Schibsted Fallback',system-ui,sans-serif;white-space:nowrap;cursor:pointer;-webkit-tap-highlight-color:transparent;transition:background .16s ease,color .16s ease}",
+      ".nvd-nora{padding:0 14px 0 5px;border-radius:999px 0 0 999px}",
+      ".nvd-chat{padding:0 13px 0 12px;border-radius:0 999px 999px 0}",
+      ".nvd-chat::before{content:'';position:absolute;left:0;top:9px;bottom:9px;width:1px;background:rgba(var(--sh-nav-ink-rgb, 245,239,225),.14)}",
+      ".nvd-seg:hover{background:rgba(var(--sh-nav-ink-rgb, 245,239,225),.07);color:var(--sh-nav-ink, #f5efe1)}",
+      ".nvd-seg:focus-visible{outline:2px solid var(--sh-accent3, #34d6c5);outline-offset:-2px}",
+      ".nvd-face{position:relative;width:26px;height:26px;flex:none;display:grid;place-items:center;border-radius:999px;box-shadow:0 0 0 1.5px var(--sh-accent3, #34d6c5);color:var(--sh-accent3, #34d6c5);font-size:13px}",
+      ".nvd-face img{display:block;width:26px;height:26px;border-radius:999px;object-fit:cover;object-position:50% 32%}",
+      ".nvd-face::after{content:'\\2726';position:absolute;top:-5px;right:-6px;font-size:10px;line-height:1;color:var(--sh-accent3, #34d6c5);text-shadow:0 0 6px rgba(52,214,197,.6)}",
+      ".nvd-face.nvd-noimg::after{content:none}",
+      ".nvd-chat svg{width:16px;height:16px;flex:none;color:var(--sh-accent3, #34d6c5)}",
+      ".nvd-count{min-width:18px;height:18px;padding:0 5px;border-radius:999px;background:var(--sh-accent3, #34d6c5);color:#06231f;font:700 10px/18px 'JetBrains Mono',Consolas,monospace;text-align:center}",
+      // Icon-only where the bar runs short of room (measured: see NAV DOCK), and always in the collapsed header.
+      ".nvd-label{white-space:nowrap}",
+      "@media (max-width:1280px){.nvd-pair .nvd-label{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}.nvd-pair .nvd-nora{padding:0 6px 0 5px}.nvd-pair .nvd-chat{padding:0 10px 0 9px}.nvd-pair .nvd-count{position:absolute;top:-5px;right:-4px;min-width:16px;height:16px;padding:0 4px;font-size:9px;line-height:16px;box-shadow:0 0 0 2px var(--sh-ground, #1a1612)}}",
+      // The collapsed header's column ("m") and the homepage's spot by its menu button ("nm") only
+      // ever show collapsed.
+      "[data-nav-dock-slot~=m] .nvd-pair .nvd-label{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}",
+      "@media (max-width:1020px){[data-nav-dock-slot~=nm] .nvd-pair .nvd-label{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}}",
+      // A phone: the two icons lose their frame, so the bar keeps its menu button inside the screen.
+      "@media (max-width:520px){.nvd-pair{border-color:transparent;background:none;box-shadow:none}.nvd-chat::before{display:none}.nvd-pair .nvd-nora{padding:0 3px 0 1px}.nvd-pair .nvd-chat{padding:0 5px}}"
     ].join("");
     document.head.appendChild(style);
   }
@@ -968,7 +1000,9 @@
   function syncDockSpace(button) {
     if (!button || !document.body) return;
     var shown = false;
-    try {
+    // The nav carries Ask Nora and Chat: the corner is free, panel open or not.
+    if (document.documentElement.classList.contains("shape-nav-dock")) shown = false;
+    else try {
       var cs = window.getComputedStyle(button);
       shown = cs.display !== "none" && cs.visibility !== "hidden" && Number(cs.opacity) !== 0
         || button.classList.contains(HIDDEN_CLASS); // a panel is open: keep the space, no jump
@@ -993,6 +1027,67 @@
     }
     document.documentElement.style.setProperty("--shape-dock-space", "calc(80px + env(safe-area-inset-bottom, 0px))");
   }
+
+  // ── NAV DOCK: Ask Nora and Chat in the header, beside search (owner, 2026-11-13: "A") ──
+  // The header leaves empty slots (pageShell.jsx's Header, the homepage's bar) and this file fills
+  // them, so one source draws the pair on every bar. data-nav-dock-slot names where a slot is: "a"
+  // beside search, "m" the collapsed header's own column, "nm" the homepage's spot by its menu
+  // button. The CSS above shows the one for the width.
+  // ⚠ THE CORNER'S PILL HIDES ONLY WHILE A FILLED SLOT IS ON SCREEN. A page whose header is hidden,
+  // or that has none (the app shells), keeps the pill, so Nora is never out of reach.
+  var NAV_PAIR_HTML = [
+    '<div class="nvd-pair" role="group" aria-label="Ask Nora or open chat">',
+    '<button type="button" class="nvd-seg nvd-nora" aria-label="Ask Nora" title="Ask Nora"><span class="nvd-face"><img src="/nora-avatar.png" alt="" aria-hidden="true"></span><span class="nvd-label">Ask Nora</span></button>',
+    '<button type="button" class="nvd-seg nvd-chat" aria-label="Open Shape chat" title="Chat">',
+    '<svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M2 6.5a4 4 0 0 1 4-4h4a3 3 0 0 1 3 3v3a3 3 0 0 1-3 3H6.5L3.5 14V8.5a3.5 3.5 0 0 1-1.5-2Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>',
+    '<span class="nvd-label">Chat</span><span class="nvd-count" style="display:none"></span>',
+    '</button></div>'
+  ].join("");
+  function slotShown(el) {
+    return !!(el && el.getClientRects && el.getClientRects().length);
+  }
+  function syncNavDock() {
+    if (!document.body) return;
+    var slots = document.querySelectorAll("[data-nav-dock-slot]");
+    var onScreen = false;
+    for (var i = 0; i < slots.length; i++) {
+      var slot = slots[i];
+      if (!slot.firstChild) {
+        slot.innerHTML = NAV_PAIR_HTML;
+        var img = slot.querySelector(".nvd-face img");
+        if (img) img.addEventListener("error", function () {
+          var face = this.parentNode; this.remove();
+          if (face) { face.classList.add("nvd-noimg"); face.textContent = "✦"; }
+        });
+      }
+      if (slotShown(slot)) onScreen = true;
+    }
+    var n = unreadCount();
+    var counts = document.querySelectorAll("[data-nav-dock-slot] .nvd-count");
+    for (var j = 0; j < counts.length; j++) {
+      // Written only when it changes: this runs from a childList observer, and text it rewrites is a child.
+      var label = n && n > 0 ? (n > 99 ? "99+" : String(n)) : "";
+      if (counts[j].textContent !== label) counts[j].textContent = label;
+      var disp = label ? "" : "none";
+      if (counts[j].style.display !== disp) counts[j].style.display = disp;
+    }
+    var html = document.documentElement;
+    if (html.classList.contains("shape-nav-dock") !== onScreen) html.classList.toggle("shape-nav-dock", onScreen);
+  }
+  // Once a frame at most: the body observer runs on every change, and this measures the slots.
+  var navDockQueued = false;
+  function queueNavDock() {
+    if (navDockQueued) return;
+    navDockQueued = true;
+    (window.requestAnimationFrame || window.setTimeout)(function () { navDockQueued = false; syncNavDock(); });
+  }
+  document.addEventListener("click", function (event) {
+    var t = event.target && event.target.closest && event.target.closest("[data-nav-dock-slot] .nvd-seg");
+    if (!t) return;
+    event.preventDefault();
+    if (t.classList.contains("nvd-nora")) window.__openChatTo({ who: "Nora", tab: "support" });
+    else openRichChat();
+  });
 
   function mount() {
     if (document.getElementById(ID)) return;
@@ -1044,6 +1139,7 @@
 
     document.body.appendChild(button);
     syncVisibility(button);
+    syncNavDock();
     syncDockSpace(button);
 
     // A page that hides the dock with a class (the homepage intro, an open drawer)
@@ -1052,10 +1148,11 @@
       .observe(document.body, { attributes: true, attributeFilter: ["class", "style"] });
     new MutationObserver(function () { syncDockSpace(button); })
       .observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
-    window.addEventListener("resize", function () { syncDockSpace(button); });
+    window.addEventListener("resize", function () { queueNavDock(); syncDockSpace(button); });
 
     var observer = new MutationObserver(function () {
       syncVisibility(button);
+      queueNavDock();
       syncDockSpace(button);
       // clientChatTabs arrives when the app mounts (async) — keep the badge
       // honest as threads load/read-states change.
@@ -1063,7 +1160,7 @@
     });
     observer.observe(document.body, { childList: true, subtree: true });
 
-    window.addEventListener("pageshow", function () { syncVisibility(button); syncUnreadBadge(button); });
+    window.addEventListener("pageshow", function () { syncVisibility(button); syncNavDock(); syncUnreadBadge(button); });
 
     // The chat panel does NOT auto-reopen across navigation — it was staying open
     // and blocking the page. Each page starts with just the bubble; the panel

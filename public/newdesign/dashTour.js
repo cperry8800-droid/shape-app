@@ -104,9 +104,14 @@
     };
   }
 
-  // The floating chat launcher (globalChatButton.js) — not a route, so the step
-  // anchors the button itself; when it's absent the engine centers the card.
-  function chatBtn() { return document.getElementById('shape-global-chat-button'); }
+  // Ask Nora and Chat (globalChatButton.js) — not a route, so a step anchors the button itself.
+  // ⚠ THE HEADER'S, WHERE IT HAS THEM (owner, 2026-11-13: beside search): the corner's pill is
+  // then hidden and measures 0×0, so a step on it lit the corner (Codex P2 on #2736). The pill
+  // where no header carries them; when neither is there the engine centers the card.
+  function navDoor(cls) { return shown('[data-nav-dock-slot] .' + cls); }
+  function chatBtn() { return navDoor('nvd-chat')() || document.getElementById('shape-global-chat-button'); }
+  function noraBtn() { return navDoor('nvd-nora')() || document.querySelector('#shape-global-chat-button .sgc-nora'); }
+  function chatHalf() { return navDoor('nvd-chat')() || document.querySelector('#shape-global-chat-button .sgc-chat'); }
   var guideBtn = shown('[data-guide-btn]');
 
   // "Set up with Nora" (the owner, 2026-09-29: Nora "can fill evreything out for you ... and also setup
@@ -144,7 +149,7 @@
       { navigate: go('today'), anchor: sel('section[aria-label="Needs you"]'), fallback: q('hero-today'), eyebrow: 'Today', title: 'Start each day with Needs you.', body: 'Clients who need attention, check-ins to review and replies waiting, one tab apart. It fills in as clients join.' },
       { anchor: sel('.dash-rail-panel'), fallback: q('webtab-today'), eyebrow: 'Your dashboard', title: 'Everything else, one click away.', body: 'Week review, Schedule, Clients, ' + plans + ' and Playlists for your coaching; Business, Goal and Score for the practice; Profile and Settings at the foot.' },
       { anchor: shown('.dash-rail .shape-dash-payout'), fallback: q('webtab-profile'), eyebrow: 'The marketplace', title: 'Get listed.', body: 'Clients can find you on the marketplace once you have a photo, a monthly rate and payouts set up. Your profile shows which you still need; payouts are set up under Business → Money.' },
-      { anchor: guideBtn, fallback: chatBtn, final: true, ctaLabel: 'See all guides →', onCta: openGuideList, eyebrow: 'Last stop', title: 'Learn as you go.', body: 'Every page has a Guide button beside its name: a minute on what you can do there. Ask Nora, from the button in the corner, about anything else.' },
+      { anchor: guideBtn, fallback: chatBtn, final: true, ctaLabel: 'See all guides →', onCta: openGuideList, eyebrow: 'Last stop', title: 'Learn as you go.', body: 'Every page has a Guide button beside its name: a minute on what you can do there. Ask Nora, at the top of the page, about anything else.' },
     ];
   }
 
@@ -229,8 +234,8 @@
       { navigate: setTab('Guides'), anchor: q('dash-guides'), fallback: q('webtab-settings'), eyebrow: 'Settings · Guides', title: 'Guides, any time.', body: 'Every guide is listed here and ticked once you finish it. The welcome tour is here too.' },
     ] });
     g.push({ key: 'chat', title: 'Nora, chat & search', routes: [], steps: [
-      { anchor: sel('#shape-global-chat-button .sgc-nora'), fallback: chatBtn, eyebrow: 'Nora', title: 'Ask Nora.', body: 'Ask how anything in Shape works, or have her draft a program or set up your profile; nothing is saved until you confirm. Select text on any page to ask her about it.' },
-      { anchor: sel('#shape-global-chat-button .sgc-chat'), fallback: chatBtn, eyebrow: 'Chat', title: 'Messages and the Wall.', body: 'Your clients, co-coaches and channels, and the Wall, the community feed.' },
+      { anchor: noraBtn, fallback: chatBtn, eyebrow: 'Nora', title: 'Ask Nora.', body: 'Ask how anything in Shape works, or have her draft a program or set up your profile; nothing is saved until you confirm. Select text on any page to ask her about it.' },
+      { anchor: chatHalf, fallback: chatBtn, eyebrow: 'Chat', title: 'Messages and the Wall.', body: 'Your clients, co-coaches and channels, and the Wall, the community feed.' },
       { anchor: shown('[aria-label="Search Shape"]'), fallback: chatBtn, eyebrow: 'Search', title: 'Search Shape.', body: 'Find anything from the bar at the top of every page.' },
     ] });
     return g;
