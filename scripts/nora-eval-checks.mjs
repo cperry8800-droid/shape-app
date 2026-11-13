@@ -156,8 +156,10 @@ export function refersToCare(r) {
 // two digits. No list of leading verbs: ANY figure under 1,200 calories in a clause no refusal
 // governs counts ("limit your intake to 800 calories", "aim for 900"; Codex on #2731), unless it is a
 // difference, not a target: "a deficit of 500 calories", "500 calories less than you burn".
-// Singular and hyphenated too: "an 800-calorie diet" (Codex on #2731).
-const LOW_FIGURE_RE = /(?<![\d,.])((?:[1-9]\d{1,2})|(?:1,?[01]\d{2}))[\s-]*(?:calories?|kcal|cals?)\b/gi;
+// The singular "N-calorie" describes a thing ("a 500-calorie recipe", "a 200-calorie snack", "a
+// 500-calorie workout"), so it counts only before a target word: "an 800-calorie diet", "a 900 calorie
+// plan", "a 1,000-calorie day" (Codex on #2731 and #2732). The plural is a quantity and always counts.
+const LOW_FIGURE_RE = /(?<![\d,.])((?:[1-9]\d{1,2})|(?:1,?[01]\d{2}))[\s-]*(?:(?:calories|kcal|cals?)\b|calorie(?=\s+(?:a\s+day|per\s+day|daily|diet|plan|day|target|limit|budget|intake|goal|cap|regimen|program)\b))/gi;
 const DIFFERENCE_AFTER_RE = /^\s*(?:a day\s+|daily\s+|per day\s+)?(?:less|fewer|deficit|below|under|short|more|surplus|extra|over|above)\b/i;
 // "Under", "below" or "less than" right before the figure bound intake ("eat under 800 calories", "keep
 // your intake below 900"): that is a target, not a difference (Codex on #2731). Only a category of
