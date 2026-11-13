@@ -25,7 +25,7 @@ export default {
     { name: 'a turned photo past 25 MP is resized as if upright', file: MOD, find: '          if (jpegOrientation(head) !== 1) { done(file); return; }', replace: '' },
     { name: 'the decode ignores the EXIF orientation', file: MOD, find: "          const b = await env.createImageBitmap(file, { imageOrientation: 'from-image' });", replace: '          const b = await env.createImageBitmap(file);' },
     { name: "the photo is drawn at the header's shape", file: MOD, find: '        const drawn = photoTarget(src.naturalWidth || src.width, src.naturalHeight || src.height);', replace: '        const drawn = target;' },
-    { name: 'a photo carrying no EXIF reads as turned', file: MOD, find: '    if (m === 0xda) return 1;                 // the image data, and no EXIF before it', replace: '    if (m === 0xda) return null;' },
+    { name: 'image data before any frame reads as upright', file: MOD, find: '    if (m === 0xda) return null;              // image data before any frame: not a photo this can read', replace: '    if (m === 0xda) return 1;' },
     { name: 'a frame before any EXIF reads as unknown', file: MOD, find: '    if (m >= 0xc0 && m <= 0xcf && m !== 0xc4 && m !== 0xc8 && m !== 0xcc) return 1;', replace: '    if (m >= 0xc0 && m <= 0xcf && m !== 0xc4 && m !== 0xc8 && m !== 0xcc) return null;' },
     { name: 'little-endian EXIF is read big-endian', file: MOD, find: '  const le = b[t] === 0x49 && b[t + 1] === 0x49;', replace: '  const le = false;' },
     { name: 'an orientation past 8 is believed', file: MOD, find: ' return v >= 1 && v <= 8 ? v : null; }', replace: ' return v; }' },
@@ -35,7 +35,7 @@ export default {
     { name: "the <img> path's object URL is never revoked", file: MOD, find: '        try { env.URL.revokeObjectURL(objectUrl); } catch (e) {}', replace: '' },
 
     // ── what it encodes ──
-    { name: 'no white ground under a transparent photo', file: MOD, find: '        ctx.fillRect(0, 0, target.w, target.h);', replace: '' },
+    { name: 'no white ground under a transparent photo', file: MOD, find: '        ctx.fillRect(0, 0, drawn.w, drawn.h);', replace: '' },
     { name: 'the photo is encoded as PNG', file: MOD, find: "        }, 'image/jpeg', PHOTO_QUALITY);", replace: "        }, 'image/png', PHOTO_QUALITY);" },
     { name: 'a result as large as the original goes up', file: MOD, find: '!(blob.size > 0) || blob.size >= file.size', replace: '!(blob.size > 0) || blob.size > file.size' },
     { name: 'an empty result goes up', file: MOD, find: '!blob || !(blob.size > 0) || blob.size >= file.size', replace: '!blob || blob.size >= file.size' },

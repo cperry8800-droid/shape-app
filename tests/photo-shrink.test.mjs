@@ -175,6 +175,7 @@ test('the EXIF orientation is read from the header, in either byte order', () =>
   const broken = jpegBytes(4032, 3024, 6); broken[12] = 0x58;   // the TIFF byte order (II or MM) is garbage
   assert.equal(jpegOrientation(broken), null);
   assert.equal(jpegOrientation(Buffer.from([0xff, 0xd8, 0x00, 0x00, 0, 0, 0, 0])), null, 'out of sync');
+  assert.equal(jpegOrientation(Buffer.from([0xff, 0xd8, 0xff, 0xda, 0, 4, 0, 0, 0, 0])), null, 'image data before any frame');
 });
 
 test('past 25 MP with no resizing decoder, the original goes up rather than a full decode', async () => {

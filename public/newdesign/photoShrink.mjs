@@ -120,7 +120,7 @@ export function jpegOrientation(buf) {
     const m = b[i + 1];
     if (m === 0xff) { i += 1; continue; }
     if (m === 0x01 || (m >= 0xd0 && m <= 0xd9)) { i += 2; continue; }
-    if (m === 0xda) return 1;                 // the image data, and no EXIF before it
+    if (m === 0xda) return null;              // image data before any frame: not a photo this can read
     const len = (b[i + 2] << 8) | b[i + 3];
     if (len < 2 || i + 2 + len > b.length) return null;
     // EXIF sits in APP1 ahead of the frame; reaching a frame first means there is none.
