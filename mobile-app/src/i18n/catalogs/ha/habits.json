@@ -37,6 +37,7 @@
   "score.emptyEmph": "maki na yau da kullum suna nan.",
   "empty.startWith": "Fara da ɗaya",
   "empty.startHint": "Taɓa sau ɗaya don ƙara shi, kai kaɗai za ka gani.",
+  "empty.addFailed": "Ba a iya ƙara {name} ba. Sake gwadawa.",
   "score.emptyLead": "Ƙara al'ada —",
   "score.shapeScore": "Shape Score",
   "toast.addError": "An kasa ƙara al'ada",

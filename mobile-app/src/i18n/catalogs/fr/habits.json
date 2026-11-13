@@ -37,6 +37,7 @@
   "score.emptyEmph": "les points quotidiens vivent ici.",
   "empty.startWith": "Commence par une",
   "empty.startHint": "Un appui l’ajoute, visible par toi seul.",
+  "empty.addFailed": "Impossible d’ajouter {name}. Réessaie.",
   "score.emptyLead": "Ajoute une habitude —",
   "score.shapeScore": "Le Shape Score",
   "toast.addError": "Impossible d’ajouter l’habitude",

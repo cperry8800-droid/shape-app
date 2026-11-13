@@ -37,6 +37,7 @@
   "score.emptyEmph": "здесь живут ежедневные баллы.",
   "empty.startWith": "Начни с одной",
   "empty.startHint": "Одно касание добавит её, видно только тебе.",
+  "empty.addFailed": "Не удалось добавить «{name}». Попробуй ещё раз.",
   "score.emptyLead": "Добавь привычку —",
   "score.shapeScore": "Shape Score",
   "toast.addError": "Не удалось добавить привычку",

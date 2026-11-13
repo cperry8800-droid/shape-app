@@ -37,6 +37,7 @@
   "score.emptyEmph": "günlük puanlar burada.",
   "empty.startWith": "Bir tanesiyle başla",
   "empty.startHint": "Tek dokunuş ekler, yalnızca sen görürsün.",
+  "empty.addFailed": "{name} eklenemedi. Tekrar dene.",
   "score.emptyLead": "Bir alışkanlık ekle —",
   "score.shapeScore": "Shape Score",
   "toast.addError": "Alışkanlık eklenemedi",

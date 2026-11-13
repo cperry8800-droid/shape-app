@@ -102,6 +102,22 @@ test('no habits: starters add a private habit in one tap, and a second tap waits
   await m.close();
 });
 
+// Codex P2 on #2739: the page's create resolves false on a failed save, and the app's toasts are a
+// no-op, so the starters say it themselves, and clear it on the next try.
+test('no habits: a starter that fails to save says so on the page, and the next tap clears it', async () => {
+  const results = [false, true];
+  const m = await mount(React.createElement(H.BSHabitToday, { habits: [], onToggle() {}, onRemove() {}, onAdd() {}, onQuickAdd: async () => results.shift(), reminders: {} }));
+  assert.ok(!m.host.querySelector('[role="alert"]'));
+  await m.click(/Water 3L/);
+  const alert = m.host.querySelector('[role="alert"]');
+  assert.ok(alert, 'a failed save says nothing on the page');
+  assert.equal(alert.textContent, 'Couldn’t add Water 3L. Try again.');
+  assert.ok(!m.btn(/Water 3L/).disabled, 'the starter is not there to tap again');
+  await m.click(/Water 3L/);
+  assert.ok(!m.host.querySelector('[role="alert"]'), 'the message stays after a save that worked');
+  await m.close();
+});
+
 test('no habits: Progress shows its empty week, and no By habit heading over nothing', async () => {
   const m = await mount(React.createElement(H.BSHabitProgress, { habits: [] }));
   assert.match(m.text(), /Your week\./);

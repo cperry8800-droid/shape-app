@@ -471,12 +471,19 @@ function BSHabitRow({ habit, accent, onToggle, onRemove, reminder, onReminderCha
 // habit as a button.
 // One tap adds a starter as a private habit. A tap while one is saving does nothing, so a double tap
 // cannot make it twice; a starter that failed to save stays to be tapped again.
+// ⚠ A FAILED SAVE IS SAID HERE, ON THE PAGE (Codex P2 on #2739). The page's create resolves false
+// rather than throwing, and the toast it tries is a no-op in the app (BSToastHost), so without this
+// line a failed tap left the page exactly as it was.
 function _BSHabitStarters({ onQuickAdd, tone, t, tr }) {
   const [saving, setSaving] = React.useState(null);
+  const [failed, setFailed] = React.useState(null);
   const add = async (name, type) => {
     if (saving) return;
     setSaving(name);
-    try { await onQuickAdd({ name, type }); } finally { setSaving(null); }
+    setFailed(null);
+    let ok = false;
+    try { ok = (await onQuickAdd({ name, type })) !== false; } catch (e) { ok = false; } finally { setSaving(null); }
+    if (!ok) setFailed(name);
   };
   return (
     <div style={{ marginTop: 22 }}>
@@ -493,6 +500,7 @@ function _BSHabitStarters({ onQuickAdd, tone, t, tr }) {
           </button>
         ))}
       </div>
+      {failed && <div role="alert" style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 13, fontWeight: 600, color: t.RUST }}>{tr('habits:empty.addFailed', { defaultValue: 'Couldn’t add {name}. Try again.', name: failed })}</div>}
     </div>
   );
 }

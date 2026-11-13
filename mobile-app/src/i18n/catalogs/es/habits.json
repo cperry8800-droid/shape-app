@@ -37,6 +37,7 @@
   "score.emptyEmph": "aquí viven los puntos diarios.",
   "empty.startWith": "Empieza con uno",
   "empty.startHint": "Un toque lo añade, solo para ti.",
+  "empty.addFailed": "No se pudo añadir {name}. Inténtalo de nuevo.",
   "score.emptyLead": "Añade un hábito —",
   "score.shapeScore": "El Shape Score",
   "toast.addError": "No se pudo añadir el hábito",

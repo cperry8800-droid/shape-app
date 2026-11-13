@@ -37,6 +37,7 @@
   "score.emptyEmph": "daily points dey here.",
   "empty.startWith": "Start with one",
   "empty.startHint": "One tap go add am, na only you go see am.",
+  "empty.addFailed": "We no fit add {name}. Try am again.",
   "score.emptyLead": "Add one habit —",
   "score.shapeScore": "Di Shape Score",
   "toast.addError": "We no fit add di habit",

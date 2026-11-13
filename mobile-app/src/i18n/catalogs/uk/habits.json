@@ -37,6 +37,7 @@
   "score.emptyEmph": "тут живуть щоденні бали.",
   "empty.startWith": "Почни з однієї",
   "empty.startHint": "Один дотик додасть її, видно лише тобі.",
+  "empty.addFailed": "Не вдалося додати «{name}». Спробуй ще раз.",
   "score.emptyLead": "Додай звичку —",
   "score.shapeScore": "Shape Score",
   "toast.addError": "Не вдалося додати звичку",

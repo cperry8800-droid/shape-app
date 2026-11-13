@@ -37,6 +37,7 @@
   "score.emptyEmph": "daily points live here.",
   "empty.startWith": "Start with one",
   "empty.startHint": "One tap adds it, private to you.",
+  "empty.addFailed": "Couldn’t add {name}. Try again.",
   "score.emptyLead": "Add a habit —",
   "score.shapeScore": "The Shape Score",
   "toast.addError": "Could not add habit",

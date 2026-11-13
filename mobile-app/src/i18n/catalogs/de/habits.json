@@ -37,6 +37,7 @@
   "score.emptyEmph": "hier gibt es tägliche Punkte.",
   "empty.startWith": "Fang mit einer an",
   "empty.startHint": "Ein Tipp fügt sie hinzu, nur für dich.",
+  "empty.addFailed": "{name} konnte nicht hinzugefügt werden. Versuch es noch mal.",
   "score.emptyLead": "Füge eine Gewohnheit hinzu —",
   "score.shapeScore": "Der Shape Score",
   "toast.addError": "Gewohnheit konnte nicht hinzugefügt werden",

@@ -37,6 +37,7 @@
   "score.emptyEmph": "poin harian ada di sini.",
   "empty.startWith": "Mulai dengan satu",
   "empty.startHint": "Sekali ketuk menambahkannya, hanya untukmu.",
+  "empty.addFailed": "Gagal menambahkan {name}. Coba lagi.",
   "score.emptyLead": "Tambah kebiasaan —",
   "score.shapeScore": "Shape Score",
   "toast.addError": "Tidak bisa menambahkan kebiasaan",
