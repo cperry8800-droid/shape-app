@@ -2740,6 +2740,9 @@ function ChatWidget(props) {
   React.useEffect(() => { if (!isNoraTab(tabs[tabIdx])) lastChatTabRef.current = tabIdx; }, [tabIdx]);
   const switchDoor = (toNora) => {
     if (toNora === noraMode) return;
+    // Her ⋯ menu closes with her door, or it stood open again on the way back. (Voice talk ends on
+    // its own: it ends whenever her tab is not the one up.)
+    setNoraMenu(false);
     if (toNora) {
       if (noraTabIdx < 0) return;
       setNoraMode(true);
