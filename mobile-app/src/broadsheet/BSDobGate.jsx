@@ -1,5 +1,6 @@
 import React from 'react';
 import { useTr } from '../i18n/index.js';
+import { FRScreen, FRHeader, FRPanel, FRField, FRError, frButton, frInput, frLink } from './BSFirstRunKit.jsx';
 
 // Every call to Shape's server goes through the backend's ShapeApi.fetch: the API base in
 // front and the live sign-in token. A root-relative '/api/…' fetch reaches nothing in the
@@ -69,17 +70,10 @@ export default function BSDobGate({ blocked, onSaved, onLogout }) {
   const [busy, setBusy] = React.useState(false);
   const [err, setErr] = React.useState('');
 
-  // The launch surfaces (wire beat, language picker, paywall) are fixed-dark and
-  // never take the paper theme, so this one matches them rather than useBS().
-  const INKF = '#f2ede4', INKF70 = 'rgba(242,237,228,0.7)', INKF50 = 'rgba(242,237,228,0.55)', ACCF = '#34d6c5';
-  const mono = `'JetBrains Mono', 'Cascadia Code', Consolas, monospace`;
-  // The app's own faces (owner, 2026-10-24, of the launch screens: one font across the app): Saira for
-  // the heads, the system face for the reading text, where both were a serif.
-  const head = "'Saira', 'Space Grotesk', -apple-system, system-ui, sans-serif";
-  const body = "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif";
-  const shell = { position: 'absolute', inset: 0, background: 'radial-gradient(135% 90% at 50% -8%, rgba(52,214,197,0.13), transparent 52%), linear-gradient(176deg, #0b161c 0%, #070b11 48%, #03050b 100%)', color: INKF, display: 'flex', flexDirection: 'column', padding: '52px 20px 24px', zIndex: 40 };
-  const topbar = { fontFamily: mono, fontSize: 9, fontWeight: 700, letterSpacing: '0.24em', textTransform: 'uppercase', color: INKF70, display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: `2px solid ${INKF}`, paddingBottom: 8 };
-  const signOutBtn = { marginTop: 14, padding: '10px', border: 0, background: 'transparent', color: INKF50, fontFamily: mono, fontSize: 9, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', cursor: 'pointer' };
+  // The first-run look (BSFirstRun.jsx, owner 2026-11-13: every screen before the app matches the
+  // welcome): fixed-dark like the other launch surfaces, the centred mark and headline, the field and
+  // its buttons in the glass panel. Sign out is the way out on every state of this screen.
+  const signOut = <button type="button" onClick={onLogout} style={frLink({ textAlign: 'center' })}>{tr('dob.signout', { defaultValue: 'Sign out' })}</button>;
 
   async function submit(e) {
     if (e && e.preventDefault) e.preventDefault();
@@ -111,77 +105,51 @@ export default function BSDobGate({ blocked, onSaved, onLogout }) {
   // A known minor (/api/me/membership's ageRestricted), shown ahead of the paywall, whose
   // membership offer would refuse them: Shape is for adults 18 and over.
   if (blocked === 'age_restricted') {
-    return (
-      <div style={shell}>
-        <div style={topbar}>
-          <span>Shape Wire</span>
-          <span style={{ color: INKF }}>{tr('dob.eyebrow', { defaultValue: 'Account' })}</span>
-        </div>
-        <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center', width: '100%', maxWidth: 360, margin: '0 auto' }}>
-          <h1 style={{ fontFamily: head, fontSize: 26, fontWeight: 400, letterSpacing: '-0.02em', lineHeight: 1.12, margin: '14px 0 0' }}>{tr('dob.errUnder18', { defaultValue: 'Shape is for adults 18 and over.' })}</h1>
-          <button onClick={onLogout} style={signOutBtn}>{tr('dob.signout', { defaultValue: 'Sign out' })}</button>
-        </div>
-      </div>
-    );
+    return <FRScreen dataAttr={{ 'data-fr-dob': 'minor' }} header={<FRHeader pre={tr('dob.errUnder18', { defaultValue: 'Shape is for adults 18 and over.' })} size={30} />} footer={signOut} />;
   }
 
   if (blocked) {
     return (
-      <div style={shell}>
-        <div style={topbar}>
-          <span>Shape Wire</span>
-          <span style={{ color: INKF }}>{tr('dob.eyebrow', { defaultValue: 'Account' })}</span>
-        </div>
-        <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center', width: '100%', maxWidth: 360, margin: '0 auto' }}>
-          <h1 style={{ fontFamily: head, fontSize: 26, fontWeight: 400, letterSpacing: '-0.02em', lineHeight: 1.12, margin: '14px 0 0' }}>{tr('dob.blockedTitle', { defaultValue: 'We can’t finish this here.' })}</h1>
-          <div style={{ fontFamily: body, fontSize: 15, lineHeight: 1.55, color: INKF70, marginTop: 12 }}>{tr('dob.blockedBody', { defaultValue: 'Your account setup didn’t complete, so there’s nothing to save this to yet. Contact support and we’ll put it right.' })}</div>
-          <button onClick={onLogout} style={signOutBtn}>{tr('dob.signout', { defaultValue: 'Sign out' })}</button>
-        </div>
-      </div>
+      <FRScreen dataAttr={{ 'data-fr-dob': 'blocked' }} footer={signOut}
+        header={<FRHeader pre={tr('dob.blockedTitle', { defaultValue: 'We can’t finish this here.' })} size={30}
+          sub={tr('dob.blockedBody', { defaultValue: 'Your account setup didn’t complete, so there’s nothing to save this to yet. Contact support and we’ll put it right.' })} />} />
     );
   }
 
   return (
-    <div style={shell}>
-      <div style={topbar}>
-        <span>Shape Wire</span>
-        <span style={{ color: INKF }}>{tr('dob.required', { defaultValue: 'Required' })}</span>
-      </div>
-      <form onSubmit={submit} style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center', width: '100%', maxWidth: 360, margin: '0 auto' }}>
-        <h1 style={{ fontFamily: head, fontSize: 26, fontWeight: 400, letterSpacing: '-0.02em', lineHeight: 1.12, margin: '14px 0 0' }}>{tr('dob.title', { defaultValue: 'Confirm your date of birth.' })}</h1>
-        <div style={{ fontFamily: mono, fontSize: 8.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: INKF50, marginTop: 8 }}>{tr('dob.subtitle', { defaultValue: 'Adults 18 and over' })}</div>
-        <div style={{ fontFamily: body, fontSize: 15, lineHeight: 1.55, color: INKF70, marginTop: 14 }}>{tr('dob.body', { defaultValue: 'Shape is for adults 18 and over, and every account needs a date of birth on file. You’ll only be asked once — the date can’t be changed afterwards, so check it before you save.' })}</div>
-
-        <label htmlFor="bs-dob" style={{ fontFamily: mono, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: INKF50, marginTop: 20, display: 'block' }}>{tr('dob.label', { defaultValue: 'Date of birth' })}</label>
-        <input
-          id="bs-dob"
-          type="date"
-          value={dob}
-          required
-          onChange={(ev) => { setDob(ev.target.value); if (err) setErr(''); }}
-          style={{ marginTop: 7, width: '100%', padding: '13px 12px', borderRadius: 4, minHeight: 48, background: 'rgba(242,237,228,0.06)', color: INKF, border: '1px solid rgba(242,237,228,0.16)', borderLeft: `3px solid ${dob ? ACCF : 'rgba(242,237,228,0.16)'}`, fontFamily: mono, fontSize: 14, letterSpacing: '0.04em' }}
-        />
-
-        {/* role="alert" so the refusal is announced, not just recoloured — this
-            is the only feedback a member gets when the server rejects a date. */}
-        {err ? (
-          <div role="alert" style={{ marginTop: 12, padding: '10px 12px', borderLeft: '3px solid #ff6b5e', background: 'rgba(255,107,94,0.09)', fontFamily: body, fontSize: 13.5, lineHeight: 1.45, color: INKF }}>{err}</div>
-        ) : null}
-
-        <button
-          type="submit"
-          disabled={busy || !dob}
-          className="bs-wire-enter"
-          style={{ marginTop: 18, borderRadius: 4, padding: '14px', border: 0, background: (busy || !dob) ? 'rgba(52,214,197,0.35)' : ACCF, color: '#05080c', fontFamily: mono, fontSize: 10, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', cursor: (busy || !dob) ? 'default' : 'pointer' }}
-        >
-          {busy ? tr('dob.saving', { defaultValue: 'Saving…' }) : tr('dob.cta', { defaultValue: 'Save and continue' })}
-        </button>
-        {/* An escape hatch is mandatory, not a courtesy: this screen is the only
-            thing between the member and the app, so without it a member who
-            cannot answer (a shared device, the wrong account) is stranded with
-            no way out. */}
-        <button type="button" onClick={onLogout} style={signOutBtn}>{tr('dob.signout', { defaultValue: 'Sign out' })}</button>
-      </form>
-    </div>
+    <FRScreen dataAttr={{ 'data-fr-dob': 'ask' }} footer={signOut}
+      header={<FRHeader pre={tr('dob.title', { defaultValue: 'Confirm your date of birth.' })} size={30}
+        sub={tr('dob.body', { defaultValue: 'Shape is for adults 18 and over, and every account needs a date of birth on file. You’ll only be asked once — the date can’t be changed afterwards, so check it before you save.' })} />}>
+      <FRPanel>
+        <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <FRField label={tr('dob.label', { defaultValue: 'Date of birth' })} note={tr('dob.subtitle', { defaultValue: 'Adults 18 and over' })}>
+            <input
+              id="bs-dob"
+              className="bs-lf-input"
+              type="date"
+              value={dob}
+              required
+              onChange={(ev) => { setDob(ev.target.value); if (err) setErr(''); }}
+              style={frInput()}
+            />
+          </FRField>
+          {/* role="alert" so the refusal is announced, not just recoloured — this
+              is the only feedback a member gets when the server rejects a date. */}
+          <FRError text={err} />
+          <button
+            type="submit"
+            disabled={busy || !dob}
+            className="bs-wire-enter"
+            style={frButton('primary', { opacity: (busy || !dob) ? 0.45 : 1, cursor: (busy || !dob) ? 'default' : 'pointer' })}
+          >
+            {busy ? tr('dob.saving', { defaultValue: 'Saving…' }) : tr('dob.cta', { defaultValue: 'Save and continue' })}
+          </button>
+        </form>
+      </FRPanel>
+      {/* An escape hatch is mandatory, not a courtesy: this screen is the only
+          thing between the member and the app, so without it a member who
+          cannot answer (a shared device, the wrong account) is stranded with
+          no way out. It is the footer, under the panel. */}
+    </FRScreen>
   );
 }

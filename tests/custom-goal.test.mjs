@@ -22,7 +22,10 @@ globalThis.cancelAnimationFrame = () => {};
 if (typeof globalThis.document === 'undefined') globalThis.document = { getElementById: () => null, body: {} };
 
 const RUN_EFFECTS = { ...SHIM, useEffect(fn) { fn(); } };
-const { BSClientGoals, BSIntentStep, BSMeGoalCard } = await loadBroadsheet(['BSClientGoals', 'BSIntentStep', 'BSMeGoalCard'], RUN_EFFECTS);
+const { BSClientGoals, BSMeGoalCard } = await loadBroadsheet(['BSClientGoals', 'BSMeGoalCard'], RUN_EFFECTS);
+// The first-run goal step is BSFirstRunSteps.jsx's (moved 2026-11-13); it reads the goal table the client
+// module above has just published on window.
+const { BSIntentStep } = await loadCarved('BSFirstRunSteps.jsx', RUN_EFFECTS);
 // The contract is in BSGoals.jsx, rendered only by its own page, so the client module doesn't import it.
 const { BSGoalsContract } = await loadCarved('BSGoals.jsx', RUN_EFFECTS);
 

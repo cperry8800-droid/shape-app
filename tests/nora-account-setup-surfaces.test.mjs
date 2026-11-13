@@ -12,7 +12,7 @@ import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
-import { loadBroadsheet, drive, SHIM, THEME, flatten, textOf } from './helpers/broadsheet-mount.mjs';
+import { loadBroadsheet, loadCarved, drive, SHIM, THEME, flatten, textOf } from './helpers/broadsheet-mount.mjs';
 import { loadRealModule } from './helpers/load-real-module.mjs';
 import { BS_ACCOUNT_SETUP_KINDS } from '../mobile-app/src/services/userGoalsRefresh.mjs';
 
@@ -22,7 +22,10 @@ const read = (p) => readFileSync(join(ROOT, p), 'utf8');
 const APP = read('mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx');
 const tick = () => new Promise((r) => setImmediate(r));
 
-const { BSIntentStep, BSNoraProposal } = await loadBroadsheet(['BSIntentStep', 'BSNoraProposal']);
+const { BSNoraProposal } = await loadBroadsheet(['BSNoraProposal']);
+// The first-run goal step is BSFirstRunSteps.jsx's (moved 2026-11-13); the client module above publishes
+// the globals it reads at call time.
+const { BSIntentStep } = await loadCarved('BSFirstRunSteps.jsx');
 
 const SETUP_CARD = {
   type: 'proposal', label: 'Review & confirm', action: 'set_up_account', token: 'tok-setup',

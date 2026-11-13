@@ -706,6 +706,16 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
       ],
     },
     {
+      section: 'The app\'s Welcome, Join and Sign in redrawn in direction B, and every account-creation screen after them in the same look. No migration',
+      items: [
+        { label: 'Owner, 2026-11-13: "these need updated design" (Welcome, Join the community, Welcome back), then "go with B", "include music", "center this on screen and logo", "for all of them", "make sure all other pages i missed during account creation match this", "center these a little more. Move a little higher on screen", and "Bring back free" (the account is free; the $5 membership line never says free)', status: 'done' },
+        { label: 'mobile-app/src/broadsheet/BSFirstRunKit.jsx (new): the first-run look (centred mark and header, a dark panel, 52px buttons, the sticky top bar with a fade under it), published as window.BSFirstRun. BSFirstRun.jsx (new): Welcome (five tiles with Music, "Create a free account", Sign in, the membership line), Join and Welcome back (Email or Phone, two steps on join), and Check your email. BSLogin keeps the auth logic and hands the screen its state', status: 'done' },
+        { label: 'Join always makes a member\'s account (signupRole is client on create); a trainer or nutritionist takes the "Apply to coach" pill to the coach door, which opens over the form so the Turnstile widget survives Close. The RD/RDN toggle left join for the application\'s Dietitian (RD / RDN) option. Sign in no longer asks a role: the account\'s own decides', status: 'done' },
+        { label: 'Moved out of iosAppBroadsheetClient.jsx in the redraw (the module rule): BSIntentStep and BSCoachingStep to BSFirstRunSteps.jsx, BSHealthIntake to BSHealthIntake.jsx; BSDobGate, BSLanguagePicker and the provider application take the same look. Strings in all 13 locales (onboarding.json); a field takes focus into view on touch screens only', status: 'done' },
+        { label: 'Checked: a parse of every changed module, the mobile build, the 13 suites on the first run and the coach door (156/156 with the door test moved to the overlay), and screenshots of every screen at 390x844; CI runs the suite', status: 'done' },
+      ],
+    },
+    {
       section: 'Nora answers training and nutrition from a sourced library: fitness_knowledge, 28 entries from position stands, national guidelines and meta-analyses, with safety lines. No migration',
       items: [
         { label: 'Owner, 2026-11-13: "how do we train nora to be the most educated fitness and wellness AI assistant", then "yes do this" to the plan: a sourced library like shape_help, answers worked out from the member\'s own numbers, safety limits, and evals that measure it', status: 'done' },

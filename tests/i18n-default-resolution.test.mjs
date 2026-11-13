@@ -46,6 +46,8 @@ const DEFAULT_NS = new Map([
   ['iosAppBroadsheetMain.jsx', 'onboarding'],
   ['BSDobGate.jsx', 'onboarding'],
   ['BSLanguagePicker.jsx', 'onboarding'],
+  // The first-run screens Main draws (the welcome, join and sign in, check your email; 2026-11-13).
+  ['BSFirstRun.jsx', 'onboarding'],
   ['BSUpdateGate.jsx', 'common'],
 ]);
 

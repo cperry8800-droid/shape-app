@@ -246,7 +246,9 @@ test('#2353\'s moved item: a known minor is told so before the membership offer,
   }
   assert.ok(app.indexOf('<BSDobGate blocked="age_restricted"') < app.indexOf('<App onLogout'), 'a known minor never reaches the app');
   const dob = read('mobile-app/src/broadsheet/BSDobGate.jsx');
-  assert.match(dob, /if \(blocked === 'age_restricted'\) \{[\s\S]*?tr\('dob\.errUnder18', \{ defaultValue: 'Shape is for adults 18 and over\.' \}\)[\s\S]*?onClick=\{onLogout\}/);
+  // Sign out is the gate's footer on every state of it (the first-run redraw, 2026-11-13), the minor's too.
+  assert.match(dob, /const signOut = <button type="button" onClick=\{onLogout\}/);
+  assert.match(dob, /if \(blocked === 'age_restricted'\) \{[\s\S]*?tr\('dob\.errUnder18', \{ defaultValue: 'Shape is for adults 18 and over\.' \}\)[\s\S]*?footer=\{signOut\}/);
   assert.ok(dob.indexOf("if (blocked === 'age_restricted')") < dob.indexOf('if (blocked) {'), 'checked before the generic blocked screen');
 });
 
