@@ -793,8 +793,10 @@ function BSLogin({ onLogin, onApply, onBack, role, setRole, initialMode }) {
     window.ShapeTurnstile.render(el, (tok) => { setCaptchaToken(tok); if (tok) setCaptchaFailed(false); }, () => setCaptchaFailed(true))
       .then((id) => { captchaIdRef.current = id; });
   }, [captchaSlot, captchaGen]);
-  // A request waiting in one container is not carried to the next (the verify screen, the code step).
-  React.useEffect(() => { setCaptchaWaiting(null); }, [captchaSlot]);
+  // A request waiting in one container is not carried to the next (the verify screen, the code step),
+  // nor across Email and Phone or Sign in and Join (Codex P2 on #2734): it was asked of the form as it
+  // was, so a token arriving after the switch would send the old request with the new form's fields.
+  React.useEffect(() => { setCaptchaWaiting(null); }, [captchaSlot, authMethod, mode]);
   const resetCaptcha = () => { setCaptchaToken(''); if (captchaIdRef.current != null) window.ShapeTurnstile.reset(captchaIdRef.current); };
   // True when the request must wait for the check (it is then held, and "Just a moment" says so).
   const holdForCaptcha = (kind) => {

@@ -44,7 +44,9 @@ test('the widget hears failures, and a new generation renders a fresh one', () =
   const effect = LOGIN.slice(LOGIN.indexOf('const [captchaWaiting, setCaptchaWaiting]'), LOGIN.indexOf('const resetCaptcha = '));
   assert.match(effect, /window\.ShapeTurnstile\.render\(el, \(tok\) => \{ setCaptchaToken\(tok\); if \(tok\) setCaptchaFailed\(false\); \}, \(\) => setCaptchaFailed\(true\)\)/);
   assert.match(effect, /\}, \[captchaSlot, captchaGen\]\);/, 'a retry does not render a fresh widget');
-  assert.match(effect, /React\.useEffect\(\(\) => \{ setCaptchaWaiting\(null\); \}, \[captchaSlot\]\);/, 'a held request follows the form to another container');
+  // Codex P2 on #2734: a held request is dropped when the container, the method (Email, Phone) or the
+  // mode (Sign in, Join) changes, so a late token never sends the old request with the new form's fields.
+  assert.match(effect, /React\.useEffect\(\(\) => \{ setCaptchaWaiting\(null\); \}, \[captchaSlot, authMethod, mode\]\);/, 'a held request outlives a change of form');
   // The wrapper reports an error, an expiry and a script that never loaded.
   assert.match(TURNSTILE, /render\(el, onToken, onError\) \{/);
   assert.match(TURNSTILE, /const fail = \(code\) => \{ cb\(''\); try \{ if \(onError\) onError\(String\(code \|\| 'error'\)\); \} catch \(e\) \{\} \};/);
