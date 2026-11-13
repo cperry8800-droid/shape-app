@@ -8,7 +8,7 @@ import { readFileSync, existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
-  shrinkPhotoForUpload, photoTarget, jpegName, imageHeaderDims, jpegOrientation,
+  shrinkPhotoForUpload, photoTarget, jpegName, imageHeaderDims, jpegOrientation, isAnimatedImage,
   PHOTO_EDGE, PHOTO_QUALITY, PHOTO_MAX_PIXELS,
 } from '../public/newdesign/photoShrink.mjs';
 import * as appModule from '../mobile-app/src/services/photoShrink.mjs';
@@ -41,6 +41,22 @@ const pngBytes = (w, h) => {
   b.write('IHDR', 12, 'latin1');
   b.writeUInt32BE(w, 16); b.writeUInt32BE(h, 20);
   return b;
+};
+
+// A VP8X WebP at w×h, with the animation flag set or not.
+const webpVP8X = (w, h, animated) => {
+  const b = Buffer.alloc(40);
+  b.write('RIFF', 0, 'latin1'); b.write('WEBP', 8, 'latin1'); b.write('VP8X', 12, 'latin1');
+  b[20] = animated ? 0x02 : 0x00;
+  b.writeUIntLE(w - 1, 24, 3); b.writeUIntLE(h - 1, 27, 3);
+  return b;
+};
+// A PNG at w×h with an acTL chunk (animated) or a plain IDAT after its IHDR.
+const pngChunked = (w, h, animated) => {
+  const ihdr = pngBytes(w, h);   // signature + IHDR (length 13, type, w, h, then padding)
+  const chunk = (type, data) => { const c = Buffer.alloc(12 + data.length); c.writeUInt32BE(data.length, 0); c.write(type, 4, 'latin1'); data.copy(c, 8); return c; };
+  const head = Buffer.alloc(33); ihdr.copy(head, 0, 0, 33); head.writeUInt32BE(13, 8);
+  return Buffer.concat([head, animated ? chunk('acTL', Buffer.alloc(8)) : Buffer.alloc(0), chunk('IDAT', Buffer.alloc(16)), chunk('IEND', Buffer.alloc(0))]);
 };
 
 const photo = ({ w = 4032, h = 3024, type = 'image/jpeg', size = 3_000_000, name = 'IMG_0412.JPG', bytes, orientation = null } = {}) => {
@@ -164,6 +180,20 @@ test('⚠ PAST 25 MP, ONLY A PHOTO STORED UPRIGHT IS RESIZED; A TURNED ONE GOES 
   assert.equal(out.type, 'image/jpeg');
 });
 
+test('an animated WebP or PNG is told from a still one by its header', async () => {
+  assert.equal(isAnimatedImage(webpVP8X(4000, 3000, true)), true);
+  assert.equal(isAnimatedImage(webpVP8X(4000, 3000, false)), false);
+  assert.equal(isAnimatedImage(pngChunked(4000, 3000, true)), true);
+  assert.equal(isAnimatedImage(pngChunked(4000, 3000, false)), false);
+  assert.equal(isAnimatedImage(jpegBytes(4000, 3000)), false);
+  // A still WebP and a still PNG past the edge are still shrunk.
+  for (const [type, bytes] of [['image/webp', webpVP8X(4000, 3000, false)], ['image/png', pngChunked(4000, 3000, false)]]) {
+    const { env } = browser({ decoded: { w: 4000, h: 3000 } });
+    const out = await shrinkPhotoForUpload(photo({ type, bytes }), env);
+    assert.equal(out.type, 'image/jpeg', type);
+  }
+});
+
 test('the EXIF orientation is read from the header, in either byte order', () => {
   assert.equal(jpegOrientation(jpegBytes(4032, 3024)), 1, 'no EXIF: upright');
   assert.equal(jpegOrientation(jpegBytes(4032, 3024, 6)), 6);
@@ -201,6 +231,8 @@ test('what it should not touch goes up exactly as picked', async () => {
   for (const [why, file] of [
     ['not an image', photo({ type: 'application/pdf' })],
     ['a GIF, which may be animated', photo({ type: 'image/gif' })],
+    ['an animated WebP', photo({ type: 'image/webp', bytes: webpVP8X(4000, 3000, true) })],
+    ['an animated PNG', photo({ type: 'image/png', bytes: pngChunked(4000, 3000, true) })],
     ['a HEIC it cannot measure', photo({ type: 'image/heic', bytes: Buffer.from('....ftypheic........') })],
     ['a truncated JPEG', photo({ bytes: Buffer.from([0xff, 0xd8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]) })],
     ['already no bigger than the edge', photo({ w: 1200, h: 900 })],

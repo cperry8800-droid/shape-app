@@ -17,6 +17,10 @@ export default {
 
     // ── what it leaves alone ──
     { name: 'a GIF is re-encoded and loses its animation', file: MOD, find: " || type === 'image/gif'", replace: '' },
+    { name: 'an animated WebP or APNG is flattened to its first frame', file: MOD, find: '        if (isAnimatedImage(head)) { done(file); return; }', replace: '' },
+    { name: 'an animated WebP reads as still', file: MOD, find: "=== 'VP8X' && (b[20] & 0x02) !== 0;", replace: "=== 'VP8X' && false;" },
+    { name: 'an APNG reads as still', file: MOD, find: "      if (type === 'acTL') return true;", replace: '' },
+    { name: 'a still PNG reads as animated', file: MOD, find: "      if (type === 'IDAT' || type === 'IEND') return false;", replace: "      if (type === 'IDAT' || type === 'IEND') return true;" },
     { name: 'a photo already within the edge is re-encoded', file: MOD, find: '  if (!target || (target.w === dims.w && target.h === dims.h)) { done(file); return; }', replace: '  if (!target) { done(file); return; }' },
 
     // ── the decode bound ──

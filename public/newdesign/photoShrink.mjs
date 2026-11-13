@@ -155,6 +155,28 @@ function exifOrientation(b, t, end) {
   return 1;
 }
 
+// Whether a WebP or PNG in the header is animated: an animated WebP sets the animation flag in its
+// VP8X header, and an APNG carries an acTL chunk before its first IDAT. A canvas keeps only the first
+// frame, so an animated image goes up as picked, as a GIF does (Codex P2 on #2730).
+export function isAnimatedImage(buf) {
+  const b = buf instanceof Uint8Array ? buf : new Uint8Array(buf);
+  if (b.length > 20 && b[0] === 0x52 && b[1] === 0x49 && b[2] === 0x46 && b[3] === 0x46
+      && b[8] === 0x57 && b[9] === 0x45 && b[10] === 0x42 && b[11] === 0x50) {
+    return String.fromCharCode(b[12], b[13], b[14], b[15]) === 'VP8X' && (b[20] & 0x02) !== 0;
+  }
+  if (b.length > 8 && b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47) {
+    let i = 8;
+    while (i + 8 <= b.length) {
+      const len = ((b[i] << 24) | (b[i + 1] << 16) | (b[i + 2] << 8) | b[i + 3]) >>> 0;
+      const type = String.fromCharCode(b[i + 4], b[i + 5], b[i + 6], b[i + 7]);
+      if (type === 'acTL') return true;
+      if (type === 'IDAT' || type === 'IEND') return false;
+      i += 12 + len;
+    }
+  }
+  return false;
+}
+
 // The size a photo is drawn at: its long edge brought down to `edge`, never up, the aspect ratio
 // kept. null for a size that is not a real one.
 export function photoTarget(w, h, edge = PHOTO_EDGE) {
@@ -221,6 +243,8 @@ export function shrinkPhotoForUpload(file, env = globalThis, { deadlineMs = PHOT
         const head = await file.slice(0, PHOTO_HEADER_BYTES).arrayBuffer();
         if (settled) return;
         const dims = imageHeaderDims(head);
+        // An animated WebP or APNG would come out as its first frame: as it is, like a GIF.
+        if (isAnimatedImage(head)) { done(file); return; }
         if (!dims || !(dims.w > 0 && dims.h > 0)) { done(file); return; }
         const target = photoTarget(dims.w, dims.h);
         // Already no bigger than the edge: re-encoding would only cost quality.
