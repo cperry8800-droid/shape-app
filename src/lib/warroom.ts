@@ -702,6 +702,7 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'Checked: tests/fitness-knowledge.test.mjs (every entry sourced, dated and plain; 26 member questions find their entry first; a figure stated twice agrees; the tool is a member\'s only; the safety lines); the 16 suites that read the chat route, the knowledge base or the eval', status: 'done' },
         { label: 'OWNER: have a Verified trainer and a Verified dietitian read the 27 entries (src/lib/ai/fitnessKnowledge.mjs). Until then the library is written from its sources, not reviewed by a credentialed coach', status: 'manual' },
         { label: 'OWNER: run the live eval against a preview with a member token (node scripts/nora-live-eval.mjs --url <preview> --only member); the ten new cases cost ten model calls', status: 'manual' },
+        { label: 'OWNER, optional: CodeRabbit\'s security check passed #2731 and noted that general-wellness scope is a judgement call; counsel may confirm that Nora\'s worked-out figures stay outside individualized clinical advice', status: 'manual' },
         { label: 'Open: a member\'s chat runs on the fast model at low effort (speed, 2026-11-01). If the eval shows thin science answers, a knowledge question could ride the pin or medium effort', status: 'manual' },
         { label: 'Open: a graded golden set (150 to 300 questions with reference answers and a rubric, marked by Verified coaches) is the next step past these regex checks', status: 'manual' },
       ],
