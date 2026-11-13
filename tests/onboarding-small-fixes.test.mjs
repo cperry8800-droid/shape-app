@@ -474,15 +474,19 @@ test('M4: the table is the server\'s to write; both sign-in doors record; both s
 // Shape's Terms of Service and Privacy Policy." with both links) until the owner's call, 2026-10-18:
 // "remove this". The create step that makes the account still says it, with both links, and
 // Stripe's checkout states the monthly price and the renewal.
-test('M4 + L4: the app says what joining means, in every language, and never "free" beside $5', () => {
+test('M4 + L4: the app says what joining means, in every language; the account is free and the membership is not', () => {
   const main = read('mobile-app/src/broadsheet/iosAppBroadsheetMain.jsx');
+  // The welcome and the join form are drawn by BSFirstRun.jsx since the first-run redraw (2026-11-13);
+  // Main keeps their state and hands them the Terms links.
+  const fr = read('mobile-app/src/broadsheet/BSFirstRun.jsx');
   // The welcome (the signed-out door since 2026-11-10, where the paywall was) carries no renewal
   // line or Terms links either (owner, 2026-10-18).
-  const welcome = main.slice(main.indexOf('function BSWelcome('), main.indexOf('// ⚠ PHONE NOTIFICATIONS ARE ASKED'));
+  const welcome = fr.slice(fr.indexOf('export function BSWelcomeScreen('), fr.indexOf('// ── CHECK YOUR EMAIL'));
   assert.ok(welcome.includes("tr('welcome.membership'"), 'the welcome slice moved');
-  assert.doesNotMatch(welcome, /paywall\.renews|login\.agree|<BSLegalLinks/, 'the welcome carries no renewal line or Terms links (owner)');
-  const login = main.slice(main.indexOf('function BSLogin('), main.indexOf('function BSWelcome('));
-  assert.match(login, /\{isCreate && \(isPhone \|\| createStep === 2\) && \([\s\S]{0,200}\{tr\('login\.agree'\)\}\s*<BSLegalLinks /, 'on the create step that makes the account');
+  assert.doesNotMatch(welcome, /paywall\.renews|login\.agree|BSLegalLinks/, 'the welcome carries no renewal line or Terms links (owner)');
+  const login = fr.slice(fr.indexOf('export function BSLoginScreen('));
+  assert.match(login, /\{isCreate && \(isPhone \|\| step2\) && \([\s\S]{0,200}\{tr\('login\.agree'\)\}\s*\{s\.BSLegalLinks \? <s\.BSLegalLinks /, 'on the create step that makes the account');
+  assert.match(main, /sendPhoneCode, verifyPhoneCode, BSLegalLinks,\n\s+\}\} \/>;/, 'Main hands the screen its Terms links');
   assert.match(main, /onClick=\{\(\) => bsOpenLegal\('\/terms\.html'\)\}[\s\S]{0,120}onClick=\{\(\) => bsOpenLegal\('\/privacy\.html'\)\}/);
   for (const f of ['public/terms.html', 'public/privacy.html']) assert.ok(fs.existsSync(join(ROOT, f)));
   // L4: the checkout's English refusals are not shown as they came. The shell starts no checkout
@@ -493,13 +497,21 @@ test('M4 + L4: the app says what joining means, in every language, and never "fr
   assert.match(lock, /r && r\.code === 'checkout_in_progress' \? 'inProgress' : r && r\.code === 'age_restricted' \? 'age' : 'failed'/);
   assert.match(lock, /if \(state === 'inProgress'\) return tr\('onboarding:paywall\.err\.inProgress'/);
   assert.match(lock, /if \(state === 'age'\) return tr\('onboarding:login\.err\.under18'/);
-  assert.doesNotMatch(main, /Create a free account/);
+  // ⚠ THE ACCOUNT IS FREE; THE MEMBERSHIP NEVER IS (owner, 2026-11-13: the account is free; the $5
+  // membership line never says free). This was "never 'free' beside $5", which kept the word off the
+  // welcome altogether; the ruling lifts it for the account and holds it for the membership line.
+  assert.doesNotMatch(main, /Create a free account/, 'the words live in the catalogs, never in the shell');
   const FREE = /free|kostenlos|gratis|gratuit|kyauta|grátis|бесплатн|ücretsiz|безкоштовн|miễn phí/i;
   for (const loc of fs.readdirSync(join(ROOT, 'mobile-app/src/i18n/catalogs'))) {
     const cat = JSON.parse(read(`mobile-app/src/i18n/catalogs/${loc}/onboarding.json`));
     for (const key of ['login.agree', 'legal.terms', 'legal.privacy', 'paywall.err.inProgress']) assert.ok(cat[key], `${loc}: ${key}`);
     assert.ok(!('paywall.renews' in cat), `${loc}: paywall.renews is read by nothing now`);
     for (const key of ['shell.requireAccount', 'shell.requireAccountLabel']) assert.doesNotMatch(cat[key], FREE, `${loc}: ${key} says free`);
+    // The membership line names its price and never calls the membership free.
+    assert.match(cat['welcome.membership'], /\{price\}/, `${loc}: welcome.membership names the price`);
+    assert.doesNotMatch(cat['welcome.membership'], FREE, `${loc}: welcome.membership calls the membership free`);
+    // The account is free, and the welcome's button says so.
+    assert.match(cat['fr.welcome.create'], FREE, `${loc}: fr.welcome.create says the account is free`);
   }
 });
 
@@ -557,7 +569,11 @@ test('L3: the phone create needs a name, offers a handle, and claims it once the
   assert.match(send, /if \(isCreate\) \{\s*if \(!fullName\.trim\(\)\) \{ setAuthError\(tr\('login\.err\.nameRequired'\)\); return; \}/);
   assert.match(send, /username: isCreate \? username : undefined \}\);/);
   assert.match(send, /if \(username && unameOk === null\) \{ setAuthError\(tr\('login\.handleChecking'\)\); return; \}/, 'a handle still being checked is not accepted yet (Fable)');
-  assert.match(main, /\{isCreate && \(!stepped \|\| createStep === 1\) && wireField\(tr\('login\.fieldHandle'\),/, 'the handle field shows on the phone create too');
+  // The join form's identity fields (BSFirstRun.jsx since 2026-11-13) carry the handle, and the phone
+  // create draws them before the code is sent, as the email create's first step does.
+  const fr = read('mobile-app/src/broadsheet/BSFirstRun.jsx');
+  assert.match(fr, /const identity = \(\n[\s\S]*?<FRField label=\{tr\('login\.fieldHandle'\)\}[\s\S]*?\n  \);/, 'the identity fields carry the handle');
+  assert.match(fr, /\{isPhone && \(\n[\s\S]{0,300}\{isCreate && !s\.otpSent && identity\}/, 'the handle field shows on the phone create too');
   // signInWithPhone, lifted and run: the handle rides in the sign-up metadata.
   const be = read('mobile-app/src/services/shapeBackend.js');
   const i = be.indexOf('async function signInWithPhone(');

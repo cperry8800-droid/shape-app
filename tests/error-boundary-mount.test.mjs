@@ -73,6 +73,7 @@ const MOD = await loadRealModule(MAIN_SRC, {
     ['./BSLanguagePicker.jsx', { default: () => null }],
     ['./BSDobGate.jsx', { default: () => null }],
     ['./BSUpdateGate.jsx', { default: () => null }],
+    ['./BSFirstRun.jsx', { BSWelcomeScreen: () => null, BSLoginScreen: () => null, BSVerifyEmailScreen: () => null }],
     ['react-i18next', { I18nextProvider: ({ children }) => children }],
   ]),
   appendExports: 'export { BSErrorBoundary, bsCrashTestRequested, BSCrashProbe };',

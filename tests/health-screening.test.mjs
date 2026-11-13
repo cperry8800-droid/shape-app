@@ -20,10 +20,13 @@ const { parse } = require_('@babel/parser');
 const read = (rel) => readFileSync(join(ROOT, rel), 'utf8');
 const lib = await loadRealModule(join(ROOT, 'src/lib/health-screening.ts'), { typescript: true });
 const CLIENT = read('mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx');
+// The screening and its two tables, in their own module since 2026-11-13 (the client imports them).
+const HEALTH = read('mobile-app/src/broadsheet/BSHealthIntake.jsx');
 
 function declSource(src, name) {
   const ast = parse(src, { sourceType: 'module', plugins: ['jsx'] });
-  for (const node of ast.program.body) {
+  for (const top of ast.program.body) {
+    const node = top.type === 'ExportNamedDeclaration' && top.declaration ? top.declaration : top;
     if (node.type === 'FunctionDeclaration' && node.id.name === name) return src.slice(node.start, node.end);
     if (node.type === 'VariableDeclaration' && node.declarations.some((d) => d.id.name === name)) return src.slice(node.start, node.end);
   }
@@ -121,7 +124,7 @@ test('the app: a coach checkout refused for the screening opens it, and carries 
 });
 
 test('the app\'s screening: three variants, and the condition chips store English and show the member\'s language', () => {
-  const form = declSource(CLIENT, 'BSHealthIntake');
+  const form = declSource(HEALTH, 'BSHealthIntake');
   assert.match(form, /const mode = purpose \|\| \(onBack \? 'settings' : 'gate'\);/);
   assert.match(form, /trailing=\{mode === 'settings' \? <BSMeCorner \/> : null\}/, 'corners only in Settings: the gate and the checkout\'s screening offer no dead exit');
   assert.match(form, /onClick=\{\(\) => toggleTag\(tag\.en\)\}/, 'the stored value is the English coaches and the website read');
@@ -134,7 +137,7 @@ test('the app\'s screening: three variants, and the condition chips store Englis
 test('the screening speaks every language the app does (M2)', () => {
   // The keys and their English, read off the component and the two tables.
   const want = {};
-  const ast = parse(CLIENT, { sourceType: 'module', plugins: ['jsx'] });
+  const ast = parse(HEALTH, { sourceType: 'module', plugins: ['jsx'] });
   const walk = (n) => {
     if (!n || typeof n !== 'object') return;
     if (Array.isArray(n)) return n.forEach(walk);
@@ -143,7 +146,8 @@ test('the screening speaks every language the app does (M2)', () => {
     }
     for (const k in n) if (k !== 'loc') walk(n[k]);
   };
-  for (const node of ast.program.body) {
+  for (const top of ast.program.body) {
+    const node = top.type === 'ExportNamedDeclaration' && top.declaration ? top.declaration : top;
     if (node.type === 'FunctionDeclaration' && node.id.name === 'BSHealthIntake') walk(node);
     const d = node.type === 'VariableDeclaration' ? node.declarations[0] : null;
     if (d && (d.id.name === 'BS_PARQ' || d.id.name === 'BS_CONDITION_TAGS')) {

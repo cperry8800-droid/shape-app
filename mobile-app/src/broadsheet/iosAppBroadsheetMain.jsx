@@ -6,6 +6,7 @@ import { createPortal } from 'react-dom';
 import { I18nextProvider } from 'react-i18next';
 import { initI18n, applyDir, useTr, i18n as bsI18n } from '../i18n/index.js';
 import BSLanguagePicker from './BSLanguagePicker.jsx';
+import { BSWelcomeScreen, BSLoginScreen, BSVerifyEmailScreen } from './BSFirstRun.jsx';
 import BSDobGate from './BSDobGate.jsx';
 import BSUpdateGate from './BSUpdateGate.jsx';
 import { BSTimezoneCheck } from './BSTimezone.jsx';
@@ -751,7 +752,6 @@ function BSLogin({ onLogin, onApply, onBack, role, setRole, initialMode }) {
   const [authError, setAuthError] = useStateBSM('');
   const [busy, setBusy] = useStateBSM(false);
   const [verifyEmail, setVerifyEmail] = useStateBSM(''); // set → show the "check your email" screen
-  const [isDietitian, setIsDietitian] = useStateBSM(false); // within the nutritionist signup: RD/RDN
   // Cloudflare Turnstile (CAPTCHA) — bot protection on the auth requests. No-op
   // until a site key is set (window.SHAPE_TURNSTILE_SITEKEY via turnstile.js).
   // We block submit until a token exists, then hand it to Supabase Auth (which
@@ -785,12 +785,13 @@ function BSLogin({ onLogin, onApply, onBack, role, setRole, initialMode }) {
   const resetCaptcha = () => { setCaptchaToken(''); if (captchaIdRef.current != null) window.ShapeTurnstile.reset(captchaIdRef.current); };
   const isCreate = mode === 'create';
   const isPhone = authMethod === 'phone';
-  // A nutritionist applicant who is a Registered Dietitian signs up as 'dietitian'
-  // (same nutrition discipline + surfaces; credentialed label). Profile role wins after.
-  const signupRole = (role === 'nutritionist' && isDietitian) ? 'dietitian' : role;
-  // Clear the RD/RDN toggle if the role changes away from nutritionist, so a
-  // stale checkbox can't carry a dietitian signup into another role.
-  React.useEffect(() => { if (role !== 'nutritionist') setIsDietitian(false); }, [role]);
+  // ⚠ JOINING MAKES A MEMBER'S ACCOUNT; A COACH APPLIES (owner, 2026-11-13, the first-run redraw). The
+  // join form has no role picker: a trainer or nutritionist takes the "Apply to coach" pill to the
+  // application, which asks whether they are a dietitian (iosAppBroadsheetProviderApply.jsx). So a
+  // stored coach role on this device can never turn a join into a coach account. Signing in sends the
+  // stored role only for a profile that has to be made on the spot (signIn's upsertProfile); an
+  // existing account's own role decides, which is why sign-in no longer asks.
+  const signupRole = isCreate ? 'client' : role;
   React.useEffect(() => { setCreateStep(1); }, [mode]);
   // Live username availability while creating an account (debounced).
   React.useEffect(() => {
@@ -963,48 +964,8 @@ function BSLogin({ onLogin, onApply, onBack, role, setRole, initialMode }) {
     setOtpCode('');
     setCreateStep(1);
   };
-  // Fixed-dark wire palette (the launch surfaces never follow the paper theme).
+  // The first-run parts (BSFirstRun.jsx) use the wire stylesheet: the field well's glow, the enter motion.
   ensureWireStyles();
-  const CREAM = '#f2ede4';
-  const C70 = 'rgba(242,237,228,0.72)';
-  const C50 = 'rgba(242,237,228,0.5)';
-  const LINE = 'rgba(242,237,228,0.13)';
-  const LINE2 = 'rgba(242,237,228,0.26)';
-  const WIRE_BG = 'radial-gradient(135% 90% at 50% -8%, rgba(52,214,197,0.13), transparent 52%), linear-gradient(176deg, #0b161c 0%, #070b11 48%, #03050b 100%)';
-  // ── THE LAUNCH FORM, REDRAWN (owner, 2026-11-11: "these opening pages on app need to be cleaned up and
-  // design updated"): the lit panel the app's Settings and Edit profile use, on the launch's dark ground. A
-  // label over each field, the field a rounded well that glows teal while typed in (16px, so iOS does not
-  // zoom the page on focus), rounded buttons, a two-bar step meter, a segmented role picker, an error in a
-  // box of its own. The old wire grammar (a mono label column and dotted entry lines, "Transmit") is gone.
-  const labelStyle = { display: 'block', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: C70, marginBottom: 7 };
-  const linkBtn = { background: 'transparent', border: 0, color: C70, fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 500, cursor: 'pointer', padding: '10px 4px', minHeight: 44 };
-  const tealLink = { alignSelf: 'flex-start', background: 'transparent', border: 0, color: '#34d6c5', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer', padding: '8px 0', minHeight: 36 };
-  const btnPrimary = { width: '100%', minHeight: 52, borderRadius: 14, padding: '14px 16px', background: '#34d6c5', color: '#04201d', border: 0, fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', boxShadow: '0 0 24px rgba(52,214,197,0.28)' };
-  const btnSecondary = { width: '100%', minHeight: 50, borderRadius: 14, padding: '13px 16px', background: 'rgba(255,255,255,0.035)', color: CREAM, border: `1px solid ${LINE2}`, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer' };
-  const plate = { border: `1px solid ${LINE}`, borderRadius: 16, background: 'linear-gradient(180deg, rgba(255,255,255,0.055), rgba(255,255,255,0.02))', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.05)' };
-  // The role names are already shipped in 13 locales — reuse them rather than
-  // minting a 7th copy. shortRole is derived from the KEY, never by stripping a
-  // translated suffix (' (RD/RDN)' only exists in English).
-  const roleLabel = {
-    client: tr('settings:preview.roleClient'),
-    trainer: tr('coach:role.trainer'),
-    nutritionist: tr('coach:role.nutritionist'),
-    dietitian: tr('login.roleDietitian'),
-  }[signupRole] || tr('settings:preview.roleClient');
-  const shortRole = signupRole === 'dietitian' ? tr('coach:role.dietitian') : roleLabel;
-  const stepped = isCreate && !isPhone; // the email create dispatch runs the 2-step split
-  // A coach picked on the create step goes to the application (see the primary action).
-  const coachCreate = isCreate && !!onApply && (role === 'trainer' || role === 'nutritionist' || role === 'dietitian');
-  const rowInput = { fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 500, color: CREAM };
-  const subNote = { fontFamily: t.DISPLAY, fontSize: 12.5, lineHeight: 1.4, marginTop: 6 };
-  // A field: its label over a rounded well (.bs-lf-well, ensureWireStyles), and a note under it.
-  const wireField = (label, inputEl, note) => (
-    <label className="bs-lf">
-      <span style={labelStyle}>{label}</span>
-      <span className="bs-lf-well">{inputEl}</span>
-      {note || null}
-    </label>
-  );
   // Forgot password. ⚠ IT SAID "A RESET LINK IS ON ITS WAY" WHETHER OR NOT ANYTHING WAS SENT
   // (client-onboarding review, H9): resetPassword did not exist, so the call was skipped and the
   // toast ran anyway. The toast now follows a request the server took; anything else is the error.
@@ -1039,246 +1000,17 @@ function BSLogin({ onLogin, onApply, onBack, role, setRole, initialMode }) {
 
   // "Check your email" — shown after a new account needs email verification.
   if (verifyEmail) {
-    return (
-      <div style={{ position: 'absolute', inset: 0, color: CREAM, overflow: 'hidden', display: 'flex', flexDirection: 'column', background: WIRE_BG }}>
-        <BSWireGround dim />
-        <div className="bs-hide-scroll" style={{ position: 'relative', zIndex: 1, flex: 1, minHeight: 0, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: 'max(40px, calc(env(safe-area-inset-top, 0px) + 24px)) 24px calc(28px + env(safe-area-inset-bottom, 0px))', display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 16 }}>
-          <img src={`${import.meta.env.BASE_URL}shape-logo.svg`} alt="Shape" style={{ width: 94, height: 'auto', aspectRatio: '932 / 439', alignSelf: 'flex-start', marginLeft: -4 }} />
-          <div style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.28em', textTransform: 'uppercase', color: '#2ee0c4', fontWeight: 700 }}>{tr('login.verifyEyebrow')}</div>
-          <div style={{ fontFamily: BS_LAUNCH_HEAD, fontWeight: 300, fontSize: 34, lineHeight: 1.04, letterSpacing: '-0.03em', color: CREAM }}>{tr('login.verifyTitlePre')}<br/><span style={{ fontWeight: 400, color: '#2ee0c4' }}>{tr('login.verifyTitleAccent')}</span></div>
-          <div style={{ fontFamily: t.DISPLAY, fontSize: 14.5, lineHeight: 1.5, color: 'rgba(244,239,230,0.8)' }}>
-            {/* One key, email interpolated — the house rule: never split prose
-                AROUND a mid-sentence bold span, because word order moves. */}
-            {tr('login.verifyBody', { email: verifyEmail })}
-          </div>
-          {captchaOn && (
-            <div ref={captchaRef} style={{ minHeight: 65, display: 'flex', justifyContent: 'center' }} />
-          )}
-          <button type="button" onClick={resendVerify} style={{ width: '100%', minHeight: 50, borderRadius: 14, padding: '13px 16px', background: 'rgba(255,255,255,0.035)', color: CREAM, border: `1px solid ${LINE2}`, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer' }}>{tr('login.resend')}</button>
-          <button onClick={() => { setVerifyEmail(''); setMode('signin'); setPassword(''); }} style={{ alignSelf: 'center', background: 'transparent', border: 0, color: C50, fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer', padding: '4px 0' }}>{tr('login.backToSignIn')}</button>
-        </div>
-      </div>
-    );
+    return <BSVerifyEmailScreen email={verifyEmail} captchaOn={captchaOn} captchaRef={captchaRef} onResend={resendVerify}
+      onBackToSignIn={() => { setVerifyEmail(''); setMode('signin'); setPassword(''); }} />;
   }
 
-  return (
-    <div style={{ position: 'absolute', inset: 0, color: CREAM, overflow: 'hidden', display: 'flex', flexDirection: 'column', background: WIRE_BG }}>
-      <BSWireGround dim />
-      {/* ← where every page keeps it, ahead of the logo in the masthead row (owner, 2026-11-09): the
-          masthead row's y and the gutter, though this screen has no masthead row of its own
-          (BS_BACK_SLOT_TOP_CSS), and the same small arrow. */}
-      {onBack && window.BSBackButton ? (
-        <div style={{ position: 'absolute', zIndex: 3, top: window.BS_BACK_SLOT_TOP_CSS, left: typeof t.padX === 'number' ? t.padX : 22 }}>
-          <window.BSBackButton compact onClick={onBack} ink={C70} />
-        </div>
-      ) : null}
-      <div className="bs-hide-scroll" data-bs-login="" style={{ position: 'relative', zIndex: 1, flex: 1, minHeight: 0, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: `${onBack ? `calc(${window.BS_BACK_SLOT_TOP_CSS || '82px'} + 52px)` : 'max(56px, calc(env(safe-area-inset-top, 0px) + 44px))'} 22px calc(24px + env(safe-area-inset-bottom, 0px))`, display: 'flex', flexDirection: 'column', gap: 14 }}>
-        {/* The heading: what this screen is, in the launch's light display weight. No logo here: the
-            welcome before it carries the mark, and the form starts higher without it. */}
-        <div>
-          <div style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.24em', textTransform: 'uppercase', color: '#34d6c5', fontWeight: 800 }}>
-            {tr(isCreate ? 'login.eyebrowJoin' : 'login.eyebrowSignIn')}
-          </div>
-          <h1 style={{ margin: '8px 0 0', fontFamily: BS_LAUNCH_HEAD, fontWeight: 300, fontSize: 36, lineHeight: 1.04, letterSpacing: '-0.03em', color: CREAM }}>
-            {isCreate ? (
-              <>{tr('login.titleJoinPre')} <span style={{ fontWeight: 400, color: '#34d6c5' }}>{tr('login.titleJoinAccent')}</span></>
-            ) : (
-              <>{tr('login.titleBackPre')} <span style={{ fontWeight: 400, color: '#34d6c5' }}>{tr('login.titleBackAccent')}</span></>
-            )}
-          </h1>
-        </div>
-
-        {/* The step meter — the create form files in two short parts */}
-        {stepped && (
-          <div data-login-steps="">
-            <div aria-hidden="true" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
-              {[1, 2].map((n) => <span key={n} style={{ height: 3, borderRadius: 2, background: n <= createStep ? '#34d6c5' : LINE2, boxShadow: n <= createStep ? '0 0 8px rgba(52,214,197,0.45)' : 'none' }} />)}
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase' }}>
-              <span style={{ color: C50 }}>{tr('login.step', { n: createStep })}</span>
-              <span style={{ color: '#34d6c5' }}>{tr(createStep === 1 ? 'login.stepIdentity' : 'login.stepCredentials')}</span>
-            </div>
-          </div>
-        )}
-
-        {/* Role — sign-in always · create step 1 (identity): a segmented control */}
-        {(!stepped || createStep === 1) && (
-        <div>
-          <span style={labelStyle}>{tr('login.imA')}</span>
-          <div role="radiogroup" aria-label={tr('login.imA')} style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 4, border: `1px solid ${LINE2}`, borderRadius: 13, padding: 4, background: 'rgba(0,0,0,0.32)' }}>
-            {[['client', tr('settings:preview.roleClient')], ['trainer', tr('coach:role.trainer')], ['nutritionist', tr('coach:role.nutritionist')]].map(([k, l]) => {
-              const on = role === k;
-              return <button key={k} type="button" role="radio" aria-checked={on} onClick={() => setRole(k)} style={{
-                minHeight: 40, padding: '8px 4px', borderRadius: 9, border: 0,
-                background: on ? '#34d6c5' : 'transparent', color: on ? '#04201d' : C70,
-                boxShadow: on ? '0 0 14px rgba(52,214,197,0.3)' : 'none',
-                fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer',
-                // A translated role name runs longer than 'Client'; minWidth:0 lets
-                // the 1fr track shrink instead of overflowing the phone frame.
-                minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-              }}>{l}</button>;
-            })}
-          </div>
-          {/* Within the nutritionist application: declare RD/RDN (same discipline, credentialed). */}
-          {isCreate && role === 'nutritionist' && (
-            <button type="button" onClick={() => setIsDietitian(v => !v)} aria-pressed={isDietitian} style={{ marginTop: 8, width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, ...plate, borderRadius: 13, padding: '11px 14px', cursor: 'pointer', color: CREAM }}>
-              <div style={{ textAlign: 'left' }}>
-                <div style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 600, color: CREAM }}>{tr('login.rdToggle')}</div>
-                <div style={{ fontFamily: t.DISPLAY, fontSize: 12, color: C50, marginTop: 2 }}>{tr('login.rdNote')}</div>
-              </div>
-              <span style={{ width: 44, height: 26, borderRadius: 999, border: `1px solid ${isDietitian ? '#34d6c5' : LINE2}`, background: 'rgba(0,0,0,0.4)', position: 'relative', flexShrink: 0 }}>
-                <span style={{ position: 'absolute', top: 3, left: isDietitian ? 21 : 3, width: 18, height: 18, borderRadius: 999, background: isDietitian ? '#34d6c5' : C50, boxShadow: isDietitian ? '0 0 10px rgba(52,214,197,0.8)' : 'none', transition: 'left 140ms ease' }} />
-              </span>
-            </button>
-          )}
-        </div>
-        )}
-
-        {/* Fields — each its label over a rounded well */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {isCreate && (!stepped || createStep === 1) && wireField(tr('login.fieldName'),
-            <input className="bs-lf-input" placeholder={tr('login.phName')} value={fullName} onChange={(e) => setFullName(e.target.value)} autoComplete="name" style={rowInput} />
-          )}
-          {isCreate && (!stepped || createStep === 1) && wireField(tr('login.fieldDob'),
-            <input className="bs-lf-input" type="date" value={dob} onChange={(e) => setDob(e.target.value)} aria-label={tr('dob.label')} style={rowInput} />
-          )}
-          {isCreate && (!stepped || createStep === 1) && wireField(tr('login.fieldHandle'),
-            <input className="bs-lf-input" placeholder={tr('login.phHandle')} value={username} onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9._]/g, '').slice(0, 20))} autoComplete="username" autoCapitalize="none" style={rowInput} />,
-            <div style={{ ...subNote, color: username ? (unameOk === false ? '#ff9b7a' : unameOk ? '#2ee0c4' : C50) : C50 }}>
-              {!username ? tr('login.handleHint') : unameOk === false ? tr('login.handleBad') : unameOk ? tr('login.handleOk', { handle: username }) : tr('login.handleChecking')}
-            </div>
-          )}
-          {stepped && createStep === 2 && (
-            <>
-              <button type="button" onClick={() => { setCreateStep(1); setAuthError(''); }} style={tealLink}>{tr('login.backStep1')}</button>
-              <div style={{ ...plate, borderRadius: 12, padding: '10px 14px', fontFamily: t.DISPLAY, fontSize: 13.5, color: C70 }}>{tr(isDietitian ? 'login.filedRd' : 'login.filed', { name: fullName.trim() || '—', handle: username || '—' })}</div>
-              {wireField(tr('login.fieldEmail'),
-                <input className="bs-lf-input" placeholder={tr('login.phEmail')} type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" autoCapitalize="none" style={rowInput} />
-              )}
-              {wireField(tr('login.fieldPassword'),
-                <input className="bs-lf-input" placeholder="••••••••" type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" style={rowInput} />
-              )}
-            </>
-          )}
-          {isPhone ? (
-            <>
-              <button type="button" onClick={() => switchMethod('email')} style={tealLink}>{tr('login.backToEmail')}</button>
-              {wireField(tr('login.fieldPhone'),
-                <input className="bs-lf-input" placeholder={tr('login.phPhone')} type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} autoComplete="tel" disabled={otpSent} style={{ ...rowInput, color: otpSent ? C50 : CREAM }} />
-              )}
-              {otpSent && wireField(tr('login.fieldCode'),
-                <input className="bs-lf-input" placeholder={tr('login.phCode')} type="tel" inputMode="numeric" value={otpCode} onChange={(e) => setOtpCode(e.target.value)} autoComplete="one-time-code" style={{ ...rowInput, fontSize: 22, letterSpacing: '0.3em' }} />
-              )}
-              {otpSent && (
-                <button type="button" onClick={() => { setOtpSent(false); setOtpCode(''); setAuthError(''); }} style={tealLink}>{tr('login.changeNumber')}</button>
-              )}
-            </>
-          ) : (!isCreate && (
-            <>
-              {wireField(tr('login.fieldAccount'),
-                <input className="bs-lf-input" placeholder={tr('login.phAccount')} type="text" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="username" autoCapitalize="none" style={rowInput} />
-              )}
-              {wireField(tr('login.fieldPassword'),
-                <input className="bs-lf-input" placeholder="••••••••" type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" style={rowInput} />
-              )}
-            </>
-          ))}
-          {!isCreate && !isPhone && (
-            <button type="button" onClick={forgotPassword} style={{ ...tealLink, alignSelf: 'flex-end', marginTop: -6 }}>{tr('login.forgot')}</button>
-          )}
-          {authError && (
-            <div role="alert" style={{ borderRadius: 12, border: '1px solid rgba(255,155,122,0.42)', background: 'rgba(255,155,122,0.08)', padding: '11px 14px', fontFamily: t.DISPLAY, fontSize: 13.5, lineHeight: 1.4, color: '#ffb39c' }}>
-              {authError}
-            </div>
-          )}
-        </div>
-
-        {/* Creating an account accepts the Terms and the Privacy Policy, so the form says so (M4). */}
-        {isCreate && (isPhone || createStep === 2) && (
-          <div style={{ fontFamily: t.DISPLAY, fontSize: 12.5, lineHeight: 1.5, color: C50 }}>
-            {tr('login.agree')}
-            <BSLegalLinks color={C70} mono={t.MONO} />
-          </div>
-        )}
-
-        {/* Turnstile bot challenge — mounts whenever this screen can fire an auth
-            request (interaction-only: invisible unless Cloudflare needs a click). */}
-        {captchaSlot === 'form' && (
-          <div ref={captchaRef} style={{ display: 'flex', justifyContent: 'center' }} />
-        )}
-
-        {/* Primary action, the launch's solid teal. ⚠ JOINING AS A COACH IS APPLYING:
-            a trainer or nutritionist picked on the create step used to make an ordinary member account (the
-            profile's role is elevated by review only), with no application, which then met the paywall.
-            Now that pick goes to the application, as Sign in's Apply does. */}
-        <button
-          type="button"
-          onClick={coachCreate ? () => { setAuthError(''); onApply(signupRole); } : isPhone ? (otpSent ? verifyPhoneCode : sendPhoneCode) : (stepped && createStep === 1 ? advanceIdentity : submitAuth)}
-          disabled={busy}
-          className="bs-wire-enter"
-          style={{ ...btnPrimary, marginTop: 4, cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.7 : 1 }}>
-          {busy
-            ? tr(isCreate ? 'login.transmitting' : 'login.signingIn')
-            : coachCreate ? tr('login.applyAs', { role: roleLabel })
-            : isPhone
-              ? (otpSent ? tr(isCreate ? 'login.ctaVerifyJoin' : 'login.ctaVerifySignIn') : tr('login.ctaTextCode'))
-              : stepped
-                ? (createStep === 1 ? tr('login.ctaNext') : tr('login.ctaJoinAs', { role: shortRole }))
-                : tr('login.ctaSignInAs', { role: shortRole })}
-        </button>
-
-        {/* Create account / apply — role-aware: clients create an account,
-            trainers & nutritionists route to the Apply to Shape application. */}
-        {!isCreate && (
-          <button type="button" onClick={() => {
-            setAuthError('');
-            if (role === 'trainer' || role === 'nutritionist' || role === 'dietitian') { if (onApply) onApply(signupRole); else setMode('create'); }
-            else { setMode('create'); }
-          }} style={btnSecondary}>
-            {role === 'client' ? tr('login.createAccount') : tr('login.applyAs', { role: roleLabel })}
-          </button>
-        )}
-
-        {/* OR */}
-        {!isPhone && (
-          <div aria-hidden="true" style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '2px 0' }}>
-            <div style={{ flex: 1, height: 1, background: LINE }} />
-            <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.24em', textTransform: 'uppercase', color: C50 }}>{tr('login.or')}</div>
-            <div style={{ flex: 1, height: 1, background: LINE }} />
-          </div>
-        )}
-
-        {/* Continue with phone — switches to the SMS one-time-code flow */}
-        {!isPhone && (
-          <button type="button" onClick={() => switchMethod('phone')} style={btnSecondary}>
-            {tr('login.continuePhone')}
-          </button>
-        )}
-
-        {/* Secondary links */}
-        <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '4px 18px', marginTop: 6 }}>
-          <button type="button" onClick={() => { setMode(isCreate ? 'signin' : 'create'); setAuthError(''); }} style={linkBtn}>{tr(isCreate ? 'login.haveAccount' : 'login.newHere')}</button>
-          {isPhone && <button type="button" onClick={() => switchMethod('email')} style={linkBtn}>{tr('login.useEmail')}</button>}
-        </div>
-
-        {/* The coach's door (owner, 2026-11-09, of the application's doors: "all of these"): a card of its
-            own under everything else, there whichever role is picked, so a coach without an account finds
-            the application without first choosing Trainer in a picker that starts on Client. */}
-        {onApply && (
-          <div data-login-coach-door="" style={{ ...plate, marginTop: 6, padding: '16px 16px 14px' }}>
-            <div style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 600, color: CREAM }}>{tr('login.coachCardTitle')}</div>
-            <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 13.5, lineHeight: 1.45, color: C70 }}>{tr('login.coachCardBody')}</div>
-            <div style={{ marginTop: 12, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-              {[['trainer', tr('login.applyTrainer')], ['nutritionist', tr('login.applyNutritionist')]].map(([k, label]) => (
-                <button key={k} type="button" data-login-apply={k} onClick={() => { setAuthError(''); onApply(k); }}
-                  style={{ minWidth: 0, minHeight: 44, padding: '0 10px', borderRadius: 12, border: `1px solid ${LINE2}`, background: 'rgba(0,0,0,0.3)', color: CREAM, fontFamily: t.DISPLAY, fontSize: 13, fontWeight: 600, cursor: 'pointer', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</button>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
+  return <BSLoginScreen s={{
+    isCreate, isPhone, createStep, setCreateStep, setMode,
+    fullName, setFullName, dob, setDob, username, setUsername, unameOk, email, setEmail, password, setPassword,
+    phone, setPhone, otpCode, setOtpCode, otpSent, setOtpSent, authError, setAuthError, busy,
+    onBack, onApply, captchaSlot, captchaRef, forgotPassword, switchMethod, submitAuth, advanceIdentity,
+    sendPhoneCode, verifyPhoneCode, BSLegalLinks,
+  }} />;
 }
 
 // The shell starts no checkout of its own any more (owner, 2026-11-10): an account gets into the app
@@ -1320,9 +1052,11 @@ function bsOpenLegal(path) {
   if (window.ShapeSite?.open) { window.ShapeSite.open(path); return; }
   try { window.open(path, '_blank', 'noopener'); } catch (e) {}
 }
-function BSLegalLinks({ color, mono }) {
+// Terms and Privacy under the join form: two links in the first-run face, normal case (the first-run
+// redraw, 2026-11-13; they were mono capitals).
+function BSLegalLinks({ color }) {
   const { tr } = useTr('onboarding');
-  const link = { minHeight: 32, padding: '6px 0', border: 0, background: 'transparent', color, fontFamily: mono, fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', textDecoration: 'underline', textUnderlineOffset: 3, cursor: 'pointer' };
+  const link = { minHeight: 36, padding: '6px 0', border: 0, background: 'transparent', color, fontFamily: BS_LAUNCH_HEAD, fontSize: 13.5, fontWeight: 600, textDecoration: 'underline', textUnderlineOffset: 3, cursor: 'pointer' };
   return (
     <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
       <button type="button" onClick={() => bsOpenLegal('/terms.html')} style={link}>{tr('legal.terms')}</button>
@@ -1339,52 +1073,9 @@ function BSLegalLinks({ color, mono }) {
 // theme, matching the beat and the telegram. `paywall_viewed` stays its analytics name: it is the
 // funnel's whitelisted event for this screen (src/lib/funnel.mjs).
 function BSWelcome({ onCreate, onSignIn }) {
-  const { tr } = useTr('onboarding');
   ensureWireStyles();
-  const INKF = '#f2ede4', INKF70 = 'rgba(242,237,228,0.72)', teal = '#34d6c5';
-  const mono = `'JetBrains Mono', 'Cascadia Code', Consolas, monospace`;
-  const sans = BS_LAUNCH_HEAD;
   React.useEffect(() => { try { window.ShapeAnalytics?.track?.('paywall_viewed'); } catch (e) {} }, []);
-  // What a free account gets, each its own key (a locale that needs another order or a longer word does
-  // not re-punctuate one baked-in sentence): community channels among them (owner, 2026-11-10: channels
-  // are free). Radio is the membership's, so it is on the line below.
-  // ⚠ REDRAWN (owner, 2026-11-11: "these opening pages on app need to be cleaned up and design updated"):
-  // the free account's parts as lit chips in two columns, where they were one wall of mono capitals; the
-  // membership on a plate of its own; Create account and Sign in as two rounded buttons at the foot, in
-  // thumb reach, where Sign in was a link under a caption.
-  // The last two, the long ones (Community channels, Or build your own workouts), take a row each.
-  const feat = ['training', 'nutrition', 'coaches', 'score', 'channels', 'byo'].map((k) => tr('paywall.feat.' + k));
-  const cta = { width: '100%', minHeight: 54, padding: '14px', borderRadius: 14, border: 0, background: teal, color: '#04201d', fontFamily: mono, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', cursor: 'pointer', boxShadow: '0 0 26px rgba(52,214,197,0.3)' };
-  const second = { width: '100%', minHeight: 52, padding: '13px', borderRadius: 14, border: '1px solid rgba(242,237,228,0.26)', background: 'rgba(255,255,255,0.035)', color: INKF, fontFamily: mono, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer' };
-  const chip = { display: 'flex', alignItems: 'center', gap: 9, minWidth: 0, minHeight: 44, padding: '10px 12px', boxSizing: 'border-box', borderRadius: 12, border: '1px solid rgba(242,237,228,0.12)', background: 'linear-gradient(180deg, rgba(255,255,255,0.055), rgba(255,255,255,0.02))', fontFamily: sans, fontSize: 14, fontWeight: 500, lineHeight: 1.2, color: INKF };
-  const dot = { flex: 'none', width: 6, height: 6, borderRadius: 999, background: teal, boxShadow: '0 0 8px rgba(52,214,197,0.8)' };
-  return (
-    <div data-bs-welcome="" style={{ position: 'absolute', inset: 0, overflowY: 'auto', background: 'radial-gradient(135% 90% at 50% -8%, rgba(52,214,197,0.14), transparent 52%), linear-gradient(176deg, #0b161c 0%, #070b11 48%, #03050b 100%)', color: INKF }}>
-      <BSWireGround dim />
-      <div style={{ position: 'relative', zIndex: 1, minHeight: '100%', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', padding: 'max(60px, calc(env(safe-area-inset-top, 0px) + 44px)) 24px max(28px, calc(env(safe-area-inset-bottom, 0px) + 20px))' }}>
-        <img src={`${import.meta.env.BASE_URL}shape-logo.svg`} alt="Shape" style={{ width: 104, height: 'auto', aspectRatio: '932 / 439', alignSelf: 'flex-start', marginLeft: -4, filter: 'brightness(1.25) contrast(1.1) drop-shadow(0 0 12px rgba(46,224,196,0.35))' }} />
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '28px 0 24px' }}>
-          <h1 style={{ fontFamily: BS_LAUNCH_HEAD, fontSize: 40, fontWeight: 300, letterSpacing: '-0.035em', lineHeight: 1.02, margin: 0 }}>{tr('welcome.titlePre')} <span style={{ fontWeight: 400, color: teal }}>{tr('welcome.titleAccent')}</span></h1>
-          <div data-bs-welcome-feats="" style={{ marginTop: 24, display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 8 }}>
-            {feat.map((label, i) => (
-              <div key={i} style={{ ...chip, gridColumn: i >= feat.length - 2 ? '1 / -1' : undefined }}>
-                <span aria-hidden="true" style={dot} />
-                <span style={{ minWidth: 0 }}>{label}</span>
-              </div>
-            ))}
-          </div>
-          <div data-bs-welcome-membership="" style={{ marginTop: 12, display: 'flex', alignItems: 'flex-start', gap: 10, padding: '12px 14px', borderRadius: 12, border: '1px solid rgba(52,214,197,0.32)', background: 'rgba(52,214,197,0.07)', fontFamily: sans, fontSize: 13.5, lineHeight: 1.45, color: INKF70 }}>
-            <span aria-hidden="true" style={{ color: teal, fontSize: 13, lineHeight: 1.45 }}>{'✦'}</span>
-            <span>{tr('welcome.membership', { price: BS_PRICE })}</span>
-          </div>
-        </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <button type="button" onClick={onCreate} style={cta}>{tr('login.createAccount')}</button>
-          <button type="button" onClick={onSignIn} style={second}>{tr('paywall.signIn')}</button>
-        </div>
-      </div>
-    </div>
-  );
+  return <BSWelcomeScreen price={BS_PRICE} onCreate={onCreate} onSignIn={onSignIn} />;
 }
 
 // ⚠ PHONE NOTIFICATIONS ARE ASKED FOR WHEN THEY MEAN SOMETHING (client-onboarding review, L5). The

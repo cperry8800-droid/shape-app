@@ -605,7 +605,18 @@ function apBackSlotTop() {
 
 // ═══════════════════════════════════════════════════════════════════════════════════════════════
 function BSProviderApplicationScreen({ initialRole = 'trainer', onBack }) {
-  const t = useBSClean();
+  const tClean = useBSClean();
+  // ⚠ ON THE SIGN-IN ROUTE IT IS A FIRST-RUN SCREEN, AND TAKES THE FIRST-RUN LOOK (owner, 2026-11-13:
+  // every screen a new person sees before the app matches the welcome). There, and only there (no tab
+  // bar to cover: apTakeoverHost answers null), the same tokens carry the launch's fixed-dark values,
+  // the step's head is the centred mark and headline, and Continue is the first-run button. The
+  // application opened from inside the app (Settings, the coach pages) keeps the app's paper.
+  // BSFirstRun is read at call time (window.BSFirstRun, Main's module), never imported here.
+  const [firstLook] = useState(() => !apTakeoverHost() && typeof window !== 'undefined' && !!window.BSFirstRun);
+  const FRK = firstLook ? window.BSFirstRun : null;
+  const t = FRK
+    ? { ...tClean, isLight: false, inkRGB: '242,237,228', INK: FRK.FR.ink, INK85: 'rgba(242,237,228,0.86)', INK70: FRK.FR.ink2, INK50: FRK.FR.ink3, PAPER: '#070b11', PAPER_BG: FRK.FR.bg }
+    : tClean;
   const tr = useShapeTr();
   // A dietitian (RD/RDN) applies on the NUTRITIONIST rails — the declaration
   // rides in details.nutrition_role for the reviewer (who assigns
@@ -1010,15 +1021,16 @@ function BSProviderApplicationScreen({ initialRole = 'trainer', onBack }) {
     );
     return host ? createPortal(el, host) : el;
   };
-  const titleStyle = { margin: 0, fontFamily: BS_CLEAN_HEAD, fontSize: 28, fontWeight: 700, letterSpacing: '-0.035em', lineHeight: 1.08, color: t.INK, textWrap: 'balance' };
+  const titleStyle = FRK ? { ...FRK.frTitle(30), textWrap: 'balance' } : { margin: 0, fontFamily: BS_CLEAN_HEAD, fontSize: 28, fontWeight: 700, letterSpacing: '-0.035em', lineHeight: 1.08, color: t.INK, textWrap: 'balance' };
   const subStyle = { margin: '6px 0 0', fontFamily: BS_CLEAN_SANS, fontSize: 14.5, fontWeight: 500, lineHeight: 1.45, color: t.INK70, textWrap: 'pretty' };
-  const primaryBtn = (disabled) => ({
+  const primaryBtn = (disabled) => (FRK ? FRK.frButton('primary', { cursor: disabled ? 'wait' : 'pointer', opacity: disabled ? 0.7 : 1 }) : {
     display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', minHeight: 52, padding: '0 18px', borderRadius: 999, border: 0,
     background: teal, color: apOnTeal(t), cursor: disabled ? 'wait' : 'pointer', opacity: disabled ? 0.7 : 1,
     fontFamily: BS_CLEAN_HEAD, fontSize: 16.5, fontWeight: 650, letterSpacing: '-0.01em',
   });
   const quietLink = { minHeight: 44, padding: '0 2px', border: 0, background: 'transparent', cursor: 'pointer', color: tealText, fontFamily: BS_CLEAN_SANS, fontSize: 14, fontWeight: 650 };
-  const footStyle = { flex: 'none', padding: `10px ${padX}px calc(14px + env(safe-area-inset-bottom, 0px))`, background: t.PAPER_BG || t.PAPER, borderTop: `1px solid ${inkA(t, 0.08)}` };
+  // On the first-run ground the foot is part of the one gradient: no band of its own over it.
+  const footStyle = { flex: 'none', padding: `10px ${padX}px calc(14px + env(safe-area-inset-bottom, 0px))`, background: FRK ? 'transparent' : (t.PAPER_BG || t.PAPER), borderTop: FRK ? 0 : `1px solid ${inkA(t, 0.08)}` };
   const caption = { margin: '8px 0 0', textAlign: 'center', fontFamily: BS_CLEAN_SANS, fontSize: 12.5, fontWeight: 500, color: t.INK50 };
 
   // ── After the send: where it stands ──
@@ -1051,6 +1063,7 @@ function BSProviderApplicationScreen({ initialRole = 'trainer', onBack }) {
           {BackButton ? <BackButton compact onClick={onBack} ink={t.INK} /> : null}
         </div>
         <div ref={scrollRef} className="bs-hide-scroll" data-apply-status="" style={{ flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden', WebkitOverflowScrolling: 'touch', padding: `14px ${padX}px 24px` }}>
+          {FRK ? <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 14 }}><FRK.FRMark size={64} /></div> : null}
           <span style={{ display: 'inline-block', padding: '4px 10px', borderRadius: 999, background: t.isLight ? 'rgba(10,122,114,0.09)' : 'rgba(52,214,197,0.12)', fontFamily: BS_CLEAN_SANS, fontSize: 12.5, fontWeight: 650, color: tealText }}>{tag}</span>
           <h1 style={{ ...titleStyle, marginTop: 12 }}>{tr('onboarding:apply.status.title', { defaultValue: 'Application sent' })}<span aria-hidden="true" style={{ color: teal }}>.</span></h1>
           <p style={subStyle}>
@@ -1368,10 +1381,11 @@ function BSProviderApplicationScreen({ initialRole = 'trainer', onBack }) {
       </div>
       <div ref={scrollRef} className="bs-hide-scroll" style={{ flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden', WebkitOverflowScrolling: 'touch', padding: `8px ${padX}px 28px` }}>
         <div key={name} style={{ display: 'flex', flexDirection: 'column', gap: 16, animation: 'ap-in 260ms ease-out both' }}>
-          <div>
+          <div style={FRK ? { display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' } : undefined}>
+            {FRK ? <div style={{ marginBottom: 12 }}><FRK.FRMark size={56} /></div> : null}
             <div data-apply-kicker="" style={{ fontFamily: BS_CLEAN_SANS, fontSize: 13, fontWeight: 600, color: t.INK50 }}>{kicker}</div>
             <h1 style={{ ...titleStyle, marginTop: 6 }}>{titleOf[name]}<span aria-hidden="true" style={{ color: teal }}>.</span></h1>
-            {subOf[name] ? <p style={subStyle}>{subOf[name]}</p> : null}
+            {subOf[name] ? <p style={FRK ? { ...subStyle, maxWidth: 320 } : subStyle}>{subOf[name]}</p> : null}
           </div>
           {restored ? (
             <p data-apply-restored="" style={{ margin: 0, display: 'flex', alignItems: 'center', flexWrap: 'wrap', columnGap: 6, fontFamily: BS_CLEAN_SANS, fontSize: 13.5, fontWeight: 500, color: t.INK70 }}>

@@ -26,6 +26,9 @@ globalThis.React = React;
 const { renderToStaticMarkup } = require_('react-dom/server');
 
 const MAIN = read('mobile-app/src/broadsheet/iosAppBroadsheetMain.jsx');
+// The first-run screens Main draws (BSFirstRun.jsx, the redraw of 2026-11-13): the welcome among them.
+const FIRST_RUN = read('mobile-app/src/broadsheet/BSFirstRun.jsx');
+const WELCOME_SCREEN = FIRST_RUN.slice(FIRST_RUN.indexOf('export function BSWelcomeScreen('), FIRST_RUN.indexOf('// ── CHECK YOUR EMAIL'));
 const CLIENT = read('mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx');
 const RADIO = read('mobile-app/src/broadsheet/iosAppBroadsheetRadio.jsx');
 const BACKEND = read('mobile-app/src/services/shapeBackend.js');
@@ -114,11 +117,13 @@ test('a free account and a member are both in the app; ShapeCanChat is true for 
 });
 
 test('signed out: the welcome offers Create account and Sign in, says what membership adds, and has no Preview', () => {
+  // Main's BSWelcome hands the price and the two doors to the first-run screen that draws it.
   const welcome = MAIN.slice(MAIN.indexOf('function BSWelcome('), MAIN.indexOf('// ⚠ PHONE NOTIFICATIONS ARE ASKED'));
-  assert.match(welcome, /<button type="button" onClick=\{onCreate\}[^>]*>\{tr\('login\.createAccount'\)\}<\/button>/);
-  assert.match(welcome, /<button type="button" onClick=\{onSignIn\}[^>]*>\{tr\('paywall\.signIn'\)\}<\/button>/);
-  assert.match(welcome, /\{tr\('welcome\.membership', \{ price: BS_PRICE \}\)\}/);
-  assert.doesNotMatch(welcome, /preview|Preview|onJoin|startCheckout/, 'no Preview, and no checkout before there is an account');
+  assert.match(welcome, /<BSWelcomeScreen price=\{BS_PRICE\} onCreate=\{onCreate\} onSignIn=\{onSignIn\} \/>/);
+  assert.match(WELCOME_SCREEN, /<button type="button" data-auth-create="" onClick=\{onCreate\}[^>]*>\{tr\('fr\.welcome\.create'\)\}<\/button>/);
+  assert.match(WELCOME_SCREEN, /<button type="button" data-auth-signin="" onClick=\{onSignIn\}[^>]*>\{tr\('fr\.signIn'\)\}<\/button>/);
+  assert.match(WELCOME_SCREEN, /\{tr\('welcome\.membership', \{ price \}\)\}/);
+  for (const src of [welcome, WELCOME_SCREEN]) assert.doesNotMatch(src, /preview|Preview|onJoin|startCheckout/, 'no Preview, and no checkout before there is an account');
   assert.match(EN.onboarding['welcome.membership'], /Nora/);
   assert.match(EN.onboarding['welcome.membership'], /Shape Radio/);
   assert.match(EN.onboarding['welcome.membership'], /\{price\}/);
@@ -131,7 +136,7 @@ test('signed out: the welcome offers Create account and Sign in, says what membe
   for (const loc of LOCALES) {
     const on = cat(loc, 'onboarding');
     for (const k of ['paywall.preview', 'paywall.createJoin', 'preview.title', 'preview.body', 'preview.join', 'preview.dismiss']) assert.ok(!(k in on), `${loc}: ${k} is read by nothing now`);
-    for (const k of ['welcome.titlePre', 'welcome.titleAccent', 'welcome.membership']) assert.ok(String(on[k] || '').trim(), `${loc}: ${k}`);
+    for (const k of ['fr.welcome.titlePre', 'fr.welcome.titleAccent', 'fr.welcome.sub', 'fr.welcome.create', 'fr.signIn', 'welcome.membership']) assert.ok(String(on[k] || '').trim(), `${loc}: ${k}`);
     assert.match(on['welcome.membership'], /\{price\}/, `${loc}: the price is interpolated, never baked in`);
   }
   // A new account is a free account: creating one goes into the app, not to the checkout.
@@ -503,10 +508,13 @@ test('community channels are free: a free account (ShapePaid false) opens the ch
   const none = drive(BSMessageComposer, { value: 'Hello channel', onChange() {}, onSend() {}, mag: true });
   assert.ok(none.nodes().some((n) => typeof n.type === 'function' && n.type.name === 'BSSignInToSend'));
   // And the free lists name channels, never the membership's.
-  // The welcome's chips (redrawn 2026-11-11): channels among the free parts, each read through its own key.
-  assert.match(MAIN, /\['training', 'nutrition', 'coaches', 'score', 'channels', 'byo'\]\.map\(\(k\) => tr\('paywall\.feat\.' \+ k\)\)/);
+  // The welcome's tiles (redrawn 2026-11-13): the community among the free parts, each read through its
+  // own key; only Music (Shape Radio, the membership's) carries the membership line's ✦.
+  assert.match(WELCOME_SCREEN, /\['people', tr\('fr\.welcome\.tileCommunity'\)\],/);
+  assert.match(WELCOME_SCREEN, /\['music', tr\('fr\.welcome\.tileMusic'\), true\],/);
+  assert.equal((WELCOME_SCREEN.match(/, true\],/g) || []).length, 1, 'one tile, Music, is marked as the membership\'s');
   for (const loc of LOCALES) {
-    assert.ok(String(cat(loc, 'onboarding')['paywall.feat.channels'] || '').trim(), `${loc}: paywall.feat.channels`);
+    assert.ok(String(cat(loc, 'onboarding')['fr.welcome.tileCommunity'] || '').trim(), `${loc}: fr.welcome.tileCommunity`);
     assert.ok(String(cat(loc, 'common')['paid.freeWithAccount'] || '').trim(), `${loc}: paid.freeWithAccount`);
   }
   for (const k of ['paid.freeBody', 'paid.plans.body', 'paid.feature.any']) assert.doesNotMatch(EN.common[k], /channel|communit/i, `${k} sells channels as a perk`);

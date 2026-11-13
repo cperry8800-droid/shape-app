@@ -38,17 +38,19 @@ const src = fs.readFileSync(SRC, 'utf8');
 // paid for that trap more than once.
 // Every writer and reader of the goal, wherever it lives: the Goals page moved into its own module
 // (BSGoals.jsx, 2026-10-25), and the goal model it reads stayed here.
-const code = stripComments(src) + '\n' + stripComments(fs.readFileSync(path.join(ROOT, 'mobile-app/src/broadsheet/BSGoals.jsx'), 'utf8'));
+// The first-run goal step, the other writer, is BSFirstRunSteps.jsx's (moved 2026-11-13).
+const STEPS = fs.readFileSync(path.join(ROOT, 'mobile-app/src/broadsheet/BSFirstRunSteps.jsx'), 'utf8');
+const code = stripComments(src) + '\n' + stripComments(fs.readFileSync(path.join(ROOT, 'mobile-app/src/broadsheet/BSGoals.jsx'), 'utf8')) + '\n' + stripComments(STEPS);
 
-function extractFn(marker) {
-  const at = src.indexOf(marker);
+function extractFn(marker, from = src) {
+  const at = from.indexOf(marker);
   assert.notEqual(at, -1, `marker not found in the shipped source: ${marker}`);
-  assert.equal(src.indexOf(marker, at + 1), -1, `marker is ambiguous: ${marker}`);
-  const open = src.indexOf('{', at + marker.length - 1);
+  assert.equal(from.indexOf(marker, at + 1), -1, `marker is ambiguous: ${marker}`);
+  const open = from.indexOf('{', at + marker.length - 1);
   let depth = 0;
-  for (let i = open; i < src.length; i++) {
-    if (src[i] === '{') depth++;
-    else if (src[i] === '}' && --depth === 0) return src.slice(at, i + 1);
+  for (let i = open; i < from.length; i++) {
+    if (from[i] === '{') depth++;
+    else if (from[i] === '}' && --depth === 0) return from.slice(at, i + 1);
   }
   throw new Error(`unbalanced braces after ${marker}`);
 }
@@ -227,7 +229,7 @@ test('BSIntentStep IDENTITY is keyed on TOKENS, not on English words', () => {
   // extractFn brace-matches from the first `{` it finds, and for a destructured
   // parameter that is `{ onDone }` — so a bare-name marker extracts the PARAMS
   // and every assertion below would be about a two-word fragment.
-  const step = stripComments(extractFn('function BSIntentStep({ onDone, onNora = null }) {'));
+  const step = stripComments(extractFn('function BSIntentStep({ onDone, onNora = null }) {', STEPS));
   const at = step.indexOf('const IDENTITY = {');
   assert.notEqual(at, -1, 'the IDENTITY map is gone — re-point this guard');
   const open = step.indexOf('{', at);

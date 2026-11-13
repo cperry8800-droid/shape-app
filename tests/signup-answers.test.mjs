@@ -27,6 +27,8 @@ const { CHOICES, FORMS } = await imp('src/lib/ai/noraForms.mjs');
 
 const SIGNUP = read('public/newdesign/signup.jsx');
 const CLIENT = read('mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx');
+// The first run's goal and coaching steps, in their own module since 2026-11-13.
+const STEPS = read('mobile-app/src/broadsheet/BSFirstRunSteps.jsx');
 
 // A module-scope `const NAME = [...]` of plain literals, read as data from a JSX source.
 function constArray(src, name) {
@@ -42,7 +44,8 @@ function constArray(src, name) {
 // A top-level declaration's source, by name.
 function declSource(src, name) {
   const ast = parse(src, { sourceType: 'module', plugins: ['jsx'] });
-  for (const node of ast.program.body) {
+  for (const top of ast.program.body) {
+    const node = top.type === 'ExportNamedDeclaration' && top.declaration ? top.declaration : top;
     if (node.type === 'FunctionDeclaration' && node.id.name === name) return src.slice(node.start, node.end);
     if (node.type === 'VariableDeclaration' && node.declarations.some((d) => d.id.name === name)) return src.slice(node.start, node.end);
   }
@@ -254,11 +257,11 @@ test('the first-run steps: the goal, the coaching question, and the screening on
 });
 
 test('the coaching step and the goal step save honestly (M3)', () => {
-  const coaching = declSource(CLIENT, 'BSCoachingStep');
+  const coaching = declSource(STEPS, 'BSCoachingStep');
   assert.match(coaching, /const patch = \{ wantsCoaching: wants, coachingFor: wants \? kinds : \[\], coachingAt: new Date\(\)\.toISOString\(\) \};/);
   assert.match(coaching, /if \(onb != null\) \{\n\s+const res = await window\.shapeDb\.saveUserGoals\('client_onboarding', \{ \.\.\.onb, \.\.\.patch \}\);\n\s+ok = !!\(res && res\.ok === true\);/);
   assert.match(coaching, /if \(ok\) onDone\(patch\);\n\s+else window\.__bsToast\?\.\(tr\('onboarding:firstRun\.saveFailed'/);
-  const intent = declSource(CLIENT, 'BSIntentStep');
+  const intent = declSource(STEPS, 'BSIntentStep');
   assert.match(intent, /const goals = await db\.getUserGoals\('client_goals'\);\n\s+if \(goals == null\) return false;/, 'a failed read never writes { primaryGoal } over the whole document');
   assert.match(intent, /if \(!saved \|\| saved\.ok !== true\) return false;/);
   assert.match(intent, /if \(onb == null\) return false;/);
@@ -300,7 +303,7 @@ test('the website: the dashboard writes the sign-up answers, and a known minor i
 });
 
 test('the coaching step speaks every language the app does', () => {
-  const keys = ['firstRun.saveFailed', 'coaching.eyebrow', 'coaching.title', 'coaching.body', 'coaching.optTraining', 'coaching.optNutrition', 'coaching.optBoth', 'coaching.optNo'];
+  const keys = ['firstRun.saveFailed', 'coaching.title', 'coaching.body', 'coaching.optTraining', 'coaching.optNutrition', 'coaching.optBoth', 'coaching.optNo'];
   const en = JSON.parse(read('mobile-app/src/i18n/catalogs/en/onboarding.json'));
   for (const loc of ['de', 'en', 'es', 'fr', 'ha', 'id', 'it', 'pcm', 'pt-BR', 'ru', 'tr', 'uk', 'vi']) {
     const cat = JSON.parse(read(`mobile-app/src/i18n/catalogs/${loc}/onboarding.json`));
@@ -310,6 +313,6 @@ test('the coaching step speaks every language the app does', () => {
     }
   }
   for (const k of keys.filter((k) => k.startsWith('coaching.'))) {
-    assert.match(CLIENT, new RegExp(`tr\\('onboarding:${k.replace('.', '\\.')}', \\{ defaultValue: ${JSON.stringify(en[k]).replace(/[.?()]/g, '\\$&').replace(/"/g, "'")} \\}\\)`), `${k}: the default is the English catalog's`);
+    assert.match(STEPS, new RegExp(`tr\\('onboarding:${k.replace('.', '\\.')}', \\{ defaultValue: ${JSON.stringify(en[k]).replace(/[.?()]/g, '\\$&').replace(/"/g, "'")} \\}\\)`), `${k}: the default is the English catalog's`);
   }
 });
