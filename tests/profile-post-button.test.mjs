@@ -76,8 +76,11 @@ assert.ok(effectAt > 0 && effectEnd > effectAt, 'the compose request moved in co
 const EFFECT = FEED.slice(effectAt, effectEnd + '}, [signedIn]);'.length);
 const Harness = new Function('React', compile(`function Harness({ signedIn }) {
   const [composerOpen, setComposerOpen] = React.useState(false);
+  // The message box's chips open the composer on a kind (Workout, PR, …); a request from
+  // elsewhere opens a plain post whatever a chip chose last (Codex P2 on #2736).
+  const [composerKind, setComposerKind] = React.useState("pr");
 ${EFFECT}
-  return React.createElement('i', { 'data-open': String(composerOpen) });
+  return React.createElement('i', { 'data-open': String(composerOpen), 'data-kind': composerKind });
 }`) + '\nreturn Harness;')(React);
 
 test('the feed opens its composer for the request once the account is signed in', async () => {
@@ -92,6 +95,7 @@ test('the feed opens its composer for the request once the account is signed in'
   assert.equal(state(m), 'false', 'opened before the account was known');
   await act(async () => { root.render(React.createElement(Harness, { signedIn: true })); });
   assert.equal(state(m), 'true', 'the held request was not taken');
+  assert.equal(host.querySelector('i').getAttribute('data-kind'), 'post', 'the request opened on the kind a chip chose last');
   assert.equal(window.__shapeComposePost, false, 'the request is one-shot');
   await act(async () => { root.unmount(); });
 

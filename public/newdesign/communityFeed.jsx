@@ -1627,6 +1627,8 @@ function CommunityFeed({ place = "wall", compact = false } = {}) {
     const take = () => {
       if (!window.__shapeComposePost) return;
       window.__shapeComposePost = false;
+      // A plain post, whatever chip opened the composer last (Codex P2 on #2736).
+      setComposerKind("post");
       setComposerOpen(true);
     };
     take();
@@ -2250,9 +2252,10 @@ function CommunityFeed({ place = "wall", compact = false } = {}) {
           where={placeName}
           startKind={composerKind}
           editing={editingPost}
-          onCancel={() => { setComposerOpen(false); setEditingPost(null); }}
+          onCancel={() => { setComposerOpen(false); setEditingPost(null); setComposerKind("post"); }}
           onSubmit={(post) => {
             setComposerOpen(false);
+            setComposerKind("post");
             if (post._edited && editingPost) {
               // Optimistically replace the edited post in the feed
               const patched = post._patchedPost;

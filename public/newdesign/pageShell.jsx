@@ -1698,6 +1698,10 @@ function Header({ active }) {
         <div style={{ display: "flex", alignItems: "center", gap: 12, justifyContent: "flex-end", flex: "1 1 0", minWidth: "max-content" }}>
         <div className="shape-nav-auth" style={{ display: "flex", alignItems: "center", gap: 12, flexShrink: 0 }}>
           <SiteSearch signedIn={!!authUser} />
+          {/* Ask Nora and Chat (owner, 2026-11-13): empty slots that globalChatButton.js fills, "a"
+              beside search and "b" after Radio, the one in force shown. While the owner compares the
+              two, ?navdock=a|b|off picks one (globalChatButton.js, NAV DOCK). */}
+          <span data-nav-dock-slot="a" />
           <DashInbox signedIn={!!authUser} role={authUser && authUser.role} roles={authUser && authUser.roles} inbox={inbox} />
           {authUser ? (
             <>
@@ -1746,10 +1750,13 @@ function Header({ active }) {
               <RadioWordmark />
             </>
           )}
+          <span data-nav-dock-slot="b" />
         </div>
         {/* The mobile render site. Exclusive with the one above — exactly one of the
             two is displayed at any width — so the shared feed can never be shown twice. */}
-        <div className="shape-nav-bell" style={{ display: "none", alignItems: "center" }}>
+        <div className="shape-nav-bell" style={{ display: "none", alignItems: "center", gap: 10 }}>
+          {/* The collapsed header's Ask Nora and Chat: this column shows exactly when the cluster above hides. */}
+          <span data-nav-dock-slot="m" />
           <DashInbox signedIn={!!authUser} role={authUser && authUser.role} roles={authUser && authUser.roles} inbox={inbox} />
         </div>
         <button ref={burgerRef} className="shape-nav-burger" aria-label="Open menu" onClick={() => setDrawerOpen(true)}
@@ -1907,6 +1914,9 @@ function ShapeMobileStyles() {
       .shape-nav-caret { transition: transform .18s ease; }
       @media (prefers-reduced-motion: reduce) { .shape-nav-caret { transition: none; } }
       .shape-nav-radio:hover { color: ${INK} !important; border-color: rgba(var(--sh-accent3-rgb, 52,214,197),0.4) !important; }
+      /* Ask Nora and Chat's slots (globalChatButton.js fills them): an empty one takes no gap in the row,
+         on a page that does not load that script or before it has run. */
+      [data-nav-dock-slot]:empty { display: none; }
       .shape-header { transition: background .25s ease; }
       /* While the phone drawer is open it is a modal (aria-modal), so the
          floating chat launcher and its panel must not sit on top of it. They
