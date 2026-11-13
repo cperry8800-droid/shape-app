@@ -200,7 +200,11 @@ async function renderPage() {
   return { el, close: () => act(async () => { root.unmount(); el.remove(); }) };
 }
 
-test("a signed-in member sees their own standing on every section, with no example label", async () => {
+test("a signed-in member sees their own standing on every section, with no example label", async (t) => {
+  // ⚠ THE PAGE READS THE CLOCK (scView(…, Date.now(), zone)), AND THE RECORD IS DATED FROM NOW.
+  // Unfrozen, the streak counted the fixture's days against the real date: 3 on Nov 12, 0 from
+  // Nov 13, when today and yesterday held nothing. The render runs at the fixture's own moment.
+  t.mock.method(Date, 'now', () => NOW);
   dom.window.localStorage.setItem('shape.auth', '{"access_token":"x"}');
   fetchImpl = async (url) => {
     const u = String(url);
