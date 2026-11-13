@@ -21,6 +21,14 @@ test('both bars put the slot right after search, and the collapsed bar keeps one
   for (const [name, src] of [['pageShell.jsx', SHELL], ['index.html', INDEX], ['globalChatButton.js', DOCK]]) {
     assert.ok(!/data-nav-dock-slot="b|slot~=b|navdock=|shape\.navDock|data-nav-dock=/.test(src), `${name} still carries the B placement or its switch`);
   }
+  // Out of reach while a menu is open, as the pill is: the panels are hidden until it closes.
+  assert.match(DOCK, /body\.shape-drawer-open \[data-nav-dock-slot\]\{visibility:hidden!important\}/, 'the nav doors stay tappable under an open menu');
+  assert.match(INDEX, /body\.shape-drawer-open #shape-rich-chat-root/, 'the homepage no longer hides the panel under its menu');
+  // The tours light the header's doors, not the hidden pill.
+  const TOUR = read('dashTour.js');
+  assert.match(TOUR, /function navDoor\(cls\) \{ return shown\('\[data-nav-dock-slot\] \.' \+ cls\); \}/);
+  assert.match(TOUR, /function chatBtn\(\) \{ return navDoor\('nvd-chat'\)\(\) \|\| document\.getElementById\('shape-global-chat-button'\); \}/);
+  assert.ok(!/sel\('#shape-global-chat-button \.sgc-(nora|chat)'\)/.test(TOUR), 'a tour step anchors the hidden pill again');
   // An empty slot takes no gap in either row.
   assert.match(SHELL, /\[data-nav-dock-slot\]:empty \{ display: none; \}/);
   assert.match(INDEX, /\.nauth \[data-nav-dock-slot\]:empty\{display:none\}/);

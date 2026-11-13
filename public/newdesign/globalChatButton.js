@@ -275,6 +275,9 @@
       // The homepage's bar keeps its cluster on a phone: from 1020 down the pair sits by the menu button.
       "@media (max-width:1020px){[data-nav-dock-slot~=a]{display:none}[data-nav-dock-slot~=nm]{display:inline-flex}}",
       "html.shape-nav-dock #shape-global-chat-button{display:none!important}",
+      // ⚠ OUT OF REACH WHILE A MENU IS OPEN, AS THE PILL IS (Codex P2 on #2736): the homepage's drawer
+      // opens under its bar, and every chat panel is hidden until it closes, so a tap opened one unseen.
+      "body.shape-drawer-open [data-nav-dock-slot]{visibility:hidden!important}",
       ".nvd-pair{position:relative;display:inline-flex;align-items:stretch;height:36px;flex:none;border-radius:999px;border:1px solid rgba(var(--sh-nav-ink-rgb, 245,239,225),.15);background:linear-gradient(180deg,rgba(var(--sh-nav-ink-rgb, 245,239,225),.06),rgba(var(--sh-nav-ink-rgb, 245,239,225),.025));box-shadow:inset 0 1px 0 rgba(var(--sh-nav-ink-rgb, 245,239,225),.05)}",
       ".nvd-seg{position:relative;display:inline-flex;align-items:center;gap:8px;border:0;margin:0;background:transparent;color:rgba(var(--sh-nav-ink-rgb, 245,239,225),.86);font:500 13.5px/1 'Schibsted Grotesk','Schibsted Fallback',system-ui,sans-serif;white-space:nowrap;cursor:pointer;-webkit-tap-highlight-color:transparent;transition:background .16s ease,color .16s ease}",
       ".nvd-nora{padding:0 14px 0 5px;border-radius:999px 0 0 999px}",
