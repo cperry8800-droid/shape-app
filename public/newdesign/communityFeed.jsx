@@ -1268,6 +1268,20 @@ function cfSince(iso) {
 // API defaults activity_type to 'workout' even on plain notes, so the
 // type string alone can't be trusted. Non-exclusive like the mobile
 // chips (CodeRabbit): a PR'd run files under BOTH RUNS and PRs.
+// The kind a member picks in the composer (its own row, or a chip in the message box) is written as
+// the marker the readers file by, or the post reads back as a plain post (Codex P2 on #2736): a meal
+// as the app's meal share writes it (`metrics.kind: 'meal'`, mealShare.mjs), a workout, run or PR as
+// the composer's activity marker (`metrics.kind: 'workout'`, below), its activity_type saying which.
+// A PR files as a workout: the PR bucket needs a figure (`delta`), and this composer asks for none.
+// A video or a milestone keeps its own kind. Points are unchanged: award_community_post already
+// skips a meal by its activity_type.
+function cfKindMarker(post) {
+  const k = String((post && post.kind) || '');
+  if (!post || post.video || k === 'milestone' || k === 'video') return null;
+  if (k === 'meal') return 'meal';
+  if (k === 'workout' || k === 'run' || k === 'pr') return 'workout';
+  return null;
+}
 function cfBucketsFor(p, m) {
   // Shared meals (spec 2026-07-12) file under NUTRITION only — a meal is
   // not a workout, and it never cross-files.
@@ -2307,6 +2321,8 @@ function CommunityFeed({ place = "wall", compact = false } = {}) {
             if (post.tag) metrics.tags = [String(post.tag).toUpperCase()];
             if (Array.isArray(post.mentions) && post.mentions.length) metrics.mentions = post.mentions;
             if (post.video) { metrics.kind = 'video'; metrics.video_url = post.video; }
+            const kindMarker = cfKindMarker(post);
+            if (kindMarker) metrics.kind = kindMarker;
             const isMs = post.kind === 'milestone' && post.milestone;
             if (isMs) {
               // THE APPOINTMENTS (spec 2026-07-13): stamp always stored, detail
