@@ -236,7 +236,11 @@ export const FITNESS_KNOWLEDGE = Object.freeze([
     id: 'red-flags',
     topic: 'safety',
     title: 'When to stop exercising and get medical help',
-    tags: ['chest pain', 'chest pressure', 'dizzy', 'dizziness', 'faint', 'fainted', 'fainting', 'passed out', 'heart racing', 'palpitations', 'short of breath', 'shortness of breath', 'i injured my', 'ive injured my', 'i have injured my', 'just injured my', 'i hurt my', 'ive hurt my', 'i have hurt my', 'just hurt my', 'new injury', 'swollen', 'swelling', 'joint pain', 'sharp pain', 'numb', 'numbness', 'heart condition', 'heart failure', 'stroke', 'metabolic syndrome', 'metabolic disease', 'metabolic condition', 'prediabetes', 'pre-diabetes', 'type 1 diabetes', 'type 2 diabetes', 'insulin', 'chronic kidney disease', 'copd', 'heart disease', 'heart problem', 'heart attack', 'high blood pressure', 'blood pressure', 'hypertension', 'arrhythmia', 'afib', 'heart murmur', 'pacemaker', 'blacked out', 'blackout', 'black out', 'lightheaded', 'light-headed', 'collapsed', 'chest tightness', 'breathless', 'breathlessness', 'unusually breathless', 'cant breathe', 'cannot breathe', 'trouble breathing', 'difficulty breathing', 'gasping for air', 'irregular heartbeat', 'kidney disease', 'diabetes', 'medical condition', 'medical clearance'],
+    tags: ['chest pain', 'chest pressure', 'dizzy', 'dizziness', 'faint', 'fainted', 'fainting', 'passed out', 'heart racing', 'palpitations', 'short of breath', 'shortness of breath', 'i injured my', 'ive injured my', 'i have injured my', 'just injured my', 'i hurt my', 'ive hurt my', 'i have hurt my', 'just hurt my', 'new injury', 'swollen', 'swelling', 'joint pain', 'sharp pain', 'numb', 'numbness', 'blacked out', 'blackout', 'black out', 'lightheaded', 'light-headed', 'collapsed', 'chest tightness', 'breathless', 'breathlessness', 'unusually breathless', 'cant breathe', 'cannot breathe', 'trouble breathing', 'difficulty breathing', 'gasping for air', 'irregular heartbeat', 'medical clearance'],
+    // A condition counts only when the member says it is theirs: one of CONDITION_CUES in the four words
+    // before it ("I have high blood pressure", "I'm on insulin", "with heart disease"). "Does exercise
+    // lower blood pressure?" and "insulin sensitivity" are ordinary questions (Codex on #2731).
+    conditions: ['heart condition', 'heart failure', 'stroke', 'metabolic syndrome', 'metabolic disease', 'metabolic condition', 'prediabetes', 'pre-diabetes', 'type 1 diabetes', 'type 2 diabetes', 'insulin', 'chronic kidney disease', 'copd', 'heart disease', 'heart problem', 'heart attack', 'high blood pressure', 'blood pressure', 'hypertension', 'arrhythmia', 'afib', 'heart murmur', 'pacemaker', 'kidney disease', 'diabetes', 'medical condition'],
     body: 'Stop and get medical help for chest pain or pressure, fainting or nearly fainting, a racing or irregular heartbeat, or unusual breathlessness during exercise; call emergency services for chest pain that does not settle with rest, or for fainting. The ACSM’s screening advice: anyone with heart, kidney or metabolic disease, or symptoms that suggest one, gets medical clearance before starting moderate or vigorous exercise. Pain that is sharp, in a joint, or comes with swelling or numbness is checked before training through it.',
     source: 'ACSM preparticipation health screening recommendations (Riebe et al., 2015) · American Heart Association: warning signs of a heart attack',
   },
@@ -275,6 +279,14 @@ const stems = (t) => String(t).toLowerCase().replace(/[’']/g, '').split(/[^a-z
 const at = (qStems, t, i) => i + t.length <= qStems.length && t.every((w, k) => qStems[i + k] === w);
 // An entry's `except` phrases veto a tag where they start at the same word: "binge" is a tag, and
 // "binge-watched" is not a binge.
+// The words that make a condition the member's own, read in the four words before it.
+const CONDITION_CUES = new Set(['have', 'has', 'had', 'im', 'ive', 'am', 'my', 'with', 'diagnosed', 'take', 'takes', 'taking', 'been', 'recovering', 'got']);
+const words = (t) => String(t).toLowerCase().replace(/[’']/g, '').split(/[^a-z0-9]+/).filter(Boolean);
+function hasCondition(qWords, qStems, tag) {
+  const t = stems(tag);
+  for (let i = 0; i + t.length <= qStems.length; i++) if (at(qStems, t, i) && qWords.slice(Math.max(0, i - 4), i).some((w) => CONDITION_CUES.has(w))) return true;
+  return false;
+}
 function hasTag(qStems, tag, except = []) {
   const t = stems(tag);
   const vetoes = except.map(stems);
@@ -287,7 +299,8 @@ export function searchFitness(query, { limit = 3, minScore = 1 } = {}) {
   const max = Math.max(1, Math.min(5, limit));
   const found = searchEntries(FITNESS_KNOWLEDGE, query, { limit: 5, minScore });
   const q = stems(query);
-  const flagged = SAFETY.filter((e) => e.tags.some((t) => hasTag(q, t, e.except)));
+  const qWords = words(query);
+  const flagged = SAFETY.filter((e) => e.tags.some((t) => hasTag(q, t, e.except)) || (e.conditions || []).some((t) => hasCondition(qWords, q, t)));
   if (!flagged.length) {
     // A safety entry comes back only on its own tag, never on a stray body word: "restricting carbs"
     // is a nutrition question, not an eating-disorder one.

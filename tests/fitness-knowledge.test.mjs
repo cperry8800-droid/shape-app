@@ -96,7 +96,7 @@ test('searchFitness: a member\'s question finds its entry first', () => {
 });
 
 test('a safety hit returns only safety entries: no how-to and no calorie figure beside it (Codex P1 on #2731)', () => {
-  for (const q of ['I have anorexia, how many calories should I eat?', 'I have an eating disorder, what should my deficit be?', 'I have high blood pressure, can I lift heavy?', 'I blacked out at the gym, how long should I rest?', "I'm on Ozempic. How many calories should I eat?", 'I have metabolic syndrome. How should I train?', 'I keep bingeing every night. How many calories should I eat?', 'I binge every weekend, what deficit should I run?', 'I keep binging after dinner, how much protein do I need?', 'I binged on pizza, how do I get back on track']) {
+  for (const q of ['I have anorexia, how many calories should I eat?', 'I have an eating disorder, what should my deficit be?', 'I have high blood pressure, can I lift heavy?', 'I blacked out at the gym, how long should I rest?', "I'm on Ozempic. How many calories should I eat?", 'I have metabolic syndrome. How should I train?', 'I keep bingeing every night. How many calories should I eat?', 'I binge every weekend, what deficit should I run?', 'I keep binging after dinner, how much protein do I need?', 'I binged on pizza, how do I get back on track', "I'm on insulin, can I do fasted cardio?", 'I was diagnosed with prediabetes, how should I train?', 'My blood pressure is high, is running ok?']) {
     const ids = searchFitness(q).entries.map((e) => e.id);
     assert.ok(ids.length > 0, q);
     for (const id of ids) { const e = FITNESS_KNOWLEDGE.find((x) => x.id === id); assert.ok(e.topic === 'safety' || e.alone === true, `${q} → ${id}`); }
@@ -114,7 +114,9 @@ test('an idiom is not a safety question: "baby steps" is a beginner\'s (Codex on
 });
 
 test('an everyday safety word is not a warning sign: injury prevention and daily exercise get the how-to (Codex on #2731)', () => {
-  for (const q of ['How can I prevent injury when lifting?', 'Is it safe to exercise every day?', 'Will cardio hurt my gains?', 'Will deadlifts injure my back?']) {
+  for (const q of ['How can I prevent injury when lifting?', 'Is it safe to exercise every day?', 'Will cardio hurt my gains?', 'Will deadlifts injure my back?',
+    // A condition named, not had (Codex on #2731): the member has not said it is theirs.
+    'Does exercise lower blood pressure?', 'How can I improve insulin sensitivity with exercise?', 'Can lifting prevent a heart attack?', 'Does cardio protect you from heart disease?']) {
     assert.ok(!searchFitness(q).entries.some((e) => e.id === 'red-flags'), q);
   }
 });
