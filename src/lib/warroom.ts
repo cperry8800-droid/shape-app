@@ -697,6 +697,7 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'The words came from Nora\'s own description in shape_help (shapeKnowledge.mjs \'nora\': "draft actions you confirm with one tap — a weigh-in, water…"), which the model paraphrased, and from the member prompt\'s "say you\'ve drafted it" for every member action. Water leaves the drafted list in the entry ("and log the water you drank, saved when you tap Confirm"); the member prompt keeps drafting for a weigh-in, a habit, a reminder and a meal, and says water is never a draft, with the ready-to-log line', status: 'done' },
         { label: 'Unchanged: a water log still waits for the Confirm tap (the card, its signed token, Undo). The eval\'s noFalseDone check passes the new line ("is ready to log" is no done claim)', status: 'done' },
         { label: 'Checked: the 15 suites that read shapeKnowledge.mjs, the chat route or the eval checks; the 35 that read the War Room', status: 'done' },
+        { label: 'Also: tests/score-page-examples.test.mjs\'s signed-in render went red on main on 2026-11-13 by the date alone. The page reads Date.now() and the fixture\'s Record is dated from 2026-11-11, so the streak read 3 on Nov 12 and 0 from Nov 13. The render now runs with Date.now frozen at the fixture\'s moment', status: 'done' },
         { label: 'OWNER: ask Nora "what can you do?" and "log a glass of water" in the app; neither reply should say she drafts water', status: 'manual' },
       ],
     },
