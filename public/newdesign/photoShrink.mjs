@@ -17,6 +17,10 @@
 // kills a mid-range Android WebView, so past 25 MP the photo is only ever decoded through
 // createImageBitmap's resize options, which downsample during the decode.
 //
+// ⚠ A PHONE STORES AN UPRIGHT PHOTO SIDEWAYS (EXIF orientation), so the photo is decoded turned upright
+// and drawn at the size the DECODER reports, never the header's. Past 25 MP only a photo stored upright
+// is resized; a turned one goes up as picked rather than risk a squashed photo.
+//
 // The app (shapeBackend.js uploadCommunityPhoto, re-exported as mobile-app/src/services/photoShrink.mjs)
 // and the website (communityFeed.jsx, livingDesktop.jsx, by dynamic import) both call
 // shrinkPhotoForUpload; tests/photo-shrink.test.mjs drives it against a stubbed browser.
@@ -102,6 +106,55 @@ export function imageHeaderDims(buf) {
   return null;
 }
 
+// The EXIF orientation of a JPEG (1 to 8) from its header: 1 when it carries none, null when it carries
+// one this cannot read. ⚠ A PHONE STORES AN UPRIGHT PHOTO SIDEWAYS AND SAYS SO HERE (orientation 6 or
+// 8), so the frame imageHeaderDims reads is the sensor's, not the photo as it is seen. A decoder that
+// turns the photo upright hands back the other way round; one that is told a size to resize to may
+// apply it before or after turning, and a wrong guess squashes the photo.
+export function jpegOrientation(buf) {
+  const b = buf instanceof Uint8Array ? buf : new Uint8Array(buf);
+  if (!(b.length > 4 && b[0] === 0xff && b[1] === 0xd8)) return 1;   // not a JPEG: nothing here to read
+  let i = 2;
+  while (i + 4 <= b.length) {
+    if (b[i] !== 0xff) return null;
+    const m = b[i + 1];
+    if (m === 0xff) { i += 1; continue; }
+    if (m === 0x01 || (m >= 0xd0 && m <= 0xd9)) { i += 2; continue; }
+    if (m === 0xda) return 1;                 // the image data, and no EXIF before it
+    const len = (b[i + 2] << 8) | b[i + 3];
+    if (len < 2 || i + 2 + len > b.length) return null;
+    // EXIF sits in APP1 ahead of the frame; reaching a frame first means there is none.
+    if (m >= 0xc0 && m <= 0xcf && m !== 0xc4 && m !== 0xc8 && m !== 0xcc) return 1;
+    if (m === 0xe1 && len >= 16 && b[i + 4] === 0x45 && b[i + 5] === 0x78 && b[i + 6] === 0x69
+        && b[i + 7] === 0x66 && b[i + 8] === 0 && b[i + 9] === 0) {
+      return exifOrientation(b, i + 10, i + 2 + len);
+    }
+    i += 2 + len;
+  }
+  return null;
+}
+
+// Tag 0x0112 of IFD0 in the TIFF block that starts at `t` and ends before `end`.
+function exifOrientation(b, t, end) {
+  if (t + 8 > end) return null;
+  const le = b[t] === 0x49 && b[t + 1] === 0x49;
+  if (!le && !(b[t] === 0x4d && b[t + 1] === 0x4d)) return null;
+  const u16 = (o) => (le ? b[o] | (b[o + 1] << 8) : (b[o] << 8) | b[o + 1]);
+  const u32 = (o) => (le
+    ? (b[o] | (b[o + 1] << 8) | (b[o + 2] << 16) | (b[o + 3] << 24)) >>> 0
+    : ((b[o] << 24) | (b[o + 1] << 16) | (b[o + 2] << 8) | b[o + 3]) >>> 0);
+  if (u16(t + 2) !== 42) return null;
+  const ifd = t + u32(t + 4);
+  if (ifd + 2 > end) return null;
+  const n = u16(ifd);
+  for (let k = 0; k < n; k += 1) {
+    const e = ifd + 2 + k * 12;
+    if (e + 12 > end) return null;
+    if (u16(e) === 0x0112) { const v = u16(e + 8); return v >= 1 && v <= 8 ? v : null; }
+  }
+  return 1;
+}
+
 // The size a photo is drawn at: its long edge brought down to `edge`, never up, the aspect ratio
 // kept. null for a size that is not a real one.
 export function photoTarget(w, h, edge = PHOTO_EDGE) {
@@ -165,8 +218,9 @@ export function shrinkPhotoForUpload(file, env = globalThis, { deadlineMs = PHOT
         if (!file || !type.startsWith('image/') || type === 'image/gif') { done(file); return; }
         if (typeof file.slice !== 'function') { done(file); return; }
 
-        const dims = imageHeaderDims(await file.slice(0, PHOTO_HEADER_BYTES).arrayBuffer());
+        const head = await file.slice(0, PHOTO_HEADER_BYTES).arrayBuffer();
         if (settled) return;
+        const dims = imageHeaderDims(head);
         if (!dims || !(dims.w > 0 && dims.h > 0)) { done(file); return; }
         const target = photoTarget(dims.w, dims.h);
         // Already no bigger than the edge: re-encoding would only cost quality.
@@ -176,11 +230,15 @@ export function shrinkPhotoForUpload(file, env = globalThis, { deadlineMs = PHOT
         if (dims.w * dims.h > PHOTO_MAX_PIXELS) {
           // The full bitmap must never exist: downsample during the decode, both axes named.
           if (typeof env.createImageBitmap !== 'function') { done(file); return; }
-          const b = await env.createImageBitmap(file, { resizeWidth: target.w, resizeHeight: target.h, resizeQuality: 'high' });
+          // Only a photo stored upright is resized here: for a turned one the size asked for may be
+          // applied across the wrong axes, and a squashed photo is worse than a large one.
+          if (jpegOrientation(head) !== 1) { done(file); return; }
+          const b = await env.createImageBitmap(file, { resizeWidth: target.w, resizeHeight: target.h, resizeQuality: 'high', imageOrientation: 'from-image' });
           if (!keep(b)) return;
           src = b;
         } else if (typeof env.createImageBitmap === 'function') {
-          const b = await env.createImageBitmap(file);
+          // Turned upright by its EXIF, so the bitmap's own size is the photo as it is seen.
+          const b = await env.createImageBitmap(file, { imageOrientation: 'from-image' });
           if (!keep(b)) return;
           src = b;
         } else {
@@ -188,16 +246,21 @@ export function shrinkPhotoForUpload(file, env = globalThis, { deadlineMs = PHOT
           if (settled) return;
         }
 
+        // ⚠ THE DRAWN SIZE COMES FROM THE DECODED PHOTO, NOT THE HEADER: a portrait phone photo's header
+        // reads 4032×3024 while the upright photo is 3024×4032, and drawing it at the header's shape
+        // squashes it. An <img> is turned upright by the browser too, and reports its natural size.
+        const drawn = photoTarget(src.naturalWidth || src.width, src.naturalHeight || src.height);
+        if (!drawn) { done(file); return; }
         const doc = env.document;
         const canvas = doc && typeof doc.createElement === 'function' ? doc.createElement('canvas') : null;
         const ctx = canvas && typeof canvas.getContext === 'function' ? canvas.getContext('2d') : null;
         if (!ctx || typeof canvas.toBlob !== 'function') { done(file); return; }
-        canvas.width = target.w;
-        canvas.height = target.h;
+        canvas.width = drawn.w;
+        canvas.height = drawn.h;
         // JPEG has no transparency: a transparent PNG or WebP would come out black where it was clear.
         ctx.fillStyle = '#fff';
-        ctx.fillRect(0, 0, target.w, target.h);
-        ctx.drawImage(src, 0, 0, target.w, target.h);
+        ctx.fillRect(0, 0, drawn.w, drawn.h);
+        ctx.drawImage(src, 0, 0, drawn.w, drawn.h);
         release();
         canvas.toBlob((blob) => {
           // No smaller than what was picked: the original is the better upload.

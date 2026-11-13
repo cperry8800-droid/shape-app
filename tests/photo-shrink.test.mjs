@@ -8,19 +8,32 @@ import { readFileSync, existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
-  shrinkPhotoForUpload, photoTarget, jpegName, imageHeaderDims,
+  shrinkPhotoForUpload, photoTarget, jpegName, imageHeaderDims, jpegOrientation,
   PHOTO_EDGE, PHOTO_QUALITY, PHOTO_MAX_PIXELS,
 } from '../public/newdesign/photoShrink.mjs';
 import * as appModule from '../mobile-app/src/services/photoShrink.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 
-// A JPEG header with its frame at w×h (the same shape tests/recipe-photo-decode.test.mjs builds).
-const jpegBytes = (w, h) => {
+// An APP1 EXIF segment whose IFD0 holds the orientation tag (big- or little-endian TIFF).
+const exifSegment = (orientation, little = false) => {
+  const tiff = Buffer.alloc(8 + 2 + 12 + 4);
+  if (little) { tiff.write('II', 0, 'latin1'); tiff.writeUInt16LE(42, 2); tiff.writeUInt32LE(8, 4); tiff.writeUInt16LE(1, 8);
+    tiff.writeUInt16LE(0x0112, 10); tiff.writeUInt16LE(3, 12); tiff.writeUInt32LE(1, 14); tiff.writeUInt16LE(orientation, 18); }
+  else { tiff.write('MM', 0, 'latin1'); tiff.writeUInt16BE(42, 2); tiff.writeUInt32BE(8, 4); tiff.writeUInt16BE(1, 8);
+    tiff.writeUInt16BE(0x0112, 10); tiff.writeUInt16BE(3, 12); tiff.writeUInt32BE(1, 14); tiff.writeUInt16BE(orientation, 18); }
+  const payload = Buffer.concat([Buffer.from('Exif\0\0', 'latin1'), tiff]);
+  const head = Buffer.alloc(4); head[0] = 0xff; head[1] = 0xe1; head.writeUInt16BE(payload.length + 2, 2);
+  return Buffer.concat([head, payload]);
+};
+// A JPEG header with its frame at w×h (the same shape tests/recipe-photo-decode.test.mjs builds),
+// optionally carrying an EXIF orientation ahead of the frame.
+const jpegBytes = (w, h, orientation = null, little = false) => {
   const f = Buffer.alloc(11);
   f[0] = 0xff; f[1] = 0xc0; f.writeUInt16BE(9, 2); f[4] = 8;
   f.writeUInt16BE(h, 5); f.writeUInt16BE(w, 7);
-  return Buffer.concat([Buffer.from([0xff, 0xd8]), f, Buffer.alloc(64)]);
+  const exif = orientation == null ? [] : [exifSegment(orientation, little)];
+  return Buffer.concat([Buffer.from([0xff, 0xd8]), ...exif, f, Buffer.alloc(64)]);
 };
 const pngBytes = (w, h) => {
   const b = Buffer.alloc(33);
@@ -30,23 +43,25 @@ const pngBytes = (w, h) => {
   return b;
 };
 
-const photo = ({ w = 4032, h = 3024, type = 'image/jpeg', size = 3_000_000, name = 'IMG_0412.JPG', bytes } = {}) => {
-  const buf = bytes || (type === 'image/png' ? pngBytes(w, h) : jpegBytes(w, h));
+const photo = ({ w = 4032, h = 3024, type = 'image/jpeg', size = 3_000_000, name = 'IMG_0412.JPG', bytes, orientation = null } = {}) => {
+  const buf = bytes || (type === 'image/png' ? pngBytes(w, h) : jpegBytes(w, h, orientation));
   return { name, type, size, lastModified: 1_700_000_000_000, slice: () => ({ arrayBuffer: async () => new Uint8Array(buf).buffer }) };
 };
 
 // A stub browser. Every option turns one capability off or changes what it returns.
-function browser({ bitmap = true, image = true, ctx = true, toBlob = true, blobSize = 250_000, file = true, bitmapDelayMs = 0, bitmapThrows = false } = {}) {
+// `decoded` is the photo as the decoder hands it back, turned upright.
+function browser({ bitmap = true, image = true, ctx = true, toBlob = true, blobSize = 250_000, file = true, bitmapDelayMs = 0, bitmapThrows = false, decoded = { w: 4032, h: 3024 } } = {}) {
   const calls = { bitmap: [], image: 0, drawn: null, order: [], toBlob: null, closed: 0, created: 0, revoked: 0 };
   const env = {
     createImageBitmap: bitmap ? (f, opts) => new Promise((ok, fail) => {
       calls.bitmap.push(opts || null);
       setTimeout(() => {
         if (bitmapThrows) { fail(new Error('decode')); return; }
-        ok({ width: opts ? opts.resizeWidth : 4032, height: opts ? opts.resizeHeight : 3024, close() { calls.closed += 1; } });
+        const resized = opts && opts.resizeWidth;
+        ok({ width: resized ? opts.resizeWidth : decoded.w, height: resized ? opts.resizeHeight : decoded.h, close() { calls.closed += 1; } });
       }, bitmapDelayMs);
     }) : undefined,
-    Image: image ? class { set src(_v) { calls.image += 1; setTimeout(() => this.onload && this.onload(), 0); } } : undefined,
+    Image: image ? class { set src(_v) { calls.image += 1; setTimeout(() => { this.naturalWidth = decoded.w; this.naturalHeight = decoded.h; this.onload && this.onload(); }, 0); } } : undefined,
     URL: { createObjectURL: () => { calls.created += 1; return 'blob:photo'; }, revokeObjectURL: () => { calls.revoked += 1; } },
     document: {
       createElement: (tag) => {
@@ -101,8 +116,8 @@ test('a 12 MP phone photo goes up as a 1600×1200 JPEG under its own name', asyn
   assert.equal(out.lastModified, file.lastModified);
   assert.deepEqual(calls.drawn, { x: 0, y: 0, w: 1600, h: 1200 });
   assert.deepEqual(calls.toBlob, { type: 'image/jpeg', q: PHOTO_QUALITY });
-  // Under the pixel budget it is decoded whole, then drawn smaller, and the bitmap is released.
-  assert.deepEqual(calls.bitmap, [null]);
+  // Under the pixel budget it is decoded whole, turned upright, then drawn smaller, and released.
+  assert.deepEqual(calls.bitmap, [{ imageOrientation: 'from-image' }]);
   assert.equal(calls.closed, 1);
   assert.equal(calls.image, 0);
 });
@@ -117,10 +132,49 @@ test('⚠ A PHOTO PAST 25 MP IS DOWNSAMPLED DURING THE DECODE, BOTH AXES NAMED',
   const { env, calls } = browser();
   const out = await shrinkPhotoForUpload(photo({ w: 8000, h: 6000, size: 9_000_000 }), env);
   assert.ok(8000 * 6000 > PHOTO_MAX_PIXELS);
-  assert.deepEqual(calls.bitmap, [{ resizeWidth: 1600, resizeHeight: 1200, resizeQuality: 'high' }]);
+  assert.deepEqual(calls.bitmap, [{ resizeWidth: 1600, resizeHeight: 1200, resizeQuality: 'high', imageOrientation: 'from-image' }]);
   assert.equal(calls.image, 0, 'the full-size decode must never run');
   assert.equal(calls.closed, 1);
   assert.equal(out.type, 'image/jpeg');
+});
+
+test('⚠ A PORTRAIT PHONE PHOTO, STORED SIDEWAYS, IS DRAWN UPRIGHT AT ITS OWN SHAPE', async () => {
+  // The header says 4032×3024 (the sensor) and EXIF says turn it; the decoder hands back 3024×4032.
+  // Drawing at the header's shape would squash the person in it.
+  const { env, calls } = browser({ decoded: { w: 3024, h: 4032 } });
+  const out = await shrinkPhotoForUpload(photo({ orientation: 6 }), env);
+  assert.deepEqual(calls.drawn, { x: 0, y: 0, w: 1200, h: 1600 });
+  assert.equal(out.type, 'image/jpeg');
+  // The <img> path draws at the browser's upright natural size too.
+  const viaImg = browser({ bitmap: false, decoded: { w: 3024, h: 4032 } });
+  await shrinkPhotoForUpload(photo({ orientation: 6 }), viaImg.env);
+  assert.deepEqual(viaImg.calls.drawn, { x: 0, y: 0, w: 1200, h: 1600 });
+});
+
+test('⚠ PAST 25 MP, ONLY A PHOTO STORED UPRIGHT IS RESIZED; A TURNED ONE GOES UP AS PICKED', async () => {
+  for (const orientation of [6, 8, 3, 5]) {
+    const { env, calls } = browser();
+    const file = photo({ w: 8000, h: 6000, orientation });
+    assert.equal(await shrinkPhotoForUpload(file, env), file, `orientation ${orientation}`);
+    assert.equal(calls.bitmap.length + calls.image, 0, 'nothing decoded');
+  }
+  const { env, calls } = browser();
+  const out = await shrinkPhotoForUpload(photo({ w: 8000, h: 6000, orientation: 1 }), env);
+  assert.equal(calls.bitmap.length, 1, 'an EXIF that says upright is resized');
+  assert.equal(out.type, 'image/jpeg');
+});
+
+test('the EXIF orientation is read from the header, in either byte order', () => {
+  assert.equal(jpegOrientation(jpegBytes(4032, 3024)), 1, 'no EXIF: upright');
+  assert.equal(jpegOrientation(jpegBytes(4032, 3024, 6)), 6);
+  assert.equal(jpegOrientation(jpegBytes(4032, 3024, 8, true)), 8);
+  assert.equal(jpegOrientation(jpegBytes(4032, 3024, 1)), 1);
+  assert.equal(jpegOrientation(jpegBytes(4032, 3024, 9)), null, 'an orientation that does not exist');
+  assert.equal(jpegOrientation(pngBytes(10, 10)), 1, 'not a JPEG');
+  assert.equal(jpegOrientation(new Uint8Array(jpegBytes(10, 10, 6)).buffer), 6, 'an ArrayBuffer as the upload hands it');
+  const broken = jpegBytes(4032, 3024, 6); broken[12] = 0x58;   // the TIFF byte order (II or MM) is garbage
+  assert.equal(jpegOrientation(broken), null);
+  assert.equal(jpegOrientation(Buffer.from([0xff, 0xd8, 0x00, 0x00, 0, 0, 0, 0])), null, 'out of sync');
 });
 
 test('past 25 MP with no resizing decoder, the original goes up rather than a full decode', async () => {
