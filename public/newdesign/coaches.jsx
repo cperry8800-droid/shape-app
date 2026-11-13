@@ -24,17 +24,20 @@
 // shot before the gate existed. The next person to fulfil `{user:null}` will
 // read the redirect as the harness being broken; it is the gate working.
 //
-// All twenty frames re-shot 2026-11-12 by the recipe below (Business on its default Overview
-// section), after every page gained its Guide button and more of them cards you arrange, Profile became the
-// public profile (`coachProfileWeb.jsx`) and the rail took the 3D mark. The ?v on `src` moved
-// with them. Park the pointer off the icon rail (bottom right) before each shot, or the rail
+// ⚠ THE FRAMES ARE THE WHITE PAPER, the dashboard's default skin (owner, 2026-11-13, of these
+// screenshots: "make these screenshots look like the preview that was in the artifact" — the Coach
+// Cockpit review's light mock-ups). They are still captures of the real dashboard, not those
+// mock-ups: the cockpit's proposals that are not built (the ⌘K bar, client faces, Week's reply
+// panel) would be promises on a page selling the dashboard. Profile keeps the coach's own colours.
+// All twenty re-shot 2026-11-13 by the recipe below (Business on its default Overview section),
+// with Ask Nora and Chat in the app bar; the ?v on `src` moved with them. Park the pointer off the icon rail (bottom right) before each shot, or the rail
 // opens. ⚠ The @font-face answer for the css2 request needs ABSOLUTE urls to the local files: a
 // relative url resolves against fonts.googleapis.com, nothing loads, and every frame is drawn in
 // fallback faces with no error anywhere (check `document.fonts` holds Anybody before shooting).
 // Captures refreshed 2026-10-14, after #2343 gave the dashboard its own app frame
 // (the icon rail and the app bar ARE the dashboard now, so they stay in every frame;
 // the old recipe's "hide the site header, move main up 72px" no longer applies).
-// Recipe: 1440x900, dark paper (localStorage shape.web.paper = "dark"), the signed-out
+// Recipe: 1440x900, White paper (no localStorage shape.web.paper), the signed-out
 // demo practice — every /api/* answers 401 so the preview renders — behind a signed-in
 // app bar (/api/me fulfilled with a demo coach of the frame's role, so the bar shows the
 // bell and Sign out rather than Log in). Hide #shape-global-chat-button and the fixed
@@ -160,7 +163,7 @@ const CO_TOUR = {
 // ⚠ THE FRAME CARRIES ITS OWN LABEL. Not a caption under the picture — a mark on
 // it, so the claim travels with the image wherever it is seen.
 function CoFrame({ role, tab, style = {} }) {
-  const src = `/newdesign/coaches/coaches-dash-${role}-${tab.file}.jpg?v=20261112`;
+  const src = `/newdesign/coaches/coaches-dash-${role}-${tab.file}.jpg?v=20261113`;
   return (
     <div style={{ border: "1px solid rgba(238,243,240,0.10)", borderRadius: 10, background: "#0a0f17", boxShadow: "0 40px 90px rgba(0,0,0,0.55)", overflow: "hidden", ...style }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, height: 34, padding: "0 12px", borderBottom: "1px solid rgba(238,243,240,0.055)", background: "rgba(255,255,255,0.02)" }}>
