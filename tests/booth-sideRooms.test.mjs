@@ -12,6 +12,7 @@ import { evalShot, SHOTS, NoraDirector } from '../public/newdesign/booth/noraDir
 import { LENS } from '../public/newdesign/booth/cinematic.mjs';
 import { createPeopleCrowd, decodePeoplePack } from '../public/newdesign/booth/crowdPeople.mjs';
 import * as THREE from './helpers/booth-three.mjs';
+import { patchRoomSurface } from '../public/newdesign/booth/roomSurface.mjs';
 import { stripComments } from './helpers/strip-comments.mjs';
 
 const read = (p) => stripComments(readFileSync(new URL('../' + p, import.meta.url), 'utf8'));
@@ -66,11 +67,59 @@ test('the hall makes way: the two boxes, the glass and sill in the doorway, the 
   }
 });
 
+// Owner, 2026-11-16, of the live room beside its pictures: "is the club itsself improved. The nightclub
+// im talking about", then asked for this room upgraded. The lounge and the bar were its flattest part:
+// every floor and wall one baked colour, furniture sitting on nothing.
+test('the rooms’ floors and walls carry a surface, drawn on three’s own basic shader', () => {
+  const lib = THREE.ShaderLib.basic;
+  const sh = patchRoomSurface({ uniforms: {}, vertexShader: lib.vertexShader, fragmentShader: lib.fragmentShader });
+  // every anchor the patch hangs on is still in three's shader: a renamed chunk would drop the
+  // surface without an error, and the rooms would go back to flat colour unnoticed
+  for (const chunk of ['#include <common>', '#include <begin_vertex>']) assert.ok(lib.vertexShader.includes(chunk), `three's basic vertex shader has ${chunk}`);
+  for (const chunk of ['#include <common>', '#include <color_fragment>']) assert.ok(lib.fragmentShader.includes(chunk), `three's basic fragment shader has ${chunk}`);
+  assert.match(sh.vertexShader, /varying vec3 vRoomPos;\nvarying vec3 vRoomNrm;/);
+  assert.match(sh.vertexShader, /#include <begin_vertex>\n  vRoomPos = \(modelMatrix \* vec4\(transformed, 1\.0\)\)\.xyz;\n  vRoomNrm = mat3\(modelMatrix\) \* normal;/);
+  assert.match(sh.fragmentShader, /varying vec3 vRoomPos;\nvarying vec3 vRoomNrm;\nfloat roomHash\(vec2 q\)/);
+  const body = sh.fragmentShader.slice(sh.fragmentShader.indexOf('#include <color_fragment>'));
+  assert.match(body, /if \(rn\.y > 0\.6\) \{/, 'floors');
+  assert.match(body, /\} else if \(rn\.y > -0\.6\) \{/, 'walls; the ceiling is left as the bake has it');
+  assert.match(body, /cameraPosition - rp/, 'the floor’s polish lifts at a grazing angle');
+  // nothing in the room may shimmer: each pattern fades to its mean where it runs fast across the screen
+  assert.equal((body.match(/float fade = clamp\(1\.0 - fwidth\(u\) \* 3\.0, 0\.0, 1\.0\);/g) || []).length, 2, 'the boards and the panels both fade');
+  assert.equal((body.match(/mix\(1\.0, [^;]+, fade\);/g) || []).length, 2);
+  // it only ever scales the baked colour: no light of its own, nothing that can flash
+  assert.ok(!/uTime|sin\(.*uT/.test(body), 'nothing here moves');
+  assert.equal((body.match(/diffuseColor\.rgb \*=/g) || []).length, 3);
+  assert.ok(!/diffuseColor\.rgb \+=/.test(body));
+  // patched once: a second pass over an already patched shader finds no anchor to hang on twice
+  const src = readFileSync(new URL('../public/newdesign/booth/roomSurface.mjs', import.meta.url), 'utf8');
+  assert.deepEqual([...src.matchAll(/^import\b.*$/gm)].map((m) => m[0]), [], 'pure: no three, no DOM');
+});
+
+test('the rooms’ solids shade what they sit on, and the lamps still cast no shadows', () => {
+  const src = readFileSync(new URL('../public/newdesign/booth/clubVenue.mjs', import.meta.url), 'utf8').match(/── 2c\.[\s\S]*?── 3\./)[0];
+  // the shell wears the surface; the furniture keeps the boxes' plain material
+  assert.match(VENUE, /const matRooms = own\(new THREE\.MeshBasicMaterial\(\{ vertexColors: true \}\)\);\s*matRooms\.onBeforeCompile = patchRoomSurface;/);
+  assert.match(src, /mesh\(merge\(ROOM, 'sideRooms'\), matRooms, 'venueSideRooms'\);/);
+  assert.match(src, /mesh\(merge\(ROOM_FURN, 'sideRoomFurniture'\), matBoxes, 'venueSideRoomFurniture'\);/);
+  assert.match(src, /ROOM\.push\(\.\.\.shell\);\s*ROOM_FURN\.push\(\.\.\.P\);/);
+  // every box of furniture is a solid in the room's grid, with the slabs behind its six sides
+  assert.match(src, /OCC\.push\(\[Math\.min\(xa, xb\), Math\.min\(y0, y1\), Math\.min\(u0, u1\), Math\.max\(xa, xb\), Math\.max\(y0, y1\), Math\.max\(u0, u1\)\]\);/);
+  assert.equal((src.match(/const OCC = \[/g) || []).length, 1);
+  // the bake reads that grid for contact shade, fewer rays on a phone
+  assert.match(src, /const OGr = boxGrid\(OCC, 1\.0\), AO = LOW \? 3 : 5;/);
+  assert.match(src, /for \(const g of shell\) bakeMesh\(\{[^}]*OG: OGr, aoRays: AO, aoLen: 1\.0, aoStrength: 0\.7,/);
+  assert.match(src, /for \(const g of P\) bakeMesh\(\{[^}]*OG: OGr, aoRays: AO, aoLen: 0\.7, aoStrength: 0\.6,/);
+  // and still no cast shadows: one room, its own light (a shadowed lamp through a grid of boxes
+  // would stripe the floor at the bake's 0.4 m cells)
+  assert.match(src, /const light = \(d, y, u, c, r0, range, dir = null, cos0, cos1\) => L\.push\(\{ p: \[X\(d\), y, u\], c, r0, range, dir, cos0, cos1, shadow: false \}\);/);
+});
+
 test('the lounge and the bar are rooms: furnished, lit by their own lamps, with people, a sign at each door', () => {
   // the section itself, comments and all (they name what each piece is)
   const src = readFileSync(new URL('../public/newdesign/booth/clubVenue.mjs', import.meta.url), 'utf8').match(/── 2c\.[\s\S]*?── 3\./)[0];
   assert.match(src, /buildRoom\(SIDE_ROOMS\.lounge, 'lounge'\);\s*buildRoom\(SIDE_ROOMS\.bar, 'bar'\);/);
-  for (const name of ['venueSideRooms', 'venueSideRoomLights', 'venueLoungeOnyx', 'venueSideRoomSigns']) assert.ok(src.includes(`'${name}'`), name);
+  for (const name of ['venueSideRooms', 'venueSideRoomFurniture', 'venueSideRoomLights', 'venueLoungeOnyx', 'venueSideRoomSigns']) assert.ok(src.includes(`'${name}'`), name);
   // each room's lamps are baked into its own geometry only
   assert.match(src, /const LGr = lightGrid\(L, 2\);/);
   assert.match(src, /for \(const g of shell\) bakeMesh\(/);

@@ -91,7 +91,12 @@ export const CROWD_HOUSE = Object.freeze({ near: 0.6, far: 0.12, fall: 6, ambien
 // which put a blue cast on every shadow and read as CG (owner, 2026-10-26: "its needs to look more
 // real"). The colour in the air comes from the wall instead (wallGlow).
 const FOG_COLOR = 0x050608;
-const FOG_DENSITY = 0.012;
+// ⚠ A CLUB'S AIR IS THICK, AND THIS ONE'S WAS NEARLY CLEAR (owner, 2026-11-16, of the live room beside
+// its pictures: "is the club itsself improved", then asked for this room upgraded). At 0.012 the far
+// end of the floor, 38 m off, kept 81% of itself and read as a model seen through glass; at 0.017 it
+// keeps 66% and twenty metres keeps 89%, so the house falls away into haze and the near rows stay
+// sharp. The haze takes more of the wall's colour too (0.13 of wallGlow, was 0.07): lit air, not grey.
+const FOG_DENSITY = 0.017;
 const BG_COLOR = 0x040506;
 
 // LED screen matrix: 192 × 112 dots over WALL (a 75 mm pitch, the arena wall's own), fine enough
@@ -1692,7 +1697,10 @@ export function createClub({ THREE, renderer = null, seed = 7, accent = '#34d6c5
   const glowLum = () => wallGlow.r * 0.2126 + wallGlow.g * 0.7152 + wallGlow.b * 0.0722;
   const FOG_BASE = new THREE.Color(FOG_COLOR);
 
-  const crowdBackC = new THREE.Color(0xffc890).multiplyScalar(0.022); // linear: the lounges' amber, dim
+  // The room behind the crowd on their heads and shoulders, in the lounges' amber. It was 0.022: seen
+  // from the house the floor was one black mass under the wall, where a real one is edged by the
+  // light behind it. Linear, steady, and still a rim: it only reaches surfaces turned from the stage.
+  const crowdBackC = new THREE.Color(0xffc890).multiplyScalar(0.06);
   const tmpM = new THREE.Matrix4();
   const tmpQ = new THREE.Quaternion();
   const tmpQ2 = new THREE.Quaternion();
@@ -1974,7 +1982,9 @@ export function createClub({ THREE, renderer = null, seed = 7, accent = '#34d6c5
       // the screen's own light on the faces toward it, in its colour (wallGlow): the reference's crowd
       // is lit by the picture, and goes to silhouettes when the wall is dark
       tmpC.copy(iceC).lerp(glowHue, 0.35 * Math.min(1, glowLum() * 12)).multiplyScalar(0.26 + 0.26 * lvl + 0.18 * kickS + 0.12 * drop);
-      tmpC2.copy(iceC).multiplyScalar(0.006 + 0.008 * lvl).add(glowA.copy(wallGlow).multiplyScalar(0.35));
+      // the wall's share on faces is 0.16 (was 0.35): from the booth the crowd was lit flat and even,
+      // every face readable to the back wall, which is how a figure in a game is lit
+      tmpC2.copy(iceC).multiplyScalar(0.006 + 0.008 * lvl).add(glowA.copy(wallGlow).multiplyScalar(0.16));
       avatars.setLight(tmpC, tmpC2, crowdBackC);
     } else {
       for (let l = 0; l < 2; l++) {
@@ -1997,7 +2007,7 @@ export function createClub({ THREE, renderer = null, seed = 7, accent = '#34d6c5
     wallLight.color.copy(iceC).lerp(glowHue, 0.5 * Math.min(1, gl * 12));
     wallLight.intensity = (0.7 + 0.9 * lvl + 0.6 * k) * Math.min(1.35, 0.8 + 2.5 * gl);
     // the air: a dark neutral haze lit the wall's colour; the hemisphere picks a little of it up
-    fog.color.copy(FOG_BASE).add(glowB.copy(wallGlow).multiplyScalar(0.07));
+    fog.color.copy(FOG_BASE).add(glowB.copy(wallGlow).multiplyScalar(0.13));
     hemi.color.copy(HEMI_SKY).add(glowB.copy(wallGlow).multiplyScalar(0.12));
     // the deck's sheen: the wall's own colour, as bright as the wall is
     sheenU.uGlow.value.copy(wallGlow);
