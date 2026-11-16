@@ -1298,8 +1298,11 @@ export function createVenue({ THREE, renderer = null, seed = 11, quality = 'high
   // canopy's edges (none along an opening: its white outline is there). The warm lines that ran the
   // length of the old flat ceiling are gone with it. A slim box on desktop, so a line keeps a face
   // toward a camera that looks along the roof; one quad facing down on phones.
+  // ⚠ Kept at about half the accent's own strength. At 1.15 of it the lattice was the brightest thing
+  // in the roof, and from the back of the room (the club and atrium shots look along it at a grazing
+  // angle) it ran together with the openings' outlines: the two triangles did not read.
   {
-    const TEAL = accentLin.map((c) => c * 1.15), W = LOW ? 0.1 : 0.075;
+    const TEAL = accentLin.map((c) => c * 0.55), W = LOW ? 0.1 : 0.075;
     for (const [x0, z0, x1, z1] of CANOPY.lines) {
       if (!LOW) { CL.push(bar([x0, CEIL_Y, z0], [x1, CEIL_Y, z1], W, 0.06, -0.035, TEAL)); continue; }
       const l = Math.hypot(x1 - x0, z1 - z0), dx = (x1 - x0) / l, dz = (z1 - z0) / l;
@@ -1365,7 +1368,10 @@ export function createVenue({ THREE, renderer = null, seed = 11, quality = 'high
     };
     const { w: TW, h: TH } = CHANDELIER.section;
     const C_CHORD = [0.1, 0.105, 0.115], C_LIT = [0.3, 0.32, 0.36], C_LACE = [0.075, 0.08, 0.09], C_CABLE = [0.08, 0.082, 0.09];
-    const C_STRIP = [1.24, 1.3, 1.44];   // over the bloom's threshold, under the openings' own outlines: a line of light, not a bar of it
+    // A crisp line under each side, well under the openings' own outlines (1.75): those stay the
+    // brightest thing in the roof. At 1.24 to 1.44 all eight rings bloomed as hard as the outlines, and
+    // from the back of the room rings and outlines merged into one white zigzag.
+    const C_STRIP = [0.86, 0.9, 1.0];
     const va = new THREE.Vector3(), vb = new THREE.Vector3(), ax = new THREE.Vector3(), up = new THREE.Vector3(), out = new THREE.Vector3(), up0 = new THREE.Vector3(0, 1, 0);
     const at = (base, t, u, o) => [base.x + ax.x * t + up.x * u + out.x * o, base.y + ax.y * t + up.y * u + out.y * o, base.z + ax.z * t + up.z * u + out.z * o];
     for (const ch of chandeliers(quality)) {
