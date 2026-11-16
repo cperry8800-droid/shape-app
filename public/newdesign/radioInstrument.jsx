@@ -1222,7 +1222,7 @@ function RadioInstrument() {
             </div>
 
             <div className="rd-strip" style={{ display: "flex", gap: 10, flex: "0 0 auto" }}>
-              {[["Live", null], ["Nora", "#nora"], ["Shape Sets", "#sets"]].map(([label, href]) => (
+              {[["Live", null], ["Club Shape", "#club"], ["Shape Sets", "#sets"]].map(([label, href]) => (
                 <a key={label} href={href || undefined}
                   style={{ ...eb, padding: "9px 13px", border: `1px solid ${href ? "rgba(238,243,240,0.18)" : RD_TEAL}`, color: href ? RD_CREAM50 : RD_TEAL, textDecoration: "none", clipPath: "polygon(0 0, calc(100% - 7px) 0, 100% 7px, 100% 100%, 0 100%)" }}>
                   {label}

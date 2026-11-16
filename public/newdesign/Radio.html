@@ -58,6 +58,10 @@
   import * as BK from "/newdesign/booth/noraBoothKeeper.mjs?v=673e8159eb";
   window.ShapeBoothState = BS; window.ShapeBoothKeeper = BK;
 </script>
+<!-- Club Shape's rooms and the film that shows them (the pictures of the club, radio.jsx's
+     RadioClub). One small module with no imports, so the page loads it at once and under one
+     content hash; the stills themselves are fetched one at a time as a room is shown. -->
+<script type="module">import * as CV from "/newdesign/booth/clubViews.mjs?v=9835c4a137"; window.ShapeClubViews = CV;</script>
 <!-- ⚠ THE APP'S OWN MODULES, IMPORTED RATHER THAN PORTED. radioSignalField.mjs and
      radioTempo.mjs are the files iosAppBroadsheetRadio.jsx draws the Signal Field
      from; they are canonical here and the app imports them across the tree, so the
