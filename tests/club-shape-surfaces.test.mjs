@@ -238,7 +238,7 @@ test('the website’s club opens on the door, shows the module’s rooms, and ke
 
 test('the website says what the pictures are, and never calls them live or offers anything', () => {
   const club = fnSource(WEB, 'RadioClub').replace(/^\s*\/\/.*$/gm, '');
-  assert.match(club, /The rooms and grounds are pictures of Club Shape, made with AI from its 3D room, Nora’s portrait and the club’s own pictures\. They are not a live feed, and nothing in them is for sale\./);
+  assert.match(club, /The rooms and grounds are pictures of Club Shape, made with AI\. They are not a live feed, and nothing in them is for sale\./);
   // Text a visitor reads: string literals and JSX text. "LIVE" would be a claim about a still.
   const shown = [...club.matchAll(/"([^"\n]*)"|>([^<>{}\n]+)</g)].map((m) => m[1] || m[2] || '').filter((s) => /[A-Za-z]{3}/.test(s));
   for (const s of shown) {

@@ -568,7 +568,7 @@ function RadioClub() {
           <p style={{ fontFamily: RD_SANS, fontSize: 13, color: RD_CREAM50, margin: "14px 0 0", maxWidth: 720, lineHeight: 1.55 }}>
             {live
               ? "This is the live 3D room. While the station is not on the air Nora plays a labelled example set; while it is, she moves on what it is playing."
-              : "The rooms and grounds are pictures of Club Shape, made with AI from its 3D room, Nora’s portrait and the club’s own pictures. They are not a live feed, and nothing in them is for sale."}
+              : "The rooms and grounds are pictures of Club Shape, made with AI. They are not a live feed, and nothing in them is for sale."}
           </p>
 
           <RdWhatsOn />
