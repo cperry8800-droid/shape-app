@@ -101,38 +101,28 @@ function RdSetsComingUp() {
   );
 }
 
-// ⚠ THE CARD STANDS IN CLUB SHAPE, THE SAME PICTURE AS THE APP'S SHAPE SETS SCREEN —
-// owner, 2026-10-09: "need the background here on this box on website to be club
-// shape, same picture that is background of shape sets on app". `/club-shape-bg.webp`
-// is the app's `mobile-app/public/club-shape-bg.jpg` re-encoded (232 KB against
-// 403 KB), portrait like the original: on a laptop the box shows the band with the
-// venue in it, and on a phone, where the box runs tall, more of the skyline and the
-// water. The scrim is darker than the app's (0.22–0.55), with a soft text shadow,
-// because the copy sits on the picture here; in the app it sits on glass cards.
-const RD_CLUB_BG = "/club-shape-bg.webp";
-
-function RadioShapeSets() {
+// ⚠ SHAPE SETS IS WHAT'S ON AT THE CLUB, NOT A CARD OF ITS OWN. It was a second box under Nora's,
+// standing in a picture of the venue (owner, 2026-10-09). The venue has a section of its own now
+// (RadioClub, below), and the series is the block under its rooms. Its copy and its schedule are
+// unchanged: "Coming soon" until a set is published, and the schedule is read out of nora_sets.
+// It keeps the #sets anchor the instrument's strip links to.
+function RdWhatsOn() {
   return (
-    <section style={{ padding: "80px 72px" }}>
-      <RdReveal>
-        <div style={{ position: "relative", overflow: "hidden", maxWidth: 860, margin: "0 auto", padding: 48, background: `linear-gradient(180deg, rgba(8,10,9,0.72) 0%, rgba(8,10,9,0.5) 46%, rgba(8,10,9,0.88) 100%), #0a0d0c url('${RD_CLUB_BG}') center 47% / cover no-repeat`, textShadow: "0 1px 2px rgba(0,0,0,0.6), 0 0 16px rgba(0,0,0,0.5)", border: "1px solid rgba(242,237,228,0.18)", borderRadius: 4, textAlign: "center" }}>
-          <div aria-hidden style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, background: `linear-gradient(90deg, ${RD_TEAL}, ${RD_HOT})`, opacity: 0.75 }} />
-          <div style={{ display: "inline-flex", alignItems: "center", gap: 8, fontFamily: RD_NUM, fontSize: 11, letterSpacing: "0.2em", textTransform: "uppercase", color: RD_TEAL, marginBottom: 16 }}>
-            From Club Shape
-          </div>
-          <h2 style={{ fontFamily: RD_DISP, fontSize: "clamp(44px, 6vw, 72px)", letterSpacing: "-0.04em", fontWeight: 300, margin: 0, lineHeight: 0.95 }}>
-            Shape <em style={{ fontStyle: "italic", fontWeight: 600, color: RD_TEAL }}>Sets.</em>
-          </h2>
-          <p style={{ fontFamily: RD_SANS, fontSize: 16, fontWeight: 500, color: "rgba(242,237,228,0.95)", margin: "22px auto 0", maxWidth: 620, lineHeight: 1.55 }}>
-            A virtual concert series broadcast straight from <strong style={{ color: RD_CREAM, fontWeight: 500 }}>Club Shape</strong>, our flagship venue. DJs and live acts, captured on the floor and streamed through Shape Radio.
-          </p>
-          <div style={{ marginTop: 36, fontFamily: RD_NUM, fontSize: 24, letterSpacing: "0.28em", textTransform: "uppercase", color: RD_TEAL, fontWeight: 500 }}>
-            Coming soon
-          </div>
-          <RdSetsComingUp />
-        </div>
-      </RdReveal>
-    </section>
+    <div id="sets" style={{ marginTop: 44, paddingTop: 40, borderTop: "1px solid rgba(242,237,228,0.14)", textAlign: "center" }}>
+      <div style={{ display: "inline-flex", alignItems: "center", gap: 8, fontFamily: RD_NUM, fontSize: 11, letterSpacing: "0.2em", textTransform: "uppercase", color: RD_TEAL, marginBottom: 16 }}>
+        From Club Shape
+      </div>
+      <h3 style={{ fontFamily: RD_DISP, fontSize: "clamp(36px, 4.6vw, 56px)", letterSpacing: "-0.04em", fontWeight: 300, margin: 0, lineHeight: 0.95 }}>
+        Shape <em style={{ fontStyle: "italic", fontWeight: 600, color: RD_TEAL }}>Sets.</em>
+      </h3>
+      <p style={{ fontFamily: RD_SANS, fontSize: 16, fontWeight: 500, color: "rgba(242,237,228,0.9)", margin: "20px auto 0", maxWidth: 620, lineHeight: 1.55 }}>
+        A virtual concert series broadcast straight from <strong style={{ color: RD_CREAM, fontWeight: 500 }}>Club Shape</strong>, our flagship venue. DJs and live acts, captured on the floor and streamed through Shape Radio.
+      </p>
+      <div style={{ marginTop: 30, fontFamily: RD_NUM, fontSize: 22, letterSpacing: "0.28em", textTransform: "uppercase", color: RD_TEAL, fontWeight: 500 }}>
+        Coming soon
+      </div>
+      <RdSetsComingUp />
+    </div>
   );
 }
 
@@ -176,28 +166,16 @@ async function rdKeeper() {
   return rdBoothKeeper;
 }
 
-// ⚠ NORA HAS A BOX OF HER OWN, ABOVE SHAPE SETS — owner, 2026-10-15: "give nora its own box like
-// shape sets has, and move it above shape sets on page", "and we need a good background for noras
-// box as well". The same frame as the Sets card (860 wide, the accent bar, the shadow under the
-// copy), so the two read as a pair. The booth opens inside it.
-//
-// ⚠ ITS HEADER IS THE STAGE, NOT TYPE. Of the two the owner was shown (her portrait behind the
-// copy, or NORA up on the LED wall in Club Shape) they picked the wall, and then: "use the nora on
-// background as the header, so remove Nora in blue font". `/nora-stage.webp` is a still of the
-// booth's own scene, the wall pinned to its NORA artwork and her placeholder model hidden ("remove
-// noras avatar from snapshot"): prototypes/nora-booth/nora-wall-still.cjs makes it, camera
-// [0, 3.4, -15] at [0, 4.4, 5.44], fov 34, a 1600x900 frame rendered at 2x, letterbox cropped to the
-// wall's top 1120 rows and downscaled to 1720x602, twice the box's width. ⚠ At 1x it read "very
-// pixelated" (owner, 2026-10-15): tests/nora-stage-header.test.mjs holds the width.
-// The band runs to the box's edges and fades into it; the heading is still an <h2>, read by a
-// screen reader and hidden on screen, because the picture is the visual header.
-const RD_NORA_STAGE = "/nora-stage.webp";
-const RD_SR_ONLY = { position: "absolute", width: 1, height: 1, margin: -1, padding: 0, overflow: "hidden", clip: "rect(0 0 0 0)", whiteSpace: "nowrap", border: 0 };
-
-function RadioNora() {
+// ⚠ THE LIVE ROOM IS A WAY OF LOOKING AT THE CLUB, NOT A BOX OF ITS OWN. It had one (owner,
+// 2026-10-15), with a still of the booth's LED wall as its header. Beside Nora's portrait and the
+// venue picture the 3D room read as a video game (owner, 2026-11-16: "make it look like the
+// pictures, more real"), so the club is shown through its pictures (RadioClub) and this is what
+// "Look around" opens in their place: the same booth, kept and released exactly as before.
+function RadioNora({ onExit }) {
   const hostRef = React.useRef(null);
   const boothRef = React.useRef(null);
-  const [open, setOpen] = React.useState(false);
+  // Open from the first render: the visitor asked for the live room by choosing Look around.
+  const [open, setOpen] = React.useState(true);
   const [state, setState] = React.useState("closed");   // closed | opening | open | unsupported | failed
   const [progress, setProgress] = React.useState(null);
   const [snap, setSnap] = React.useState(null);
@@ -327,21 +305,8 @@ function RadioNora() {
   const tag = { fontFamily: RD_NUM, fontWeight: 700, fontSize: 11, letterSpacing: "0.14em", textTransform: "uppercase", fontVariationSettings: "'ROND' 100" };
 
   return (
-    <section id="nora" style={{ padding: "80px 72px 0" }}>
-      <RdReveal>
-        <div style={{ "--pad": "clamp(24px, 5vw, 48px)", position: "relative", overflow: "hidden", maxWidth: 860, margin: "0 auto", padding: "var(--pad)", background: "#0a0d0c", textShadow: "0 1px 2px rgba(0,0,0,0.6), 0 0 16px rgba(0,0,0,0.5)", border: "1px solid rgba(242,237,228,0.18)", borderRadius: 4, textAlign: "center" }}>
-          <div aria-hidden style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, background: `linear-gradient(90deg, ${RD_TEAL}, ${RD_HOT})`, opacity: 0.75 }} />
-          <h2 style={RD_SR_ONLY}>Nora</h2>
-          {/* ⚠ An explicit width, not just the negative margins: with only aspect-ratio and
-              min-height, the min-height is transferred through the ratio into the WIDTH, and on a
-              phone the band ran 82px past the box and pushed NORA off its right edge (measured). */}
-          <div aria-hidden style={{ width: "calc(100% + var(--pad) * 2)", margin: "calc(var(--pad) * -1) calc(var(--pad) * -1) 20px", aspectRatio: "1600 / 560", minHeight: 150, background: `linear-gradient(180deg, rgba(10,13,12,0) 55%, #0a0d0c 100%), url('${RD_NORA_STAGE}') center top / cover no-repeat` }} />
-          <div style={{ ...tag, color: RD_TEAL }}>The booth</div>
-          <p style={{ fontFamily: RD_SANS, fontSize: 16, fontWeight: 500, color: "rgba(242,237,228,0.95)", margin: "14px auto 0", maxWidth: 560, lineHeight: 1.55 }}>
-            Shape&rsquo;s resident at the decks in Club Shape. While the station is not on the air
-            she plays a labelled example set; while it is, she moves on what it is playing.
-          </p>
-          <div className="rd-booth" style={{ position: "relative", width: "100%", margin: "26px auto 0", display: showing || state === "failed" || state === "unsupported" ? "block" : "none", border: "1px solid rgba(238,243,240,0.12)", background: "#07080a", overflow: "hidden", textAlign: "left" }}>
+    <div data-club-live>
+          <div className="rd-booth" style={{ position: "relative", width: "100%", margin: "0 auto", display: showing || state === "failed" || state === "unsupported" ? "block" : "none", border: "1px solid rgba(238,243,240,0.12)", background: "#07080a", overflow: "hidden", textAlign: "left" }}>
             <div ref={hostRef} role="img" aria-label="Nora at the decks in Club Shape: two media players and a mixer on a stage, with lights and a crowd" style={{ position: "absolute", inset: 0 }} />
             <div aria-live="polite" style={{ ...tag, position: "absolute", top: 12, left: 14, right: 110, display: "flex", alignItems: "center", gap: 8, color: lit ? RD_TEAL : RD_CREAM50 }}>
               <span aria-hidden style={{ width: 7, height: 7, borderRadius: 4, flex: "0 0 auto", background: lit ? RD_TEAL : "transparent", border: `1px solid ${lit ? RD_TEAL : RD_CREAM50}` }} />
@@ -389,14 +354,224 @@ function RadioNora() {
             </p>
           )}
           <div style={{ display: "flex", justifyContent: "center", gap: 10, marginTop: 18 }}>
-            <button type="button" onClick={() => setOpen((v) => !v)}
+            <button type="button" onClick={() => { setOpen(false); if (onExit) onExit(); }}
               style={{ height: 44, padding: "0 20px", background: "transparent", border: `1px solid ${RD_TEAL}`, color: RD_TEAL, fontFamily: RD_SANS, fontWeight: 600, fontSize: 13.5, cursor: "pointer", clipPath: "polygon(0 0, calc(100% - 9px) 0, 100% 9px, 100% 100%, 0 100%)" }}>
-              {showing ? "Hide Nora" : "Watch Nora"}
+              ← Back to the pictures
             </button>
             {state === "failed" && (
               <button type="button" onClick={() => setAttempt((n) => n + 1)} style={chip(false)}>Try again</button>
             )}
           </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Club Shape
+// ---------------------------------------------------------------------------
+//
+// ⚠ THE CLUB HAS ONE DOOR. It had none: it lived in a box called Nora, behind "Watch Nora" and a
+// "Loading Nora… 37%" line, with its rooms as loose camera chips, and Shape Sets (the club's own
+// series) sat in a second box below. This is the one section for all of it: the door (the club
+// from the street), the rooms and the grounds as pictures of the club (window.ShapeClubViews,
+// clubViews.mjs), the live 3D room under Look around, and what is on.
+//
+// ⚠ THE PICTURES ARE NOT A FEED, AND THE PAGE SAYS SO. They are stills made from the 3D club's own
+// frames and Nora's portrait (marketing/club-shape/views-sources.md). Nothing here says LIVE; the
+// station's own state is the one line about what is playing, read off the instrument above.
+//
+// ⚠ THE ROOMS AND THE GROUNDS ARE SCENERY: no booking, price or availability (clubViews.mjs).
+const RD_SR_ONLY = { position: "absolute", width: 1, height: 1, margin: -1, padding: 0, overflow: "hidden", clip: "rect(0 0 0 0)", whiteSpace: "nowrap", border: 0 };
+
+function RadioClub() {
+  const V = window.ShapeClubViews;
+  const hostRef = React.useRef(null);
+  const stageRef = React.useRef(null);
+  const filmRef = React.useRef(null);
+  const roomRef = React.useRef(null);     // the room to come back to from the live room
+  // The tour changes the picture by itself, so a visitor who asked for reduced motion starts with
+  // it stopped (Codex P2, #2744: the CSS held the layers still and the timer swapped them anyway).
+  // "Take the tour" is still theirs to press.
+  const tourRef = React.useRef(!RD_REDUCED);
+  const [mode, setMode] = React.useState("door");   // door | film | live
+  const [tour, setTour] = React.useState(!RD_REDUCED);
+  const [snap, setSnap] = React.useState({ id: null, status: "loading", auto: false });
+  const [seen, setSeen] = React.useState(false);     // a still has been shown at least once
+  const [full, setFull] = React.useState(false);
+  const [radio, setRadio] = React.useState(() => window.__shapeRadioState || { signedIn: null, configured: null, playing: false });
+  React.useEffect(() => {
+    const on = (e) => setRadio((e && e.detail) || window.__shapeRadioState || { signedIn: null, configured: null, playing: false });
+    window.addEventListener("shape:radiostate", on);
+    return () => window.removeEventListener("shape:radiostate", on);
+  }, []);
+
+  const live = mode === "live";
+  // The film lives as long as its box does: through the door and the rooms, gone while the live
+  // room has the stage, and back on the room the visitor left.
+  React.useEffect(() => {
+    if (live || !V || !V.createClubFilm || !hostRef.current) return undefined;
+    const film = V.createClubFilm({
+      host: hostRef.current, base: "/", reducedMotion: RD_REDUCED,
+      // The room on screen is the one to come back to, whether it was picked or the tour reached it.
+      onChange: (s) => { setSnap(s); if (s.status === "shown") { setSeen(true); roomRef.current = s.id; } },
+    });
+    filmRef.current = film;
+    film.setAuto(tourRef.current);
+    film.show(roomRef.current || V.CLUB_DOOR);
+    const fit = () => film.resize();
+    const onFull = () => { setFull(document.fullscreenElement === stageRef.current); film.resize(); };
+    window.addEventListener("resize", fit);
+    document.addEventListener("fullscreenchange", onFull);
+    return () => {
+      window.removeEventListener("resize", fit);
+      document.removeEventListener("fullscreenchange", onFull);
+      film.destroy();
+      filmRef.current = null;
+    };
+  }, [live]);
+
+  // The light keeps the station's tempo only while the station plays and the server sent one.
+  const stationPlaying = !!radio.playing;
+  const noraNow = radio.nowPlaying && radio.nowPlaying.isNora === true && radio.nowPlaying.nora ? radio.nowPlaying.nora : null;
+  const bpm = stationPlaying && noraNow && noraNow.bpm ? noraNow.bpm : null;
+  React.useEffect(() => { if (filmRef.current) filmRef.current.setTempo(bpm); }, [bpm, live]);
+
+  const go = (id) => { roomRef.current = id; if (filmRef.current) filmRef.current.show(id); };
+  const enter = () => { setMode("film"); go(V.CLUB_FIRST); };
+  // Choosing a room is choosing to stay in it: the tour stops until it is asked for again.
+  const stay = () => { tourRef.current = false; setTour(false); if (filmRef.current) filmRef.current.setAuto(false); };
+  const pick = (id) => { stay(); go(id); };
+  const step = (n) => { stay(); go(V.nextClubView(snap.id, n)); };
+  const toggleTour = () => { const on = !tourRef.current; tourRef.current = on; setTour(on); if (filmRef.current) filmRef.current.setAuto(on); };
+  const toggleFull = () => {
+    const el = stageRef.current;
+    if (!el) return;
+    if (document.fullscreenElement === el) { if (document.exitFullscreen) document.exitFullscreen(); }
+    else if (el.requestFullscreen) el.requestFullscreen().catch(() => {});
+  };
+  const onKey = (e) => {
+    if (mode !== "film") return;
+    if (e.key === "ArrowRight") { e.preventDefault(); step(1); }
+    if (e.key === "ArrowLeft") { e.preventDefault(); step(-1); }
+  };
+
+  // The tour moves on by itself, so the rail follows it: the lit room is kept in view by moving
+  // the rail alone (scrollIntoView would also move the page under a reader further down it).
+  const railRef = React.useRef(null);
+  React.useEffect(() => {
+    const rail = railRef.current;
+    const on = rail && snap.id ? rail.querySelector(`[data-club-room="${snap.id}"]`) : null;
+    if (!on) return;
+    const left = on.offsetLeft - rail.offsetLeft, right = left + on.offsetWidth;
+    if (left < rail.scrollLeft) rail.scrollLeft = Math.max(0, left - 12);
+    else if (right > rail.scrollLeft + rail.clientWidth) rail.scrollLeft = right - rail.clientWidth + 12;
+  }, [snap.id, mode]);
+
+  const view = V && snap.id ? V.clubView(snap.id) : null;
+  const rooms = V ? V.clubRooms() : [];
+  const canFull = typeof document !== "undefined" && !!document.fullscreenEnabled;
+  const tag = { fontFamily: RD_NUM, fontWeight: 700, fontSize: 11, letterSpacing: "0.14em", textTransform: "uppercase", fontVariationSettings: "'ROND' 100" };
+  const chip = (active) => ({
+    flex: "0 0 auto", height: 40, padding: "0 15px", background: active ? "rgba(52,214,197,0.12)" : "transparent",
+    border: `1px solid ${active ? RD_TEAL : "rgba(238,243,240,0.24)"}`, color: active ? RD_TEAL : RD_CREAM,
+    fontFamily: RD_SANS, fontWeight: 600, fontSize: 13.5, cursor: "pointer", whiteSpace: "nowrap",
+  });
+  const round = { width: 44, height: 44, display: "grid", placeItems: "center", background: "rgba(6,9,15,0.55)", border: "1px solid rgba(238,243,240,0.28)", color: RD_CREAM, fontFamily: RD_SANS, fontSize: 20, lineHeight: 1, cursor: "pointer", borderRadius: 22 };
+  const shade = "0 1px 2px rgba(0,0,0,0.7), 0 0 18px rgba(0,0,0,0.55)";
+
+  return (
+    <section id="club" style={{ padding: "80px 24px 0" }}>
+      <RdReveal>
+        <div style={{ maxWidth: 1180, margin: "0 auto" }}>
+          <div style={{ display: "flex", flexWrap: "wrap", alignItems: "flex-end", justifyContent: "space-between", gap: "14px 40px", marginBottom: 22 }}>
+            <div>
+              <div style={{ ...tag, color: RD_TEAL, marginBottom: 12 }}>Shape’s virtual venue</div>
+              <h2 style={{ fontFamily: RD_DISP, fontSize: "clamp(44px, 6vw, 76px)", letterSpacing: "-0.04em", fontWeight: 300, margin: 0, lineHeight: 0.92 }}>
+                Club <em style={{ fontStyle: "italic", fontWeight: 600, color: RD_TEAL }}>Shape.</em>
+              </h2>
+            </div>
+            <p style={{ fontFamily: RD_SANS, fontSize: 15.5, fontWeight: 500, color: "rgba(242,237,228,0.82)", margin: 0, maxWidth: 430, lineHeight: 1.55 }}>
+              Nora plays the main room. Walk the floor, take a table, go up to a booth or a private room, step out to the lounge and the bar, or head outside to the pools and the courts.
+            </p>
+          </div>
+
+          {live ? (
+            <RadioNora onExit={() => setMode("film")} />
+          ) : (
+            <div ref={stageRef} className="rd-club-stage" role="group" aria-roledescription="carousel" aria-label="Club Shape" tabIndex={mode === "film" ? 0 : -1} onKeyDown={onKey}
+              style={{ position: "relative", width: "100%", overflow: "hidden", background: "#05070a", border: "1px solid rgba(238,243,240,0.14)", outlineOffset: 3 }}>
+              <div ref={hostRef} role="img" aria-label={view ? view.alt : "Club Shape"} style={{ position: "absolute", inset: 0 }} />
+              <div aria-live="polite" style={RD_SR_ONLY}>{mode === "film" && view ? view.label : ""}</div>
+
+              {!V && (
+                <div style={{ ...tag, position: "absolute", inset: 0, display: "grid", placeItems: "center", padding: 20, textAlign: "center", color: RD_CREAM50 }}>The club couldn’t open on this page. Reload to try again.</div>
+              )}
+              {V && !seen && snap.status === "loading" && (
+                <div style={{ ...tag, position: "absolute", inset: 0, display: "grid", placeItems: "center", color: RD_CREAM50 }}>Opening Club Shape…</div>
+              )}
+
+              {mode === "door" && (
+                // The picture carries the club's own mark and sign over its entrance, so the door adds
+                // one thing to it: the way in, low on the plaza and clear of the sign.
+                <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-end", padding: "24px 24px clamp(22px, 5%, 44px)", textAlign: "center", background: "linear-gradient(180deg, rgba(5,7,10,0) 55%, rgba(5,7,10,0.72))" }}>
+                  <button type="button" data-club-enter onClick={enter} disabled={!V}
+                    style={{ height: 52, padding: "0 30px", border: 0, background: RD_TEAL, color: "#04110f", fontFamily: RD_SANS, fontWeight: 700, fontSize: 15.5, cursor: "pointer", clipPath: "polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%)" }}>
+                    Step inside →
+                  </button>
+                </div>
+              )}
+
+              {mode === "film" && (
+                <React.Fragment>
+                  <div aria-hidden style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: "42%", background: "linear-gradient(180deg, rgba(5,7,10,0), rgba(5,7,10,0.82))", pointerEvents: "none" }} />
+                  <div aria-hidden style={{ position: "absolute", left: 0, right: 0, top: 0, height: "22%", background: "linear-gradient(180deg, rgba(5,7,10,0.6), rgba(5,7,10,0))", pointerEvents: "none" }} />
+                  <div style={{ ...tag, position: "absolute", top: 16, left: 18, display: "flex", alignItems: "center", gap: 8, color: stationPlaying ? RD_TEAL : RD_CREAM50, textShadow: shade }}>
+                    <span aria-hidden style={{ width: 7, height: 7, borderRadius: 4, flex: "0 0 auto", background: stationPlaying ? RD_TEAL : "transparent", border: `1px solid ${stationPlaying ? RD_TEAL : RD_CREAM50}` }} />
+                    <span>{stationPlaying ? "Shape Radio is playing" : "Off air"}</span>
+                  </div>
+                  {canFull && (
+                    <button type="button" onClick={toggleFull} aria-label={full ? "Leave full screen" : "Full screen"} title={full ? "Leave full screen" : "Full screen"} style={{ ...round, position: "absolute", top: 12, right: 14, fontSize: 17 }}>
+                      {full ? "×" : "⤢"}
+                    </button>
+                  )}
+                  <div style={{ position: "absolute", left: 18, right: 18, bottom: 16, display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 14 }}>
+                    <div style={{ minWidth: 0, textShadow: shade }}>
+                      <div style={{ fontFamily: RD_DISP, fontWeight: 500, fontVariationSettings: "'wdth' 105", fontSize: "clamp(24px, 3.2vw, 40px)", letterSpacing: "-0.02em", lineHeight: 1, color: RD_CREAM }}>{view ? view.label : ""}</div>
+                      {snap.status === "failed" && (
+                        <div role="status" style={{ fontFamily: RD_SANS, fontSize: 13.5, color: RD_HOT, marginTop: 8 }}>That room’s picture didn’t load. Pick another, or try it again.</div>
+                      )}
+                    </div>
+                    <div style={{ display: "flex", gap: 8, flex: "0 0 auto" }}>
+                      <button type="button" onClick={() => step(-1)} aria-label="Previous room" style={round}>‹</button>
+                      <button type="button" onClick={() => step(1)} aria-label="Next room" style={round}>›</button>
+                    </div>
+                  </div>
+                </React.Fragment>
+              )}
+            </div>
+          )}
+
+          {mode === "film" && (
+            <React.Fragment>
+              <div ref={railRef} className="rd-club-rail" role="group" aria-label="Rooms" style={{ display: "flex", gap: 8, marginTop: 14, overflowX: "auto", paddingBottom: 4 }}>
+                {rooms.map((r) => (
+                  <button key={r.id} type="button" data-club-room={r.id} aria-pressed={snap.id === r.id} onClick={() => pick(r.id)} style={chip(snap.id === r.id)}>{r.label}</button>
+                ))}
+              </div>
+              <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8, marginTop: 10 }}>
+                <button type="button" aria-pressed={tour} onClick={toggleTour} style={chip(tour)}>{tour ? "■ Stop the tour" : "▶ Take the tour"}</button>
+                <button type="button" data-club-live-open onClick={() => setMode("live")} style={chip(false)}>Look around in 3D</button>
+              </div>
+            </React.Fragment>
+          )}
+
+          <p style={{ fontFamily: RD_SANS, fontSize: 13, color: RD_CREAM50, margin: "14px 0 0", maxWidth: 720, lineHeight: 1.55 }}>
+            {live
+              ? "This is the live 3D room. While the station is not on the air Nora plays a labelled example set; while it is, she moves on what it is playing."
+              : "The rooms and grounds are pictures of Club Shape, made with AI from its 3D room, Nora’s portrait and the club’s own pictures. They are not a live feed, and nothing in them is for sale."}
+          </p>
+
+          <RdWhatsOn />
         </div>
       </RdReveal>
     </section>
@@ -458,15 +633,20 @@ function RadioPage() {
     <div className="radio-page" style={{ color: RD_CREAM, minHeight: "100vh", background: "#06090f" }}>
       <Header active="Radio" />
       <RadioInstrument />
-      <RadioNora />
-      <div id="sets"><RadioShapeSets /></div>
+      <RadioClub />
+      <div style={{ height: 96 }} />
       <RadioJoin />
       <Footer />
       <style>{`
         html, body { background: #06090f !important; }
         .radio-page ::selection { background: #34d6c5; color: #04110f; }
         .rd-booth { aspect-ratio: 16 / 9; }
-        @media (max-width: 640px) { .rd-booth { aspect-ratio: 4 / 5; } }
+        .rd-club-stage { aspect-ratio: 16 / 9; }
+        .rd-club-stage:fullscreen { width: 100vw; height: 100vh; aspect-ratio: auto; border: 0; }
+        .rd-club-stage:focus-visible { outline: 2px solid #34d6c5; }
+        .rd-club-rail { scrollbar-width: none; }
+        .rd-club-rail::-webkit-scrollbar { display: none; }
+        @media (max-width: 640px) { .rd-booth { aspect-ratio: 4 / 5; } .rd-club-stage { aspect-ratio: 3 / 4; } }
       `}</style>
     </div>
   );

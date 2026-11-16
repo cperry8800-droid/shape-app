@@ -65,17 +65,23 @@ test('the Radio station\'s deck (option E, "the horizon"): one long key, the vot
   assert.doesNotMatch(deck, /volume/i);
 });
 
-test('the Radio page below the deck: magazine heads, hairline rows, a square Nora key ("update the rest of the radio page to match")', () => {
+test('the Radio page below the deck: magazine heads, hairline rows, the club\'s door ("update the rest of the radio page to match")', () => {
   const below = between(RADIO, 'paddingBottom: 80 + 28 }}>', '@keyframes bs-blink');
-  // Nora's preview key is the deck's square outline; on, the strip's teal mark under it, never a wash or a spine.
-  const key = between(below, '<button onClick={toggleNora}', '</button>');
-  assert.match(key, /aria-pressed=\{noraOn\}/);
-  assert.match(key, /minHeight: 44,[\s\S]*?borderRadius: 0,[\s\S]*?border: `1px solid \$\{CREAM\}`,\s*boxShadow: noraOn \? `inset 0 -2px 0 \$\{TEAL\}` : 'none'/);
+  // The club's door (owner, 2026-11-16: "improve the graphics and flow of club shape"): where Nora's
+  // square preview key and the 3D box under it were, one picture of the club from the street that
+  // opens the Club Shape screen. The 3D room is inside that screen now, so nothing below the deck
+  // toggles Nora or mounts the booth.
+  const door = between(below, '<button type="button" data-radio-club-door', '</button>');
+  assert.match(door, /onClick=\{\(\) => setShowClub\(true\)\}/);
+  assert.match(door, /aspectRatio: '16 \/ 9'/);
+  assert.match(door, /clubViewUrl\('arrival', \{ base: bsClubBase\(\), format: 'landscape', small: true \}\)/);
+  assert.match(door, /radio:club\.enter/);
+  assert.doesNotMatch(below, /toggleNora|<BSNoraBooth/, 'the booth is mounted on the Radio screen again, outside the club');
   assert.doesNotMatch(below, /borderLeft: `3px solid \$\{TEAL\}`/, 'a teal spine is back below the deck');
   assert.doesNotMatch(below, /borderRadius: 10/);
-  // Each section opens on the magazine head: Nora, Channel, Shape Sets.
+  // Each section opens on the magazine head: Club Shape, Channel, Shape Sets.
   assert.equal((below.match(/<DarkSection /g) || []).length, 3);
-  assert.match(below, /<DarkSection title="Nora" /);
+  assert.match(below, /<DarkSection title="Club Shape" /);
   // Shape Sets is upright, as every head and title on the page.
   const sets = between(below, '<button data-radio-sets-row', '</button>');
   assert.doesNotMatch(sets, /fontStyle: 'italic'/);

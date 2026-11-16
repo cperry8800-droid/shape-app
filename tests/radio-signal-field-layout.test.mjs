@@ -374,7 +374,7 @@ test('the strip is a channel row, not a track list', () => {
   const screen = screenBody();
   // Channels may be chosen; tracks never — prohibition 4 again. Three entries,
   // each a destination the app already has.
-  for (const k of ['radio:strip.live', 'radio:strip.sets', 'radio:strip.nora']) {
+  for (const k of ['radio:strip.live', 'radio:strip.sets', 'radio:strip.club']) {
     assert.match(screen, new RegExp(k.replace('.', '\\.')), `the strip lost ${k}`);
   }
   assert.doesNotMatch(screen, /r\.PLAYLISTS/, 'the page reads a playlist map the context never provides');

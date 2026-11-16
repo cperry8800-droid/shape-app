@@ -5,6 +5,8 @@ import { createBoothKeeper } from '../../../public/newdesign/booth/noraBoothKeep
 import { bsSetsNow } from '../../../public/newdesign/noraSets.mjs';
 import { BS_CLEAN_HEAD, BS_CLEAN_SANS } from './bsCleanType.jsx';
 import { BSPaidLock, BSLockGlyph, useBSPaidLock, bsPaidGo, bsPaidActionLabel, bsPaidFeatureLine } from './BSPaidLock.jsx';
+import { clubViewUrl } from '../../../public/newdesign/booth/clubViews.mjs';
+import { BSClubShape, bsClubBase } from './BSClubShape.jsx';
 import {
   BANDS, BAND_BINS, hasSignal, bandsFromBins, smoothBand, peakBand, barHeight, capVisible,
   fieldBin, fieldK, fieldAlpha, fieldRadius,
@@ -2337,6 +2339,9 @@ function BSRadioSignalField({ paused, matching, heartBpm, teal, hot, heart, pape
 // few minutes with nobody looking, and `bsNoraWanted` remembers that it was open.
 let bsBoothKeeperRef = null;
 let bsNoraWanted = false;
+// The club screen is a drill-in held in the Radio screen's state, so it is remembered the same way:
+// a member who left the tab inside Club Shape comes back inside it.
+let bsClubWanted = false;
 function bsBoothKeeper() {
   if (bsBoothKeeperRef) return bsBoothKeeperRef;
   bsBoothKeeperRef = createBoothKeeper({
@@ -2577,6 +2582,8 @@ function BSRadioScreen({ onBack }) {
   const [liveHr, setLiveHr] = useStateBR(null); // real strap/watch reading (window.ShapeHRM)
   const [matching, setMatching] = useStateBR(false);
   const [showSets, setShowSets] = useStateBR(false);
+  const [showClub, setShowClubState] = useStateBR(() => bsClubWanted);
+  const setShowClub = (v) => { bsClubWanted = !!v; setShowClubState(!!v); };
   const [commentsOpen, setCommentsOpen] = useStateBR(false);
   // The figure block the canvas measures and draws inside. See the comment at
   // its own element, and the one at `measureFigure` in the field.
@@ -2726,6 +2733,20 @@ function BSRadioScreen({ onBack }) {
   const GLASS = { borderRadius: 14, border: `1px solid ${EDGE}`, background: PANEL, backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)' };
 
   if (showSets) return <BSShapeSetsScreen onBack={() => setShowSets(false)} />;
+  // Club Shape: the door, the rooms as pictures, and the live 3D room under Look around
+  // (BSClubShape.jsx). The booth is this module's (three loads only when it opens), so it is handed
+  // in to draw; `noraOn` is whether the live room is showing, remembered across a tab away and back
+  // as it always was. Back leaves the club, live room and all: the next visit starts at the door,
+  // not inside a 3D room nobody asked for. Shape Sets opened from inside the club returns to it.
+  if (showClub) return (
+    <BSClubShape onBack={() => { if (noraOn) toggleNora(); setShowClub(false); }} onSets={() => setShowSets(true)}
+      stationPlaying={stationPlaying} bpm={noraNow ? noraNow.bpm : null}
+      live={noraOn} onLive={(on) => { if (!!on !== noraOn) toggleNora(); }}
+      renderLive={() => (
+        <BSNoraBooth on={noraOn} prospect={previewSim} stationConfigured={stationConfigured} stationPlaying={stationPlaying}
+          guestDj={guestDj} noraNow={noraNow} TEAL={TEAL} CREAM="#f4ede0" CREAM50="rgba(244,237,224,0.55)" CREAM25="rgba(244,237,224,0.25)" />
+      )} />
+  );
 
   return (
     <div className="bs-scroll" style={{
@@ -2988,7 +3009,7 @@ function BSRadioScreen({ onBack }) {
             {[
               { key: 'live', on: true, label: tr('radio:strip.live', { defaultValue: 'Live' }), go: () => r.setChannel('live') },
               { key: 'sets', on: false, label: tr('radio:strip.sets', { defaultValue: 'Shape Sets' }), go: () => setShowSets(true) },
-              { key: 'nora', on: noraOn, label: tr('radio:strip.nora', { defaultValue: 'Nora' }), go: toggleNora },
+              { key: 'club', on: false, label: tr('radio:strip.club', { defaultValue: 'Club Shape' }), go: () => setShowClub(true) },
             ].map(s => (
               <button key={s.key} aria-pressed={s.on} onClick={s.go} style={{ flex: 1, minWidth: 0, minHeight: 44, padding: '0 6px', border: 0, borderRadius: 0, cursor: 'pointer', background: 'transparent',
                 boxShadow: s.on ? `inset 0 -2px 0 ${TEAL}, 0 8px 16px -12px ${TEAL}` : 'none',
@@ -3022,23 +3043,25 @@ function BSRadioScreen({ onBack }) {
           its background fills all the way down (no color step / "border" above the nav). */}
       <div style={{ background: GROUND, borderTop: `1px solid ${HAIR}`, paddingBottom: 80 + 28 }}>
 
-        {/* ── NORA WATCH (preview) ──────────────────────────────────────────── */}
-        <DarkSection title="Nora" meta={tr('radio:nora.djPreview', { defaultValue: 'DJ preview' })} cream={CREAM} cream50={CREAM50} rule={RULE_DK} t={t} />
+        {/* ── CLUB SHAPE ────────────────────────────────────────────────────── */}
+        {/* The club's door. It was a box called Nora with the 3D room inside it; the club is a
+            screen of its own now, and this is the way in: the club from the street. */}
+        <DarkSection title="Club Shape" meta={tr('radio:club.sectionMeta', { defaultValue: 'Virtual venue' })} cream={CREAM} cream50={CREAM50} rule={RULE_DK} t={t} />
         <div style={{ padding: `12px ${t.padX}px 0` }}>
-          <BSNoraBooth on={noraOn} prospect={previewSim} stationConfigured={stationConfigured} stationPlaying={stationPlaying}
-            guestDj={guestDj} noraNow={noraNow} TEAL={TEAL} CREAM={CREAM} CREAM50={CREAM50} CREAM25={CREAM25} />
-          {/* A square key like the deck's: the ink outline, and when Nora is up, the station's teal under it
-              (the strip's mark for the one that's on), never a teal wash or a spine. */}
-          <button onClick={toggleNora} aria-pressed={noraOn} style={{
-            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 9,
-            width: '100%', boxSizing: 'border-box', minHeight: 44,
-            padding: '12px 14px', cursor: 'pointer', borderRadius: 0,
-            background: 'transparent', color: CREAM, border: `1px solid ${CREAM}`,
-            boxShadow: noraOn ? `inset 0 -2px 0 ${TEAL}` : 'none',
-            fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.18em', textTransform: 'uppercase', fontWeight: 800,
+          <button type="button" data-radio-club-door onClick={() => setShowClub(true)} style={{
+            position: 'relative', display: 'block', width: '100%', aspectRatio: '16 / 9', boxSizing: 'border-box', padding: 0, cursor: 'pointer',
+            border: 0, borderRadius: 14, overflow: 'hidden', textAlign: 'left',
+            background: `#05070a url('${clubViewUrl('arrival', { base: bsClubBase(), format: 'landscape', small: true })}') center / cover no-repeat`,
           }}>
-            <span style={{ fontSize: 11, color: noraOn ? TEAL : CREAM }}>{noraOn ? '◉' : '○'}</span>
-            {noraOn ? tr('radio:nora.hide', { defaultValue: 'Hide Nora' }) : tr('radio:nora.watch', { defaultValue: 'Watch Nora (preview)' })}
+            <span aria-hidden style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, rgba(5,7,10,0) 40%, rgba(5,7,10,0.82))' }} />
+            <span style={{ position: 'absolute', left: 14, right: 14, bottom: 12, display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12 }}>
+              <span style={{ minWidth: 0, fontFamily: t.BODY || t.DISPLAY, fontSize: 12.5, fontWeight: 500, lineHeight: 1.4, color: 'rgba(244,237,224,0.92)', textShadow: '0 1px 2px rgba(0,0,0,0.7)' }}>
+                {tr('radio:club.cardLine', { defaultValue: 'Nora in the main room, the tables and booths, the bar, and the pools and courts outside.' })}
+              </span>
+              <span style={{ flex: '0 0 auto', padding: '10px 16px', borderRadius: 999, background: TEAL, color: '#04110f', fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.18em', textTransform: 'uppercase', fontWeight: 800, whiteSpace: 'nowrap' }}>
+                {tr('radio:club.enter', { defaultValue: 'Step inside' })} →
+              </span>
+            </span>
           </button>
         </div>
 

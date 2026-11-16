@@ -139,6 +139,12 @@ The rules and the code map. Every session loads it: when a rule changes, replace
   link sets no fee. `src/lib/coach-origin.mjs` mirrors `resolve_coach_checkout_origin`; a rate change
   appends to `ISSUED_FEE_BPS`, never replaces.
 - **Own radio station:** `services/station`, the engine's `NORA_MODE=station`, `radio/rotation.mjs`.
+- **Club Shape** is pictures first: `public/newdesign/booth/clubViews.mjs` (the rooms, and the film that
+  shows them; one import-free module) over the stills in `public/club/`, on the website's Radio page
+  (`radio.jsx` `RadioClub`) and the app's `BSClubShape.jsx`; the 3D booth (`noraBooth.mjs`) opens from
+  "Look around in 3D". A new still: `scripts/club-shape-views/encode.py`, its prompt in
+  `marketing/club-shape/views-sources.md`, and a new `CLUB_ASSET_VERSION`. ⚠ The rooms are scenery: no
+  booking, price or availability, and nothing calls a picture live.
 - **Time zones:** one per account (`profiles.timezone`, `/api/me/timezone`); print through `shapeZone.mjs`;
   the server runs the engine inside `DashSignals.inZone(zone, now, fn)`, or its days are UTC's.
 - ⚠ **A screen holding a copy of a `user_goals` doc** reads it again when something else writes

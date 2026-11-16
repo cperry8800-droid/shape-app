@@ -548,10 +548,16 @@ function useRadioStation() {
   // while the stream plays, a signed-out visitor always, a member only while the station is not
   // configured), so they are parked and announced the way `shape:radiograph` is, unchanged — a
   // `null` still means "not measured yet", never "no".
+  //
+  // ⚠ AND WHAT IS PLAYING GOES WITH THEM (Codex P2, #2744). The booth's label and Club Shape's tour
+  // both read `nowPlaying.nora` off this state (her tempo, and whether her engine is the one on
+  // the air), and it was never in it: on the website the label could not say her mix and the tour
+  // never kept the music's count. It is this hook's own `nowPlaying`, so it is already null for a
+  // simulated payload and for a poll that did not land: a tempo here is one the server sent.
   React.useEffect(() => {
-    window.__shapeRadioState = { signedIn, configured, playing };
+    window.__shapeRadioState = { signedIn, configured, playing, nowPlaying };
     try { window.dispatchEvent(new CustomEvent("shape:radiostate", { detail: window.__shapeRadioState })); } catch (e) {}
-  }, [signedIn, configured, playing]);
+  }, [signedIn, configured, playing, nowPlaying]);
 
   return { signedIn, playing, configured, nowPlaying, refusal, play, pause, analyserRef, binsRef, startedAtRef };
 }
@@ -1222,7 +1228,7 @@ function RadioInstrument() {
             </div>
 
             <div className="rd-strip" style={{ display: "flex", gap: 10, flex: "0 0 auto" }}>
-              {[["Live", null], ["Nora", "#nora"], ["Shape Sets", "#sets"]].map(([label, href]) => (
+              {[["Live", null], ["Club Shape", "#club"], ["Shape Sets", "#sets"]].map(([label, href]) => (
                 <a key={label} href={href || undefined}
                   style={{ ...eb, padding: "9px 13px", border: `1px solid ${href ? "rgba(238,243,240,0.18)" : RD_TEAL}`, color: href ? RD_CREAM50 : RD_TEAL, textDecoration: "none", clipPath: "polygon(0 0, calc(100% - 7px) 0, 100% 7px, 100% 100%, 0 100%)" }}>
                   {label}
