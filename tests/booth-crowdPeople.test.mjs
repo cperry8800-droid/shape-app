@@ -221,7 +221,11 @@ test('without the option a crowd keeps all of the room\'s light (the venue\'s lo
   assert.match(club, /export const CROWD_HOUSE = Object\.freeze\(\{ near: 0\.6, far: 0\.12, fall: 6, ambient: 0\.2 \}\);/);
   assert.match(club, /avatars = createCrowd\(\{ THREE, pack, people, lodCount, rnd, lods: LODS, stageFalloff: low \? 9 : 11, house: CROWD_HOUSE \}\);/);
   // the stage's fill on their faces: a smaller share of the wall's light than the 0.55 it was
-  assert.match(club, /tmpC2\.copy\(iceC\)\.multiplyScalar\(0\.006 \+ 0\.008 \* lvl\)\.add\(glowA\.copy\(wallGlow\)\.multiplyScalar\(0\.35\)\);/);
+  // The wall's share on the faces toward it came down from 0.35 (owner, 2026-11-16, asked for the
+  // live room upgraded: from the booth every face was readable to the back wall), and the room's
+  // light behind the crowd came up from 0.022, so the floor is edged from the house, not a black mass.
+  assert.match(club, /tmpC2\.copy\(iceC\)\.multiplyScalar\(0\.006 \+ 0\.008 \* lvl\)\.add\(glowA\.copy\(wallGlow\)\.multiplyScalar\(0\.16\)\);/);
+  assert.match(club, /const crowdBackC = new THREE\.Color\(0xffc890\)\.multiplyScalar\(0\.06\);/);
   const venue = stripComments(readFileSync('public/newdesign/booth/clubVenue.mjs', 'utf8'));
   assert.doesNotMatch(venue.match(/venueCrowd = createCrowd\(\{[\s\S]*?\}\);/)[0], /house/, 'the balconies are lit by their lounges');
 });

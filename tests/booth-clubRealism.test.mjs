@@ -22,6 +22,19 @@ const CREW = read('public/newdesign/booth/crowdPeople.mjs');
 const accent = new THREE.Color('#34d6c5').toArray(), ice = new THREE.Color('#d7ecff').toArray();
 const luma = (c) => 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
 
+// Owner, 2026-11-16, of the live room beside its pictures: "is the club itsself improved. The nightclub
+// im talking about", then asked for this room upgraded. A club's air is thick; this one's was nearly
+// clear, so the far end of the floor read as a model seen through glass.
+test('the air is thick enough that the house falls away, and it takes the wall’s colour', () => {
+  const density = +CLUB.match(/const FOG_DENSITY = ([\d.]+);/)[1];
+  assert.equal(density, 0.017);
+  const kept = (metres) => Math.exp(-((density * metres) ** 2));   // FogExp2
+  assert.ok(kept(38) > 0.6 && kept(38) < 0.72, `the far end of the floor keeps ${kept(38).toFixed(2)} of itself: hazed, not gone`);
+  assert.ok(kept(20) > 0.86, 'twenty metres stays clear enough to read');
+  assert.ok(kept(6) > 0.98, 'and the front rows are untouched');
+  assert.match(CLUB, /fog\.color\.copy\(FOG_BASE\)\.add\(glowB\.copy\(wallGlow\)\.multiplyScalar\(0\.13\)\);/);
+});
+
 test('the wall\'s light: dark when it is, warm at dawn, the chase brighter than the tunnel, a loop its own colour', () => {
   assert.deepEqual(wallLookGlow('blank', { accent, ice }), [0, 0, 0]);
   assert.deepEqual(wallLookGlow('nonsense', { accent, ice }), [0, 0, 0]);

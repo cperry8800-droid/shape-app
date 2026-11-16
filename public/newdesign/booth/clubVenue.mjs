@@ -28,6 +28,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { createCrowd, crowdHasLod } from './crowdPeople.mjs';
 import { palmTrunk, palmFronds, palmBeam } from './palmGeometry.mjs';
 import { boxGrid, lightGrid, directAt, directAll, bakeMesh, bounceField, gridQuad } from './lightBake.mjs';
+import { patchRoomSurface } from './roomSurface.mjs';
 import { createArenaStage, ARENA_DIMS } from './arenaStage.mjs';
 import { SIDE_ROOMS, roomX } from './clubRooms.mjs';
 
@@ -365,6 +366,17 @@ export function createVenue({ THREE, renderer = null, seed = 11, quality = 'high
   const matLoungeEnd = own(new THREE.MeshBasicMaterial({ map: loungeEndTex, vertexColors: true, color: new THREE.Color(0.62, 0.52, 0.44) }));
   const matBoxes = own(new THREE.MeshBasicMaterial({ vertexColors: true }));          // the private boxes' furniture, partitions, frames
   const matBoxGlow = own(new THREE.MeshBasicMaterial({ vertexColors: true }));        // their lamps and accent lines (HDR colours)
+  // The side rooms' floors, walls and ceilings. Owner, 2026-11-16, of the live room beside its
+  // pictures: "is the club itsself improved. The nightclub im talking about", then both: clips of the
+  // pictures, and this room upgraded. The lounge and the bar were the flattest thing in it: every
+  // surface one baked colour, which reads as a block-out. This is still an unlit material with the
+  // lamps baked into its vertices (nothing here is lit per frame); the fragment shader lays a surface
+  // on top of that light, from the point's place in the room alone, so it costs no texture and no
+  // UVs: a floor of staggered boards, each its own tone, with a polish that lifts at a grazing angle;
+  // walls in upholstered panels with a shadow line between them. The pattern fades to its mean where
+  // a board or a panel is under a few pixels across, so it cannot shimmer as the camera drifts.
+  const matRooms = own(new THREE.MeshBasicMaterial({ vertexColors: true }));
+  matRooms.onBeforeCompile = patchRoomSurface;
   const sheenTex = (() => {
     const c = makeCanvas(256, 64), g = c.getContext('2d');
     g.clearRect(0, 0, 256, 64);
@@ -917,7 +929,7 @@ export function createVenue({ THREE, renderer = null, seed = 11, quality = 'high
     const zc = (DOOR.z0 + DOOR.z1) / 2;
     const CELL = LOW ? 0.8 : 0.4;
     const rr = mulberry32(seed * 41 + 13);   // its own stream: the rooms never move a palm or a box
-    const ROOM = [], RGLOW = [], ONYX = [], SIGNS = [];
+    const ROOM = [], ROOM_FURN = [], RGLOW = [], ONYX = [], SIGNS = [];
     const accentRGB = new THREE.Color(accent).toArray();
     // bottles on a back-lit shelf: dark glass, the liquid catching the light behind it (amber spirits,
     // green and clear bottles, a red aperitif, a blue gin), below the bloom threshold
@@ -935,7 +947,18 @@ export function createVenue({ THREE, renderer = null, seed = 11, quality = 'high
       const X = (d) => roomX(s, d);
       const xs = [X(-0.3), X(D)], xMin = Math.min(...xs), xMax = Math.max(...xs);
       const shell = [], P = [], L = [];
-      const piece = (d0, d1, y0, y1, u0, u1, base) => P.push(paint(box(X(d0), X(d1), y0, y1, u0, u1), shade(base)));
+      // the room's solids (its furniture, and the slabs behind its floor, ceiling and walls), for the
+      // bake's contact shade: a sofa sits on the floor and a corner is darker than the wall beside it
+      const OCC = [
+        [xMin - 0.3, F - 0.3, Z0 - 0.3, xMax + 0.3, F, Z1 + 0.3], [xMin - 0.3, CY, Z0 - 0.3, xMax + 0.3, CY + 0.3, Z1 + 0.3],
+        [xMin - 0.3, F, Z0, xMin, CY, Z1], [xMax, F, Z0, xMax + 0.3, CY, Z1],
+        [xMin, F, Z0 - 0.3, xMax, CY, Z0], [xMin, F, Z1, xMax, CY, Z1 + 0.3],
+      ];
+      const piece = (d0, d1, y0, y1, u0, u1, base) => {
+        const xa = X(d0), xb = X(d1);
+        OCC.push([Math.min(xa, xb), Math.min(y0, y1), Math.min(u0, u1), Math.max(xa, xb), Math.max(y0, y1), Math.max(u0, u1)]);
+        P.push(paint(box(xa, xb, y0, y1, u0, u1), shade(base)));
+      };
       const cyl = (d, u, r, y0, y1, base, seg) => P.push(paint(cylY(X(d), u, r, y0, y1, seg), shade(base)));
       const light = (d, y, u, c, r0, range, dir = null, cos0, cos1) => L.push({ p: [X(d), y, u], c, r0, range, dir, cos0, cos1, shadow: false });
       const guest = (d, u, yaw, seatTop = null) => {
@@ -1136,17 +1159,21 @@ export function createVenue({ THREE, renderer = null, seed = 11, quality = 'high
         ROOM_SPILL.push({ p: [s * 13.4, F + 2.2, zc], c: [0.42, 0.3, 0.16], r0: 1.2, range: 7.5, dir: [-s * 0.98, -0.196, 0], cos0: 0.3, cos1: -0.25, shadow: false });
       }
 
-      // bake this room's lamps into its own shell and furniture (no shadows: one room, its own light)
+      // bake this room's lamps into its own shell and furniture. The lamps cast no shadows (one room,
+      // its own light, every lamp `shadow: false`); the solids shade what they sit on and meet.
       const tb0 = clock();
       const LGr = lightGrid(L, 2);
-      for (const g of shell) bakeMesh({ pos: g.attributes.position.array, nrm: g.attributes.normal.array, col: g.attributes.color.array, LG: LGr, OG: null, aoRays: 0, albedo: 0.5, neutral: 0.35 });
-      for (const g of P) bakeMesh({ pos: g.attributes.position.array, nrm: g.attributes.normal.array, col: g.attributes.color.array, LG: LGr, OG: null, aoRays: 0, albedo: 0.45, neutral: 0.3 });
+      const OGr = boxGrid(OCC, 1.0), AO = LOW ? 3 : 5;
+      for (const g of shell) bakeMesh({ pos: g.attributes.position.array, nrm: g.attributes.normal.array, col: g.attributes.color.array, LG: LGr, OG: OGr, aoRays: AO, aoLen: 1.0, aoStrength: 0.7, albedo: 0.5, neutral: 0.35 });
+      for (const g of P) bakeMesh({ pos: g.attributes.position.array, nrm: g.attributes.normal.array, col: g.attributes.color.array, LG: LGr, OG: OGr, aoRays: AO, aoLen: 0.7, aoStrength: 0.6, albedo: 0.45, neutral: 0.3 });
       bakeMs.rooms = (bakeMs.rooms || 0) + clock() - tb0;
-      ROOM.push(...shell, ...P);
+      ROOM.push(...shell);
+      ROOM_FURN.push(...P);
     }
     buildRoom(SIDE_ROOMS.lounge, 'lounge');
     buildRoom(SIDE_ROOMS.bar, 'bar');
-    mesh(merge(ROOM, 'sideRooms'), matBoxes, 'venueSideRooms');
+    mesh(merge(ROOM, 'sideRooms'), matRooms, 'venueSideRooms');
+    mesh(merge(ROOM_FURN, 'sideRoomFurniture'), matBoxes, 'venueSideRoomFurniture');
     mesh(merge(RGLOW, 'sideRoomLights'), matBoxGlow, 'venueSideRoomLights');
     // the onyx: a canvas of warm veins, lit from behind (above the bloom threshold where it is brightest)
     const onyxTex = (() => {
