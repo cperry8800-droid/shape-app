@@ -52,20 +52,26 @@ const HINT_TO_SHOT = { screen: 'screen', jog: 'jog', mixer: 'mixer', wide: 'wide
 
 // ── the drone: one continuous flight through the whole club ─────────────────────────────
 // Off Nora, back over the crowd looking down the room, across to the left balconies and along
-// the second tier beside the rail (the guests and the private boxes), up past the third tier to
-// the skylight ring for the view all the way back to the far end, over the far half, down the
-// right side to the back of the dance floor, and a low skim over the heads home to the booth. A closed loop, so a held Drone shot flies it again without a
-// jump. Heights clear the floor palms' crowns (≈7 m); the balcony pass stays 2 m inside the rails
+// the second tier beside the rail (the guests and the private boxes), up past the third tier and
+// out under the roof, between the two chandeliers that hang from its openings, for the view all the
+// way back to the far end, over the far half, down the right side to the back of the dance floor,
+// and a low skim over the heads home to the booth. A closed loop, so a held Drone shot flies it again
+// without a jump. Heights clear the floor palms' crowns (≈7 m); the balcony pass stays 2 m inside the rails
 // and 1.7 m above the tier's floor. Club frame: stage at +z, crowd from z −1.8 to −34, balconies
 // at |x| ≥ 10.5 on tiers y = 3.6 / 7.6 / 11.6, ceiling 15.5, far wall z −46.
+// ⚠ The chandeliers (clubHall.mjs) hang from y 15.5 down to ≈9.2 under each opening: one over the
+// crowd's left toward the stage (x −1 … 7.5, z −15 … −3), one over its right further back (x −7.5 … 1,
+// z −23 … −11), their tips passing each other. The flight under the roof goes down the 6 m lane
+// between them and keeps 2 m off every ring and cable (tests/booth-clubHall.test.mjs). It used to
+// climb to the middle of the oval skylight, which is where the first chandelier's tip now hangs.
 const DRONE = [
   { p: [0.0, 2.75, -3.8], t: [0.0, 1.45, 0.4] },      // on Nora (above the raised hands, ≈2.2 m)
   { p: [0.9, 3.4, -11.0], t: [0.0, 2.2, -30.0] },     // back over the crowd, down the room
   { p: [-3.4, 7.4, -21.0], t: [-10.0, 8.6, -30.0] },  // climbing toward the left balconies
   { p: [-8.4, 9.4, -27.0], t: [-10.2, 8.8, -10.0] },  // tier two, beside the rail, looking along it
   { p: [-8.4, 9.6, -12.0], t: [-10.0, 8.8, 4.0] },    // cruising the boxes toward the stage
-  { p: [-5.8, 12.6, -5.0], t: [-1.5, 8.5, -30.0] },   // climbing past tier three, turning back
-  { p: [0.0, 13.8, -8.5], t: [0.0, 4.5, -45.0] },     // under the skylight: the whole club, all the way back
+  { p: [-6.4, 12.4, -8.5], t: [-1.5, 8.5, -30.0] },   // climbing past tier three, turning back (short of the first chandelier's tip)
+  { p: [2.4, 13.4, -15.4], t: [0.0, 4.5, -45.0] },    // under the roof, between the chandeliers: the whole club, all the way back
   { p: [3.6, 13.2, -25.0], t: [0.0, 3.0, -45.0] },    // over the far half
   { p: [8.3, 9.6, -31.0], t: [10.0, 8.6, -12.0] },    // down to the right balconies, looking back to the stage
   { p: [3.0, 4.2, -33.5], t: [0.0, 2.2, 0.4] },       // down to the back of the dance floor, turning to the stage
@@ -169,18 +175,20 @@ export function evalShot(id, u, t, ctx, out) {
   switch (id) {
     case 'club': {
       // The establishing shot: from the back of Club Shape, over the crowd, past the gold
-      // balconies and under the skylight ring, to the stage and Nora at the far end.
+      // balconies and under the roof's two openings and their chandeliers, to the stage and Nora at
+      // the far end. It stops 13 m short of the nearer chandelier, and its sight lines to the screen's
+      // headline pass under every ring (tests/booth-clubHall.test.mjs).
       P.x = lerp(-1.4, 1.1, e); P.y = lerp(9.6, 8.6, e); P.z = lerp(-35, -31, e);
-      // Aimed high enough that the skylight ring and the skyline sit across the top of the
-      // frame the way they do in the owner's interior reference; the stage lands in the lower third.
+      // Aimed high enough that the openings and the skyline in them sit across the top of the
+      // frame the way they do in the club's pictures; the stage lands in the lower third.
       T.x = 0; T.y = 6.2; T.z = 0.5;
       break;
     }
     case 'atrium': {
-      // The reference frame: the owner's photoreal Club Shape render, shot from high at the back of
-      // the room and dead centre — the oval skylight across the top, the three balcony tiers down
-      // both sides, the sofa booths in the lower corners, the crowd filling the middle and the
-      // stage portal small and central at the far end. Just in front of the far tier-two rail
+      // The reference frame: the club's Atrium picture, shot from high at the back of the room and
+      // dead centre — the roof's two triangles across the top with their chandeliers under them, the
+      // three balcony tiers down both sides, the table terrace on the right beside the stage, the
+      // crowd filling the floor and the stage central at the far end. Just in front of the far tier-two rail
       // (z −42.5), level with the gap between tiers two and three, so nothing structural sits in
       // front of the lens. A barely-there push, no handheld: an establishing plate.
       P.x = 0; P.y = lerp(10.1, 9.8, e); P.z = lerp(-41.8, -40.8, e);

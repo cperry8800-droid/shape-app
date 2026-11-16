@@ -3,9 +3,11 @@
 // Shape Radio's flagship venue, from the interior concept render (a grand open-roof atrium
 // at night): three tiers of balconies down both sides with glass railings and thin warm LED
 // handrails, amber-lit lounge/restaurant glass behind them, crowds on the rails, uplit palms
-// on every tier and along the floor lounges, cream booths with candle-lit tables at floor
-// level, a dark ceiling with thin warm linear LEDs converging on the stage, and the big oval
-// SKYLIGHT with its double ice-blue ring, open to the night sky and a city skyline.
+// on every tier, and the roof and the tables as the club's pictures now have them (clubHall.mjs):
+// a canopy of triangular glass panels with lit teal edges, open to the night sky and a city skyline
+// through TWO TRIANGLES, the Shape mark's own, each outlined in white light with a chandelier of
+// nested triangular trusses hanging under it; and cream booths with candle-lit tables on a raised,
+// roped-off terrace on the crowd's right, beside the stage, and nowhere else on the floor.
 //
 // NOT here (the stage module owns them): the stage portal, the LED screen, the beams, the
 // crowd on the dance floor.
@@ -14,10 +16,11 @@
 //   hall          z +6 (stage-end wall) … −46 (far wall), balcony inner faces x = ±10.5,
 //                 outer walls x = ±14, balcony floors y = 3.6 / 7.6 / 11.6,
 //                 ceiling soffit underside y = 15.5
-//   skylight      centred (0, 15.5, −13), semi-axes 8.4 (x) × 12.5 (z): toward the stage half of the room,
-//                 as in the owner's reference, so from the back of the hall the whole oval is in frame
+//   skylights     the mark's two triangles, centred (0, 15.5, −13), 15 m across (x) × 19.5 m along (z):
+//                 toward the stage half of the room, so from the back of the hall both are in frame
 //   stage portal  x ±5.5, deck → y ≈ 8.8, z +2.0 … +3.2 (kept clear)
-//   floor lounges x ±7 … ±10.5, z −6 … −44 ; dance-floor crowd x ±7, z −1.8 … −34
+//   table terrace x −10.8 … −6.6 (the crowd's right is −x), z −18.5 … −3, 0.45 m up
+//   dance floor   the crowd, x ±7 and out to ±10.2 where the floor is open, z −1.8 … −38
 //
 // Rules: no Math.random (seeded mulberry32), no clock (the caller passes t), no DOM at
 // import (canvases are made inside createVenue), everything allocated is disposed.
@@ -31,6 +34,7 @@ import { boxGrid, lightGrid, directAt, directAll, bakeMesh, bounceField, gridQua
 import { patchRoomSurface } from './roomSurface.mjs';
 import { createArenaStage, ARENA_DIMS } from './arenaStage.mjs';
 import { SIDE_ROOMS, roomX } from './clubRooms.mjs';
+import { CHANDELIER, TERRACE, skylightTriangles, roofCanopy, chandeliers, terraceBooths, terraceRope } from './clubHall.mjs';
 
 export const VENUE_DIMS = {
   FLOOR_Y: -0.66,
@@ -40,7 +44,7 @@ export const VENUE_DIMS = {
   Z_FAR: -46,
   LEVELS: [3.6, 7.6, 11.6],
   CEIL_Y: 15.5,
-  SKYLIGHT: { x: 0, y: 15.5, z: -13, a: 8.4, b: 12.5 },
+  SKYLIGHT: { x: 0, y: 15.5, z: -13, w: 15 },   // the mark's two openings: their centre and width (clubHall.mjs HALL.MARK)
   PORTAL: { x: 5.5, top: 8.8, z0: 2.0, z1: 3.2 },
 };
 
@@ -52,7 +56,6 @@ const FAR_WIN_Z = -44.2;      // far-end lounge glass
 const END_RAIL_Z = 3.0;       // where the atrium ceiling meets the strip over the stage (the stage end has no balcony now)
 const END_WIN_Z = 5.95;       // stage-end lounge glass
 const RAIL_H = 1.05;
-const SUPER_N = 2.5;          // skylight superellipse exponent: an oval that reads as a rounded rectangle
 // Tiers: floor → slab above, and the top tier to the ceiling.
 const TIERS = [
   { y0: FLOOR_Y, y1: LEVELS[0] - SLAB_T },
@@ -89,19 +92,15 @@ function makeCanvas(w, h) {
   throw new Error('clubVenue: no canvas implementation available');
 }
 
-// Superellipse point (param θ) with semi-axes a (x) × b (z) around the skylight centre.
-function superPt(a, b, th, n = SUPER_N) {
-  const c = Math.cos(th), s = Math.sin(th);
-  return [
-    SKYLIGHT.x + a * Math.sign(c) * Math.pow(Math.abs(c), 2 / n),
-    SKYLIGHT.z + b * Math.sign(s) * Math.pow(Math.abs(s), 2 / n),
-  ];
-}
-// Half-extent in z of the superellipse (a, b) at a given x (for splitting ceiling lines).
-function superHalfZ(a, b, x, n = SUPER_N) {
-  const u = Math.abs(x - SKYLIGHT.x) / a;
-  if (u >= 1) return 0;
-  return b * Math.pow(1 - Math.pow(u, n), 1 / n);
+// A triangle's outline moved d metres outward (d < 0: inward), corners mitred: [[x, z] × 3].
+function offsetTriangle(t, d) {
+  const s = Math.sign((t[1][0] - t[0][0]) * (t[2][1] - t[0][1]) - (t[1][1] - t[0][1]) * (t[2][0] - t[0][0])) || 1;
+  const nrm = (a, b) => { const dx = b[0] - a[0], dz = b[1] - a[1], l = Math.hypot(dx, dz) || 1; return [(s * dz) / l, (-s * dx) / l]; };
+  return t.map((p, i) => {
+    const n0 = nrm(t[(i + 2) % 3], p), n1 = nrm(p, t[(i + 1) % 3]);
+    const k = d / (1 + n0[0] * n1[0] + n0[1] * n1[1]);
+    return [p[0] + (n0[0] + n1[0]) * k, p[1] + (n0[1] + n1[1]) * k];
+  });
 }
 
 export function createVenue({ THREE, renderer = null, seed = 11, quality = 'high', reducedMotion = false, crowdPack = null, now = null, accent = '#34d6c5', skylineUrl = null } = {}) {
@@ -199,6 +198,40 @@ export function createVenue({ THREE, renderer = null, seed = 11, quality = 'high
     g.setIndex(idx);
     g.computeVertexNormals();
     return g;
+  }
+  // A geometry from plain arrays, with the attribute set every merged list here shares (position,
+  // normal, uv, colour, an index): flat lists of xyz, rgb and triangle indices.
+  function rawGeo(pos, col, idx, nrm = null) {
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+    g.setAttribute('uv', new THREE.BufferAttribute(new Float32Array((pos.length / 3) * 2), 2));
+    g.setIndex(idx);
+    if (nrm) g.setAttribute('normal', new THREE.Float32BufferAttribute(nrm, 3)); else g.computeVertexNormals();
+    return g;
+  }
+  // A round bar from a to b ([x, y, z]), open at the ends, in one colour.
+  const rodUp = new THREE.Vector3(0, 1, 0), rodV = new THREE.Vector3(), rodQ = new THREE.Quaternion();
+  function rod(a, b, r, radial, rgb) {
+    rodV.set(b[0] - a[0], b[1] - a[1], b[2] - a[2]);
+    const len = rodV.length();
+    const g = new THREE.CylinderGeometry(r, r, len, radial, 1, true);
+    g.applyQuaternion(rodQ.setFromUnitVectors(rodUp, rodV.normalize()));
+    g.translate((a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2);
+    return solid(g, rgb);
+  }
+  // A box of section w (across, level) × h (up) along the line a → b, its centre line lifted by `lift`.
+  const barX = new THREE.Vector3(), barY = new THREE.Vector3(), barZ = new THREE.Vector3(), barM = new THREE.Matrix4();
+  function bar(a, b, w, h, lift, rgb) {
+    barX.set(b[0] - a[0], b[1] - a[1], b[2] - a[2]);
+    const len = barX.length();
+    barX.normalize();
+    barZ.crossVectors(barX, rodUp).normalize();          // level, across the bar
+    barY.crossVectors(barZ, barX).normalize();           // the bar's own up
+    const g = new THREE.BoxGeometry(len, h, w);
+    barM.makeBasis(barX, barY, barZ).setPosition((a[0] + b[0]) / 2 + barY.x * lift, (a[1] + b[1]) / 2 + barY.y * lift, (a[2] + b[2]) / 2 + barY.z * lift);
+    g.applyMatrix4(barM);
+    return typeof rgb === 'function' ? paint(g, rgb) : solid(g, rgb);
   }
   function merge(list, name) {
     const g = mergeGeometries(list, false);
@@ -418,6 +451,9 @@ export function createVenue({ THREE, renderer = null, seed = 11, quality = 'high
   const matRing = own(new THREE.MeshBasicMaterial({ color: RING_BASE.clone(), vertexColors: true, side: THREE.DoubleSide }));
   const HALO_BASE = new THREE.Color(1, 1, 1);
   const matHalo = own(new THREE.MeshBasicMaterial({ vertexColors: true, color: HALO_BASE.clone(), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, fog: false, side: THREE.DoubleSide }));
+  // the chandeliers under the openings: the dark truss, its cables and its lines of light are one
+  // material (the colours are per vertex); the sway is in its vertex shader (the hooks below)
+  const matChandelier = own(new THREE.MeshBasicMaterial({ color: 0xffffff, vertexColors: true }));
   const matMark = own(new THREE.MeshBasicMaterial({ color: hdr(0xf4f7ff, 1.35) }));
   const matTower = own(new THREE.MeshBasicMaterial({ map: cityTex, vertexColors: true, fog: false }));
   const SKYLINE_GAIN = 1.3;   // the photographs are darker overall than the drawn windows were
@@ -473,6 +509,17 @@ export function createVenue({ THREE, renderer = null, seed = 11, quality = 'high
       transformed.y += sin(uTime * 0.9 + fPh * 0.7) * 0.03 * fk;`);
   };
   matFrond.customProgramCacheKey = () => 'clubVenue-frond-3d';
+  // A chandelier hangs from the roof, so each vertex swings as far as it hangs below it: a ring moves
+  // as one (its own phase), a cable with the ring at each end, and nothing moves at the roof itself.
+  // A few centimetres at the lowest ring, a quarter of a minute a swing; uSway is 0 under reduced motion.
+  matChandelier.onBeforeCompile = (sh) => {
+    sh.uniforms.uTime = U.uTime; sh.uniforms.uSway = U.uSway;
+    sh.vertexShader = 'uniform float uTime;\nuniform float uSway;\nattribute float aPhase;\n' + sh.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
+      float cHang = max(0.0, ${CEIL_Y.toFixed(2)} - transformed.y) * 0.006 * uSway;
+      transformed.x += sin(uTime * 0.43 + aPhase) * cHang;
+      transformed.z += cos(uTime * 0.31 + aPhase * 1.7) * cHang;`);
+  };
+  matChandelier.customProgramCacheKey = () => 'clubVenue-chandelier';
 
   // ── colour palette (baked light) ────────────────────────────────────
   // Dark stone and glass in a neutral charcoal; the warm pools on it come from the light bake
@@ -517,42 +564,42 @@ export function createVenue({ THREE, renderer = null, seed = 11, quality = 'high
     S.push(solid(occ(box(s * X_OUT, s * (X_OUT + 0.3), TIERS[0].y1, CEIL_Y + 2.2, DOOR.z0, DOOR.z1)), C_WALL));
   }
 
-  const SEG = LOW ? 72 : 128;
+  // ── the roof over the atrium (clubHall.mjs): a canopy of triangular glass panels round the two
+  // openings of the Shape mark. Owner, of the club's pictures: "make the ceiling holes triangles",
+  // "same as shape logo", "get creative with the ceiling". It was one flat slab with an oval hole.
   const sk = SKYLIGHT;
-  const A0 = sk.a, B0 = sk.b;                // the opening
-  const A1 = sk.a + 1.8, B1 = sk.b + 1.8;    // outer edge of the dropped frame
-  const FRAME_Y = CEIL_Y - 0.4;
-  // A shallow rim: from the back of the hall the establishing shot looks just over its far
+  const SKY = skylightTriangles();          // the two openings: [[x, z] × 3] each, the mark's own corners
+  const CANOPY = roofCanopy(quality);       // the panels round them and their edges (fewer, larger on phones)
+  const accentLin = new THREE.Color(accent).toArray();
+  const ring3 = (t, y) => t.map((p) => [p[0], y, p[1]]);
+  // A shallow rim: from the back of the hall the establishing shot looks just over an opening's far
   // edge, and a deep rim would hide the skyline there entirely.
   const RIM_TOP = CEIL_Y + 0.35;
-  const loop = (a, b, y) => {
-    const out = [];
-    for (let i = 0; i < SEG; i++) { const [x, z] = superPt(a, b, (i / SEG) * Math.PI * 2); out.push([x, y, z]); }
-    return out;
-  };
   {
-    // The ceiling over the atrium carries the skylight's hole; the strips over the balconies are cut
-    // into cells so the top tier's palms can throw their gold pools up onto them (the bake).
-    const shape = new THREE.Shape();
-    shape.moveTo(-X_IN, FAR_RAIL_Z); shape.lineTo(X_IN, FAR_RAIL_Z); shape.lineTo(X_IN, END_RAIL_Z); shape.lineTo(-X_IN, END_RAIL_Z); shape.closePath();
-    const hole = new THREE.Path();
-    const hp = loop(A0 + 0.02, B0 + 0.02, 0).map((p) => new THREE.Vector2(p[0], p[2]));
-    hole.setFromPoints(hp.reverse());
-    shape.holes.push(hole);
-    const ceil = new THREE.ShapeGeometry(shape, 1);
-    ceil.rotateX(Math.PI / 2);
-    ceil.translate(0, CEIL_Y, 0);
-    S.push(solid(ceil, C_CEIL));
+    // The panels: dark glass, each its own tone and each corner a little different, so the roof reads
+    // as facets that catch the room differently, not as one flat sheet; a few glow dimly in the club's
+    // teal (the pictures' lit mesh panels), well under the bloom's threshold. One merged geometry
+    // with its own vertices per panel: no panel is a mesh, and the bake lights them like the rest.
+    const prnd = mulberry32(seed * 53 + 17);   // its own stream: the roof never moves a palm or a box
+    const pos = [], col = [], nrm = [], idx = [];
+    for (const p of CANOPY.panels) {
+      const k = 0.8 + 3.4 * p.shade * p.shade, glow = p.lit ? 0.02 + 0.03 * prnd() : 0;
+      for (const [x, z] of p.pts) {
+        const v = k * (0.6 + 0.8 * prnd());
+        idx.push(pos.length / 3);
+        pos.push(x, CEIL_Y, z); nrm.push(0, -1, 0);
+        col.push(C_CEIL[0] * v + accentLin[0] * glow, C_CEIL[1] * v * 1.04 + accentLin[1] * glow, C_CEIL[2] * v * 1.12 + accentLin[2] * glow);
+      }
+    }
+    S.push(rawGeo(pos, col, idx, nrm));
+    // the strips over the balconies and the far end are cut into cells, so the top tier's palms can
+    // throw their gold pools up onto them (the bake)
     const strip = (x0, x1, z0, z1) => S.push(gridGeo([x0, CEIL_Y, z0], [1, 0, 0], [0, 0, 1], x1 - x0, z1 - z0, BAKE_CELL, C_CEIL));
     for (const s of [-1, 1]) strip(s > 0 ? X_IN : -X_OUT, s > 0 ? X_OUT : -X_IN, Z_FAR, Z_STAGE);
     strip(-X_IN, X_IN, Z_FAR, FAR_RAIL_Z);
-    strip(-X_IN, X_IN, END_RAIL_Z, Z_STAGE);
+    // each opening's rim: the roof's thickness, up into the sky
+    for (const t of SKY) S.push(loopStrip(ring3(t, CEIL_Y + 0.2), ring3(t, RIM_TOP), [0.03, 0.038, 0.05], [0.012, 0.016, 0.024]));
   }
-  // the dropped oval frame: underside annulus, inner rim (up into the sky), outer lip
-  const cFrameIn = [0.03, 0.038, 0.05], cFrameOut = [0.014, 0.017, 0.024];
-  S.push(loopStrip(loop(A0, B0, FRAME_Y), loop(A1, B1, FRAME_Y), cFrameIn, cFrameOut));
-  S.push(loopStrip(loop(A0, B0, FRAME_Y + 0.24), loop(A0, B0, RIM_TOP), [0.03, 0.038, 0.05], [0.012, 0.016, 0.024]));
-  S.push(loopStrip(loop(A1, B1, FRAME_Y), loop(A1, B1, CEIL_Y + 0.01), cFrameOut, C_CEIL));
 
   // structural columns in the lounge glass line
   const colPaint = (inward) => (x, y, z, nx, ny, nz) => ((nx * inward[0] + nz * inward[1]) > 0.5 ? [0.034, 0.025, 0.018] : C_COLUMN);
@@ -653,8 +700,49 @@ export function createVenue({ THREE, renderer = null, seed = 11, quality = 'high
     DOWN.push(solid(lens, [2.1, 1.62, 1.1]));
     DOWNLIGHTS.push({ p: [px, ceilY - 0.03, z] });
   }
-  // floor-level lounge edge strip (the line of warm light at the foot of the booth backs)
-  for (const s of [-1, 1]) RL.push(solid(box(s * 6.9 - 0.03, s * 6.9 + 0.03, FLOOR_Y + 0.005, FLOOR_Y + 0.04, -43.6, -6.4), [0.5, 0.36, 0.22]));
+
+  // ── 1b. the table terrace (clubHall.mjs): a raised deck on the crowd's right, beside the stage ──
+  // Owner: "tables I meant to the right of the DJ booth". The booths stood at floor level down both
+  // sides of the room; they are on this terrace now and nowhere else. A deck 0.45 m up from behind
+  // the stage's wing to just short of the aisle to the VIP lounge's doorway, two steps down at that
+  // end, a warm line of light under its nosing, and a velvet rope on brass posts (section 8) along
+  // its dance-floor edge and across its stage end.
+  const TB = terraceBooths(), ROPE = terraceRope();
+  const TERRACE_Y = TB.y;
+  {
+    const T = TERRACE, deck0 = T.z0 + T.steps * T.tread;
+    const C_DECK = [0.034, 0.029, 0.025];   // a dark timber deck: the candles' pools (the bake) are what light it
+    const deckPaint = (x, y, z, nx, ny) => (ny > 0.5 ? C_DECK : ny < -0.5 ? C_DARK : C_EDGE);
+    const NOSE = [0.82, 0.58, 0.34];
+    S.push(paint(occ(boxSeg(T.x0, T.x1, FLOOR_Y, TERRACE_Y, deck0, T.z1, BAKE_CELL)), deckPaint));
+    RL.push(solid(box(T.x1, T.x1 + 0.014, TERRACE_Y - 0.07, TERRACE_Y - 0.04, deck0, T.z1 + 0.014), NOSE));   // along the dance floor
+    RL.push(solid(box(T.x0, T.x1, TERRACE_Y - 0.07, TERRACE_Y - 0.04, T.z1, T.z1 + 0.014), NOSE));          // across the stage end
+    for (let k = 1; k <= T.steps; k++) {
+      // each step a riser lower than the last, the full width of the terrace, a line under its nosing
+      const y = FLOOR_Y + (T.h * (T.steps + 1 - k)) / (T.steps + 1), za = deck0 - k * T.tread, zb = deck0 - (k - 1) * T.tread;
+      S.push(paint(occ(boxSeg(T.x0, T.x1, FLOOR_Y, y, za, zb, BAKE_CELL)), deckPaint));
+      RL.push(solid(box(T.x0, T.x1, y - 0.055, y - 0.03, za - 0.014, za), NOSE.map((c) => c * 0.7)));
+    }
+    RL.push(solid(box(T.x0, T.x1, TERRACE_Y - 0.055, TERRACE_Y - 0.03, deck0 - 0.014, deck0), NOSE.map((c) => c * 0.7)));   // the top step's
+    // the rope: a velvet line sagging from post to post
+    const SEGS = LOW ? 3 : 6, RADIAL = LOW ? 3 : 5, R = 0.024, SAG = 0.15, topY = ROPE.y + ROPE.height - 0.07;
+    for (const [i, j] of ROPE.spans) {
+      const a = ROPE.posts[i], b = ROPE.posts[j];
+      const ux = b[0] - a[0], uz = b[1] - a[1], ul = Math.hypot(ux, uz), px = -uz / ul, pz = ux / ul;   // level, across the rope
+      const pos = [], col = [], idx = [];
+      for (let s = 0; s <= SEGS; s++) {
+        const t = s / SEGS, cx = a[0] + ux * t, cz = a[1] + uz * t, cy = topY - SAG * 4 * t * (1 - t);
+        for (let r = 0; r < RADIAL; r++) {
+          const ph = (r / RADIAL) * Math.PI * 2, c = Math.cos(ph), sn = Math.sin(ph);
+          pos.push(cx + px * c * R, cy + sn * R, cz + pz * c * R);
+          const k = 0.55 + 0.45 * Math.max(0, sn);   // velvet: its top catches the room
+          col.push(0.2 * k, 0.018 * k, 0.03 * k);
+          if (s < SEGS) { const v = s * RADIAL + r, w = s * RADIAL + ((r + 1) % RADIAL); idx.push(v, v + RADIAL, w, w, v + RADIAL, w + RADIAL); }
+        }
+      }
+      S.push(rawGeo(pos, col, idx));
+    }
+  }
 
   const structGeo = merge(S, 'structure');
   mesh(structGeo, matStructure, 'venueStructure');
@@ -1204,21 +1292,19 @@ export function createVenue({ THREE, renderer = null, seed = 11, quality = 'high
     mesh(merge(SIGNS, 'signs'), own(new THREE.MeshBasicMaterial({ map: signTex, vertexColors: true, transparent: true, depthWrite: false })), 'venueSideRoomSigns', 3);
   }
 
-  // ── 3. warm linear LEDs: ceiling + balcony soffits ─────────────────
+  // ── 3. linear LEDs: the roof canopy's teal edges + the balcony soffits' warm lines ─────
   const CL = [];
-  // dim warm lines: they draw the ceiling's perspective toward the stage without lighting it
-  const ceilLine = (x, z0, z1) => { if (z1 - z0 > 0.2) CL.push(solid(box(x - 0.03, x + 0.03, CEIL_Y - 0.03, CEIL_Y - 0.005, z0, z1), [0.1, 0.082, 0.064])); };
-  for (const s of [-1, 1]) {
-    for (const x of [8.9, 9.8, 11.2, 11.9]) {
-      const zin = superHalfZ(A1, B1, x);
-      if (zin > 0) { ceilLine(s * x, Z_FAR, sk.z - zin - 0.3); ceilLine(s * x, sk.z + zin + 0.3, Z_STAGE); }
-      else ceilLine(s * x, x > X_IN ? FAR_RAIL_Z : Z_FAR, x > X_IN ? END_RAIL_Z : Z_STAGE);
+  // Every panel of the roof is edged in the club's teal: a thin line of light along each of the
+  // canopy's edges (none along an opening: its white outline is there). The warm lines that ran the
+  // length of the old flat ceiling are gone with it. A slim box on desktop, so a line keeps a face
+  // toward a camera that looks along the roof; one quad facing down on phones.
+  {
+    const TEAL = accentLin.map((c) => c * 1.15), W = LOW ? 0.1 : 0.075;
+    for (const [x0, z0, x1, z1] of CANOPY.lines) {
+      if (!LOW) { CL.push(bar([x0, CEIL_Y, z0], [x1, CEIL_Y, z1], W, 0.06, -0.035, TEAL)); continue; }
+      const l = Math.hypot(x1 - x0, z1 - z0), dx = (x1 - x0) / l, dz = (z1 - z0) / l;
+      CL.push(quad([x0 + dz * W / 2, CEIL_Y - 0.02, z0 - dx * W / 2], [dx, 0, dz], [-dz, 0, dx], l, W, [0, 0, 1, 1], TEAL));
     }
-  }
-  for (const x of [-6.2, -3.2, 0, 3.2, 6.2]) {
-    const zin = superHalfZ(A1, B1, x);
-    ceilLine(x, Z_FAR, sk.z - zin - 0.3);
-    ceilLine(x, sk.z + zin + 0.3, Z_STAGE);
   }
   // balcony soffits: two lines under each slab, just in from the rail
   // (corners close: side lines run to the far/end lines, which run out to the side lines)
@@ -1236,55 +1322,91 @@ export function createVenue({ THREE, renderer = null, seed = 11, quality = 'high
   }
   mesh(merge(CL, 'ceilLeds'), matCeilLed, 'venueCeilingLeds');
 
-  // ── 4. skylight ring (double ice-blue line + outer line) and its halo ─────
-  function superTube(a, b, y, r, rgb, radial) {
-    const N = SEG;
-    const pos = [], col = [], uv = [], idx = [];
-    for (let i = 0; i <= N; i++) {
-      const th = (i / N) * Math.PI * 2;
-      const [x, z] = superPt(a, b, th);
-      const [x2, z2] = superPt(a, b, th + 0.001);
-      let tx = x2 - x, tz = z2 - z; const tl = Math.hypot(tx, tz) || 1; tx /= tl; tz /= tl;
-      const ox = tz, oz = -tx;          // horizontal normal (outward for CCW)
-      for (let j = 0; j <= radial; j++) {
-        const ph = (j / radial) * Math.PI * 2;
-        const cx = Math.cos(ph) * r, cy = Math.sin(ph) * r;
-        pos.push(x + ox * cx, y + cy, z + oz * cx);
-        col.push(...rgb);
-        uv.push(i / N, j / radial);
+  // ── 4. the two openings' outlines (a white line of light each) and their halo ─────
+  {
+    // Each opening is drawn in the roof by one crisp white line on its edge: a tube along each of
+    // its three sides, a ball at each corner, and the rim's inner face lit above it. The lines pulse
+    // with the room as the oval skylight's ring did (update).
+    const RAD = LOW ? 4 : 6, TUBE_R = 0.075, TUBE_Y = CEIL_Y - 0.08;
+    const R = [], HA = [];
+    const cMid = [0.03, 0.042, 0.062];
+    for (const t of SKY) {
+      R.push(loopStrip(ring3(t, CEIL_Y - 0.02), ring3(t, CEIL_Y + 0.2), [0.3, 0.35, 0.43], [0.1, 0.12, 0.16]));
+      t.forEach((p, i) => {
+        const q = t[(i + 1) % 3];
+        R.push(rod([p[0], TUBE_Y, p[1]], [q[0], TUBE_Y, q[1]], TUBE_R, RAD, [1, 1, 1]));
+        const ball = new THREE.SphereGeometry(TUBE_R, RAD, LOW ? 3 : 4);
+        ball.translate(p[0], TUBE_Y, p[1]);
+        R.push(solid(ball, [1, 1, 1]));
+      });
+      // an additive halo: the line's light on the roof just round it, gone within a metre
+      const y = CEIL_Y - 0.09;
+      const inA = ring3(offsetTriangle(t, -0.12), y), midA = ring3(offsetTriangle(t, 0.12), y), outA = ring3(offsetTriangle(t, 1.1), y);
+      HA.push(loopStrip(inA, midA, [0, 0, 0], cMid), loopStrip(midA, outA, cMid, [0, 0, 0]));
+    }
+    mesh(merge(R, 'ring'), matRing, 'venueSkylightRing');
+    mesh(merge(HA, 'halo'), matHalo, 'venueSkylightHalo', 3);
+  }
+
+  // ── 4b. the chandeliers: nested triangles of truss hanging under each opening ─────
+  // Owner: "feel free to have things that come down". From each opening hang rings of truss in the
+  // opening's own shape, each smaller and lower than the one above (clubHall.mjs: four, three on
+  // phones; the lowest ≈10 m over the floor), a white line of light under every side, each ring
+  // turned and tipped a few degrees its own way and hung by its corners from the corners above.
+  // One merged mesh for both. They sway a little, slowly, in the vertex shader (each ring in its own
+  // time, a cable with the ring at each of its ends), and hang still under reduced motion.
+  {
+    const P = [];
+    const phase = (g, fn) => {   // each vertex's place in the sway: fn(x, y, z) → radians
+      const p = g.attributes.position, a = new Float32Array(p.count);
+      for (let i = 0; i < p.count; i++) a[i] = fn(p.getX(i), p.getY(i), p.getZ(i));
+      g.setAttribute('aPhase', new THREE.BufferAttribute(a, 1));
+      return g;
+    };
+    const { w: TW, h: TH } = CHANDELIER.section;
+    const C_CHORD = [0.1, 0.105, 0.115], C_LIT = [0.3, 0.32, 0.36], C_LACE = [0.075, 0.08, 0.09], C_CABLE = [0.08, 0.082, 0.09];
+    const C_STRIP = [1.24, 1.3, 1.44];   // over the bloom's threshold, under the openings' own outlines: a line of light, not a bar of it
+    const va = new THREE.Vector3(), vb = new THREE.Vector3(), ax = new THREE.Vector3(), up = new THREE.Vector3(), out = new THREE.Vector3(), up0 = new THREE.Vector3(0, 1, 0);
+    const at = (base, t, u, o) => [base.x + ax.x * t + up.x * u + out.x * o, base.y + ax.y * t + up.y * u + out.y * o, base.z + ax.z * t + up.z * u + out.z * o];
+    for (const ch of chandeliers(quality)) {
+      for (const r of ch.rings) {
+        const ringPhase = (g) => P.push(phase(g, () => r.phase));
+        r.corners.forEach((a, i) => {
+          const b = r.corners[(i + 1) % 3];
+          va.set(a[0], a[1], a[2]); vb.set(b[0], b[1], b[2]);
+          const len = va.distanceTo(vb);
+          ax.subVectors(vb, va).normalize();
+          out.crossVectors(ax, up0).normalize();   // level, across the side
+          up.crossVectors(out, ax).normalize();    // the side's own up
+          // the line of light under the side
+          ringPhase(bar(at(va, 0, -TH / 2 - 0.035, 0), at(va, len, -TH / 2 - 0.035, 0), 0.075, 0.04, 0, C_STRIP));
+          if (LOW) {
+            // phones: one slim dark beam, its underside catching a little of the line's light (there is
+            // no bloom there, and a pale beam read as a grey plank)
+            ringPhase(bar(a, b, TW * 0.6, TH * 0.6, 0, (x, y, z, nx, ny) => (ny < -0.5 ? C_CHORD : C_LACE.map((c) => c * 0.6))));
+            return;
+          }
+          // desktop: a box truss, four chords laced on all four faces (the lower pair lit by the line)
+          const corners = [[-TW / 2, -TH / 2], [TW / 2, -TH / 2], [TW / 2, TH / 2], [-TW / 2, TH / 2]];   // [across, up]
+          for (const [o, u] of corners) ringPhase(rod(at(va, 0, u, o), at(va, len, u, o), 0.026, 5, u < 0 ? C_LIT : C_CHORD));
+          const bays = Math.max(2, Math.round(len / 0.7));
+          for (let k = 0; k < bays; k++) {
+            const t0 = (len * k) / bays, t1 = (len * (k + 1)) / bays, even = k % 2 === 0;
+            for (let f = 0; f < 4; f++) {
+              const c0 = corners[f], c1 = corners[(f + 1) % 4];
+              const p0 = even ? c0 : c1, p1 = even ? c1 : c0;
+              ringPhase(rod(at(va, t0, p0[1], p0[0]), at(va, t1, p1[1], p1[0]), 0.014, 3, C_LACE));
+            }
+          }
+        });
       }
-      if (i < N) for (let j = 0; j < radial; j++) {
-        const k = i * (radial + 1) + j, k2 = k + radial + 1;
-        idx.push(k, k2, k + 1, k + 1, k2, k2 + 1);
+      // the cables: from the opening's frame to the top ring's corners, then corner to corner down
+      for (const c of ch.cables) {
+        const mid = (c.a[1] + c.b[1]) / 2, pa = c.pa == null ? c.pb : c.pa;
+        P.push(phase(rod(c.a, c.b, LOW ? 0.02 : 0.016, LOW ? 3 : 4, C_CABLE), (x, y) => (y > mid ? pa : c.pb)));
       }
     }
-    const g = new THREE.BufferGeometry();
-    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-    g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
-    g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
-    g.setIndex(idx);
-    g.computeVertexNormals();
-    return g;
-  }
-  const RAD = LOW ? 4 : 6;
-  const ringMesh = mesh(merge([
-    // One crisp white-blue line on the opening's edge and a hairline outside it. The old three
-    // tubes (10, 5.5 and 4.5 cm) plus a 4 m additive halo read as a wide glowing band; the
-    // reference's ring is a thin LED line.
-    // the frame's inner face, lit: a crisp band 26 cm tall facing into the opening
-    loopStrip(loop(A0 + 0.004, B0 + 0.004, FRAME_Y - 0.02), loop(A0 + 0.004, B0 + 0.004, FRAME_Y + 0.24), [0.5, 0.58, 0.7], [0.5, 0.58, 0.7]),
-    superTube(A0 + 0.05, B0 + 0.05, FRAME_Y - 0.05, 0.034, [1.0, 1.0, 1.0], RAD),
-    superTube(A0 + 0.42, B0 + 0.42, FRAME_Y - 0.03, 0.016, [0.62, 0.78, 1.0], RAD),
-  ], 'ring'), matRing, 'venueSkylightRing');
-  void ringMesh;
-  {
-    // additive halo: bright at the ring, fading onto the frame and the ceiling
-    // a narrow halo: the ring's light on the frame just around it, gone within a metre
-    const inA = loop(A0 - 0.12, B0 - 0.12, FRAME_Y - 0.08);
-    const midA = loop(A0 + 0.12, B0 + 0.12, FRAME_Y - 0.08);
-    const outA = loop(A0 + 1.1, B0 + 1.1, FRAME_Y - 0.08);
-    const cMid = [0.03, 0.042, 0.062];
-    mesh(merge([loopStrip(inA, midA, [0, 0, 0], cMid), loopStrip(midA, outA, cMid, [0, 0, 0])], 'halo'), matHalo, 'venueSkylightHalo', 3);
+    mesh(merge(P, 'chandeliers'), matChandelier, 'venueChandeliers');
   }
 
   // ── 5. the Shape mark (exact, public/logo-triangles-only.svg) on the far wall ──
@@ -1507,7 +1629,7 @@ export function createVenue({ THREE, renderer = null, seed = 11, quality = 'high
   });
   for (const im of [imTrunk, ...imFronds, imBeam]) { im.instanceMatrix.needsUpdate = true; im.computeBoundingSphere(); group.add(im); }
 
-  // ── 8. floor lounges: cream booths, tables, candles ──────────────────
+  // ── 8. the terrace's booths (1b): cream sofas, tables, candles, the rope's posts ─────
   const sofaGeo = (() => {
     const L2 = 1.0;   // half length
     const parts = [
@@ -1547,26 +1669,19 @@ export function createVenue({ THREE, renderer = null, seed = 11, quality = 'high
     bake1(tableGeo, [0, 0.72, 0], 0.45, 0.07, 0.24);   // the flame sits on the table: a warm top, not a white disc
   }
 
-  const bayZ = [];
-  // (none in front of the side rooms' doorway: the aisle to it)
-  for (let k = 0; k < 12; k++) if ((!LOW || k % 2 === 0) && !inDoor(-9 - k * 3 - 1.2, -9 - k * 3 + 1.2)) bayZ.push(-9 - k * 3);
-  const SOFAS = [], TABLES = [];
-  for (const s of [-1, 1]) for (const z of bayZ) {
-    // inner sofa: back toward the crowd, seat facing the table; outer: back to the lounge glass
-    SOFAS.push({ x: s * 7.2, z, ry: s > 0 ? Math.PI / 2 : -Math.PI / 2 });
-    SOFAS.push({ x: s * 10.4, z, ry: s > 0 ? -Math.PI / 2 : Math.PI / 2 });
-    TABLES.push({ x: s * 8.8, z });
-  }
+  // The booths stand on the terrace only (clubHall.mjs terraceBooths): on the crowd's right, between
+  // the stage and the aisle to the lounge's doorway, the same on phones. Each is an inner sofa with
+  // its back to the dance floor and its seat to the table, the table, and an outer sofa facing back.
+  const SOFAS = TB.sofas, TABLES = TB.tables;
   const imSofa = new THREE.InstancedMesh(sofaGeo, matSofa, SOFAS.length);
   imSofa.name = 'venueBooths';
-  SOFAS.forEach((b, i) => { q.setFromEuler(e.set(0, b.ry, 0)); m4.compose(v3.set(b.x, FLOOR_Y, b.z), q, sc3.set(1, 1, 1)); imSofa.setMatrixAt(i, m4); });
+  SOFAS.forEach((b, i) => { q.setFromEuler(e.set(0, b.ry, 0)); m4.compose(v3.set(b.x, TERRACE_Y, b.z), q, sc3.set(1, 1, 1)); imSofa.setMatrixAt(i, m4); });
   // Each booth (its two sofas and its table) is its own private booth: its own upholstery, never the
-  // same as the booth beside it (a multiplier on the painted cream: cream · oxblood · emerald · navy ·
-  // tan · mustard · blush · teal · black · dove grey)
+  // same as the booth beside it (a multiplier on the painted cream)
   {
-    // muted, as the reference's sunken booths are: cream · ivory · taupe · charcoal · oxblood · navy ·
-    // forest · camel · slate · dove (the old set ran to mustard, teal and blush at full strength)
-    const BOOTH = [[1, 1, 1], [0.92, 0.9, 0.86], [0.62, 0.55, 0.48], [0.16, 0.16, 0.17], [0.42, 0.14, 0.13], [0.16, 0.2, 0.34], [0.18, 0.27, 0.2], [0.74, 0.54, 0.34], [0.36, 0.4, 0.44], [0.66, 0.66, 0.66]];
+    // pale leathers, as the pictures' terrace has them: cream · ivory · camel · taupe · sand (the
+    // floor's booths ran on to charcoal, oxblood, navy and forest; five booths take the five pale ones)
+    const BOOTH = [[1, 1, 1], [0.92, 0.9, 0.86], [0.74, 0.54, 0.34], [0.62, 0.55, 0.48], [0.86, 0.72, 0.56]];
     const order = BOOTH.map((_, i) => i);
     const srnd = mulberry32(seed * 17 + 9);
     for (let i = order.length - 1; i > 0; i--) { const j = Math.floor(srnd() * (i + 1)); [order[i], order[j]] = [order[j], order[i]]; }
@@ -1580,11 +1695,27 @@ export function createVenue({ THREE, renderer = null, seed = 11, quality = 'high
   const CANDLE_C = new THREE.Color(2.8, 1.7, 0.72);
   TABLES.forEach((tb, i) => {
     q.set(0, 0, 0, 1);
-    m4.compose(v3.set(tb.x, FLOOR_Y, tb.z), q, sc3.set(1, 1, 1)); imTable.setMatrixAt(i, m4);
-    m4.compose(v3.set(tb.x, FLOOR_Y + 0.635, tb.z), q, sc3.set(1, 1, 1)); imCandle.setMatrixAt(i, m4);
+    m4.compose(v3.set(tb.x, TERRACE_Y, tb.z), q, sc3.set(1, 1, 1)); imTable.setMatrixAt(i, m4);
+    m4.compose(v3.set(tb.x, TERRACE_Y + 0.635, tb.z), q, sc3.set(1, 1, 1)); imCandle.setMatrixAt(i, m4);
     imCandle.setColorAt(i, CANDLE_C);
   });
-  for (const im of [imSofa, imTable, imCandle]) { im.instanceMatrix.needsUpdate = true; im.computeBoundingSphere(); group.add(im); }
+  // the rope's posts (1b): brass, a weighted foot and a ball on top, one instance each
+  const postGeo = (() => {
+    const H = ROPE.height;
+    const foot = new THREE.CylinderGeometry(0.11, 0.135, 0.03, LOW ? 6 : 10, 1); foot.translate(0, 0.015, 0);
+    const pole = new THREE.CylinderGeometry(0.022, 0.022, H - 0.07, LOW ? 4 : 8, 1, true); pole.translate(0, 0.03 + (H - 0.07) / 2, 0);
+    const ball = new THREE.SphereGeometry(0.045, LOW ? 5 : 10, LOW ? 3 : 6); ball.translate(0, H - 0.01, 0);
+    const parts = [foot, pole, ball];
+    if (!LOW) { const collar = new THREE.CylinderGeometry(0.034, 0.034, 0.05, 8, 1); collar.translate(0, H - 0.07, 0); parts.push(collar); }   // where the rope hooks on
+    const brass = [0.36, 0.25, 0.085];
+    // polished brass in a dark room: dim, its upper faces and the ball catching the candles (no bloom)
+    for (const g of parts) paint(g, (x, y, z, nx, ny) => { const k = 0.3 + 0.5 * Math.max(0, ny) + 0.5 * (y / H) * (y / H); return [brass[0] * k, brass[1] * k, brass[2] * k]; });
+    return merge(parts, 'ropePost');
+  })();
+  const imPost = new THREE.InstancedMesh(postGeo, matTable, ROPE.posts.length);
+  imPost.name = 'venueRopePosts';
+  ROPE.posts.forEach((p, i) => { q.set(0, 0, 0, 1); m4.compose(v3.set(p[0], ROPE.y, p[1]), q, sc3.set(1, 1, 1)); imPost.setMatrixAt(i, m4); });
+  for (const im of [imSofa, imTable, imCandle, imPost]) { im.instanceMatrix.needsUpdate = true; im.computeBoundingSphere(); group.add(im); }
   if (imCandle.instanceColor) imCandle.instanceColor.setUsage(THREE.DynamicDrawUsage);
 
   // ── 8a. the main stage at arena scale (arenaStage.mjs): LED wall, wings, rig ──────────────────
@@ -1621,17 +1752,17 @@ export function createVenue({ THREE, renderer = null, seed = 11, quality = 'high
   }
   // the side rooms' glow out through their doorways, onto the floor and the slab before them (2c)
   LIGHTS.push(...ROOM_SPILL);
-  // the booth candles (their pool on the floor; the sofas and table tops are baked above)
-  for (const tb of TABLES) LIGHTS.push({ p: [tb.x, FLOOR_Y + 0.72, tb.z], c: CANDLE_LIGHT.c, r0: CANDLE_LIGHT.r0, range: CANDLE_LIGHT.range });
-  // what blocks them: the architecture, and on the floor the booths' sofas and table tops
+  // the booth candles (their pool on the terrace's deck; the sofas and table tops are baked above)
+  for (const tb of TABLES) LIGHTS.push({ p: [tb.x, TERRACE_Y + 0.72, tb.z], c: CANDLE_LIGHT.c, r0: CANDLE_LIGHT.r0, range: CANDLE_LIGHT.range });
+  // what blocks them: the architecture (the terrace with it), and on its deck the booths' sofas and table tops
   const FLOOR_OCC = [];
   for (const b of SOFAS) {
-    const s = Math.sign(b.x), inner = Math.abs(b.x) < 8.8;
+    const s = Math.sign(b.x), inner = Math.abs(b.x) < Math.abs(TERRACE.table);
     const xBack = inner ? b.x - s * 0.22 : b.x + s * 0.22, xSeat = inner ? b.x + s * 0.75 : b.x - s * 0.75;
-    FLOOR_OCC.push([Math.min(xBack, b.x), FLOOR_Y, b.z - 1, Math.max(xBack, b.x), FLOOR_Y + 0.95, b.z + 1]);
-    FLOOR_OCC.push([Math.min(b.x, xSeat), FLOOR_Y, b.z - 1, Math.max(b.x, xSeat), FLOOR_Y + 0.42, b.z + 1]);
+    FLOOR_OCC.push([Math.min(xBack, b.x), TERRACE_Y, b.z - 1, Math.max(xBack, b.x), TERRACE_Y + 0.95, b.z + 1]);
+    FLOOR_OCC.push([Math.min(b.x, xSeat), TERRACE_Y, b.z - 1, Math.max(b.x, xSeat), TERRACE_Y + 0.42, b.z + 1]);
   }
-  for (const tb of TABLES) FLOOR_OCC.push([tb.x - 0.4, FLOOR_Y + 0.555, tb.z - 0.4, tb.x + 0.4, FLOOR_Y + 0.6, tb.z + 0.4]);
+  for (const tb of TABLES) FLOOR_OCC.push([tb.x - 0.4, TERRACE_Y + 0.555, tb.z - 0.4, tb.x + 0.4, TERRACE_Y + 0.6, tb.z + 0.4]);
   const ts0 = clock();
   const OG = boxGrid([...ARCH, ...FLOOR_OCC], 1.5);
   const LG = lightGrid(LIGHTS, 3);
@@ -1702,14 +1833,16 @@ export function createVenue({ THREE, renderer = null, seed = 11, quality = 'high
       d += (rnd() < 0.3 ? 1.6 + rnd() * 2.6 : 0.5 + rnd() * 0.35) * stepK;   // groups of friends, gaps between
     }
   }
-  // seated guests in the floor booths (lowered so they sit on the seat): one or two a sofa
+  // seated guests in the terrace's booths (lowered so they sit on the seat): one or two a sofa. The
+  // booths are a quarter as many as the floor had, and the pictures' terrace is full, so more of the
+  // sofas are taken (there are still fewer seated guests than there were, on both tiers).
   for (const b of SOFAS) {
-    if (rnd() < (LOW ? 0.35 : 0.6)) {
+    if (rnd() < (LOW ? 0.6 : 0.9)) {
       const fx = Math.sin(b.ry), fz = Math.cos(b.ry);
-      const two = !LOW && rnd() < 0.45;
+      const two = !LOW && rnd() < 0.7;
       for (const off of two ? [-0.42 + (rnd() - 0.5) * 0.12, 0.42 + (rnd() - 0.5) * 0.12] : [(rnd() - 0.5) * 1.2]) {
-        FIG.push({ x: b.x + fx * 0.3 + fz * off, y: FLOOR_Y - 0.36, z: b.z + fz * 0.3 - fx * off, ry: b.ry + (rnd() - 0.5) * 0.35, sy: 0.92,
-          seat: { x: b.x + fx * 0.2 + fz * off, z: b.z + fz * 0.2 - fx * off } });
+        FIG.push({ x: b.x + fx * 0.3 + fz * off, y: TERRACE_Y - 0.36, z: b.z + fz * 0.3 - fx * off, ry: b.ry + (rnd() - 0.5) * 0.35, sy: 0.92,
+          seat: { x: b.x + fx * 0.2 + fz * off, z: b.z + fz * 0.2 - fx * off, top: TERRACE_Y + 0.42 } });
       }
     }
   }
@@ -1835,7 +1968,11 @@ export function createVenue({ THREE, renderer = null, seed = 11, quality = 'high
     envKick += (kTarget - envKick) * (1 - Math.exp(-dt / kTau));
     envDrop += (st.drop - envDrop) * (1 - Math.exp(-dt / 1.5));
 
-    matRing.color.copy(RING_BASE).multiplyScalar(0.9 + 0.22 * envLevel + 0.14 * envKick + 0.12 * envDrop);
+    // the openings' outlines and the chandeliers' lines breathe with the level and lift on the kick
+    // (envKick is held at 0 under reduced motion, above)
+    const pulse = 0.9 + 0.22 * envLevel + 0.14 * envKick + 0.12 * envDrop;
+    matRing.color.copy(RING_BASE).multiplyScalar(pulse);
+    matChandelier.color.setScalar(pulse);
     matHalo.color.copy(HALO_BASE).multiplyScalar(0.85 + 0.3 * envLevel + 0.18 * envKick + 0.15 * envDrop);
     matRailLed.color.copy(RAIL_BASE).multiplyScalar(0.92 + 0.14 * envLevel + 0.1 * envKick);
 
@@ -1869,7 +2006,7 @@ export function createVenue({ THREE, renderer = null, seed = 11, quality = 'high
     if (roomCrowd) { roomCrowd.dispose(); roomCrowd = null; }
     if (group.parent) group.parent.remove(group);
     group.clear();
-    for (const im of [imTrunk, ...imFronds, imBeam, imSofa, imTable, imCandle, imFig]) im.dispose();
+    for (const im of [imTrunk, ...imFronds, imBeam, imSofa, imTable, imCandle, imPost, imFig]) im.dispose();
     arena.dispose();
     for (const d of disposables) if (d && typeof d.dispose === 'function') d.dispose();
     disposables.length = 0;
