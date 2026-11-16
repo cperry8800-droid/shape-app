@@ -6,10 +6,18 @@
 //
 // Owner, 2026-11-16: "make it look like the pictures, more real". The live 3D room (noraBooth.mjs)
 // reads as a video game beside Nora's portrait and the venue picture, so the club is shown through
-// photographs of it: each view is a still made from a frame of the real 3D club (the layout: the
-// wall-to-wall LED screen with the mark, the balcony tiers, the skylight and the skyline) and
-// Nora's portrait. The 3D room stays, under "Look around in 3D". Each still's task id, references
-// and prompt are in marketing/club-shape/views-sources.md.
+// pictures of it, made with AI. The lounge, the bar and Nora at the decks come from frames of the
+// 3D club and Nora's portrait, the door and the grounds from the owner's picture of the building.
+// The main room does not come from the 3D club any more: the owner, of the first set, "sizing
+// here is off. There is no depth of size of room", "the screen needs to be much larger", the tables
+// "to the right of the DJ booth", the ceiling holes triangles "same as shape logo", "get creative
+// with the ceiling", "feel free to have things that come down". So the six views of the main room
+// (atrium, floor, booth, tables, balcony, suite) are one arena-sized room made from a description
+// and the club's logo: a screen the size of the end wall, the table terrace right of the booth, a
+// roof of triangle panels with the mark's two triangles open to the skyline, and chandeliers of
+// triangles lowered from them. ⚠ That room is bigger than the 3D one under "Look around in 3D", and
+// has a different ceiling. Each still's task id, references and prompt are in
+// marketing/club-shape/views-sources.md.
 //
 // ⚠ THE ROOMS AND THE GROUNDS ARE SCENERY. Floor tables, balcony booths, the private room, the
 // pools, the courts and the track are pictures of the club, not products: no booking, price or
@@ -17,7 +25,7 @@
 // bind every change").
 
 /** Bump when a still is replaced under its own name (the repo's rule for an image: a new `?v=` by hand). */
-export const CLUB_ASSET_VERSION = '20261116a';
+export const CLUB_ASSET_VERSION = '20261116b';
 
 /**
  * The views, in tour order. `arrival` is the door, the club from the street (owner, 2026-11-16, of
@@ -27,12 +35,12 @@ export const CLUB_ASSET_VERSION = '20261116a';
  */
 export const CLUB_VIEWS = Object.freeze([
   Object.freeze({ id: 'arrival', label: 'Arrival', alt: 'Club Shape from the street at night: a flowing building of lit terraces and palms, its sign over the entrance, and the city’s towers behind it' }),
-  Object.freeze({ id: 'atrium', label: 'The club', alt: 'The whole room from the top balcony: three tiers of balconies with palms, a ring of light around the opening to the skyline, and the stage screen reading Club Shape over a full dance floor' }),
-  Object.freeze({ id: 'floor', label: 'Main floor', alt: 'The dance floor facing the stage: Nora at the booth under the Club Shape screen, with roped-off tables on both sides' }),
+  Object.freeze({ id: 'atrium', label: 'The club', alt: 'The whole room from the back balcony: a full dance floor running to a screen the size of the end wall, reading Club Shape, with palms on the balconies and two triangles in the roof open to the skyline' }),
+  Object.freeze({ id: 'floor', label: 'Main floor', alt: 'The dance floor facing the stage: Nora at the booth under a screen that fills the end wall, roped-off tables to the right of the booth, and triangle chandeliers lowered from the roof' }),
   Object.freeze({ id: 'decks', label: 'Nora', alt: 'Nora at the decks, headphones on, with the crowd behind her' }),
   Object.freeze({ id: 'booth', label: 'Behind the decks', alt: 'The room from behind Nora: the decks, the crowd, the balconies and the skyline through the ceiling' }),
-  Object.freeze({ id: 'tables', label: 'Floor tables', alt: 'A table beside the dance floor, with bottles on ice, looking across the crowd to the stage' }),
-  Object.freeze({ id: 'balcony', label: 'Balcony booths', alt: 'A booth on the second balcony, looking down over the dance floor to the stage' }),
+  Object.freeze({ id: 'tables', label: 'Floor tables', alt: 'A table on the terrace to the right of the booth, with bottles on ice, looking across the crowd to the stage' }),
+  Object.freeze({ id: 'balcony', label: 'Balcony booths', alt: 'A booth on the balcony, looking down over the dance floor to the stage' }),
   Object.freeze({ id: 'suite', label: 'Private room', alt: 'A private room with sofas and its own bar, behind a glass wall over the main room' }),
   Object.freeze({ id: 'lounge', label: 'VIP lounge', alt: 'The VIP lounge: a lit onyx wall, a velvet banquette and sofas under chandeliers' }),
   Object.freeze({ id: 'bar', label: 'Cocktail bar', alt: 'The cocktail bar: a lit stone counter, a wall of bottles and the Shape mark in neon' }),

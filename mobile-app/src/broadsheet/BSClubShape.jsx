@@ -141,12 +141,12 @@ export function BSClubShape({ onBack, onSets, stationPlaying = false, bpm = null
   };
   const ALTS = {
     arrival: tr('radio:club.alt.arrival', { defaultValue: 'Club Shape from the street at night: a flowing building of lit terraces and palms, its sign over the entrance, and the city’s towers behind it' }),
-    atrium: tr('radio:club.alt.atrium', { defaultValue: 'The whole room from the top balcony: three tiers of balconies with palms, a ring of light around the opening to the skyline, and the stage screen reading Club Shape over a full dance floor' }),
-    floor: tr('radio:club.alt.floor', { defaultValue: 'The dance floor facing the stage: Nora at the booth under the Club Shape screen, with roped-off tables on both sides' }),
+    atrium: tr('radio:club.alt.atrium', { defaultValue: 'The whole room from the back balcony: a full dance floor running to a screen the size of the end wall, reading Club Shape, with palms on the balconies and two triangles in the roof open to the skyline' }),
+    floor: tr('radio:club.alt.floor', { defaultValue: 'The dance floor facing the stage: Nora at the booth under a screen that fills the end wall, roped-off tables to the right of the booth, and triangle chandeliers lowered from the roof' }),
     decks: tr('radio:club.alt.decks', { defaultValue: 'Nora at the decks, headphones on, with the crowd behind her' }),
     booth: tr('radio:club.alt.booth', { defaultValue: 'The room from behind Nora: the decks, the crowd, the balconies and the skyline through the ceiling' }),
-    tables: tr('radio:club.alt.tables', { defaultValue: 'A table beside the dance floor, with bottles on ice, looking across the crowd to the stage' }),
-    balcony: tr('radio:club.alt.balcony', { defaultValue: 'A booth on the second balcony, looking down over the dance floor to the stage' }),
+    tables: tr('radio:club.alt.tables', { defaultValue: 'A table on the terrace to the right of the booth, with bottles on ice, looking across the crowd to the stage' }),
+    balcony: tr('radio:club.alt.balcony', { defaultValue: 'A booth on the balcony, looking down over the dance floor to the stage' }),
     suite: tr('radio:club.alt.suite', { defaultValue: 'A private room with sofas and its own bar, behind a glass wall over the main room' }),
     lounge: tr('radio:club.alt.lounge', { defaultValue: 'The VIP lounge: a lit onyx wall, a velvet banquette and sofas under chandeliers' }),
     bar: tr('radio:club.alt.bar', { defaultValue: 'The cocktail bar: a lit stone counter, a wall of bottles and the Shape mark in neon' }),
@@ -271,7 +271,7 @@ export function BSClubShape({ onBack, onSets, stationPlaying = false, bpm = null
             <p style={{ margin: '12px 0 0', fontFamily: t.BODY || t.DISPLAY, fontSize: 11.5, lineHeight: 1.5, color: CREAM60 }}>
               {live
                 ? tr('radio:club.liveNote', { defaultValue: 'This is the live 3D room. While the station is not on the air Nora plays a labelled example set; while it is, she moves on what it is playing.' })
-                : tr('radio:club.note', { defaultValue: 'The rooms and grounds are pictures of Club Shape, made with AI from its 3D room, Nora’s portrait and the club’s own pictures. They are not a live feed, and nothing in them is for sale.' })}
+                : tr('radio:club.note', { defaultValue: 'The rooms and grounds are pictures of Club Shape, made with AI. They are not a live feed, and nothing in them is for sale.' })}
             </p>
 
             {typeof onSets === 'function' && (
