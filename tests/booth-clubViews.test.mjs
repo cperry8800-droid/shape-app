@@ -315,7 +315,7 @@ test('destroying the film takes it out of the box and stops its tour', async () 
   m.film.show('floor');
   await m.settle();
   m.film.destroy();
-  assert.equal(m.host.querySelector('.cf-root'), null);
+  assert.ok(!m.host.querySelector('.cf-root'), 'the film is out of its box');
   assert.equal(m.armed().length, 0);
   const n = m.events.length;
   m.film.show('bar');

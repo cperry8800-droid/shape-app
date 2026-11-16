@@ -126,9 +126,11 @@ Each is `ratio 9:16`, one reference, `shot` = the wide still of the same view.
 Owner, 2026-11-16, sending their own picture of the building from the street: "this is outside
 of club shape". The exact file was not on `main` and could be fetched from their Firefly history
 only as a 600 px preview, so the entrance was rebuilt from that preview at 2K ("that looks
-good"). The owner then uploaded the picture itself (cperry8800-droid/shape-app#2743, as
+good"). The owner then uploaded the picture itself (cperry8800-droid/shape-app#2743, merged, as
 `public/newdesign/image.png`); it is kept here as `club-shape-exterior.png` (1462x810, their
-file byte for byte), the picture every outside view answers to. The arrival stills stay the 2K
+file byte for byte), the picture every outside view answers to, and the copy under `public/`
+was removed: no page asks for it, and one picture at two paths is what the heavy-asset guard
+refuses. The arrival stills stay the 2K
 rebuild the owner approved: it is the same building from the same spot at nearly twice the
 width, and a new generation of the outside should take `club-shape-exterior.png` as its
 reference rather than the preview. Then: "add swimming pools, tennis courts, padel courts around the outside of club
