@@ -389,9 +389,12 @@ function RadioClub() {
   const stageRef = React.useRef(null);
   const filmRef = React.useRef(null);
   const roomRef = React.useRef(null);     // the room to come back to from the live room
-  const tourRef = React.useRef(true);
+  // The tour changes the picture by itself, so a visitor who asked for reduced motion starts with
+  // it stopped (Codex P2, #2744: the CSS held the layers still and the timer swapped them anyway).
+  // "Take the tour" is still theirs to press.
+  const tourRef = React.useRef(!RD_REDUCED);
   const [mode, setMode] = React.useState("door");   // door | film | live
-  const [tour, setTour] = React.useState(true);
+  const [tour, setTour] = React.useState(!RD_REDUCED);
   const [snap, setSnap] = React.useState({ id: null, status: "loading", auto: false });
   const [seen, setSeen] = React.useState(false);     // a still has been shown at least once
   const [full, setFull] = React.useState(false);

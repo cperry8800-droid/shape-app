@@ -145,6 +145,25 @@ test('the club screen has the one Back, a door, the rooms, a tour and the 3D roo
   assert.match(WEB, /if \(s\.status === "shown"\) \{ setSeen\(true\); roomRef\.current = s\.id; \}/);
 });
 
+// Codex P2 on #2744: reduced motion held every layer still, and the tour's timer went on swapping
+// the picture every few seconds. A picture that changes by itself is motion a visitor asked not to
+// get, so both pages start the tour stopped for them; pressing "Take the tour" is their own ask.
+test('a visitor who asked for reduced motion gets no tour until they start one', () => {
+  // The page's one reading of the setting (radioInstrument.jsx, the script ahead of radio.jsx).
+  assert.match(WEB_STRIP, /const RD_REDUCED = typeof matchMedia !== "undefined" && matchMedia\("\(prefers-reduced-motion: reduce\)"\)\.matches;/);
+  assert.match(WEB, /const tourRef = React\.useRef\(!RD_REDUCED\);/);
+  assert.match(WEB, /const \[tour, setTour\] = React\.useState\(!RD_REDUCED\);/);
+  assert.match(APP, /const reduced = typeof window\.matchMedia === 'function' && window\.matchMedia\('\(prefers-reduced-motion: reduce\)'\)\.matches;/);
+  assert.match(APP, /const tourRef = useRef\(!reduced\);/);
+  assert.match(APP, /const \[tour, setTour\] = useState\(!reduced\);/);
+  assert.ok(APP.indexOf('const reduced = ') < APP.indexOf('const tourRef = useRef(!reduced);'), 'the setting is read before the tour is set from it');
+  // The film is told the tour's state as it mounts, and only the button changes it after.
+  assert.match(WEB, /film\.setAuto\(tourRef\.current\);/);
+  assert.match(APP, /film\.setAuto\(tourRef\.current\);/);
+  assert.match(WEB, /const toggleTour = \(\) => \{ const on = !tourRef\.current; tourRef\.current = on; setTour\(on\); if \(filmRef\.current\) filmRef\.current\.setAuto\(on\); \};/);
+  assert.match(APP, /const toggleTour = \(\) => \{ const on = !tourRef\.current; tourRef\.current = on; setTour\(on\); if \(filmRef\.current\) filmRef\.current\.setAuto\(on\); \};/);
+});
+
 test('on a phone the picture comes before the words, so the rooms sit above the tab bar', () => {
   const stage = APP.indexOf('data-club-stage');
   const intro = APP.indexOf("tr('radio:club.intro'");

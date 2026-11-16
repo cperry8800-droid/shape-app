@@ -65,12 +65,15 @@ export function BSClubShape({ onBack, onSets, stationPlaying = false, bpm = null
   const railRef = useRef(null);
   const filmRef = useRef(null);
   const roomRef = useRef(null);     // the room to come back to from the live room
-  const tourRef = useRef(true);
+  const reduced = typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  // The tour changes the picture by itself, so a member who asked for reduced motion starts with it
+  // stopped (Codex P2, #2744: the CSS held the layers still and the timer swapped them anyway).
+  // "Take the tour" is still theirs to press.
+  const tourRef = useRef(!reduced);
   const [entered, setEntered] = useState(false);
-  const [tour, setTour] = useState(true);
+  const [tour, setTour] = useState(!reduced);
   const [snap, setSnap] = useState({ id: null, status: 'loading', auto: false });
   const [seen, setSeen] = useState(false);
-  const reduced = typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   // The film lives as long as its box does: through the door and the rooms, gone while the live
   // room has the stage, and back on the room the member left.
