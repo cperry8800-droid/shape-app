@@ -170,7 +170,7 @@ test('the palms are not one plant: three crowns of fronds (two on phones), neigh
   assert.match(VENUE, /palmFronds\(mulberry32\(seed \* 29 \+ 3 \+ k \* 101\), PQ\)/, 'the first crown keeps the old seed');
   assert.match(VENUE, /const kindOf = \(i\) => i % FROND_KINDS;/);
   assert.match(VENUE, /const palmRnd = mulberry32\(seed \* 31 \+ 7\);/, 'its own stream: the rest of the room stays where it was');
-  assert.match(VENUE, /for \(const im of \[imTrunk, \.\.\.imFronds, imBeam, imSofa, imTable, imCandle, imFig\]\) im\.dispose\(\);/);
+  assert.match(VENUE, /for \(const im of \[imTrunk, \.\.\.imFronds, imBeam, imSofa, imTable, imCandle, imPost, imFig\]\) im\.dispose\(\);/);
 });
 
 test('the stage deck shows the wall in its polish: the wall\'s own light, only where a reflection would reach it', () => {

@@ -8,6 +8,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { SIDE_ROOMS, roomX, inSideRoom } from '../public/newdesign/booth/clubRooms.mjs';
+import { TERRACE, terraceBooths, terraceRope, crowdSpan } from '../public/newdesign/booth/clubHall.mjs';
 import { evalShot, SHOTS, NoraDirector } from '../public/newdesign/booth/noraDirector.mjs';
 import { LENS } from '../public/newdesign/booth/cinematic.mjs';
 import { createPeopleCrowd, decodePeoplePack } from '../public/newdesign/booth/crowdPeople.mjs';
@@ -37,7 +38,7 @@ test('the doorway is the ground tier\'s bay 3, and each room opens off it, as ta
   assert.ok(inSideRoom(roomX(1, 4), 1, -22) && !inSideRoom(10, 1, -22) && !inSideRoom(roomX(1, 4), 1, -40));
 });
 
-test('the hall makes way: the two boxes, the glass and sill in the doorway, the wall, and the booths before it', () => {
+test('the hall makes way: the two boxes, the glass and sill in the doorway, the wall, and the aisle before it', () => {
   assert.match(VENUE, /import \{ SIDE_ROOMS, roomX \} from '\.\/clubRooms\.mjs';/);
   assert.match(VENUE, /if \(ti === 0 && inDoor\(za, zb\)\) continue;/);
   // which ground-tier boxes give way: exactly the two in the bay, both sides
@@ -55,16 +56,22 @@ test('the hall makes way: the two boxes, the glass and sill in the doorway, the 
   // no glass or sill across it on the ground tier; its transom stays as the doorway's head
   assert.match(VENUE, /ti === 0 \? \[\[FAR_WIN_Z, DOOR\.z0\], \[DOOR\.z1, END_WIN_Z\]\] : \[\[FAR_WIN_Z, END_WIN_Z\]\]/);
   assert.equal((VENUE.match(/ti === 0 \? \[\[FAR_WIN_Z, DOOR\.z0\], \[DOOR\.z1, END_WIN_Z\]\]/g) || []).length, 2, 'the sill and the glass');
-  // the floor booths: none stands in the aisle to the doorway (the rule as the venue applies it)
-  assert.match(VENUE, /if \(\(!LOW \|\| k % 2 === 0\) && !inDoor\(-9 - k \* 3 - 1\.2, -9 - k \* 3 \+ 1\.2\)\) bayZ\.push\(-9 - k \* 3\);/);
-  const inDoor = (za, zb) => za >= D.z0 - 0.05 && zb <= D.z1 + 0.05;
+  // The aisle to the doorway. The floor's booths ran down both sides of the room and skipped it; the
+  // tables are on the terrace now (clubHall.mjs: the crowd's right only, beside the stage), which
+  // ends short of the aisle, steps, rope and all, and the venue places no booth of its own.
+  assert.match(VENUE, /const SOFAS = TB\.sofas, TABLES = TB\.tables;/);
+  assert.doesNotMatch(VENUE, /bayZ|SOFAS\.push|TABLES\.push/);
   const clear = [D.z0 + 0.25, D.z1 - 0.25];   // between the columns
-  for (const low of [false, true]) {
-    const kept = [];
-    for (let k = 0; k < 12; k++) if ((!low || k % 2 === 0) && !inDoor(-9 - k * 3 - 1.2, -9 - k * 3 + 1.2)) kept.push(-9 - k * 3);
-    for (const z of kept) assert.ok(z + 1 < clear[0] || z - 1 > clear[1], `a booth at z ${z} (±1 m) stands in the doorway`);
-    assert.ok(kept.length >= (low ? 5 : 10), 'and the rest of the booths stay');
+  const B = terraceBooths();
+  assert.ok(TERRACE.z0 > clear[1] + 0.5, `the terrace's foot (z ${TERRACE.z0}) is short of the doorway (z ${clear[1].toFixed(2)})`);
+  for (const p of B.sofas.concat(B.tables)) {
+    assert.equal(Math.sign(p.x), R.lounge, 'every table is on the lounge\'s side, the crowd\'s right');
+    assert.ok(p.z - 1 > clear[1], `a booth at z ${p.z} (±1 m) stands in the doorway`);
   }
+  for (const [, z] of terraceRope().posts) assert.ok(z > clear[1] + 0.5, 'no rope post in the aisle');
+  assert.ok(B.bays.length >= 5, 'five booths along the terrace, on phones too');
+  // and the crowd, which has the floor the booths left, keeps out of it on both sides
+  for (let z = D.z0 - 0.3; z <= D.z1 + 0.3; z += 0.1) assert.deepEqual(crowdSpan(z, 7), [-7, 7], `the crowd at z ${z.toFixed(1)} stays on the dance floor`);
 });
 
 // Owner, 2026-11-16, of the live room beside its pictures: "is the club itsself improved. The nightclub
