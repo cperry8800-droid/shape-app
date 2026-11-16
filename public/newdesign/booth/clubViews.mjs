@@ -251,8 +251,14 @@ export function createClubFilm({ host, base = '/', reducedMotion = false, onChan
 
   function setTempo(value) {
     const b = Number(value);
+    const was = bpm;
     bpm = Number.isFinite(b) && b >= 40 && b <= 240 ? b : null;
     root.style.setProperty('--cf-pulse', clubPulseSeconds(bpm).toFixed(3) + 's');
+    // A room waiting on the old count would leave on it (Codex P2, #2744): the station starts,
+    // stops and changes track with a room on screen, so its dwell starts again at the new tempo.
+    // Only a tempo that changed, and only a room the tour is waiting on: the same tempo said
+    // again must not hold a room up, and a tempo starts no tour and moves no one off the door.
+    if (bpm !== was && timer) arm();
   }
 
   // A box that turns from wide to tall (a phone rotated, a window narrowed) takes the other cut.

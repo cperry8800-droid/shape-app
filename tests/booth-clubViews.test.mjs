@@ -251,6 +251,36 @@ test('the tour waits at the door, then walks the rooms on the dwell', async () =
   assert.equal(m.armed().length, 0, 'turning the tour off stops it');
 });
 
+// Codex P2 on #2744: a room armed before the tempo arrived left on the old count. The station
+// starts, stops and changes track while a room is on screen, so the dwell follows the tempo of now.
+test('a tempo that arrives, changes or goes while a room is up restarts its dwell at the new count', async () => {
+  const m = mount();
+  m.film.setAuto(true);
+  m.film.show('atrium');
+  await m.settle();
+  assert.deepEqual(m.armed().map((t) => t.ms), [12000], 'no tempo yet: the default');
+  m.film.setTempo(120);
+  assert.deepEqual(m.armed().map((t) => t.ms), [16000], 'eight bars at 120, and only the one timer');
+  const kept = m.armed()[0];
+  m.film.setTempo(120);
+  assert.equal(m.armed()[0], kept, 'the same tempo said again does not start the room over');
+  m.film.setTempo(160);
+  assert.deepEqual(m.armed().map((t) => t.ms), [12000], 'eight bars at 160');
+  m.film.setTempo(null);
+  assert.deepEqual(m.armed().map((t) => t.ms), [12000], 'the station stopped: the default again');
+  assert.notEqual(m.armed()[0], kept);
+  // Nothing to re-arm where the tour is not waiting on a room: at the door, or with the tour off.
+  m.film.setAuto(false);
+  m.film.setTempo(100);
+  assert.equal(m.armed().length, 0, 'a tempo does not start a tour that is off');
+  const door = mount();
+  door.film.setAuto(true);
+  door.film.show('arrival');
+  await door.settle();
+  door.film.setTempo(128);
+  assert.equal(door.armed().length, 0, 'nor move anyone off the door');
+});
+
 test('the tour does not run while the page is hidden', async () => {
   const m = mount();
   Object.defineProperty(m.window.document, 'hidden', { value: true, configurable: true });
