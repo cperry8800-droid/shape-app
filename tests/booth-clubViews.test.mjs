@@ -323,6 +323,24 @@ test('destroying the film takes it out of the box and stops its tour', async () 
   assert.equal(m.events.length, n, 'a destroyed film says and shows nothing more');
 });
 
+// The pages compose a still's file name from its id, so no page names a file. The sources record
+// does, one row a view: that is the pointer the heavy-asset guard reads (two stills over its 200 KB
+// line were named by nothing on #2744's first CI run), and it cannot drift from the module.
+test('the sources record names every still the module can ask for, and no other', () => {
+  const record = readFileSync(path.join(ROOT, 'marketing/club-shape/views-sources.md'), 'utf8');
+  const table = record.slice(record.indexOf('## The files'), record.indexOf('## Uploaded references'));
+  const named = new Set([...table.matchAll(/`([a-z]+-[lp](?:-sm)?\.webp)`/g)].map((m) => m[1]));
+  const wanted = new Set();
+  for (const v of CLUB_VIEWS) {
+    for (const format of ['landscape', 'portrait']) for (const small of [false, true]) {
+      wanted.add(path.basename(new URL(clubViewUrl(v.id, { base: 'https://x.test/', format, small })).pathname));
+    }
+  }
+  assert.equal(wanted.size, CLUB_VIEWS.length * 4);
+  assert.deepEqual([...named].sort(), [...wanted].sort());
+  for (const file of wanted) assert.ok(existsSync(path.join(ROOT, 'public/club', file)), `${file} is shipped`);
+});
+
 test('the views and the film are one module that imports nothing: no three, no video, one cache key', () => {
   const src = readFileSync(path.join(ROOT, 'public/newdesign/booth/clubViews.mjs'), 'utf8');
   assert.deepEqual([...src.matchAll(/^import\b.*$/gm)].map((x) => x[0]), []);

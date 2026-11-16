@@ -112,8 +112,13 @@ test('both pages stop the example set the moment it is no longer the listener’
 });
 
 test('the website instrument publishes the station’s state on the channel the booth listens to', () => {
-  const m = INSTRUMENT.match(/window\.__shapeRadioState = \{ signedIn, configured, playing \};\s*try \{ window\.dispatchEvent\(new CustomEvent\("([^"]+)"/);
-  assert.ok(m, 'the instrument no longer publishes signedIn/configured/playing');
+  const m = INSTRUMENT.match(/window\.__shapeRadioState = \{ signedIn, configured, playing, nowPlaying \};\s*try \{ window\.dispatchEvent\(new CustomEvent\("([^"]+)"/);
+  assert.ok(m, 'the instrument no longer publishes signedIn/configured/playing and what is playing');
+  // What is playing is announced when it changes, not only when the three readings do (Codex P2,
+  // #2744: the booth's label and Club Shape's tour read nowPlaying.nora off this state, and it was
+  // never in it).
+  assert.match(INSTRUMENT, /\}, \[signedIn, configured, playing, nowPlaying\]\);/);
+  assert.match(WEB_BARE, /const noraNow = radio\.nowPlaying && radio\.nowPlaying\.isNora === true && radio\.nowPlaying\.nora \? radio\.nowPlaying\.nora : null;/);
   assert.ok(WEB_BARE.includes(`window.addEventListener("${m[1]}"`), `the booth does not listen on ${m[1]}`);
   // A prospect is a MEASURED signed-out visitor; "not resolved yet" is not one.
   assert.match(WEB_BARE, /const prospect = radio\.signedIn === false;/);

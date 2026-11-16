@@ -37,6 +37,31 @@ would pass its cap: the aerial of the grounds is the one that did). Cuts: `-l` 1
 in the cloud container, which is why the script is Pillow. The 2K PNGs are not in the repository;
 each is recoverable from its task id in Runway.
 
+## The files
+
+Every view ships as four files under `public/club/`. The pages never write these names out:
+`clubViewUrl` in `public/newdesign/booth/clubViews.mjs` composes each from the view's id and the
+box it is shown in, so this table is where each file is named (`tests/booth-clubViews.test.mjs`
+holds it to the module's list).
+
+| View | Wide | Wide, small | Tall | Tall, small |
+| --- | --- | --- | --- | --- |
+| arrival | `arrival-l.webp` | `arrival-l-sm.webp` | `arrival-p.webp` | `arrival-p-sm.webp` |
+| atrium | `atrium-l.webp` | `atrium-l-sm.webp` | `atrium-p.webp` | `atrium-p-sm.webp` |
+| floor | `floor-l.webp` | `floor-l-sm.webp` | `floor-p.webp` | `floor-p-sm.webp` |
+| decks | `decks-l.webp` | `decks-l-sm.webp` | `decks-p.webp` | `decks-p-sm.webp` |
+| booth | `booth-l.webp` | `booth-l-sm.webp` | `booth-p.webp` | `booth-p-sm.webp` |
+| tables | `tables-l.webp` | `tables-l-sm.webp` | `tables-p.webp` | `tables-p-sm.webp` |
+| balcony | `balcony-l.webp` | `balcony-l-sm.webp` | `balcony-p.webp` | `balcony-p-sm.webp` |
+| suite | `suite-l.webp` | `suite-l-sm.webp` | `suite-p.webp` | `suite-p-sm.webp` |
+| lounge | `lounge-l.webp` | `lounge-l-sm.webp` | `lounge-p.webp` | `lounge-p-sm.webp` |
+| bar | `bar-l.webp` | `bar-l-sm.webp` | `bar-p.webp` | `bar-p-sm.webp` |
+| grounds | `grounds-l.webp` | `grounds-l-sm.webp` | `grounds-p.webp` | `grounds-p-sm.webp` |
+| pool | `pool-l.webp` | `pool-l-sm.webp` | `pool-p.webp` | `pool-p-sm.webp` |
+| courts | `courts-l.webp` | `courts-l-sm.webp` | `courts-p.webp` | `courts-p-sm.webp` |
+| track | `track-l.webp` | `track-l-sm.webp` | `track-p.webp` | `track-p-sm.webp` |
+| sunset | `sunset-l.webp` | `sunset-l-sm.webp` | `sunset-p.webp` | `sunset-p-sm.webp` |
+
 ## Uploaded references (Runway assets)
 
 | tag used | what it is | asset id |
