@@ -1,7 +1,7 @@
 import React from 'react';
 import { BSCleanType } from './bsCleanType.jsx';
 import { bsMpGlass } from './BSMemberBento.jsx';
-import { bsHomeCare, bsCareFirstName, bsCareInitials, bsCareRoleInk, bsCareInviteShown, bsCareInviteStamp, BS_CARE_INVITE_KEY } from '../services/homeCare.mjs';
+import { bsHomeCare, bsCareFirstName, bsCareInitials, bsCareRoleInk, bsCareInviteShown, bsCareInviteRead, bsCareInviteWrite, BS_CARE_INVITE_KEY } from '../services/homeCare.mjs';
 
 // ─── THE MEMBER HOME'S LOOK, AND WHAT IT SAYS ABOUT THE MEMBER'S COACHES ────────────────────────────
 // Owner, 2026-11-17, of the two Home designs (a member with a team, a member with one coach): "ok make
@@ -219,14 +219,20 @@ function bsHcToday() {
 export function BSHomeInvite({ coaches = [], onFind = null }) {
   const care = bsHomeCare(coaches);
   const uid = (typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id) || null;
-  const [stamp, setStamp] = useState(() => { try { return window.localStorage.getItem(BS_CARE_INVITE_KEY); } catch (e) { return null; } });
+  // What the device holds: a stamp an account and coach (homeCare.mjs's bsCareInviteRead / Write), so
+  // another account's "Not now", or this member's for another coach, never wipes this one.
+  const [stored, setStored] = useState(() => { try { return window.localStorage.getItem(BS_CARE_INVITE_KEY); } catch (e) { return null; } });
   const day = bsHcToday();
+  const who = { uid, coach: care.only };
   const later = () => {
-    const s = bsCareInviteStamp({ uid, coach: care.only, day });
-    try { window.localStorage.setItem(BS_CARE_INVITE_KEY, s); } catch (e) { /* put away for this visit */ }
-    setStamp(s);
+    // Read again at the tap: another tab may have put its own away since this one opened.
+    let now = stored;
+    try { now = window.localStorage.getItem(BS_CARE_INVITE_KEY); } catch (e) { /* what this visit holds */ }
+    const next = bsCareInviteWrite(now, who, day);
+    try { window.localStorage.setItem(BS_CARE_INVITE_KEY, next); } catch (e) { /* put away for this visit */ }
+    setStored(next);
   };
-  return <BSHomeInviteView care={care} shown={bsCareInviteShown({ care, uid, day, stamp })} onFind={onFind} onLater={later} />;
+  return <BSHomeInviteView care={care} shown={bsCareInviteShown({ care, uid, day, stamp: bsCareInviteRead(stored, who) })} onFind={onFind} onLater={later} />;
 }
 
 // The plate itself, off the care state. The tests draw it directly.

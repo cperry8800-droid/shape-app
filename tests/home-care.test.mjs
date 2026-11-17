@@ -316,6 +316,27 @@ test('"Not now" puts the invitation away for a fortnight, for this account and t
   assert.equal(HC.bsCareInviteShown(), false);
 });
 
+test('the device keeps a "Not now" an account and coach, so one never wipes another (Codex P2 on #2750)', () => {
+  const a = { uid: 'u1', coach: JORDAN }, b = { uid: 'u2', coach: MAYA };
+  let stored = HC.bsCareInviteWrite(null, a, '2026-11-17');
+  stored = HC.bsCareInviteWrite(stored, b, '2026-11-20');
+  assert.equal(HC.bsCareInviteRead(stored, a), 'u1|t:7|2026-11-17');
+  assert.equal(HC.bsCareInviteRead(stored, b), 'u2|n:3|2026-11-20');
+  // The first account comes back inside its fortnight: still put away.
+  assert.equal(HC.bsCareInviteShown({ care: HC.bsHomeCare([JORDAN]), uid: 'u1', day: '2026-11-21', stamp: HC.bsCareInviteRead(stored, a) }), false);
+  // Nobody else's stamp is this account and coach's.
+  assert.equal(HC.bsCareInviteRead(stored, { uid: 'u1', coach: MAYA }), null);
+  assert.equal(HC.bsCareInviteRead(stored, { uid: 'u3', coach: JORDAN }), null);
+  // A stamp past its fortnight is dropped at the next write; one still inside it is kept.
+  stored = HC.bsCareInviteWrite(stored, { uid: 'u3', coach: JORDAN }, '2026-12-02');
+  assert.deepEqual(Object.keys(JSON.parse(stored)).sort(), ['u2|n:3', 'u3|t:7']);
+  // Nothing held, or something that cannot be read: no stamp, and a write starts afresh.
+  for (const bad of [null, '', 'nonsense', '[]', '"x"', 'u1|t:7|2026-11-17']) {
+    assert.equal(HC.bsCareInviteRead(bad, a), null, `read a stamp out of ${JSON.stringify(bad)}`);
+    assert.deepEqual(JSON.parse(HC.bsCareInviteWrite(bad, a, '2026-11-17')), { 'u1|t:7': '2026-11-17' });
+  }
+});
+
 test('Home\'s invitation remembers "Not now" on the device, as the past-due row remembers its ×', () => {
   const store = new Map();
   const prev = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
@@ -329,14 +350,24 @@ test('Home\'s invitation remembers "Not now" on the device, as the past-due row 
     view().props.onLater();
     d.render();
     assert.equal(view().props.shown, false, 'put away at once');
-    const [uid, key, day] = store.get(HC.BS_CARE_INVITE_KEY).split('|');
-    assert.deepEqual([uid, key], ['member-1', 't:7']);
-    assert.match(day, /^\d{4}-\d{2}-\d{2}$/);
+    const kept = JSON.parse(store.get(HC.BS_CARE_INVITE_KEY));
+    assert.deepEqual(Object.keys(kept), ['member-1|t:7']);
+    assert.match(kept['member-1|t:7'], /^\d{4}-\d{2}-\d{2}$/);
     // A new visit reads the stamp: still put away for this coach, shown again for another.
     assert.equal(drive(CARE.BSHomeInvite, { coaches: [JORDAN] }).nodes().find(fn('BSHomeInviteView')).props.shown, false);
     assert.equal(drive(CARE.BSHomeInvite, { coaches: [SAM] }).nodes().find(fn('BSHomeInviteView')).props.shown, true);
     // A team never sees it.
     assert.equal(drive(CARE.BSHomeInvite, { coaches: [JORDAN, MAYA] }).nodes().find(fn('BSHomeInviteView')).props.shown, false);
+    // Another account on this device puts its own away: the first account's fortnight is kept (Codex P2 on #2750).
+    globalThis.ShapeAuth = { getCachedState: () => ({ user: { id: 'member-2' } }) };
+    const other = drive(CARE.BSHomeInvite, { coaches: [MAYA] });
+    assert.equal(other.nodes().find(fn('BSHomeInviteView')).props.shown, true);
+    other.nodes().find(fn('BSHomeInviteView')).props.onLater();
+    other.render();
+    assert.equal(other.nodes().find(fn('BSHomeInviteView')).props.shown, false);
+    globalThis.ShapeAuth = { getCachedState: () => ({ user: { id: 'member-1' } }) };
+    assert.equal(drive(CARE.BSHomeInvite, { coaches: [JORDAN] }).nodes().find(fn('BSHomeInviteView')).props.shown, false, 'the second account\'s "Not now" wiped the first\'s');
+    assert.deepEqual(Object.keys(JSON.parse(store.get(HC.BS_CARE_INVITE_KEY))).sort(), ['member-1|t:7', 'member-2|n:3']);
     // Storage that throws (private mode): put away for this visit all the same.
     Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: { getItem: () => { throw new Error('denied'); }, setItem: () => { throw new Error('denied'); } } });
     const priv = drive(CARE.BSHomeInvite, { coaches: [MAYA] });

@@ -99,3 +99,31 @@ export function bsCareInviteShown({ care = null, uid = null, day = '', stamp = n
   // today (a clock set back), hides nothing.
   return !(Number.isFinite(days) && days >= 0 && days < BS_CARE_INVITE_DAYS);
 }
+
+// ⚠ THE DEVICE KEEPS ONE STAMP AN ACCOUNT AND COACH, NOT ONE STAMP: { "<uid>|<coach key>": "<day>" } as
+// JSON under BS_CARE_INVITE_KEY. In one slot a second account's "Not now", or the same member's for a
+// new coach, wiped the first's fortnight, and the plate came back early (Codex P2 on #2750).
+function bsCareInviteMap(stored) {
+  try {
+    const m = JSON.parse(String(stored || ''));
+    return m && typeof m === 'object' && !Array.isArray(m) ? m : {};
+  } catch (e) { return {}; }
+}
+const bsCareInviteSlot = ({ uid = null, coach = null } = {}) => `${uid || 'preview'}|${bsCareCoachKey(coach)}`;
+// This account and coach's stamp out of what the device holds, or null.
+export function bsCareInviteRead(stored, who) {
+  const slot = bsCareInviteSlot(who || {});
+  const day = bsCareInviteMap(stored)[slot];
+  return typeof day === 'string' && day ? `${slot}|${day}` : null;
+}
+// What the device holds after a "Not now" on `day`: this account and coach's stamp, and every other one
+// still inside its fortnight (the rest are dropped, so the map never grows without end).
+export function bsCareInviteWrite(stored, who, day) {
+  const next = {};
+  for (const [slot, d] of Object.entries(bsCareInviteMap(stored))) {
+    const days = Math.round((bsCareDayMs(day) - bsCareDayMs(d)) / 86400000);
+    if (typeof d === 'string' && Number.isFinite(days) && days >= 0 && days < BS_CARE_INVITE_DAYS) next[slot] = d;
+  }
+  next[bsCareInviteSlot(who || {})] = day;
+  return JSON.stringify(next);
+}
