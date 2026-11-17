@@ -154,7 +154,8 @@ for at 30 seconds and came back longer. Tempo and where the kick plays are measu
 
 In the cuts shown: the app ad plays B from 13.52 s into the track, so its drop lands on the ad's
 second bar; the coaches ad plays A from the start. Sample C is at another tempo: using it means
-moving the cuts to its bars (1.7143 s).
+moving the cuts to its bars (1.7143 s). It is also 39.0 s long, so a 30-second cut can start no later
+than 9.0 s into it.
 
 ⚠ Whoever placed these cuts could not hear them. They sit on each track's measured bars; whether
 they land well with the music is for someone listening to say.
@@ -193,8 +194,9 @@ only the first 60 frames, for a quick look.
 
 A render stops with exit 1 and says why, and leaves no finished video, when something it needs is
 missing or misnamed (a drawing, a dashboard page, the logo, the club's picture, a font, or a frame of
-a recording) and when ffmpeg fails (no music file, nowhere to write, a full disk). `frames.cjs` and
-`fit.cjs` stop the same way on a missing input.
+a recording), when the music is shorter than the cut from where it starts, when ffmpeg fails (no
+music file, nowhere to write, a full disk), and when the finished file does not hold every frame.
+`frames.cjs` and `fit.cjs` stop the same way on a missing input.
 
 The two capture tools stop the same way, before saving anything, so a failed run leaves the pictures
 that were there:
