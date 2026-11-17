@@ -75,3 +75,6 @@ next-env.d.ts
 # the MetaHuman → VRM tools install their own dependencies (scripts/nora-model/README.md)
 /scripts/nora-model/node_modules
 /scripts/nora-model/__pycache__
+
+# the ads' working files (scripts/ads): app recordings, drawings, music and renders, none of them committed
+/scripts/ads/work
