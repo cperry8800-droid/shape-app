@@ -5,9 +5,10 @@
 // Nothing is composed: every frame is the running app in its signed-out preview (sample data). The app is
 // the dev server: cd mobile-app && npx vite --port 5199 --strictPort --host 127.0.0.1 (APP=<url> for another).
 // TYPE="some words" TYPE_INTO=<selector> types them into that field, a letter every other frame, in place of
-// a scroll.
-// ⚠ A step that finds nothing, a field to type into that is not there, or a scroll asked of a screen that does
-// not scroll ends the run with exit 1 before a frame is saved: the app's labels change, and a recording of the
+// a scroll. EXPECT="some words" must be on the screen once the steps are done (any letter case): a tap can find
+// its button and still land somewhere else.
+// ⚠ A step that finds nothing, an EXPECT that is not on the screen, a field to type into that is not there, or
+// a scroll asked of a screen that does not scroll ends the run with exit 1 before a frame is saved: the app's labels change, and a recording of the
 // wrong screen is still a folder of good pictures that nothing downstream can tell from the right one.
 const { chromium } = require('playwright'); const fs = require('fs'); const path = require('path');
 (async () => {
@@ -35,6 +36,8 @@ const { chromium } = require('playwright'); const fs = require('fs'); const path
     if (!found) console.log(name, 'optional step not there:', s);
     await p.waitForTimeout(2200);
   }
+  const EXPECT = process.env.EXPECT || '';
+  if (EXPECT && !(await p.evaluate((want) => document.body.innerText.toLowerCase().includes(want.toLowerCase()), EXPECT))) await fail(`"${EXPECT}" is not on the screen the steps reached`);
   // the screen's own scroller: the tallest visible .bs-scroll that can scroll
   const max = await p.evaluate(() => { const c = [...document.querySelectorAll('.bs-scroll')].filter((n) => n.offsetParent !== null && n.scrollHeight > n.clientHeight + 4).sort((a, b) => b.clientHeight - a.clientHeight)[0]; if (!c) return -1; c.scrollTop = 0; window.__sc = c; return c.scrollHeight - c.clientHeight; });
   const TYPE = process.env.TYPE || '';

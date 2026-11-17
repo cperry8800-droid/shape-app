@@ -78,20 +78,21 @@ sample data. `scripts/ads/seqcap.cjs` walks to a screen, then saves one picture 
 scrolls (118 frames each, 390 x 844 at 2x). Every recording starts with the same four taps,
 `Continue|Preview the app first|GOT IT|Dismiss`, written BASE below.
 
-| Recording | Steps after BASE | Scroll |
-|---|---|---|
-| `m-home` | none | about 430 px |
-| `m-train` | `css:[aria-label="Train"]` | about 420 px |
-| `m-eat` | `css:[aria-label="Eat"]` | about 400 px |
-| `m-coaches` | `css:[aria-label="Coaches"]` | about 520 px |
-| `m-nora` | `css:[aria-label="Ask Nora"]`, with `TYPE="Move leg day to Friday"` and `TYPE_INTO='[placeholder^="Ask Nora"]'` | none: it types |
-| `c-today` | `css:[aria-label="Settings"]`, `TRAINER`, `Dismiss` | about 380 px |
-| `c-clients` | as `c-today`, then `css:[aria-label="Clients"]` | none |
-| `c-plans` (recorded, not in the third cut) | as `c-today`, then `css:[aria-label="Plans"]` | none |
+| Recording | Steps after BASE | Scroll | Must be on screen (`EXPECT`) |
+|---|---|---|---|
+| `m-home` | none | about 430 px | This week |
+| `m-train` | `css:[aria-label="Train"]` | about 420 px | Your training |
+| `m-eat` | `css:[aria-label="Eat"]` | about 400 px | Today's meals |
+| `m-coaches` | `css:[aria-label="Coaches"]` | about 520 px | Find a coach |
+| `m-nora` | `css:[aria-label="Ask Nora"]`, with `TYPE="Move leg day to Friday"` and `TYPE_INTO='[placeholder^="Ask Nora"]'` | none: it types | Talk to Nora |
+| `c-today` | `css:[aria-label="Settings"]`, `TRAINER`, `Dismiss` | about 380 px | Your day |
+| `c-clients` | as `c-today`, then `css:[aria-label="Clients"]` | none | Reach out today |
+| `c-plans` (recorded, not in the third cut) | as `c-today`, then `css:[aria-label="Plans"]` | none | All plans |
 
 Three of them (`m-train`, `c-clients`, `m-nora`) were re-run from these steps after the cuts were
 made and gave the recorded frames again. The scroll distances are measured from the recordings, not
-from the commands that made them, which were not kept.
+from the commands that made them, which were not kept. The `EXPECT` words were added afterwards and
+checked against all eight screens.
 
 **The desktop dashboard** on the drawn monitor is the site's own coach dashboard in its example
 mode (`/newdesign/TrainerApp.html?example=1`: sample clients, with its own band saying so),
@@ -171,7 +172,7 @@ From `scripts/ads/`, with Playwright and ffmpeg available. The working files go 
 
 ```bash
 # the app recordings (the app's dev server on 5199: cd mobile-app && npx vite --port 5199 --strictPort --host 127.0.0.1)
-node seqcap.cjs m-train 'Continue|Preview the app first|GOT IT|Dismiss|css:[aria-label="Train"]' 118 420
+EXPECT='Your training' node seqcap.cjs m-train 'Continue|Preview the app first|GOT IT|Dismiss|css:[aria-label="Train"]' 118 420
 ```
 
 ```bash
@@ -198,13 +199,14 @@ a recording) and when ffmpeg fails (no music file, nowhere to write, a full disk
 The two capture tools stop the same way, before saving anything, so a failed run leaves the pictures
 that were there:
 
-- `seqcap.cjs`, when a step finds nothing on the screen, when the field to type into is not there,
-  or when a scroll is asked of a screen that does not scroll. The app's labels change, and a
-  recording of the wrong screen is still a folder of good pictures. A step that starts with `?` is
-  taken only if it is there.
-- `deskcap.cjs`, when a page does not load or is not showing the dashboard's example (its "Sample
-  clients" band). Without the example a signed-out dashboard is every card saying it could not be
-  read.
+- `seqcap.cjs`, when a step finds nothing on the screen, when the `EXPECT` words are not on the
+  screen the steps reached, when the field to type into is not there, or when a scroll is asked of
+  a screen that does not scroll. The app's labels change, and a recording of the wrong screen is
+  still a folder of good pictures. A step that starts with `?` is taken only if it is there.
+- `deskcap.cjs`, when a page does not load, is not showing the dashboard's example (its "Sample
+  clients" band: without it a signed-out dashboard is every card saying it could not be read), or
+  is not the page asked for. The dashboard opens Today for any page name it does not know, so the
+  side rail's current link has to be the one asked for.
 
 ## Found and fixed between cuts
 

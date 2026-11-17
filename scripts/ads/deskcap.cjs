@@ -1,9 +1,11 @@
-// node deskcap.cjs   the coach's desktop dashboard as the site draws it in its own example mode
+// node deskcap.cjs [page,page,...]   the coach's desktop dashboard as the site draws it in its own example mode
 // (TrainerApp.html?example=1: sample clients, this tab signed out), one picture a page -> work/desk/d-<page>.jpg
-// The pages come from a server of public/ (node serve.cjs, port 8850; PAGES=<origin> for another).
-// ⚠ Exits 1 before saving a page that did not load or is not showing the example (its band, "Sample clients"):
-// without the example a signed-out dashboard is every card saying it could not be read, and that would be a
-// good picture of the wrong thing.
+// The pages are today, clients, programs and week unless others are named. They come from a server of public/
+// (node serve.cjs, port 8850; PAGES=<origin> for another).
+// ⚠ Exits 1, saving nothing, when a page did not load, is not showing the example (its band, "Sample clients":
+// without it a signed-out dashboard is every card saying it could not be read), or is not the page asked for.
+// The dashboard opens Today for any #name it does not know, so a page renamed in the site would be a good
+// picture of Today under another page's name: the side rail's current link has to be the one asked for.
 const { chromium } = require('playwright'); const fs = require('fs'); const path = require('path');
 (async () => {
   const out = path.join(__dirname, 'work', 'desk');
@@ -13,7 +15,7 @@ const { chromium } = require('playwright'); const fs = require('fs'); const path
   const p = await b.newPage({ viewport: { width: 1360, height: 1000 }, deviceScaleFactor: 1 });
   await p.mouse.move(640, 36);   // off the side rail (it opens under the pointer) and off every card
   const shots = [];
-  for (const t of ['today', 'clients', 'programs', 'week']) {
+  for (const t of (process.argv[2] || 'today,clients,programs,week').split(',')) {
     const url = base + '/newdesign/TrainerApp.html?example=1#' + t;
     const resp = await p.goto(url, { waitUntil: 'load' });
     // (moving to the next page is a change of #tab on the same document: no response comes with it)
@@ -23,6 +25,8 @@ const { chromium } = require('playwright'); const fs = require('fs'); const path
     await p.waitForTimeout(700);
     const example = await p.evaluate(() => /sample clients/i.test(document.body.innerText));
     if (!example) await fail(`${url} is not showing the dashboard's example`);
+    const showing = await p.evaluate(() => { const a = document.querySelector('[aria-current="page"]'); return a ? (a.getAttribute('href') || '').split('#')[1] || '' : ''; });
+    if (showing !== t) await fail(`asked for the dashboard's "${t}" page, and it is showing "${showing || 'no page it marks as current'}"`);
     shots.push([t, await p.screenshot({ type: 'jpeg', quality: 93 })]);
     console.log(t, await p.evaluate(() => document.title));
   }
