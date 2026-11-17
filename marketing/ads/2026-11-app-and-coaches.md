@@ -195,6 +195,17 @@ missing or misnamed (a drawing, a dashboard page, the logo, the club's picture, 
 a recording) and when ffmpeg fails (no music file, nowhere to write, a full disk). `frames.cjs` and
 `fit.cjs` stop the same way on a missing input.
 
+The two capture tools stop the same way, before saving anything, so a failed run leaves the pictures
+that were there:
+
+- `seqcap.cjs`, when a step finds nothing on the screen, when the field to type into is not there,
+  or when a scroll is asked of a screen that does not scroll. The app's labels change, and a
+  recording of the wrong screen is still a folder of good pictures. A step that starts with `?` is
+  taken only if it is there.
+- `deskcap.cjs`, when a page does not load or is not showing the dashboard's example (its "Sample
+  clients" band). Without the example a signed-out dashboard is every card saying it could not be
+  read.
+
 ## Found and fixed between cuts
 
 - The second cut of both ads had a defect that was sent before it was seen: every scene with the
