@@ -5546,10 +5546,23 @@ function BSCoachDraftEditor({ t, accent, accentInk = '#04201d', typeName, blockL
     setUploading(false);
   };
   const rmMedia = (i) => setMedia(list => list.filter((_, j) => j !== i));
-  // Per-exercise clip attach — one hidden input, target block tracked by ref.
-  // Reuses the media section's ShapeCoachMedia upload + signed-out guard.
+  // Per-block clip attach. ＋ CLIP opens a panel under the block with the two ways in: a file (one
+  // hidden input, target block tracked by ref; the media section's ShapeCoachMedia upload and its
+  // signed-out guard) or a link (owner, 2026-11-17: "have youtube links be able to be added").
+  // ⚠ THE LINK GOES THROUGH ShapeVideoLink, NEVER A PARSER OF THIS FILE'S: it hands over only what
+  // ShapeVideo resolves to a player (YouTube, Vimeo, Loom or a video file, https) and says in the
+  // panel why it refused anything else. Either way the URL lands in the block's `video`, the one
+  // field the plan already carries, so a linked clip plays and is removed as an uploaded one is.
   const clipInputRef = React.useRef(null);
   const clipTargetRef = React.useRef(null);
+  const [clipPanel, setClipPanel] = useStateBSP(null); // the open panel's block (clipKey), or null
+  const [clipErr, setClipErr] = useStateBSP('');       // an upload that failed, said in that panel
+  // By day and block id, never by position alone: a block removed above it, or another day's tab,
+  // must not move the open panel onto a different block.
+  const clipKey = (b, i) => `${activeDow == null ? 'default' : activeDow}:${b.id != null ? b.id : `#${i}`}`;
+  const toggleClipPanel = (key) => { setClipErr(''); setClipPanel((open) => (open === key ? null : key)); };
+  const setClip = (i, url) => editBlocks(list => list.map((b, j) => (j === i ? { ...b, video: url } : b)));
+  const attachClipLink = (i, url) => { setClip(i, url); setClipErr(''); setClipPanel(null); };
   const openClip = (i) => { clipTargetRef.current = i; if (clipInputRef.current) clipInputRef.current.click(); };
   const pickClip = async (e) => {
     const file = (e.target.files || [])[0];
@@ -5557,10 +5570,16 @@ function BSCoachDraftEditor({ t, accent, accentInk = '#04201d', typeName, blockL
     const i = clipTargetRef.current;
     clipTargetRef.current = null;
     if (!file || i == null) return;
-    if (!window.ShapeCoachMedia?.upload) { setStatus(tr('coach:editor.signInUpload', { defaultValue: 'Sign in to upload media.' })); setTimeout(() => setStatus(''), 1800); return; }
+    // Said in the panel the coach is in, and it stays until they act (toasts are a no-op).
+    if (!window.ShapeCoachMedia?.upload) { setClipErr(tr('coach:editor.signInUpload', { defaultValue: 'Sign in to upload media.' })); return; }
+    setClipErr('');
     setUploading(true);
-    try { const m = await window.ShapeCoachMedia.upload(file); if (m && m.url) editBlocks(list => list.map((b, j) => (j === i ? { ...b, video: m.url } : b))); }
-    catch (err) { setStatus(String(err?.message || tr('coach:editor.uploadFailed', { defaultValue: 'Upload failed' }))); setTimeout(() => setStatus(''), 2200); }
+    try {
+      const m = await window.ShapeCoachMedia.upload(file);
+      if (!m || !m.url) throw new Error(tr('coach:editor.uploadFailed', { defaultValue: 'Upload failed' }));
+      setClip(i, m.url);
+      setClipPanel(null);
+    } catch (err) { setClipErr(String(err?.message || tr('coach:editor.uploadFailed', { defaultValue: 'Upload failed' }))); }
     setUploading(false);
   };
   const clearClip = (i) => editBlocks(list => list.map((b, j) => (j === i ? { ...b, video: undefined } : b)));
@@ -5673,11 +5692,23 @@ function BSCoachDraftEditor({ t, accent, accentInk = '#04201d', typeName, blockL
                       <button type="button" onClick={() => window.open(b.video, '_blank', 'noopener,noreferrer')} aria-label={tr('coach:editor.playClipAria', { defaultValue: 'Play clip for {name}', name: b.text || tr('coach:editor.exercise', { defaultValue: 'exercise' }) })} style={clipBtnStyle}>{tr('coach:editor.playClip', { defaultValue: '▶ CLIP' })}</button>
                       <button type="button" onClick={() => clearClip(i)} aria-label={tr('coach:editor.removeClipAria', { defaultValue: 'Remove clip from {name}', name: b.text || tr('coach:editor.exercise', { defaultValue: 'exercise' }) })} style={{ minHeight: 44, display: 'inline-flex', alignItems: 'center', border: 0, background: 'transparent', color: t.INK50, fontSize: 14, lineHeight: 1, cursor: 'pointer', padding: '0 3px' }}>×</button>
                     </>) : (
-                      <button type="button" onClick={() => openClip(i)} disabled={uploading} aria-label={tr('coach:editor.attachClipAria', { defaultValue: 'Attach a video clip to {name}', name: b.text || tr('coach:editor.exercise', { defaultValue: 'exercise' }) })} style={{ ...clipBtnStyle, opacity: uploading ? 0.5 : 1 }}>{tr('coach:editor.addClip', { defaultValue: '＋ CLIP' })}</button>
+                      <button type="button" onClick={() => toggleClipPanel(clipKey(b, i))} disabled={uploading} aria-expanded={clipPanel === clipKey(b, i)} aria-label={tr('coach:editor.attachClipAria', { defaultValue: 'Attach a video clip to {name}', name: b.text || tr('coach:editor.exercise', { defaultValue: 'exercise' }) })} style={{ ...clipBtnStyle, opacity: uploading ? 0.5 : 1 }}>{tr('coach:editor.addClip', { defaultValue: '＋ CLIP' })}</button>
                     )}
                     <button type="button" onClick={() => rmBlock(i)} aria-label={tr('coach:common.remove', { defaultValue: 'Remove' })} style={{ minHeight: 44, display: 'inline-flex', alignItems: 'center', border: 0, background: 'transparent', color: t.INK50, fontSize: 18, lineHeight: 1, cursor: 'pointer', padding: '0 4px' }}>×</button>
                   </span>
                 </div>
+                {/* The two ways to attach a clip, under the block it is for: a file, or a link
+                    (ShapeVideoLink: its own field, help line, Attach button and refusal). Gone once
+                    the block has a clip; ▶ CLIP and × above are then the controls. */}
+                {!b.video && clipPanel === clipKey(b, i) && (
+                  <div data-clip-attach="" style={{ margin: '6px 0 4px 28px', padding: '10px 12px 12px', borderRadius: 12, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, fontFamily: t.BODY || t.DISPLAY, fontSize: 13, lineHeight: 1.4 }}>
+                    <button type="button" data-clip-upload="" onClick={() => openClip(i)} disabled={uploading} style={{ minHeight: 44, width: '100%', borderRadius: 8, border: `1px solid ${accent}`, background: 'transparent', color: accent, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: uploading ? 'default' : 'pointer', opacity: uploading ? 0.5 : 1 }}>
+                      {uploading ? tr('coach:video.uploading', { defaultValue: 'Uploading…' }) : tr('coach:video.upload', { defaultValue: 'Upload video' })}
+                    </button>
+                    {clipErr ? <div role="alert" data-clip-error="" style={{ marginTop: 8, color: t.RUST }}>{clipErr}</div> : null}
+                    <ShapeVideoLink label={tr('coach:video.exerciseLink', { defaultValue: 'Video link for {name}', name: b.text || tr('coach:editor.exercise', { defaultValue: 'exercise' }) })} disabled={uploading} onChange={(url) => attachClipLink(i, url)} />
+                  </div>
+                )}
                 {/* Deploy 2b — the planned-load pair (SPEC-guardrails.md §3.2a).
                     Shown ONLY where a block IS a session, read through
                     planOutline's own classifier rather than a fourth opinion.
