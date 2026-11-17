@@ -63,17 +63,27 @@ const fnBody = (name) => {
 // before the footer; a shared sheet (BSSwapSheet) sits after it and keeps the app's own type.
 const mainReturn = (body) => body.slice(body.lastIndexOf('\n  return ('));
 
-test('the coach pages and the member Home share the one clean type', () => {
+// Owner, 2026-10-28: "Member/client home page font needs to match coaches". Owner, 2026-11-17, of the
+// approved Home: "just make sure look and design is same as preview", and the preview is set in Saira. So
+// the coach pages keep the clean type (and the member's Train and Eat, below); Home is Saira again.
+test('the coach pages share the one clean type; the member Home is set in Saira, its weights as written', () => {
   assert.match(PROS, /import \{[^}]*\buseBSClean\b[^}]*\} from '\.\/bsCleanType\.jsx';/);
   assert.match(CLIENT, /import \{ useBSClean, BSCleanType\b[^}]*\} from '\.\/bsCleanType\.jsx';/);
   const body = fnBody('BSClientHome');
-  assert.match(body, /const t = useBSClean\(\);/, 'Home reads the clean theme');
-  // The clean area opens below the top bars and closes before the footer, as on the coach's Today.
-  const open = body.indexOf('<BSCleanType t={t}>');
-  const close = body.indexOf('</BSCleanType>');
-  // The deck (Shape Radio, the climb, the week) is the clean area's first piece (owner, 2026-11-03).
-  assert.ok(open > body.indexOf('<BSHomeScoreQuote') && open < body.indexOf('<BSHomeDeck radio={<BSNowPlaying'), 'the clean area starts under the score quote, with the deck');
-  assert.ok(close > body.indexOf('<BSHomeShortcutList') && close < body.indexOf('<BSFooter'), 'the clean area ends before the footer');
+  assert.match(body, /const t = useBSHomeType\(\);/, 'Home reads its own theme');
+  assert.doesNotMatch(body, /useBSClean\(\)|<BSCleanType/, 'Home is in the coach pages\' type again');
+  // Home's type starts below the top bars and ends before the footer, as the clean area did.
+  const open = body.indexOf('<BSHomeType t={t}>');
+  const close = body.indexOf('</BSHomeType>');
+  // Shape Radio and the plates under it are its first piece.
+  assert.ok(open > body.indexOf('<BSHomeScoreQuote') && open < body.indexOf('<BSHomeDeck radio={<BSNowPlaying'), 'Home\'s type starts under the score quote, with the deck');
+  assert.ok(close > body.indexOf('<BSHomeShortcutList') && close < body.indexOf('<BSFooter'), 'Home\'s type ends before the footer');
+  // Every word face of that theme is Saira, and its box is the clean area's (a weight stays as written,
+  // where the app's "regular" setting would step it down), so a sheet Home opens keeps its weights too.
+  const CARE = readFileSync(new URL('../mobile-app/src/broadsheet/BSHomeCare.jsx', import.meta.url), 'utf8');
+  assert.match(CARE, /export const BS_HOME_FACE = "'Saira',/);
+  assert.match(CARE, /\{ \.\.\.base, DISPLAY: BS_HOME_FACE, BODY: BS_HOME_FACE, HEAD: BS_HOME_FACE \}/);
+  assert.match(CARE, /export function BSHomeType\(\{ t, children \}\) \{\n  return <BSCleanType t=\{t\}>\{children\}<\/BSCleanType>;\n\}/);
 });
 
 test('Train and Eat set their pages in the clean type, under the header, and keep the swap sheet out', () => {

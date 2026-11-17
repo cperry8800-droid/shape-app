@@ -2,6 +2,7 @@ import React from 'react';
 import { bsCiDay, bsCiAnswered, bsCiIso, BS_CI_SAVED } from './BSCheckinCard.jsx';
 import { bsHomeWeekSoFar, bsHomeNextSession, bsHwRedate, bsHwWeekDays as bsHomeWeekSoFarDays, bsHwTrainedOf, bsHwTrainedDaysOf, bsHwSeriesOf, bsHwGoalData, bsHwOfWeek, bsHwWeekGrid, bsHwShift } from '../services/homeWeek.mjs';
 import { bsUserGoalsRevHook } from '../services/userGoalsRefresh.mjs';
+import { bsHomeSquare, bsHomeMono, bsHomeInk, BSHomeGlyph } from './BSHomeCare.jsx';
 
 // Home's goal reads its documents again when Nora's account setup (or its Undo) changes them.
 const useBSUserGoalsRev = bsUserGoalsRevHook(React);
@@ -174,11 +175,12 @@ export function useBSHomeNextSession(coaches) {
 }
 
 // ── DAILY HABITS, IN THE MORNING PANEL ───────────────────────────────────────────────────────────
-// Owner, 2026-11-03, of the morning panel: "add daily habits in here instead of at bottom". A row under
-// water: "Daily habits", how many are done today, and the first three as ticks to check off where they
-// are, through the store the Habits page uses (window._bsUseServerHabits), so a tick here is the
-// page's tick. The rest open on the page; the title opens it too. The signed-out preview shows the
-// sample's habits, and a tick asks for an account (the store's own gate).
+// Owner, 2026-11-03, of the morning panel: "add daily habits in here instead of at bottom", and 2026-11-17,
+// of the approved Home, "keep habits". Under water: "Daily habits" with how many are done today, then the
+// first three, a row each, to check off where they are through the store the Habits page uses
+// (window._bsUseServerHabits), so a tick here is the page's tick. The rest open on the page; the title
+// opens it too. The signed-out preview shows the sample's habits, and a tick asks for an account (the
+// store's own gate).
 const BS_HS_HABIT_TICKS = 3;
 function useBSHomeHabitsFallback() { return { habits: [], status: 'ready', toggle: () => {} }; }
 export function BSHomeHabitsRow({ tweaks = {}, setTweak = () => {}, onOpen, tour, onTicked }) {
@@ -205,35 +207,44 @@ export function BSHomeHabitsRowView({ habits = [], ready = true, onToggle, onOpe
   const ticks = list.slice(0, BS_HS_HABIT_TICKS);
   const more = list.length - ticks.length;
   const open = () => { if (typeof onOpen === 'function') onOpen(); };
-  // A tick's label: the habit's last word ("Drink 3 glasses of water" → water), and for a habit to
-  // avoid, "No" with it (smoking → No smoking). The tick's own name is the whole habit.
-  const short = (h) => {
-    const words = String(h.name || '').split(/\s+/).filter((w) => /\p{L}/u.test(w));
-    const last = words[words.length - 1] || '';
-    return h.type === 'avoid' ? tr('home:habits.avoidShort', { defaultValue: 'No {what}', what: last }) : last;
-  };
+  // A habit's line: its own words, and for a habit to avoid, "No" with it (smoking → No smoking). The
+  // tick's own name is the habit as the member wrote it.
+  const said = (h) => (h.type === 'avoid' ? tr('home:habits.avoidShort', { defaultValue: 'No {what}', what: h.name }) : h.name);
+  const moreLabel = tr('home:habits.more', { defaultValue: '{count, plural, one {# more habit} other {# more habits}}', count: more });
   return (
-    <div data-bs-home-habits="" data-tour={tour || undefined} style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${t.HAIR}`, display: 'flex', alignItems: 'center', gap: 8 }}>
-      <button type="button" onClick={open} style={{ flex: 1, minWidth: 0, minHeight: 44, padding: 0, border: 0, background: 'transparent', cursor: 'pointer', textAlign: 'left', color: t.INK }}>
-        <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 650 }}>{tr('home:slate.habitsHead', { defaultValue: 'Daily habits' })}</span>
-        <span style={{ display: 'block', marginTop: 1, fontFamily: t.DISPLAY, fontSize: 12.5, color: t.INK70 }}>
-          {!ready ? '—' : list.length ? tr('home:focus.habitsDone', { defaultValue: '{done} of {total} done', done, total: list.length }) : tr('home:focus.habitsFirst', { defaultValue: 'Add your first' })}
+    <div data-bs-home-habits="" data-tour={tour || undefined} style={{ marginTop: 14, paddingTop: 14, borderTop: `1px solid ${t.HAIR}` }}>
+      <button type="button" data-habits-head="" onClick={open} style={{ width: '100%', minHeight: 44, padding: 0, border: 0, background: 'transparent', cursor: 'pointer', textAlign: 'left', color: t.INK, display: 'flex', alignItems: 'center', gap: 10 }}>
+        <span style={{ flex: 1, minWidth: 0 }}>
+          <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 18, fontWeight: 700, lineHeight: 1.25 }}>{tr('home:slate.habitsHead', { defaultValue: 'Daily habits' })}</span>
+          {!ready || !list.length ? (
+            <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 13, lineHeight: 1.35, color: bsHomeInk(t, 0.66) }}>{!ready ? '—' : tr('home:focus.habitsFirst', { defaultValue: 'Add your first' })}</span>
+          ) : null}
         </span>
+        {ready && list.length ? <span data-habits-count="" style={{ flex: 'none', ...bsHomeMono(t, { fontWeight: 700, color: t.ACCENT, whiteSpace: 'nowrap' }) }}>{tr('home:focus.habitsDone', { defaultValue: '{done} of {total} done', done, total: list.length })}</span> : null}
+        {ready && !list.length ? <span aria-hidden="true" style={{ flex: 'none', color: t.INK50, fontSize: 20 }}>›</span> : null}
       </button>
-      {ready ? ticks.map((h) => (
-        <button key={h.id} type="button" data-habit-tick={h.done ? 'done' : 'open'} aria-pressed={h.done}
-          aria-label={h.name} onClick={() => { if (typeof onToggle === 'function') onToggle(h.id); }}
-          style={{ minWidth: 46, minHeight: 44, flexShrink: 0, padding: '3px 5px 2px', boxSizing: 'border-box', borderRadius: 4, border: `1px solid ${h.done ? t.INK : t.INK50}`, background: h.done ? t.INK : 'transparent', color: h.done ? t.PAPER : t.INK, cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2 }}>
-          <span aria-hidden="true" style={{ fontSize: 13, lineHeight: 1 }}>✓</span>
-          {/* The box grows to its word ("No smoking" is not "NO SMOKI…"), up to a cap a long language still fits. */}
-          <span style={{ maxWidth: 64, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: t.MONO, fontSize: 6.5, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{short(h)}</span>
-        </button>
-      )) : null}
-      {ready && more > 0 ? (
-        <button type="button" onClick={open} aria-label={tr('home:habits.more', { defaultValue: '{count, plural, one {# more habit} other {# more habits}}', count: more })}
-          style={{ minWidth: 44, minHeight: 44, flexShrink: 0, padding: '0 4px', border: 0, background: 'transparent', cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 700, color: t.INK70 }}>+{more}</button>
+      {ready && ticks.length ? (
+        <div style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {ticks.map((h) => (
+            <div key={h.id} data-habit-row="" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span aria-hidden="true" style={{ flex: 'none', width: 3, height: 28, borderRadius: 2, background: t.ACCENT }} />
+              <span data-habit-name="" style={{ flex: '1 1 0', minWidth: 0, fontFamily: t.DISPLAY, fontSize: 15, lineHeight: 1.3, color: t.INK, overflowWrap: 'anywhere' }}>{said(h)}</span>
+              <button type="button" data-habit-tick={h.done ? 'done' : 'open'} aria-pressed={h.done}
+                aria-label={h.name} onClick={() => { if (typeof onToggle === 'function') onToggle(h.id); }}
+                style={{ ...bsHomeSquare(t, h.done, 44), color: h.done ? t.PAPER : bsHomeInk(t, 0.5) }}>
+                <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12.5l4.2 4.2L19 7" /></svg>
+              </button>
+            </div>
+          ))}
+        </div>
       ) : null}
-      {ready && !list.length ? <span aria-hidden="true" style={{ color: t.INK50, fontSize: 20 }}>›</span> : null}
+      {ready && more > 0 ? (
+        <button type="button" data-habits-more="" onClick={open}
+          style={{ width: '100%', minHeight: 44, marginTop: 4, padding: 0, border: 0, background: 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10, textAlign: 'left', fontFamily: t.DISPLAY, fontSize: 13, color: bsHomeInk(t, 0.66) }}>
+          <span style={{ flex: 1, minWidth: 0 }}>{moreLabel}</span>
+          <span aria-hidden="true" style={{ flex: 'none', color: t.INK50, fontSize: 20 }}>›</span>
+        </button>
+      ) : null}
     </div>
   );
 }
@@ -243,26 +254,26 @@ export function BSHomeHabitsRowView({ habits = [], ready = true, onToggle, onOpe
 // add it", of the row that brings back what Today's call carried): only when the engine flags something
 // (sleep, water, energy, hunger, the weekly check-in, the streak, a meal, the goal's pace, the score), so a
 // day with nothing flagged reads as before. "Your move" in the lever's colour, the move, its reason in the
-// member's words, and the pledge as the panel's ink square.
+// member's words, and the pledge as the panel's ink square (48px with a 12px corner, as the plate's).
 export function BSHomeMoveRow({ head, sub, cta, color }) {
   const t = window.useBS();
   const tr = useShapeTr();
   if (!head) return null;
   const go = cta && typeof cta[1] === 'function' ? cta[1] : null;
   return (
-    <div data-bs-home-move="" style={{ display: 'flex', alignItems: 'center', gap: 12, paddingBottom: 10, marginBottom: 10, borderBottom: `1px solid ${t.HAIR}` }}>
+    <div data-bs-home-move="" style={{ display: 'flex', alignItems: 'center', gap: 12, paddingBottom: 14, marginBottom: 14, borderBottom: `1px solid ${t.HAIR}` }}>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: color || t.ACCENT }}>
           <span aria-hidden="true" style={{ width: 6, height: 6, borderRadius: 3, background: color || t.ACCENT, flex: 'none' }} />
           {tr('home:lead.railHeader', { defaultValue: 'Your move' })}
         </div>
-        <div style={{ marginTop: 3, fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, letterSpacing: '-0.01em', lineHeight: 1.2, color: t.INK }}>{head}</div>
-        {sub ? <div style={{ marginTop: 2, fontFamily: t.BODY, fontSize: 12, lineHeight: 1.35, color: t.INK70 }}>{sub}</div> : null}
+        <div style={{ marginTop: 3, fontFamily: t.DISPLAY, fontSize: 18, fontWeight: 700, lineHeight: 1.25, color: t.INK }}>{head}</div>
+        {sub ? <div style={{ marginTop: 2, fontFamily: t.BODY, fontSize: 13, lineHeight: 1.35, color: t.INK70 }}>{sub}</div> : null}
       </div>
       {go ? (
         <button type="button" data-bs-home-move-go="" onClick={go} aria-label={String(cta[0] || '').replace(/\s*→\s*$/, '')}
-          style={{ flex: 'none', width: 44, height: 44, minHeight: 44, padding: 0, borderRadius: 6, border: 0, background: t.INK, color: t.PAPER, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
-          <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
+          style={bsHomeSquare(t, true)}>
+          <BSHomeGlyph name="arrow" size={18} />
         </button>
       ) : null}
     </div>
@@ -270,25 +281,26 @@ export function BSHomeMoveRow({ head, sub, cta, color }) {
 }
 
 // ── SHORTCUTS, AS A LIST ─────────────────────────────────────────────────────────────────────────
-// The Home preview's Shortcuts (owner, 2026-11-03): a numbered list under a 2px ink rule, each row a
-// door with its name over one line, and a chevron. No figures.
+// The Home preview's Shortcuts (owner, 2026-11-03; 2026-11-17: "incorporate shortcuts still on home"): a
+// numbered list under a 2px ink rule, each row a door with its name over one line, and a chevron. No
+// figures.
 export function BSHomeShortcutList({ title, rows = [] }) {
   const t = window.useBS();
   if (!rows.length) return null;
   return (
-    <section data-bs-home-shortcuts="" style={{ padding: `${t.sectGap || 22}px ${t.padX}px 0` }}>
-      <h2 style={{ margin: 0, paddingBottom: 8, borderBottom: `2px solid ${t.INK}`, fontFamily: t.HEAD || t.DISPLAY, fontSize: 17, fontWeight: 700, letterSpacing: '-0.01em', color: t.INK }}>
-        {title}<span aria-hidden="true" style={{ color: '#c0533b' }}>.</span>
+    <section data-bs-home-shortcuts="" style={{ padding: '18px 20px 0' }}>
+      <h2 style={{ margin: 0, paddingBottom: 8, borderBottom: `2px solid ${t.INK}`, fontFamily: t.DISPLAY, fontSize: 19, fontWeight: 700, lineHeight: 1.35, color: t.INK }}>
+        {title}<span aria-hidden="true" style={{ color: t.isLight ? '#c0533b' : '#e0694f' }}>.</span>
       </h2>
       {rows.map((r, i) => (
         <button key={r.key} type="button" data-home-shortcut={r.key} data-tour={r.tour || undefined} onClick={r.onOpen}
-          style={{ width: '100%', minHeight: 56, display: 'flex', alignItems: 'center', gap: 12, padding: '8px 0', border: 0, borderBottom: `1px solid ${t.HAIR}`, background: 'transparent', cursor: 'pointer', textAlign: 'left', color: t.INK }}>
-          <span aria-hidden="true" style={{ width: 22, flexShrink: 0, fontFamily: t.MONO, fontSize: 10.5, color: t.INK50, fontVariantNumeric: 'tabular-nums' }}>{String(i + 1).padStart(2, '0')}</span>
-          <span style={{ flex: 1, minWidth: 0 }}>
-            <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 650 }}>{r.label}</span>
-            {r.sub ? <span style={{ display: 'block', marginTop: 1, fontFamily: t.DISPLAY, fontSize: 12.5, color: t.INK70 }}>{r.sub}</span> : null}
+          style={{ width: '100%', minHeight: 44, display: 'flex', alignItems: 'center', gap: 16, padding: '11px 0', border: 0, borderBottom: `1px solid ${bsHomeInk(t, 0.1)}`, background: 'transparent', cursor: 'pointer', textAlign: 'left', color: t.INK }}>
+          <span aria-hidden="true" style={{ flex: '0 0 22px', fontFamily: t.MONO, fontWeight: 500, fontSize: 11, color: bsHomeInk(t, 0.6), fontVariantNumeric: 'tabular-nums' }}>{String(i + 1).padStart(2, '0')}</span>
+          <span style={{ flex: '1 1 0', minWidth: 0 }}>
+            <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, lineHeight: 1.35 }}>{r.label}</span>
+            {r.sub ? <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 13, lineHeight: 1.35, color: bsHomeInk(t, 0.66) }}>{r.sub}</span> : null}
           </span>
-          <span aria-hidden="true" style={{ color: t.INK50, fontSize: 20 }}>›</span>
+          <span aria-hidden="true" style={{ color: bsHomeInk(t, 0.6), fontSize: 20 }}>›</span>
         </button>
       ))}
     </section>

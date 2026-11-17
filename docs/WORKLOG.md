@@ -103,7 +103,8 @@ The rules and the code map. Every session loads it: when a rule changes, replace
   Night-before prep: `services/prepAhead.mjs` (Eat and the cron), `services/mealDays.mjs`
   (account-bound, compare-and-set), `BSPlanDay.jsx`. Check-ins: one on Home, the Morning check-in
   (`BSCheckinCard.jsx`); the coach's Weekly check-in is a line on Team (`BSHomeTeam.jsx`), its page
-  `BSWeeklyCheckin.jsx`. The live session (`BSWorkoutSession.jsx`) shows each exercise's how-to clip above
+  `BSWeeklyCheckin.jsx`. Home reads by who the member pays, no coach, one coach or a team
+  (`services/homeCare.mjs`, `BSHomeCare.jsx`). The live session (`BSWorkoutSession.jsx`) shows each exercise's how-to clip above
   its sets in all three views: the coach's own, else the catalog's stock `demo_url` (`services/exerciseDemo.mjs`,
   `window.ShapeExerciseDemos`). A profile photo is placed before it is saved (`BSAvatarPositioner.jsx`,
   `services/avatarCrop.mjs`): the 256px square in `client_identity.photo`, the photo as picked in
@@ -122,7 +123,7 @@ The rules and the code map. Every session loads it: when a rule changes, replace
 - **Theme:** `useBS()` → `t`. Teal `t.isLight ? '#0a8f87' : '#34d6c5'`, nutritionists gold
   `#a07a2e`, trainers rust `#c0533b`; the Wall, chat and chrome take `bsMagazine.mjs`'s
   teal. Saira; Geist/Inter Tight (`useBSProClean`) on coach Today/Clients/Programs and the client
-  review pages, and member Home/Train/Eat; catalog labels written in capitals stay capitals.
+  review pages, and member Train/Eat (member Home is Saira, `useBSHomeType`); catalog labels written in capitals stay capitals.
 - **App copy** goes through `useShapeTr()` in all 13 locales
   (`tests/i18n-surface-inventory.test.mjs` counts the untranslated).
 - **Backend:** a new notification kind needs a switch in `PREFERENCE_OF`

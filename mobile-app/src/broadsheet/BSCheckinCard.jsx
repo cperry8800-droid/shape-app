@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { bsCleanSheet } from './bsCleanType.jsx';
 import { morningReadiness, mrWatchForDay } from '../services/morningReadiness.mjs';
 import { bsCiWordIndex, bsCiIso, bsCiHM, bsCiWords, bsCiLowerIn, bsLeadReason } from '../services/leadReason.mjs';
-import { bsRaised } from './BSProInstrument.jsx';
+import { bsHomePlate } from './BSHomeCare.jsx';
 import { bsDialogRef } from '../services/dialogBack.mjs';
 
 // The check-in's words and helpers live in the shared module the server reads too; the card, Your
@@ -994,15 +994,16 @@ function BSCheckinDay({ dayIso, openRequest = null, onOpenRequestConsumed = null
   const streakChip = signedIn && streak >= 2 ? (
     <span style={{ ...mono, fontSize: 8.5, letterSpacing: '0.1em', color: amber, whiteSpace: 'nowrap' }}>{tr('home:checkin.streak', { defaultValue: '{n, plural, one {# day running} other {# days running}}', n: streak })}</span>
   ) : null;
-  // A step down (owner, 2026-10-24: "make these smaller").
-  const title = { fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, letterSpacing: '-0.01em', lineHeight: 1.15, color: t.INK };
-  const sub = { fontFamily: t.BODY, fontSize: 12, lineHeight: 1.35, color: t.INK50 };
+  // The approved Home's row (owner, 2026-11-17: "just make sure look and design is same as preview"): the
+  // title 18px bold over a 13px line. It was a step down (owner, 2026-10-24: "make these smaller").
+  const title = { fontFamily: t.DISPLAY, fontSize: 18, fontWeight: 700, lineHeight: 1.25, color: t.INK };
+  const sub = { fontFamily: t.BODY, fontSize: 13, lineHeight: 1.35, color: t.INK50 };
   const startLabel = manual ? tr('home:checkin.continue', { defaultValue: 'Continue →' }) : tr('home:checkin.start', { defaultValue: 'Start check-in →' });
   // Start's name for a screen reader: the visible arrow is the row's square.
   const startAria = startLabel.replace(/\s*[→›]\s*$/, '');
   // The row's square, the morning panel's one control shape (Water's ＋ is the same box): ink when it
-  // does the thing, an outline when it opens something.
-  const square = (filled) => ({ flex: 'none', width: 44, height: 44, minHeight: 44, padding: 0, borderRadius: 6, boxSizing: 'border-box', border: filled ? 0 : `1px solid ${t.INK50}`, background: filled ? t.INK : 'transparent', color: filled ? t.PAPER : t.INK, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' });
+  // does the thing, an outline when it opens something. 48px with a 12px corner, as the approved Home's.
+  const square = (filled) => ({ flex: 'none', width: 48, height: 48, minHeight: 48, padding: 0, borderRadius: 12, boxSizing: 'border-box', border: filled ? 0 : `1px solid ${t.INK50}`, background: filled ? t.INK : 'transparent', color: filled ? t.PAPER : t.INK, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' });
   const ring = (score) => {
     const r = 18;
     const c = 2 * Math.PI * r;
@@ -1030,7 +1031,7 @@ function BSCheckinDay({ dayIso, openRequest = null, onOpenRequestConsumed = null
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             {readiness ? ring(readiness.score) : tile(`${teal}24`, tick(teal, 16))}
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={signedIn ? title : { ...title, fontSize: 15 }}>
+              <div style={signedIn ? title : { ...title, fontSize: 16 }}>
                 {signedIn ? <>{tr('home:checkin.done', { defaultValue: 'Checked in' })} <span style={{ color: teal }}>✓</span></> : tr('home:today.joinToSave', { defaultValue: 'Join Shape to save your check-in' })}
               </div>
               <div style={{ ...sub, color: t.INK70 }}>
@@ -1114,11 +1115,11 @@ function BSCheckinDay({ dayIso, openRequest = null, onOpenRequestConsumed = null
 export function BSMorningPanel({ children }) {
   const t = window.useBS();
   return (
-    // Round and raised in the paper's own colour, as every box on Home (owner, 2026-11-04: "make sure the
-    // glassy look matches the print color", "this doesnt go together now").
-    <section data-bs-morning="" style={{ margin: '10px 10px 4px', padding: '12px 14px 11px', ...bsRaised(t) }}>
+    // A plate as every box on Home (owner, 2026-11-17, the approved Home: the check-in, water and the
+    // habits in one plate; BSHomeCare.jsx's bsHomePlate), each row 14px clear of the hairline over it.
+    <section data-bs-morning="" style={{ margin: '10px 10px 4px', padding: '14px 16px', ...bsHomePlate(t) }}>
       {children}
-      <style>{`[data-bs-morning] [data-bs-checkin-card] + [data-bs-water]{margin-top:10px;padding-top:10px;border-top:1px solid ${t.HAIR}}`}</style>
+      <style>{`[data-bs-morning] [data-bs-checkin-card] + [data-bs-water]{margin-top:14px;padding-top:14px;border-top:1px solid ${t.HAIR}}`}</style>
     </section>
   );
 }

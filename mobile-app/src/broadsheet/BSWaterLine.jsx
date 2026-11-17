@@ -284,8 +284,8 @@ function BSWaterDay({ dayIso }) {
               never squeeze Water or + Glass (Codex P2 on #2426). */}
           <span style={{ flex: 1, minWidth: 0, display: 'flex', flexWrap: 'wrap', alignItems: 'center', columnGap: 10, rowGap: 6 }}>
             <span style={{ flex: '1 1 auto', minWidth: 0 }}>
-              <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 600, letterSpacing: '-0.01em', color: t.INK }}>{tr('home:checkin.water', { defaultValue: 'Water' })}</span>
-              <span style={{ display: 'block', fontFamily: t.BODY, fontSize: 12, color: t.INK50, fontVariantNumeric: 'tabular-nums' }}>
+              <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 18, fontWeight: 700, lineHeight: 1.25, color: t.INK }}>{tr('home:checkin.water', { defaultValue: 'Water' })}</span>
+              <span style={{ display: 'block', fontFamily: t.BODY, fontSize: 13, lineHeight: 1.35, color: t.INK50, fontVariantNumeric: 'tabular-nums' }}>
                 {known ? litres(water.l) : '—'}
                 {known && target ? ` ${tr('home:checkin.ofTarget', { defaultValue: 'of {target}', target: litres(target) })}` : null}
               </span>
@@ -298,10 +298,10 @@ function BSWaterDay({ dayIso }) {
               </span>
             ) : null}
           </span>
-          {/* + Glass is the morning panel's square (owner, 2026-11-03, the Home preview): a 44 px outline
-              box, the check-in's ✓ beside it in ink. */}
+          {/* + Glass is the morning panel's square (owner, 2026-11-03, the Home preview; 2026-11-17, the
+              approved Home's 48px box with a 12px corner): an outline, the check-in's ✓ beside it in ink. */}
           <button type="button" data-bs-water-add="" aria-label={tr('home:checkin.addGlass', { defaultValue: '+ Glass' })} onClick={addWater} disabled={!water}
-            style={{ flex: 'none', width: 44, height: 44, minHeight: 44, padding: 0, boxSizing: 'border-box', border: `1px solid ${t.INK50}`, borderRadius: 6, background: 'transparent', color: t.INK, cursor: water ? 'pointer' : 'default', opacity: water ? 1 : 0.5, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+            style={{ flex: 'none', width: 48, height: 48, minHeight: 48, padding: 0, boxSizing: 'border-box', border: `1px solid ${t.INK50}`, borderRadius: 12, background: 'transparent', color: t.INK, cursor: water ? 'pointer' : 'default', opacity: water ? 1 : 0.5, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
             <svg aria-hidden data-bs-water-add-glyph="" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
           </button>
         </div>

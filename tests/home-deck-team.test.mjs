@@ -1,23 +1,27 @@
 // tests/home-deck-team.test.mjs
 //
-// THE MEMBER HOME THE OWNER CHOSE (2026-11-03, the Home preview: "ok looks good"), its sections drawn
-// from known data through the shipping views:
-//   · the climb (BSHomeDeck.jsx's BSHomeClimbView, services/homeClimb.mjs's state and route): goal
-//     progress only ("the chart should just be goal progress"), in the member's units;
-//   · This week (BSHomeWeekBarsView): five bars a day, Train · Food · Protein · Steps · Check-in;
-//   · Team (BSHomeTeam.jsx): each coach the member pays once, the trainer with today's call and the
-//     nutritionist with their note and the food left ("so you dont have them twice");
+// THE MEMBER HOME, its sections drawn from known data through the shipping views. The owner chose them on
+// 2026-11-03 (the Home preview: "ok looks good") and approved their new look and order on 2026-11-17 ("ok
+// make new home screens live", "build those. Please make it look like the preview", then "just make sure
+// look and design is same as preview"):
+//   · This week (BSHomeDeck.jsx's BSHomeWeekBarsView), on its own plate under Shape Radio: five bars a day,
+//     Train · Food · Protein · Steps · Check-in;
+//   · the goal plate (BSHomeClimbView, services/homeClimb.mjs's state and route): goal progress only ("the
+//     chart should just be goal progress"), in the member's units, every figure kept ("keep this");
+//   · Today's plan (BSHomeTeam.jsx): one plate, a row a half, with everything Team's coach cards offered;
 //   · Daily habits in the morning panel (BSHomeSections.jsx's BSHomeHabitsRowView).
-// The reads behind them are tests/home-sections.test.mjs's.
+// The reads behind them are tests/home-sections.test.mjs's; who the member has hired, and what Home says of
+// it (the title, the trails, the coaches, the invitation), is tests/home-care.test.mjs's.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import { readFileSync } from 'node:fs';
-import { drive, textOf, SHIM, ROOT, THEME } from './helpers/broadsheet-mount.mjs';
+import { drive, textOf, flatten, SHIM, ROOT, THEME } from './helpers/broadsheet-mount.mjs';
 import { loadRealModule } from './helpers/load-real-module.mjs';
 import { IntlMessageFormat } from 'intl-messageformat';
 import * as C from '../mobile-app/src/services/homeClimb.mjs';
 import * as W from '../mobile-app/src/services/homeWeek.mjs';
+import * as HC from '../mobile-app/src/services/homeCare.mjs';
 
 // The app's translator with no catalog: each string is its English default, formatted as ICU.
 globalThis.ShapeI18n = { t: (key, opts = {}) => new IntlMessageFormat(String(opts.defaultValue ?? key), 'en').format(opts) };
@@ -26,6 +30,11 @@ const REG = { registry: new Map([['react', { ...SHIM, useContext: (c) => c._curr
 const S = await loadRealModule(join(ROOT, 'mobile-app/src/broadsheet/BSHomeSections.jsx'), REG);
 const D = await loadRealModule(join(ROOT, 'mobile-app/src/broadsheet/BSHomeDeck.jsx'), REG);
 const T = await loadRealModule(join(ROOT, 'mobile-app/src/broadsheet/BSHomeTeam.jsx'), REG);
+const CARE = await loadRealModule(join(ROOT, 'mobile-app/src/broadsheet/BSHomeCare.jsx'), REG);
+
+// The two coaches the fixtures hire: a trainer with a photo, a nutritionist without.
+const JORDAN = { role: 'trainer', name: 'Jordan Chen', conversationId: 'c-j', providerId: 7, photo: 'https://cdn.example/jordan.jpg' };
+const MAYA = { role: 'nutritionist', name: 'Maya Patel', conversationId: 'c-m', providerId: 3, photo: null };
 
 const LB = 0.45359237;
 // The harness theme with the real kilogram → pound display the app's imperial theme has.
@@ -45,7 +54,7 @@ const listen = (name) => {
   return { got, off: () => { if (prev) globalThis.dispatchEvent = prev; else delete globalThis.dispatchEvent; } };
 };
 
-// ── The climb ────────────────────────────────────────────────────────────────
+// ── The goal plate ───────────────────────────────────────────────────────────
 
 const LOSING = [
   { d: '2026-08-27', kg: 80.0 }, { d: '2026-09-24', kg: 79.0 }, { d: '2026-10-01', kg: 78.8 },
@@ -58,10 +67,14 @@ const GOAL_PROPS = (over = {}) => ({
   todayIso: '2026-10-22',
   ...over,
 });
-const climbOf = (d) => d.nodes()[0];
-// The milestone ticks: a short upright at a quarter, a half and three quarters of the route.
-const milestones = (d) => d.nodes().filter((n) => n.type === 'line' && C.BS_CLIMB_MILESTONES.some((m) => n.props.x1 === C.bsClimbPoint(m / 100).x && n.props.x2 === n.props.x1 && n.props.y1 === C.bsClimbPoint(m / 100).y - 5));
+// The plate is the section; the climb inside it is the door to Your goals.
+const plateOf = (d) => d.nodes()[0];
+const climbOf = (d) => d.nodes().find((n) => n.props && n.props['data-bs-home-climb'] != null);
+const labelOf = (d) => d.nodes().find(fn('BSHomePlateLabel'));
 const climbLinks = (d) => d.nodes().filter((n) => n.type === 'button');
+// What the approved Home's chart no longer draws (owner, 2026-11-17): the 2026-11-04 hill's sun, shade and
+// crest, the glow and the breathing dot, the ticks on the route and the weights under them.
+const GONE = ['data-climb-sun', 'data-climb-shade', 'data-climb-crest', 'data-climb-glow', 'data-climb-breath', 'data-climb-milestone', 'data-climb-ms-weight', 'data-climb-ridge'];
 
 test('the climb\'s state: progress, reached, a start with no target, words alone, or nothing', () => {
   const read = { nowKg: 77.6, targetKg: 75, pct: 48, reached: false, paceKgWk: -0.36 };
@@ -80,41 +93,57 @@ test('the climb\'s state: progress, reached, a start with no target, words alone
   assert.equal(C.bsHomeClimbState().kind, 'none');
 });
 
-test('the climb\'s route runs from the foot to the flag, the same every time', () => {
-  assert.deepEqual(C.bsClimbPoint(0), { x: 14, y: 136 }, 'the foot, low left');
-  assert.deepEqual(C.bsClimbPoint(1), { x: 300, y: 30 }, 'the summit, high right');
+// Owner, 2026-11-17: "make it look like the preview". The route is the approved Home's: one smooth climb
+// from the start, a little in from the left so the coaches' trails can lead into it, to the flag.
+test('the climb\'s route runs from the start to the flag, the same every time, and the coaches\' trails end where it starts', () => {
+  assert.deepEqual(C.bsClimbPoint(0), { x: 58, y: 112 }, 'the start, low and in from the left');
+  assert.deepEqual(C.bsClimbPoint(1), { x: 318, y: 22 }, 'the goal, high right');
+  assert.deepEqual(C.bsClimbPoint(0.5), { x: 190, y: 66 }, 'the two curves meet at the middle');
   assert.deepEqual(C.bsClimbPoint(-1), C.bsClimbPoint(0), 'clamped below');
   assert.deepEqual(C.bsClimbPoint(2), C.bsClimbPoint(1), 'clamped above');
-  let lastX = -1;
-  for (let i = 0; i <= 20; i++) { const p = C.bsClimbPoint(i / 20); assert.ok(p.x > lastX, 'the route only moves right'); lastX = p.x; }
-  assert.ok(C.bsClimbPoint(0.75).y < C.bsClimbPoint(0.25).y, 'it climbs');
+  let last = { x: -1, y: 1000 };
+  for (let i = 0; i <= 20; i++) {
+    const p = C.bsClimbPoint(i / 20);
+    assert.ok(p.x > last.x, 'the route only moves right');
+    assert.ok(p.y < last.y, 'and only climbs');
+    last = p;
+  }
+  assert.ok(last.x <= C.BS_CLIMB_W && C.bsClimbPoint(1).y - 18 >= 0, 'the flag stands inside the box');
   const half = C.bsClimbPath(0, 0.5).split(' ');
-  assert.equal(half[0], '14,136');
+  assert.equal(half[0], '58,112');
   assert.equal(half[half.length - 1], `${C.bsClimbPoint(0.5).x},${C.bsClimbPoint(0.5).y}`);
   assert.equal(C.bsClimbPath(0, 1), C.bsClimbPath(0, 1), 'deterministic');
-  const ridge = C.bsClimbRidge().split(' ');
-  assert.equal(ridge[0], `0,${C.BS_CLIMB_H}`);
-  assert.equal(ridge[ridge.length - 1], `${C.BS_CLIMB_W},${C.BS_CLIMB_H}`, 'closed along the bottom');
+  // The ground under the route: the route itself, closed along the bottom of the box.
+  const area = C.bsClimbArea().split(' ');
+  assert.equal(area[0], `58,${C.BS_CLIMB_H}`);
+  assert.equal(area[1], '58,112');
+  assert.equal(area[area.length - 2], '318,22');
+  assert.equal(area[area.length - 1], `318,${C.BS_CLIMB_H}`, 'closed along the bottom');
   assert.deepEqual(C.BS_CLIMB_MILESTONES, [25, 50, 75]);
+  // Each trail ends on the route's first point, so it joins the climb and never floats beside it.
+  for (const [role, path] of Object.entries(HC.BS_CARE_TRAIL)) assert.match(path, / 58,112$/, `${role}'s trail misses the start`);
 });
 
-// Owner, 2026-11-04: "simplify some of the data on the hill climb/chart. looks like too much and can be a
-// little overwhelming". The climb says three things; the route shows how far.
-test('the climb: the goal in the member\'s words, what is left in their units, the goal by the flag, and the walked line', () => withPounds(() => {
+// Owner, 2026-11-17: "keep this", of the goal's figures. What is left, the chart with the start, the weight
+// now and the goal on it, and the walked line.
+test('the goal plate: its title, the goal in the member\'s words as its tag, what is left in their units, the goal by the flag, and the walked line', () => withPounds(() => {
   const opened = [];
   const data = { primary: 'fat_loss', overall: { title: 'Lean, and quick on the bike again', unit: 'kg', start: 80, target: 75 }, weighIns: LOSING };
   const d = drive(D.BSHomeClimbView, GOAL_PROPS({ data, tour: 'hero-goal', onOpen: () => opened.push(1) }));
+  assert.equal(plateOf(d).type, 'section');
+  assert.equal(plateOf(d).props['data-bs-home-goal'], 'none', 'no coach: the plate says so');
+  assert.equal(plateOf(d).props['aria-label'], 'Your goal');
   const root = climbOf(d);
   assert.equal(root.props['data-bs-home-climb'], 'progress');
   assert.equal(root.props['data-tour'], 'hero-goal', 'the tour\'s goal step anchors on the climb');
+  // The label: the title, a dot in the goal's gold, and the goal in the member's own words as the pill tag.
+  const label = labelOf(d);
+  assert.equal(textOf(label), 'Your goal');
+  assert.equal(label.props.note, 'Lean, and quick on the bike again', 'the goal in the member\'s own words');
+  assert.equal(label.props.dot, C.bsClimbGold(THEME));
   const text = d.text;
-  assert.match(text, /“Lean, and quick on the bike again”/, 'the goal in the member\'s own words');
   assert.match(text, /5\.7lb to go/, '2.6 kg left reads in pounds');
-  assert.match(text, /Goal 165\.3/, 'the target by the flag');
-  // Over the sky, still three things: the corner by the flag says the goal alone (owner, 2026-11-04: "clean
-  // up the flag section"); the route's numbers and the band are the next test's. The share walked is the
-  // strip's alone (below), once.
-  assert.equal(textOf(d.nodes().find((n) => n.props && n.props['data-climb-goal'] != null)), 'Goal 165.3', 'the goal alone by the flag');
+  assert.equal(textOf(d.nodes().find((n) => n.props && n.props['data-climb-goal'] != null)), 'GOAL 165.3', 'the goal alone by the flag');
   assert.doesNotMatch(text, /Since|Aug 27/, 'not the date it started');
   assert.equal(text.split('48%').length - 1, 1, 'the share walked shows once, in the strip');
   const svg = d.nodes().find((n) => n.type === 'svg');
@@ -124,17 +153,29 @@ test('the climb: the goal in the member\'s words, what is left in their units, t
   const walked = d.nodes().find((n) => n.props && n.props['data-climb-walked'] != null);
   assert.equal(walked.props['data-climb-walked'], 48);
   assert.equal(walked.props.points, C.bsClimbPath(0, 0.48));
-  assert.ok(d.nodes().some((n) => n.props && n.props['data-climb-now'] != null));
+  const now = d.nodes().find((n) => n.props && n.props['data-climb-now'] != null);
+  assert.deepEqual([now.props.cx, now.props.cy], [C.bsClimbPoint(0.48).x, C.bsClimbPoint(0.48).y], 'the dot stands where the member is');
   assert.equal(d.nodes().find((n) => n.props && n.props['data-climb-flag']).props['data-climb-flag'], 'open');
-  // The milestones: a quarter passed, a half and three quarters still ahead.
-  const ticks = milestones(d);
-  assert.equal(ticks.length, 3);
-  // A met tick in the colour of where it stands on the teal → gold run (option B's colours), one ahead faded.
-  assert.deepEqual(ticks.map((l) => l.props.stroke === C.bsClimbMix(THEME.ACCENT, C.bsClimbGold(THEME), [0.25, 0.5, 0.75][ticks.indexOf(l)])), [true, false, false]);
   // The whole climb opens the goal.
   root.props.onClick();
   assert.equal(opened.length, 1);
   assert.equal(climbLinks(d).length, 0, 'a goal on its way needs no link');
+}));
+
+// Owner, 2026-11-17: "remove the rainbow font color on home page, keep it neutral".
+test('the big figure on Home is plain ink: no gradient text', () => withPounds(() => {
+  const data = { primary: 'fat_loss', overall: { title: 'Lean', unit: 'kg', start: 80, target: 75 }, weighIns: LOSING };
+  for (const coaches of [[], [JORDAN], [JORDAN, MAYA]]) {
+    const d = drive(D.BSHomeClimbView, GOAL_PROPS({ data, coaches }));
+    const fig = d.nodes().find((n) => n.props && n.props['data-climb-figure'] != null);
+    assert.equal(textOf(fig), '5.7');
+    assert.equal(fig.props.style.color, THEME.INK, 'the figure is the paper\'s ink');
+    for (const k of ['backgroundImage', 'backgroundClip', 'WebkitBackgroundClip', 'WebkitTextFillColor']) assert.equal(fig.props.style[k], undefined, `${k}: gradient text on Home`);
+    assert.equal(fig.props.style.fontSize, 60);
+    assert.equal(fig.props.style.fontWeight, 800);
+  }
+  const src = readFileSync(join(ROOT, 'mobile-app/src/broadsheet/BSHomeDeck.jsx'), 'utf8');
+  assert.doesNotMatch(src, /bsMpGradText|WebkitTextFillColor|backgroundClip/, 'the profile\'s lit figure is not Home\'s');
 }));
 
 test('the climb early on: what is left and the goal, no pace and no placeholder for one', () => withPounds(() => {
@@ -146,8 +187,7 @@ test('the climb early on: what is left and the goal, no pace and no placeholder 
   assert.ok(!d.nodes().some((n) => n.props && n.props['data-climb-pace'] != null), 'no pace line');
 }));
 
-// Owner, 2026-11-04: "add a little more info here, either milestones, and percentage progress", "add a little
-// more color to this graph", then "this design but with option C coloring scheme on graph".
+// Owner, 2026-11-04: "add a little more info here, either milestones, and percentage progress".
 test('the climb\'s milestones are the goal page\'s: a quarter, a half, three quarters and the target, met from the latest weigh-in', () => {
   const cut = C.bsClimbMilestones({ startKg: 80, targetKg: 75, nowKg: 77.6 });
   assert.deepEqual(cut.stops.map((s) => s.m), [25, 50, 75, 100]);
@@ -175,7 +215,7 @@ test('the climb\'s milestones are the goal page\'s: a quarter, a half, three qua
   assert.equal(C.bsClimbMix('nope', '#ffffff', 0.5), 'nope', 'a colour it cannot read is left as it is');
 });
 
-test('the climb in colour, with the strip: the share walked, the next milestone, its weight and what is left, and the four milestones', () => withPounds(() => {
+test('the next milestone under the chart: the share walked as a ring, the milestone, its weight and what is left, and the four milestones as dots', () => withPounds(() => {
   const data = { primary: 'fat_loss', overall: { title: 'Lean', unit: 'kg', start: 80, target: 75 }, weighIns: LOSING };
   const d = drive(D.BSHomeClimbView, GOAL_PROPS({ data, onOpen: () => {} }));
   const one = (k) => d.nodes().find((n) => n.props && n.props[k] != null);
@@ -185,43 +225,61 @@ test('the climb in colour, with the strip: the share walked, the next milestone,
   assert.ok(one('data-climb-strip'), 'no strip under a goal on its way');
   assert.equal(textOf(one('data-climb-strip-pct')), '48%');
   assert.equal(one('data-climb-ring').props['data-climb-ring'], 48);
+  assert.equal(one('data-climb-ring').props.stroke, teal, 'the ring is the teal of progress');
   assert.equal(one('data-climb-next').props['data-climb-next'], 50);
   assert.equal(textOf(one('data-climb-next')), 'Next · Halfway');
   assert.equal(textOf(one('data-climb-next-weight')), '170.9 lb');
   assert.equal(textOf(one('data-climb-next-left')), ' · 0.2 lb to go');
-  // The four milestones: a quarter met, Halfway next, the rest ahead; teal at the foot, gold at the goal.
+  // The four milestones, as the approved Home draws them: a quarter met (a teal dot), Halfway next (a teal
+  // ring), three quarters ahead (a quiet ring), and the goal a square in its gold.
   const pips = d.nodes().filter((n) => n.props && n.props['data-climb-pip'] != null);
   assert.deepEqual(pips.map((p) => p.props['data-climb-pip']), [25, 50, 75, 100]);
   assert.deepEqual(pips.map((p) => p.props['data-climb-pip-state']), ['done', 'next', 'ahead', 'ahead']);
-  assert.deepEqual(pips.map((p) => p.props['data-climb-pip-color']), [0.25, 0.5, 0.75, 1].map((f) => C.bsClimbMix(teal, gold, f)));
-  assert.equal(pips[3].props['data-climb-pip-color'], gold);
-  assert.equal(pips[0].props.style.background, C.bsClimbMix(teal, gold, 0.25), 'a met milestone is filled');
+  assert.deepEqual(pips.map((p) => p.props['data-climb-pip-color']), [teal, teal, CARE.bsHomeInk(THEME, 0.4), gold]);
+  assert.equal(pips[0].props.style.background, teal, 'a met milestone is filled');
   assert.equal(pips[1].props.style.background, 'transparent', 'one ahead is an outline');
-  // The route in option B's colours (owner, 2026-11-04: "also i like this coloring for graph on home page"):
-  // the hill washed teal at the foot to gold at the summit, the walked line and what is still to walk on the
-  // same teal → gold run, the flag and the goal by it in gold; no glows.
-  const grads = Object.fromEntries(d.nodes().filter((n) => n.type === 'linearGradient').map((g) => [g.props.id, g]));
-  const fillOf = (n) => /^url\(#(.+)\)$/.exec([n.props.fill, n.props.stroke].find((v) => /^url\(/.test(v || '')) || '')[1];
-  const ridge = grads[fillOf(one('data-climb-ridge'))];
-  assert.ok(ridge, 'the hill is not washed');
-  const stopsOf = (g) => (Array.isArray(g.props.children) ? g.props.children : [g.props.children]).filter(Boolean).map((c) => c.props.stopColor);
-  assert.deepEqual(stopsOf(ridge), [teal, gold], 'the hill runs from the teal to the gold');
-  const walkedRun = grads[fillOf(one('data-climb-walked'))];
-  assert.deepEqual(stopsOf(walkedRun), [teal, gold], 'the walked line runs from the teal to the gold');
-  assert.equal(fillOf(one('data-climb-ahead')), fillOf(one('data-climb-walked')), 'the route still to walk is on the same run');
-  assert.equal(one('data-climb-ahead').props.strokeDasharray, '3 4');
-  for (const k of ['data-climb-walked-area', 'data-climb-next-ring', 'data-climb-summit-glow']) assert.equal(one(k), undefined, `${k} is C's, not B's`);
-  assert.equal(one('data-climb-now').props.fill, C.bsClimbMix(teal, gold, 0.48), 'the now dot wears the colour of where it stands');
-  const flag = d.nodes().find((n) => n.type === 'polygon' && n.props.fillOpacity != null);
-  assert.equal(flag.props.fill, gold);
-  assert.equal(one('data-climb-goal').props.style.color, gold);
-  // A tick and its dot agree on what is met: a met tick in the colour of where it stands, one ahead faded.
-  assert.deepEqual(milestones(d).map((l, i) => l.props.stroke === C.bsClimbMix(teal, gold, [0.25, 0.5, 0.75][i])), pips.slice(0, 3).map((p) => p.props['data-climb-pip-state'] === 'done'));
+  assert.equal(pips[3].props.style.borderRadius, 0, 'the goal is a square');
   // A screen reader hears the strip with the rest.
   const band = textOf(one('data-climb-band')).replace(/\s+/g, ' ');
   assert.equal(climbOf(d).props['aria-label'].split(' · ').slice(0, 5).join(' · '), 'Your goal: 48% of the way, 5.7 lb to go · Next · Halfway · 170.9 lb · 0.2 lb to go');
   assert.match(climbOf(d).props['aria-label'], /· Start 176\.4 · Current 171\.1 · Pace /, 'and the band, after the strip');
   assert.ok(band.length > 0);
+}));
+
+// Owner, 2026-11-17: "just make sure look and design is same as preview". The chart is the approved Home's:
+// the ground under the route in the goal's gold, fading down; what is walked a solid line from gold at the
+// start to the teal of where the member is; what is ahead a thin dashed line in gold; the start and the
+// weight now as rings; the flag in gold. The 2026-11-04 hill (its sun, shade and crest, the ticks and their
+// weights, the glow and the breathing dot) is not drawn.
+test('the chart, as the approved Home draws it: gold ground, a gold-to-teal walked line, a dashed gold way ahead, rings and a gold flag', () => withPounds(() => {
+  const data = { primary: 'fat_loss', overall: { title: 'Lean', unit: 'kg', start: 80, target: 75 }, weighIns: LOSING };
+  const d = drive(D.BSHomeClimbView, GOAL_PROPS({ data, onOpen: () => {} }));
+  const one = (k) => d.nodes().find((n) => n.props && n.props[k] != null);
+  const teal = THEME.ACCENT;
+  const gold = C.bsClimbGold(THEME);
+  const grads = Object.fromEntries(d.nodes().filter((n) => n.type === 'linearGradient').map((g) => [g.props.id, g]));
+  const urlOf = (v) => (/^url\(#(.+)\)$/.exec(String(v || '')) || [])[1];
+  const stopsOf = (g) => (Array.isArray(g.props.children) ? g.props.children : [g.props.children]).filter(Boolean).map((c) => c.props.stopColor);
+  const area = one('data-climb-area');
+  assert.equal(area.props.points, C.bsClimbArea());
+  assert.deepEqual(stopsOf(grads[urlOf(area.props.fill)]), [gold, gold], 'the ground is the goal\'s gold, fading down');
+  const walked = one('data-climb-walked');
+  assert.deepEqual(stopsOf(grads[urlOf(walked.props.stroke)]), [gold, teal], 'what is walked runs from gold to teal');
+  assert.equal(walked.props.strokeWidth, '4');
+  const ahead = one('data-climb-ahead');
+  assert.equal(ahead.props.points, C.bsClimbPath(0.48, 1), 'what is ahead starts where the member is');
+  assert.equal(ahead.props.stroke, gold);
+  assert.equal(ahead.props.strokeDasharray, '4 5');
+  // The start and the weight now: rings in the teal over the paper.
+  const start = one('data-climb-start-dot');
+  assert.deepEqual([start.props.cx, start.props.cy, start.props.fill, start.props.stroke], [58, 112, THEME.PAPER, teal]);
+  assert.deepEqual([one('data-climb-now').props.fill, one('data-climb-now').props.stroke], [THEME.PAPER, teal]);
+  const flag = d.nodes().find((n) => n.type === 'polygon' && n.props.fillOpacity != null);
+  assert.equal(flag.props.fill, gold);
+  assert.equal(flag.props.fillOpacity, 1);
+  assert.equal(one('data-climb-goal').props.fill, gold);
+  for (const k of GONE) assert.equal(one(k), undefined, `${k} is the 2026-11-04 hill's, not the approved Home's`);
+  assert.ok(!d.nodes().some((n) => n.type === 'style'), 'no animation on the chart');
 }));
 
 test('the strip is for a goal on its way: none when it is reached, before a weigh-in, or for a goal without numbers', () => withPounds(() => {
@@ -230,10 +288,11 @@ test('the strip is for a goal on its way: none when it is reached, before a weig
   assert.equal(climbOf(reached).props['data-bs-home-climb'], 'reached');
   assert.ok(noStrip(reached), 'a reached goal has no next milestone');
   assert.doesNotMatch(reached.text, /%/);
-  // Reached plants the flag in the teal; every tick is passed, each in the colour of where it stands.
+  // Reached plants the flag in the teal, and the whole route is walked in it.
   assert.equal(reached.nodes().find((n) => n.type === 'polygon' && n.props.fillOpacity != null).props.fill, THEME.ACCENT);
-  const gold = C.bsClimbGold(THEME);
-  assert.deepEqual(milestones(reached).map((l) => l.props.stroke), [0.25, 0.5, 0.75].map((f) => C.bsClimbMix(THEME.ACCENT, gold, f)));
+  const walked = reached.nodes().find((n) => n.props && n.props['data-climb-walked'] != null);
+  assert.equal(walked.props.points, C.bsClimbPath(0, 1));
+  assert.equal(walked.props.stroke, THEME.ACCENT);
   const target = drive(D.BSHomeClimbView, GOAL_PROPS({ data: { primary: 'fat_loss', overall: { unit: 'lb', target: 165 }, weighIns: [] } }));
   assert.equal(climbOf(target).props['data-bs-home-climb'], 'target');
   assert.ok(noStrip(target), 'no weigh-in: nothing walked to measure');
@@ -245,34 +304,32 @@ test('the strip is for a goal on its way: none when it is reached, before a weig
   assert.ok(noStrip(drive(D.BSHomeClimbView, GOAL_PROPS({ data: null }))), 'still reading: no strip');
 }));
 
-// Owner, 2026-11-04: "add more info on this graph. Make it pop more", then of three designs, "go with A and
-// include these and clean up the flag section" (A's numbers on the route, with B's band of four figures).
-test('the climb\'s numbers on the route: the start at the foot, each milestone\'s weight under its tick, the weight now over the dot', () => withPounds(() => {
+test('the chart\'s numbers: the start under its ring, the weight now over its dot, the goal by the flag', () => withPounds(() => {
   const data = { primary: 'fat_loss', overall: { title: 'Lean', unit: 'kg', start: 80, target: 75 }, weighIns: LOSING };
   const d = drive(D.BSHomeClimbView, GOAL_PROPS({ data, onOpen: () => {} }));
   const one = (k) => d.nodes().find((n) => n.props && n.props[k] != null);
-  const all = (k) => d.nodes().filter((n) => n.props && n.props[k] != null);
-  assert.equal(textOf(one('data-climb-start')), 'START 176.4', '80 kg, in pounds');
-  // 78.75, 77.5 and 76.25 kg: a quarter, a half and three quarters of the way, under their ticks.
-  const ms = all('data-climb-ms-weight');
-  assert.deepEqual(ms.map((n) => n.props['data-climb-ms-weight']), [25, 50, 75]);
-  assert.deepEqual(ms.map(textOf), ['173.6', '170.9', '168.1']);
-  ms.forEach((n, i) => {
-    const p = C.bsClimbPoint([0.25, 0.5, 0.75][i]);
-    assert.equal(n.props.x, p.x, 'under its tick');
-    assert.ok(n.props.y > p.y, 'below the route');
-  });
-  assert.deepEqual(ms.map((n) => n.props.fillOpacity), [1, 0.75, 0.75], 'a met one full, ones ahead softer');
-  // The weight now (77.6 kg) in a chip over the dot, its box inside the climb.
-  const chip = one('data-climb-now-chip');
-  assert.equal(chip.props['data-climb-now-chip'], 'above');
-  assert.equal(textOf(chip), '171.1 NOW');
-  const rect = d.nodes().find((n) => n.type === 'rect' && n.props.rx === '7.5');
-  assert.ok(rect.props.x >= 4 && rect.props.x + rect.props.width <= C.BS_CLIMB_W - 4, 'the chip stays inside the box');
-  assert.ok(rect.props.y + 15 < C.bsClimbPoint(0.48).y, 'over the dot');
+  const start = one('data-climb-start');
+  assert.equal(textOf(start), 'START 176.4', '80 kg, in pounds');
+  assert.equal(start.props.x, 58, 'under the start');
+  assert.ok(start.props.y > 112 && start.props.y < C.BS_CLIMB_H, 'below the route, inside the box');
+  // The weight now (77.6 kg) over the dot, in the teal.
+  const now = one('data-climb-now-chip');
+  const p = C.bsClimbPoint(0.48);
+  assert.equal(now.props['data-climb-now-chip'], 'above');
+  assert.equal(textOf(now), '171.1 NOW');
+  assert.equal(now.props.textAnchor, 'middle');
+  assert.ok(now.props.y < p.y - 6, 'over the dot');
+  assert.equal(now.props.fill, THEME.ACCENT);
+  // The goal by the flag, to its left and under the route's end, in gold.
+  const goal = one('data-climb-goal');
+  assert.equal(textOf(goal), 'GOAL 165.3');
+  assert.equal(goal.props.textAnchor, 'end');
+  assert.ok(goal.props.x < 318 && goal.props.y > 22);
+  // The small capitals are the app's mono.
+  for (const n of [start, now, goal]) assert.equal(n.props.style.fontFamily, THEME.MONO);
 }));
 
-test('the band under the hill: Start, Current, Pace and the date at that pace, each only when the read has it', () => withPounds(() => {
+test('the four figures under the chart: Start, Current, Pace and the date at that pace, each only when the read has it', () => withPounds(() => {
   const data = { primary: 'fat_loss', overall: { title: 'Lean', unit: 'kg', start: 80, target: 75 }, weighIns: LOSING };
   const d = drive(D.BSHomeClimbView, GOAL_PROPS({ data }));
   const read = W.bsHomeGoalRead({ weighIns: LOSING, startKg: 80, targetKg: 75, todayIso: '2026-10-22' });
@@ -284,12 +341,11 @@ test('the band under the hill: Start, Current, Pace and the date at that pace, e
   assert.equal(band.props['data-climb-band'], 'start current pace eta');
   assert.equal(band.props.style.gridTemplateColumns, 'repeat(4, minmax(0, 1fr))');
   const cells = d.nodes().filter((n) => n.props && n.props['data-climb-band-cell'] != null);
-  assert.deepEqual(cells.map((c) => textOf(c)), [`Start176.4`, `Current171.1`, `Pace${pace}`, `Goal≈\u00a0${eta}`]);
-  // Each edge in its colour on the run: the start teal, the date gold.
+  assert.deepEqual(cells.map((c) => textOf(c)), [`Start176.4`, `Current171.1`, `Pace${pace}`, `Goal≈ ${eta}`]);
+  // Chips with a coloured top edge: what is behind the member in the teal, what is ahead in the goal's gold.
   const gold = C.bsClimbGold(THEME);
-  assert.match(cells[0].props.style.boxShadow, /inset 0 2px 0 rgba\(/);
-  assert.notEqual(cells[0].props.style.boxShadow, cells[3].props.style.boxShadow);
-  assert.ok(gold);
+  assert.deepEqual(cells.map((c) => c.props.style.borderTop), [THEME.ACCENT, THEME.ACCENT, gold, gold].map((c) => `2px solid ${c}`));
+  assert.ok(cells.every((c) => c.props.style.borderRadius === 12));
   // Early on, no pace and no date yet: the band holds what there is, and no placeholder for the rest.
   const early = drive(D.BSHomeClimbView, GOAL_PROPS({ data: { primary: 'fat_loss', overall: { unit: 'kg', start: 80, target: 75 }, weighIns: [{ d: '2026-10-19', kg: 80 }, { d: '2026-10-22', kg: 79 }] } }));
   const eb = early.nodes().find((n) => n.props && n.props['data-climb-band'] != null);
@@ -308,7 +364,7 @@ test('the band on a narrow phone: a value wraps at its spaces rather than losing
     assert.equal(v.props.style.textOverflow, undefined, 'never cut to an ellipsis');
     assert.notEqual(v.props.style.overflow, 'hidden', 'never clipped');
   }
-  assert.match(textOf(values[3]), /^≈ /, 'the ≈ stays with its date');
+  assert.match(textOf(values[3]), /^≈\u00a0/, 'the ≈ stays with its date');
 }));
 
 test('a flat pace reads 0.0, never +0.0 (Codex P2 on #2618)', () => withPounds(() => {
@@ -327,7 +383,7 @@ test('a flat pace reads 0.0, never +0.0 (Codex P2 on #2618)', () => withPounds((
   assert.match(textOf(losing.nodes().find((n) => n.props && n.props['data-climb-band-cell'] === 'pace')), /^Pace−\d/);
 }));
 
-test('the route\'s capitals are the reader\'s locale\'s: Turkish "şimdi" is ŞİMDİ (Codex P2 on #2618)', () => withPounds(() => {
+test('the chart\'s capitals are the reader\'s locale\'s: Turkish "şimdi" is ŞİMDİ (Codex P2 on #2618)', () => withPounds(() => {
   const prev = globalThis.ShapeI18n;
   const tr = { 'home:climb.nowWord': 'şimdi', 'goal:terms.whenStart': 'Başlangıç' };
   globalThis.ShapeI18n = { t: (key, opts = {}) => (tr[key] ?? new IntlMessageFormat(String(opts.defaultValue ?? key), 'en').format(opts)), intlLocale: () => 'tr-TR' };
@@ -335,53 +391,37 @@ test('the route\'s capitals are the reader\'s locale\'s: Turkish "şimdi" is Ş�
     const data = { primary: 'fat_loss', overall: { title: 'Lean', unit: 'kg', start: 80, target: 75 }, weighIns: LOSING };
     const d = drive(D.BSHomeClimbView, GOAL_PROPS({ data }));
     const chip = textOf(d.nodes().find((n) => n.props && n.props['data-climb-now-chip'] != null));
-    assert.match(chip, /ŞİMDİ$/, `the chip in Turkish capitals: ${chip}`);
+    assert.match(chip, /ŞİMDİ$/, `the weight now in Turkish capitals: ${chip}`);
     assert.doesNotMatch(chip, /ŞIMDI/);
     assert.match(textOf(d.nodes().find((n) => n.props && n.props['data-climb-start'] != null)), /^BAŞLANGIÇ /);
   } finally { globalThis.ShapeI18n = prev; }
 }));
 
-test('the climb\'s light: the sun inside the box, the hill shaded, a lit crest, a glow under the walked line, the dot breathing but not under reduced motion', () => withPounds(() => {
-  const data = { primary: 'fat_loss', overall: { title: 'Lean', unit: 'kg', start: 80, target: 75 }, weighIns: LOSING };
-  const d = drive(D.BSHomeClimbView, GOAL_PROPS({ data }));
-  const one = (k) => d.nodes().find((n) => n.props && n.props[k] != null);
-  // The sun fades out before any edge of the box, so it never shows one (the corner by the flag, cleaned up).
-  const sun = one('data-climb-sun');
-  const [cx, cy, r] = [sun.props.cx, sun.props.cy, sun.props.r].map(Number);
-  assert.ok(cx - r >= 0 && cy - r >= 0 && cx + r <= C.BS_CLIMB_W && cy + r <= C.BS_CLIMB_H, 'the sun inside the box');
-  assert.equal(cx, C.bsClimbPoint(1).x, 'behind the summit');
-  assert.ok(one('data-climb-shade') && one('data-climb-crest'));
-  assert.equal(one('data-climb-glow').props.points, C.bsClimbPath(0, 0.48), 'the glow runs under the walked line only');
-  const breath = one('data-climb-breath');
-  const css = textOf(d.nodes().find((n) => n.type === 'style'));
-  assert.match(css, new RegExp(`\\.${breath.props.className}\\{animation:`), 'the dot breathes');
-  assert.match(css, new RegExp(`prefers-reduced-motion: reduce\\)\\{\\.${breath.props.className}\\{animation:none\\}`), 'and stands still under reduced motion');
-  assert.ok(!/filter/.test(css), 'no filters');
-}));
-
-test('near the summit the weight now drops under the dot, clear of the goal\'s corner', () => withPounds(() => {
+test('near the flag the weight now stands to the dot\'s upper left, clear of the flag and inside the box', () => withPounds(() => {
   // 79.8 → 75.2 of 80 → 75: 96% of the way.
   const near = [{ d: '2026-10-01', kg: 79.8 }, { d: '2026-10-22', kg: 75.2 }];
   const d = drive(D.BSHomeClimbView, GOAL_PROPS({ data: { primary: 'fat_loss', overall: { unit: 'kg', start: 80, target: 75 }, weighIns: near } }));
-  const chip = d.nodes().find((n) => n.props && n.props['data-climb-now-chip'] != null);
-  assert.equal(chip.props['data-climb-now-chip'], 'below');
-  const rect = d.nodes().find((n) => n.type === 'rect' && n.props.rx === '7.5');
-  assert.ok(rect.props.y > C.bsClimbPoint(0.96).y, 'under the dot');
-  assert.ok(rect.props.x + rect.props.width <= C.BS_CLIMB_W - 4);
+  const now = d.nodes().find((n) => n.props && n.props['data-climb-now-chip'] != null);
+  const p = C.bsClimbPoint(0.96);
+  assert.equal(now.props['data-climb-now-chip'], 'left');
+  assert.equal(now.props.textAnchor, 'end', 'it runs left from the dot, away from the flag');
+  assert.ok(now.props.x < p.x, 'left of the dot');
+  assert.ok(now.props.y >= 12 && now.props.y < C.BS_CLIMB_H, 'inside the box');
 }));
 
-test('the route\'s numbers, the band and the breathing are for a goal on its way only', () => withPounds(() => {
-  const none = (d) => ['data-climb-band', 'data-climb-now-chip', 'data-climb-start', 'data-climb-ms-weight', 'data-climb-breath', 'data-climb-glow'].filter((k) => d.nodes().some((n) => n.props && n.props[k] != null));
+test('the chart\'s numbers and the band are for a goal on its way only', () => withPounds(() => {
+  const none = (d) => ['data-climb-band', 'data-climb-now-chip', 'data-climb-start', 'data-climb-start-dot', 'data-climb-goal'].filter((k) => d.nodes().some((n) => n.props && n.props[k] != null));
   const reached = drive(D.BSHomeClimbView, GOAL_PROPS({ data: { primary: 'fat_loss', overall: { unit: 'kg', start: 80, target: 78 }, weighIns: LOSING } }));
   assert.deepEqual(none(reached), [], 'reached');
-  assert.ok(reached.nodes().some((n) => n.props && n.props['data-climb-sun'] != null), 'the light stays on a reached goal');
+  assert.ok(reached.nodes().some((n) => n.props && n.props['data-climb-flag'] != null), 'the flag stays on a reached goal');
   for (const data of [{ primary: 'fat_loss', overall: { unit: 'lb', target: 165 }, weighIns: [] }, { primary: 'race', overall: {}, weighIns: [] }, { primary: '', overall: {}, weighIns: [] }]) {
     const d = drive(D.BSHomeClimbView, GOAL_PROPS({ data }));
     assert.deepEqual(none(d), [], climbOf(d).props['data-bs-home-climb']);
+    assert.ok(d.nodes().some((n) => n.props && n.props['data-climb-ahead'] != null), 'the way ahead is still drawn');
   }
   const loading = drive(D.BSHomeClimbView, GOAL_PROPS({ data: null }));
   assert.deepEqual(none(loading), []);
-  assert.ok(!loading.nodes().some((n) => n.props && (n.props['data-climb-sun'] != null || n.props['data-climb-crest'] != null)), 'still reading: no light');
+  assert.ok(!loading.nodes().some((n) => n.props && (n.props['data-climb-flag'] != null || n.props['data-climb-ahead'] != null || n.props['data-climb-trail'] != null)), 'still reading: the ground alone');
 }));
 
 // Codex P2 on #2583: a climb with no link of its own is itself a button for the keyboard and switch devices;
@@ -389,7 +429,8 @@ test('the route\'s numbers, the band and the breathing are for a goal on its way
 test('the climb is keyboard-operable: a progress climb is a focusable button opened with Enter or Space', () => withPounds(() => {
   const opened = [];
   const data = { primary: 'fat_loss', overall: { title: 'Lean', unit: 'kg', start: 80, target: 75 }, weighIns: LOSING };
-  const root = climbOf(drive(D.BSHomeClimbView, GOAL_PROPS({ data, onOpen: () => opened.push(1) })));
+  const d = drive(D.BSHomeClimbView, GOAL_PROPS({ data, coaches: [JORDAN, MAYA], onCoach: () => {}, onOpen: () => opened.push(1) }));
+  const root = climbOf(d);
   assert.equal(root.props['data-bs-home-climb'], 'progress');
   assert.equal(root.props.role, 'button');
   assert.equal(root.props.tabIndex, 0);
@@ -398,6 +439,12 @@ test('the climb is keyboard-operable: a progress climb is a focusable button ope
   for (const key of ['Enter', ' ', 'Tab']) root.props.onKeyDown({ key, preventDefault: () => { prevented += 1; } });
   assert.equal(opened.length, 2, 'Enter and Space open Your goals; Tab does not');
   assert.equal(prevented, 2, 'Space does not scroll the page');
+  // ⚠ No button inside a button: the coaches at the plate's foot are doors of their own, so they sit beside
+  // the climb in the plate, never inside it.
+  const row = d.nodes().find(fn('BSHomeCoachesRow'));
+  assert.ok(row, 'the coaches are on the plate');
+  assert.ok(!flatten(root).includes(row), 'the coaches\' doors sit inside the climb\'s button');
+  assert.ok(flatten(plateOf(d)).includes(row));
   // Words alone carries its own link: the climb is no button around it.
   const words = climbOf(drive(D.BSHomeClimbView, GOAL_PROPS({ data: { primary: 'race', overall: {}, weighIns: [] }, onOpen: () => {} })));
   assert.equal(words.props.role, undefined, 'a button around a link');
@@ -422,6 +469,7 @@ test('the climb says only what it can: reached, a start with no target, a target
   assert.equal(reached.nodes().find((n) => n.props && n.props['data-climb-flag']).props['data-climb-flag'], 'planted');
   assert.ok(!reached.nodes().some((n) => n.props && n.props['data-climb-now'] != null), 'no dot short of the flag');
   assert.equal(textOf(climbLinks(reached)[0]), 'Set the next one →');
+  assert.ok(climbLinks(reached)[0].props.style.minHeight >= 44, 'the link is a 44 px target');
   tap(reached);
   // A weight goal with weigh-ins and no target: where they stand, and a number to aim at.
   const start = drive(D.BSHomeClimbView, GOAL_PROPS({ data: { primary: 'fat_loss', overall: {}, weighIns: LOSING }, onOpen }));
@@ -435,8 +483,10 @@ test('the climb says only what it can: reached, a start with no target, a target
   const race = drive(D.BSHomeClimbView, GOAL_PROPS({ data: { primary: 'race', overall: {}, weighIns: LOSING }, onOpen }));
   assert.equal(climbOf(race).props['data-bs-home-climb'], 'words');
   assert.match(race.text, /“Run a race”/);
-  // The words once (they are the big line), and no "Since" date with no weight on show (#2583).
+  // The words once (they are the big line, so the plate carries no tag), and no "Since" date with no weight
+  // on show (#2583).
   assert.equal(race.text.split('“Run a race”').length - 1, 1, 'the goal\'s words twice');
+  assert.equal(labelOf(race).props.note, null, 'the words are the big line and the tag both');
   assert.doesNotMatch(race.text, /Since/);
   assert.doesNotMatch(race.text, /171\.1|lb now/, 'no weight read on a race goal');
   assert.equal(textOf(climbLinks(race)[0]), 'Add a number to track it →');
@@ -444,7 +494,7 @@ test('the climb says only what it can: reached, a start with no target, a target
   // The same goal with a pound target reads the weigh-ins again, the target as typed.
   const raceLb = drive(D.BSHomeClimbView, GOAL_PROPS({ data: { primary: 'race', overall: { unit: 'lb', target: 165 }, weighIns: LOSING } }));
   assert.equal(climbOf(raceLb).props['data-bs-home-climb'], 'progress');
-  assert.match(raceLb.text, /Goal 165\.0/);
+  assert.match(raceLb.text, /GOAL 165\.0/);
   // A weight goal before the first weigh-in: its words, and a number to track.
   const fresh = drive(D.BSHomeClimbView, GOAL_PROPS({ data: { primary: 'fat_loss', overall: {}, weighIns: [] } }));
   assert.equal(climbOf(fresh).props['data-bs-home-climb'], 'words');
@@ -466,13 +516,12 @@ test('the climb says only what it can: reached, a start with no target, a target
   assert.equal(none.nodes().find((n) => n.type === 'polygon' && n.props.fillOpacity != null).props.fillOpacity, 0);
   tap(none);
   assert.equal(opened.length, 3, 'each link opens the goal');
-  // Still reading (or a read that failed): the ridge alone, no words, no milestones, no link.
+  // Still reading (or a read that failed): the plate's title over the bare ground, no figure, no link.
   const loading = drive(D.BSHomeClimbView, GOAL_PROPS({ data: null }));
   assert.equal(climbOf(loading).props['data-bs-home-climb'], 'loading');
-  assert.equal(loading.text, '');
+  assert.equal(loading.text, 'Your goal', 'the plate\'s title alone');
   assert.equal(climbLinks(loading).length, 0);
-  assert.equal(milestones(loading).length, 0);
-  // Its ridge is hidden from a screen reader, never an unnamed graphic (Codex P2 on #2583); every
+  // Its chart is hidden from a screen reader, never an unnamed graphic (Codex P2 on #2583); every
   // other state's graphic is named by what it shows.
   const svgOf = (d) => d.nodes().find((n) => n.type === 'svg');
   assert.equal(svgOf(loading).props['aria-hidden'], true);
@@ -485,33 +534,37 @@ test('the climb says only what it can: reached, a start with no target, a target
   }
 }));
 
-test('Shape Radio stands above the deck on its own line; the deck hands its own theme to the climb and the week', () => {
+test('Shape Radio stands above the plates on its own line; the deck sets them 10px apart and hands them its own theme', () => {
   // Owner, 2026-11-04: "take the shape radio box out of the new climb box above it so its on its own line".
+  // Owner, 2026-11-17: This week and the goal are each a plate of their own under it, so the deck draws no box.
   const seen = [];
   const prevCtx = globalThis.BSContext;
   globalThis.BSContext = { Provider: function Provider() {} };
   try {
-    const d = drive(D.BSHomeDeck, { radio: { type: 'div', key: 'radio', props: { 'data-radio': '' } }, children: [{ type: 'div', key: 'climb', props: { 'data-climb': '' } }] });
+    const d = drive(D.BSHomeDeck, { radio: { type: 'div', key: 'radio', props: { 'data-radio': '' } }, children: [{ type: 'div', key: 'week', props: { 'data-week': '' } }, { type: 'div', key: 'climb', props: { 'data-climb': '' } }] });
     const nodes = d.nodes();
     const radioAt = nodes.findIndex((n) => n.props && n.props['data-radio'] != null);
     const providerAt = nodes.findIndex((n) => n.type === globalThis.BSContext.Provider);
-    assert.ok(radioAt >= 0 && providerAt > radioAt, 'Shape Radio is drawn first, before the deck');
-    // Its own line, its edges on the deck's: the box's own 8px and 2px more.
+    assert.ok(radioAt >= 0 && providerAt > radioAt, 'Shape Radio is drawn first, before the plates');
+    // Its own line, its edges on the plates': the box's own 8px and 2px more.
     const line = nodes.find((n) => n.props && n.props['data-bs-home-radio'] != null);
     assert.equal(line.props.style.margin, '0 2px');
     const provider = nodes[providerAt];
     seen.push(provider.props.value);
     const band = nodes.find((n) => n.props && n.props['data-bs-home-deck'] != null);
-    assert.equal(band.props.style.margin, '10px 10px 0', 'the deck sits 10px under the radio, 10px in from the page');
-    // The glass's teal edge is drawn first; the band holds the climb, and no longer the radio.
-    const kids = [].concat(band.props.children).flat().filter(Boolean).filter((k) => !(typeof k.type === 'function' && k.type.name === 'BSGlassEdge'));
-    assert.ok(kids[0].props['data-climb'] != null, 'the climb leads the deck');
+    assert.equal(band.props.style.margin, '10px 10px 0', 'the plates sit 10px under the radio, 10px in from the page');
+    assert.equal(band.props.style.display, 'flex');
+    assert.equal(band.props.style.flexDirection, 'column');
+    assert.equal(band.props.style.gap, 10, 'the plates are 10px apart');
+    assert.equal(band.props.style.background, undefined, 'the deck draws a box of its own again');
+    assert.equal(band.props.style.border, undefined);
+    // The deck holds the week, then the goal, and not the radio.
+    const kids = [].concat(band.props.children).flat().filter(Boolean);
+    assert.deepEqual(kids.map((k) => Object.keys(k.props)[0]), ['data-week', 'data-climb'], 'This week leads, then the goal');
     assert.ok(!kids.some((k) => k.props && k.props['data-radio'] != null), 'Shape Radio is inside the deck again');
-    // Glass in the paper's own colour (owner, 2026-11-04: "make sure the glassy look matches the print color").
-    assert.ok(String(band.props.style.background).endsWith(`, ${seen[0].PAPER}`), 'the band is glass over the deck theme\'s paper');
-    assert.equal(seen[0].PAPER, THEME.PAPER, 'the deck is the paper\'s own colour, not a dark band');
+    assert.equal(seen[0].PAPER, THEME.PAPER, 'the deck is the paper\'s own colour');
     assert.equal(seen[0].INK, THEME.INK, 'its words are the paper\'s own ink');
-    // With no radio (a coach's calendar deck and the like), the deck keeps its own place.
+    // With no radio, the deck keeps its own place.
     const bare = drive(D.BSHomeDeck, { children: [{ type: 'div', key: 'climb', props: { 'data-climb': '' } }] });
     assert.equal(bare.nodes().find((n) => n.props && n.props['data-bs-home-deck'] != null).props.style.margin, '6px 10px 0');
   } finally { globalThis.BSContext = prevCtx; }
@@ -550,6 +603,16 @@ test('This week: a day a button with five bars, Train · Food · Protein · Step
   assert.ok(barsOf(list[3]).every((x) => x.props.on === true));
   assert.equal(list[3].props.style.background, THEME.INK);
   assert.ok(list.every((b) => b.props.style.minHeight >= 44), 'a day is a 44 px target');
+  // The approved Home's cell (owner, 2026-11-17): a 12px corner, today's filled in the paper's ink; training's
+  // bar in the trainer's rust and food's in the nutritionist's gold, the other three in the cell's ink.
+  assert.ok(list.every((b) => b.props.style.borderRadius === 12));
+  assert.deepEqual(barsOf(list[0]).map((x) => x.props.tone), ['#c0533b', '#a07a2e', null, null, null]);
+  const bar = (props) => drive(barsOf(list[0])[0].type, props).nodes()[0];
+  assert.equal(bar({ state: 'hit', on: false, tone: '#c0533b' }).props.style.background, '#c0533b', 'a hit bar is its role\'s colour');
+  assert.equal(bar({ state: 'hit', on: true, tone: null }).props.style.background, THEME.PAPER, 'a plain bar on today\'s cell is the paper');
+  assert.equal(bar({ state: 'hit', on: false, tone: null }).props.style.background, THEME.INK);
+  assert.match(bar({ state: 'ahead', on: false, tone: '#a07a2e' }).props.style.border, /^1px solid rgba\(160,122,46,/, 'a bar to come is an outline in its colour');
+  assert.ok(bar({ state: 'hit', on: false, tone: null }).props.style.height > bar({ state: 'miss', on: false, tone: null }).props.style.height, 'a hit stands taller than a miss');
   // A tap picks a day in place, never straight into the calendar (owner, 2026-11-04: "when i click on any
   // day on week view for client home page it immediatly takes me to month calendar"); today is picked
   // first, and the line under the strip says how the picked day went.
@@ -674,10 +737,8 @@ test('the preview\'s sample week: the counts beside the squares are its own hits
   assert.ok(w.grid.sessions.every((x, i) => x !== 'miss' || [0, 2, 3, 5].includes(i)), 'a sample session is missed only on a planned day');
 });
 
-// ── Team ─────────────────────────────────────────────────────────────────────
+// ── Today's plan ─────────────────────────────────────────────────────────────
 
-const JORDAN = { role: 'trainer', name: 'Jordan Chen', conversationId: 'c-j', providerId: 7, photo: 'https://cdn.example/jordan.jpg' };
-const MAYA = { role: 'nutritionist', name: 'Maya Patel', conversationId: 'c-m', providerId: 3, photo: null };
 const TEAM = (over = {}) => ({
   coaches: [JORDAN, MAYA],
   notes: [{ role: 'nutritionist', text: 'Five plates. Three logged before noon.', who: 'Maya Patel' }],
@@ -691,67 +752,107 @@ const TEAM = (over = {}) => ({
 });
 const coachBlock = (d, who) => d.nodes().find((n) => n.props && n.props['data-team-coach'] === who);
 const messages = (d) => d.nodes().filter((n) => n.type === 'button' && n.props['data-team-message']);
+// What a row holds, found inside it rather than by its words (its squares carry a mark, not words).
+const inRow = (block, pred) => (block ? flatten(block).filter(pred) : []);
+const markOf = (block) => inRow(block, (n) => n.props && n.props['data-team-mark'] != null)[0].props['data-team-mark'];
 
-test('Team: each coach once, the trainer with today\'s call and the nutritionist with their note, the food left and the next meal', () => {
+// Owner, 2026-11-17, the approved Home: one plate, a row a half. Everything Team's two coach cards offered
+// (owner, 2026-11-03) is still on it.
+test('Today\'s plan: one plate, the trainer\'s session "From {name}" and the nutritionist\'s food left and next meal, each with its square, Message and note', () => {
   const started = [], logged = [];
   const props = TEAM({ workout: { ...TEAM().workout, onStart: () => started.push(1) }, meal: { ...TEAM().meal, onLog: () => logged.push(1) } });
   const d = drive(T.BSHomeTeamView, { ...props, tour: 'hero-home' });
   const root = d.nodes()[0];
-  assert.equal(root.props['data-tour'], 'hero-home', 'the tour\'s home step anchors on Team');
-  assert.match(d.text, /^Team\./, 'In your corner, renamed (owner, 2026-11-03)');
-  assert.match(d.text, /Fri 11 · 2 coaches/);
-  // The trainer: today's call, the only place it shows.
+  assert.equal(root.type, 'section');
+  assert.equal(root.props['data-tour'], 'hero-home', 'the tour\'s home step anchors on Today\'s plan');
+  assert.equal(root.props['data-bs-home-team'], 'team');
+  assert.equal(root.props['aria-label'], 'Today');
+  assert.equal(root.props.style.borderRadius, 18, 'one plate');
+  assert.doesNotMatch(d.text, /^Team\.|\d coaches/, 'the plate has no head of its own, as the approved Home');
+  assert.ok(!d.nodes().some((n) => n.props && n.props['data-team-day'] != null), 'today, the plate names no day');
+  // The trainer's row: the session, from them, with its own summary.
   const trainer = coachBlock(d, 'trainer');
-  const tt = textOf(trainer);
-  assert.match(tt, /Jordan Chen/);
-  assert.match(tt, /Trainer · Today’s call/);
-  assert.match(tt, /9:00 AM/);
-  assert.match(tt, /Lower Push — Peak/);
-  assert.match(tt, /54 min · 6 moves/);
-  d.nodes().find((n) => n.type === 'button' && n.props['data-team-start'] != null).props.onClick();
-  assert.equal(started.length, 1, 'I\'ll train today starts the session');
-  // The nutritionist: their note, the food left, the next meal, and Log it.
+  assert.equal(textOf(trainer), 'Lower Push — PeakFrom Jordan · 9:00 AM · 54 min · 6 moves');
+  assert.equal(markOf(trainer), 'solid');
+  const start = d.nodes().find((n) => n.type === 'button' && n.props['data-team-start'] != null);
+  assert.equal(start.props['aria-label'], "I'll train today", 'the square is the pledge');
+  assert.equal(start.props.style.width, 48);
+  start.props.onClick();
+  assert.equal(started.length, 1, 'I\'ll train today opens the session');
+  // The nutritionist's row: the food left and the next meal, from them, their note under it, and Log.
   const nutri = coachBlock(d, 'nutritionist');
-  const nt = textOf(nutri);
-  assert.match(nt, /Nutritionist · This week’s note/);
-  assert.match(nt, /“Five plates\. Three logged before noon\.”/);
-  assert.match(nt, /532kcal left/);
-  assert.match(nt, /Lunch 12:40 · bowl \+ rice/);
+  // (The 2 between them is what is unread on her Message square.)
+  assert.equal(textOf(nutri), '532 kcal leftFrom Maya · Lunch 12:40 · bowl + rice2This week’s note“Five plates. Three logged before noon.”');
+  assert.equal(markOf(nutri), 'solid');
   const log = d.nodes().find((n) => n.type === 'button' && n.props['data-team-log'] != null);
-  assert.equal(textOf(log), 'Log Lunch →');
+  assert.equal(log.props['aria-label'], 'Log Lunch');
   log.props.onClick();
   assert.equal(logged.length, 1);
-  // Each coach is offered once, with what is unread on their Message, said to a screen reader too (#2583).
-  assert.deepEqual(messages(d).map((b) => [b.props['data-team-message'], textOf(b), b.props['aria-label']]), [
-    ['trainer', 'Message', 'Message Jordan Chen'],
-    ['nutritionist', 'Message · 2 new', 'Message Maya Patel, 2 new'],
+  // The two rows, in the plate's order: training, then food.
+  assert.deepEqual(d.nodes().filter((n) => n.props && n.props['data-team-coach'] != null).map((n) => n.props['data-team-coach']), ['trainer', 'nutritionist']);
+  // Each coach is offered once, a square each, with what is unread on it and said to a screen reader (#2583).
+  assert.deepEqual(messages(d).map((b) => [b.props['data-team-message'], b.props['aria-label']]), [
+    ['trainer', 'Message Jordan Chen'],
+    ['nutritionist', 'Message Maya Patel, 2 new'],
   ]);
-  assert.ok(messages(d).every((b) => b.props.style.minHeight === 44));
+  assert.ok(messages(d).every((b) => b.props.style.minHeight === 48 && b.props.style.width === 48), 'a square is a 48 px target');
+  assert.deepEqual(messages(d).map((b) => inRow(b, (n) => n.props && n.props['data-team-unread'] != null).map(textOf)), [[], ['2']], 'the unread count rides its coach\'s square');
   assert.doesNotMatch(d.text, /Find a coach/, 'a member with coaches is not sent to find one');
 });
 
-test('Team\'s faces: the coach\'s photo in their role\'s ring, else their initials, and initials when the photo fails', () => {
-  const d = drive(T.BSHomeTeamView, TEAM());
-  const faces = d.nodes().filter(fn('BSHtFace'));
-  assert.deepEqual(faces.map((f) => f.props.photo), [JORDAN.photo, null], 'a face a coach: Jordan with a photo, Maya without');
-  const withPhoto = drive(faces[0].type, faces[0].props);
-  const img = withPhoto.nodes()[0];
-  assert.equal(img.type, 'img');
-  assert.equal(img.props['data-team-face'], 'photo');
-  assert.equal(img.props.src, JORDAN.photo);
-  assert.equal(img.props.alt, '', 'the name beside it says who it is');
-  assert.match(img.props.style.border, /^2px solid #c0533b$/, 'a trainer\'s ring is rust');
-  // A photo that fails to load falls back to the initials.
-  img.props.onError();
-  withPhoto.render();
-  assert.equal(withPhoto.nodes()[0].props['data-team-face'], 'initials');
-  assert.equal(withPhoto.text, 'JC');
-  const without = drive(faces[1].type, faces[1].props);
-  assert.equal(without.nodes()[0].props['data-team-face'], 'initials');
-  assert.equal(without.text, 'MP');
+// A half nobody coaches yet, for a member with a coach of the other discipline: the member's own, dashed.
+test('Today\'s plan with one coach: the other half is the member\'s own, its mark dashed', () => {
+  let eat = 0, train = 0;
+  // A trainer only: the food left with no nutritionist is on your own for now, and still logs.
+  const t1 = drive(T.BSHomeTeamView, TEAM({ coaches: [JORDAN], notes: [], mealCoachId: null, onEat: () => { eat += 1; } }));
+  assert.equal(t1.nodes()[0].props['data-bs-home-team'], 'one');
+  assert.equal(markOf(coachBlock(t1, 'trainer')), 'solid');
+  const own = coachBlock(t1, 'none-fuel');
+  assert.equal(markOf(own), 'open', 'the open seat is dashed');
+  assert.equal(textOf(own), '532 kcal leftOn your own for now · Lunch 12:40 · bowl + rice');
+  assert.ok(inRow(own, (n) => n.type === 'button' && n.props['data-team-log'] != null).length === 1, 'the next meal still logs');
+  assert.equal(inRow(own, (n) => n.type === 'button' && n.props['data-team-message']).length, 0, 'no coach, no Message');
+  // A trainer only, and nothing read of the day's food: Your food log, and the way to Eat.
+  const bare = drive(T.BSHomeTeamView, TEAM({ coaches: [JORDAN], notes: [], meal: null, fuel: null, onEat: () => { eat += 1; } }));
+  const log = coachBlock(bare, 'open-food');
+  assert.equal(textOf(log), 'Your food logOn your own for now');
+  assert.equal(markOf(log), 'open');
+  const door = inRow(log, (n) => n.type === 'button')[0];
+  assert.equal(door.props['aria-label'], 'Log a meal');
+  door.props.onClick();
+  assert.equal(eat, 1);
+  // A nutritionist only: the member's own session is dashed too; with none, Your training and the way to Train.
+  const n1 = drive(T.BSHomeTeamView, TEAM({ coaches: [MAYA], workout: { ...TEAM().workout, coachId: null } }));
+  assert.equal(markOf(coachBlock(n1, 'none-session')), 'open');
+  assert.match(textOf(coachBlock(n1, 'none-session')), /^Lower Push — PeakToday’s workout · On your own for now · 9:00 AM/);
+  assert.equal(markOf(coachBlock(n1, 'nutritionist')), 'solid');
+  const n2 = drive(T.BSHomeTeamView, TEAM({ coaches: [MAYA], workout: null, onTrain: () => { train += 1; } }));
+  const training = coachBlock(n2, 'open-training');
+  assert.equal(textOf(training), 'Your trainingOn your own for now');
+  inRow(training, (n) => n.type === 'button')[0].props.onClick();
+  assert.equal(train, 1);
+  // The order holds: training first, then food.
+  assert.deepEqual(n2.nodes().filter((n) => n.props && n.props['data-team-coach'] != null).map((n) => n.props['data-team-coach']), ['open-training', 'nutritionist']);
+  // With a team, or with no coach at all, nothing is dashed: no seat is open beside a coach.
+  for (const coaches of [[JORDAN, MAYA], []]) {
+    const d = drive(T.BSHomeTeamView, TEAM({ coaches, notes: [], workout: { ...TEAM().workout, coachId: coaches.length ? 7 : null }, mealCoachId: null }));
+    assert.ok(d.nodes().filter((n) => n.props && n.props['data-team-mark'] != null).every((n) => n.props['data-team-mark'] === 'solid'), `${coaches.length} coaches: a dashed mark`);
+  }
 });
 
-test('Team\'s Message opens that coach\'s thread; a coach with no thread yet opens the coaches, never another coach\'s (Codex P2 on #2424)', () => {
+test('with nothing to log today, the food\'s square opens Eat; on another day there is no square', () => {
+  let eat = 0;
+  const d = drive(T.BSHomeTeamView, TEAM({ meal: null, onEat: () => { eat += 1; } }));
+  const door = d.nodes().find((n) => n.type === 'button' && n.props['data-team-eat'] != null);
+  assert.equal(door.props['aria-label'], 'Open today’s menu');
+  door.props.onClick();
+  assert.equal(eat, 1);
+  assert.ok(!d.nodes().some((n) => n.props && n.props['data-team-log'] != null));
+  const other = drive(T.BSHomeTeamView, TEAM({ today: false, meal: null, fuel: null, dayMeals: [{ slot: 'Lunch', time: '12:40 PM', title: 'Chicken bowl' }], onEat: () => { eat += 1; } }));
+  assert.ok(!other.nodes().some((n) => n.props && (n.props['data-team-eat'] != null || n.props['data-team-log'] != null)), 'Eat is today\'s');
+});
+
+test('Message opens that coach\'s thread; a coach with no thread yet opens the coaches, never another coach\'s (Codex P2 on #2424)', () => {
   const ev = listen('shape:openConversation');
   try {
     let coachesOpened = 0;
@@ -774,10 +875,11 @@ test('a paid coach whose name could not be read is offered by role, and a second
       { role: 'trainer', name: null, conversationId: 'c-y', providerId: 10 },
     ], onCoaches: () => {}, workout: { ...TEAM().workout, coachId: 9 } }));
     assert.deepEqual(messages(d).map((b) => b.props['aria-label']), ['Message your trainer', 'Message your nutritionist', 'Message your trainer']);
-    assert.match(textOf(coachBlock(d, 'trainer')), /^TrainerTrainer · Today’s call/, 'the role stands for the name');
-    assert.deepEqual(d.nodes().filter(fn('BSHtFace')).map((f) => f.props.initials), ['T', 'N', 'T'], 'and for the face\'s initials');
+    assert.match(textOf(coachBlock(d, 'trainer')), /^Lower Push — PeakFrom Trainer · /, 'the role stands for the name');
+    assert.match(textOf(coachBlock(d, 'nutritionist')), /^532 kcal leftFrom Nutritionist · /);
     const extra = d.nodes().filter((n) => n.props && n.props['data-team-coach'] === 'extra');
     assert.equal(extra.length, 1, 'the second trainer is a row of their own');
+    assert.equal(textOf(extra[0]), 'Trainer', 'the role once, not twice');
     messages(d)[0].props.onClick();
     messages(d)[2].props.onClick();
     assert.deepEqual(ev.got, [{ conversationId: 'c-x', name: undefined }, { conversationId: 'c-y', name: undefined }],
@@ -785,10 +887,10 @@ test('a paid coach whose name could not be read is offered by role, and a second
   } finally { ev.off(); }
 });
 
-// Every coach's weekly note stays on Home (the old From your coaches showed both roles'): each on its
-// own coach's card, the trainer's over today's session, and a second coach of a role never shows the
-// first's. An unsigned note, or one signed with a name no coach here carries, is the first's.
-test("each coach's weekly note is on their own card: the trainer's over the session, a second coach's on their row", () => {
+// Every coach's weekly note stays on Home (the old From your coaches showed both roles'): each under its
+// own coach's row, and a second coach of a role never shows the first's. An unsigned note, or one signed
+// with a name no coach here carries, is the first's.
+test("each coach's weekly note is under their own row: the trainer's with the session, a second coach's on their row", () => {
   const SAM = { role: 'trainer', name: 'Sam Strong', conversationId: 'c-s', providerId: 8, photo: null };
   const notes = [
     { role: 'trainer', text: 'Sam here: hips first this week.', who: 'Sam Strong' },
@@ -796,13 +898,12 @@ test("each coach's weekly note is on their own card: the trainer's over the sess
     { role: 'nutritionist', text: 'Five plates.', who: 'Maya Patel' },
   ];
   const d = drive(T.BSHomeTeamView, TEAM({ coaches: [JORDAN, MAYA, SAM], notes }));
-  const noteIn = (block) => (block ? d.nodes().filter((n) => n.props && n.props['data-team-note'] != null && block.props && textOf(block).includes(textOf(n))).map(textOf) : []);
-  assert.deepEqual(noteIn(coachBlock(d, 'trainer')), ['“Jordan: three sets, then stop.”'], "the trainer's own note, over the session");
+  const noteIn = (block) => inRow(block, (n) => n.props && n.props['data-team-note'] != null).map(textOf);
+  assert.deepEqual(noteIn(coachBlock(d, 'trainer')), ['“Jordan: three sets, then stop.”'], "the trainer's own note, with the session");
   assert.deepEqual(noteIn(coachBlock(d, 'nutritionist')), ['“Five plates.”']);
   assert.deepEqual(noteIn(coachBlock(d, 'extra')), ['“Sam here: hips first this week.”'], "the second trainer's note on their own row");
-  // The trainer's note sits above the session in its card.
-  const session = d.nodes().find((n) => n.props && n.props['data-team-card'] === 'session');
-  assert.ok(textOf(session).indexOf('Jordan: three sets') < textOf(session).indexOf("I'll train today"), 'the note is under the session');
+  // The trainer's row holds the session and the note together.
+  assert.match(textOf(coachBlock(d, 'trainer')), /^Lower Push — Peak[\s\S]*This week’s note“Jordan: three sets, then stop\.”$/);
   // A second coach with no note of their own shows none: never the first's.
   const quiet = drive(T.BSHomeTeamView, TEAM({ coaches: [JORDAN, MAYA, SAM], notes: [notes[1]] }));
   assert.equal(quiet.nodes().filter((n) => n.props && n.props['data-team-note'] != null).length, 1, "the first trainer's note showed twice");
@@ -811,37 +912,40 @@ test("each coach's weekly note is on their own card: the trainer's over the sess
   const unsigned = drive(T.BSHomeTeamView, TEAM({ coaches: [JORDAN, SAM], notes: [{ role: 'trainer', text: 'Unsigned.', who: null }] }));
   assert.match(textOf(unsigned.nodes().find((n) => n.props && n.props['data-team-coach'] === 'trainer')), /Unsigned\./);
   const samOnly = drive(T.BSHomeTeamView, TEAM({ coaches: [JORDAN, SAM], notes: [notes[0]] }));
-  assert.doesNotMatch(textOf(samOnly.nodes().find((n) => n.props && n.props['data-team-coach'] === 'trainer')), /hips first/, "Sam's note went to Jordan's card");
+  assert.doesNotMatch(textOf(samOnly.nodes().find((n) => n.props && n.props['data-team-coach'] === 'trainer')), /hips first/, "Sam's note went to Jordan's row");
 });
 
-// A member may pay two trainers: today's session is the card of the one who wrote it, with their Message
-// (Codex P2 on #2583); a session no paid trainer wrote is Today's workout, on no coach's card.
-test("today's session goes on the card of the trainer who wrote it, and the member's own on no coach's", () => {
+// A member may pay two trainers: today's session is the row of the one who wrote it, with their Message
+// (Codex P2 on #2583); a session no paid trainer wrote is Today's workout, on no coach's row.
+test("today's session goes on the row of the trainer who wrote it, and the member's own on no coach's", () => {
   const SAM = { role: 'trainer', name: 'Sam Strong', conversationId: 'c-s', providerId: 8, photo: null };
   const ev = listen('shape:openConversation');
   try {
     const d = drive(T.BSHomeTeamView, TEAM({ coaches: [JORDAN, SAM, MAYA], workout: { ...TEAM().workout, coachId: 8 } }));
     const card = coachBlock(d, 'trainer');
-    assert.match(textOf(card), /^Sam Strong/, "Sam wrote it, so Sam's card carries it, though Jordan is the earlier");
-    assert.match(textOf(card), /Today’s call[\s\S]*Lower Push — Peak/);
+    assert.match(textOf(card), /^Lower Push — PeakFrom Sam · /, "Sam wrote it, so Sam's row carries it, though Jordan is the earlier");
     assert.match(textOf(coachBlock(d, 'extra')), /^Jordan Chen/, 'Jordan is the second trainer\'s row');
     assert.doesNotMatch(textOf(coachBlock(d, 'extra')), /Lower Push/);
-    const msg = d.nodes().find((n) => n.type === 'button' && n.props['data-team-message'] && card && textOf(card).includes(textOf(n)) && n.props['aria-label'] === 'Message Sam Strong');
-    assert.ok(msg, "the session's Message is Sam's");
+    const [msg] = inRow(card, (n) => n.type === 'button' && n.props['data-team-message']);
+    assert.equal(msg.props['aria-label'], 'Message Sam Strong', "the session's Message is Sam's");
     msg.props.onClick();
     assert.deepEqual(ev.got, [{ conversationId: 'c-s', name: 'Sam Strong' }]);
   } finally { ev.off(); }
-  // The member's own workout (no coach), or a trainer no longer paid: Today's workout, on no card.
+  // The member's own workout (no coach), or a trainer no longer paid: Today's workout, on no coach's row;
+  // the paid trainer keeps a row of their own, with Message.
   for (const coachId of [null, 99]) {
     const own = drive(T.BSHomeTeamView, TEAM({ workout: { ...TEAM().workout, coachId } }));
-    assert.doesNotMatch(textOf(coachBlock(own, 'trainer')), /Lower Push|Today’s call/, `a session by ${coachId} is filed under Jordan`);
-    assert.match(textOf(coachBlock(own, 'none-session')), /^Today’s workout.*Lower Push — Peak/);
+    assert.equal(textOf(coachBlock(own, 'trainer')), 'Jordan ChenTrainer', `a session by ${coachId} is filed under Jordan`);
+    assert.equal(inRow(coachBlock(own, 'trainer'), (n) => n.type === 'button' && n.props['data-team-message']).length, 1);
+    assert.match(textOf(coachBlock(own, 'none-session')), /^Lower Push — PeakToday’s workout · 9:00 AM · 54 min/);
+    assert.equal(inRow(coachBlock(own, 'none-session'), (n) => n.type === 'button' && n.props['data-team-message']).length, 0, 'no coach\'s Message on a session none of them wrote');
+    assert.equal(inRow(coachBlock(own, 'none-session'), (n) => n.type === 'button' && n.props['data-team-start'] != null).length, 1);
   }
 });
 
-// Codex P2 on #2583: a meal logged from Team counts in its food left: the meal logger hands its write to
+// Codex P2 on #2583: a meal logged from Home counts in its food left: the meal logger hands its write to
 // onLogged, and Home reads the day again once it lands (and a moment later, as Home's other loggers do).
-test("a meal logged from Team is counted in Team's food left once it is written", () => {
+test("a meal logged from Today's plan is counted in its food left once it is written", () => {
   const client = readFileSync(join(ROOT, 'mobile-app', 'src', 'broadsheet', 'iosAppBroadsheetClient.jsx'), 'utf8');
   // The meal logger is its own module since its redesign (owner, 2026-11-04: B "for logging meals and Filed").
   const logger = readFileSync(join(ROOT, 'mobile-app', 'src', 'broadsheet', 'BSMealLog.jsx'), 'utf8');
@@ -852,37 +956,39 @@ test("a meal logged from Team is counted in Team's food left once it is written"
 });
 
 // Codex P2 on #2583: a member who pays two nutritionists sees the day's meals under the one who wrote the plan.
-test("the day's meals go on the card of the nutritionist who wrote the plan, with their Message", () => {
+test("the day's meals go on the row of the nutritionist who wrote the plan, with their Message", () => {
   const NIA = { role: 'nutritionist', name: 'Nia Noor', conversationId: 'c-n', providerId: 4, photo: null };
   const ev = listen('shape:openConversation');
   try {
     const d = drive(T.BSHomeTeamView, TEAM({ coaches: [JORDAN, MAYA, NIA], mealCoachId: 4 }));
     const card = coachBlock(d, 'nutritionist');
-    assert.match(textOf(card), /^Nia Noor/, "Nia wrote the meal plan, so Nia's card carries the meals, though Maya is the earlier");
+    assert.match(textOf(card), /^532 kcal leftFrom Nia · /, "Nia wrote the meal plan, so Nia's row carries the meals, though Maya is the earlier");
     assert.match(textOf(coachBlock(d, 'extra')), /^Maya Patel/, 'Maya is the second nutritionist\'s row');
-    const msg = d.nodes().find((n) => n.type === 'button' && n.props['data-team-message'] && n.props['aria-label'] === 'Message Nia Noor' && textOf(card).includes(textOf(n)));
-    assert.ok(msg, "the meals' Message is Nia's");
+    const [msg] = inRow(card, (n) => n.type === 'button' && n.props['data-team-message']);
+    assert.equal(msg.props['aria-label'], 'Message Nia Noor', "the meals' Message is Nia's");
     msg.props.onClick();
     assert.deepEqual(ev.got, [{ conversationId: 'c-n', name: 'Nia Noor' }]);
   } finally { ev.off(); }
   // No author named: the first nutritionist, as before.
   const NIA2 = { role: 'nutritionist', name: 'Nia Noor', conversationId: 'c-n', providerId: 4, photo: null };
   const unnamed = drive(T.BSHomeTeamView, TEAM({ coaches: [JORDAN, MAYA, NIA2], mealCoachId: null }));
-  assert.match(textOf(coachBlock(unnamed, 'nutritionist')), /^Maya Patel[\s\S]*kcal left/);
-  // A plan by a nutritionist no longer paid (Codex P2 on #2583): Fuel left today on no coach's card, and the
+  assert.match(textOf(coachBlock(unnamed, 'nutritionist')), /^532 kcal leftFrom Maya · /);
+  // A plan by a nutritionist no longer paid (Codex P2 on #2583): the food left on no coach's row, and the
   // paid nutritionists keep only their own Message, never those meals.
   const former = drive(T.BSHomeTeamView, TEAM({ coaches: [JORDAN, MAYA, NIA2], mealCoachId: 99 }));
-  assert.match(textOf(coachBlock(former, 'none-fuel')), /kcal left/);
-  assert.doesNotMatch(textOf(coachBlock(former, 'nutritionist')), /kcal left|Log /);
+  const fuelRow = coachBlock(former, 'none-fuel');
+  assert.match(textOf(fuelRow), /^532 kcal left/);
+  assert.equal(markOf(fuelRow), 'solid', 'a team has no open seat');
+  assert.doesNotMatch(textOf(coachBlock(former, 'nutritionist')), /kcal left/);
+  assert.equal(inRow(coachBlock(former, 'nutritionist'), (n) => n.type === 'button' && n.props['data-team-log'] != null).length, 0);
   assert.ok(former.nodes().some((n) => n.type === 'button' && /^Message Maya Patel(, |$)/.test(n.props['aria-label'] || '')), "Maya's Message stays hers");
-  const fuelCard = coachBlock(former, 'none-fuel');
-  assert.ok(!former.nodes().some((n) => n.type === 'button' && n.props['data-team-message'] && textOf(fuelCard).includes(textOf(n)) && /Maya|Nia/.test(n.props['aria-label'] || '')), 'no coach\'s Message on those meals');
+  assert.equal(inRow(fuelRow, (n) => n.type === 'button' && n.props['data-team-message']).length, 0, 'no coach\'s Message on those meals');
   const client = readFileSync(join(ROOT, 'mobile-app', 'src', 'broadsheet', 'iosAppBroadsheetClient.jsx'), 'utf8');
   assert.match(client, /mealCoachId=\{sample \? 'sample-nutritionist' : \(\(livePlan && livePlan\.meals && livePlan\.meals\.coachId\) \?\? null\)\}/);
 });
 
-// Codex P2 on #2583: a note keeps its coach's listing id, and Team files it by that id first, so two coaches
-// who share a name, or a name lookup that failed, never put one coach's advice under the other.
+// Codex P2 on #2583: a note keeps its coach's listing id, and the plate files it by that id first, so two
+// coaches who share a name, or a name lookup that failed, never put one coach's advice under the other.
 test("a coach's note is filed by their listing id: same-named coaches each get their own, and a missing name never moves it", () => {
   const A = { role: 'trainer', name: 'Alex Kim', conversationId: 'c-a', providerId: 7, photo: null };
   const B = { role: 'trainer', name: 'Alex Kim', conversationId: 'c-b', providerId: 8, photo: null };
@@ -909,21 +1015,25 @@ test('Your move: the engine\'s one move, its reason and its pledge, first in the
   assert.match(d.text, /^Your moveGet to bed earlier tonight\.Under 6h a night this week$/);
   const go = d.nodes().find((n) => n.type === 'button' && n.props['data-bs-home-move-go'] != null);
   assert.equal(go.props['aria-label'], "I'll get to bed earlier", 'the square says the pledge');
-  assert.equal(go.props.style.width, 44);
+  // The plate's square (owner, 2026-11-17): 48px with a 12px corner, in ink.
+  assert.equal(go.props.style.width, 48);
+  assert.equal(go.props.style.borderRadius, 12);
+  assert.equal(go.props.style.background, THEME.INK);
   go.props.onClick();
   assert.equal(went, 1);
   assert.equal(drive(S.BSHomeMoveRow, { head: '', cta: null }).nodes().length, 0, 'no move, no row');
-  // Home draws it first in the panel, and only for the engine's lead (the plan's own leads are Team's).
+  // Home draws it first in the panel, and only for the engine's lead (the plan's own leads are Today's plan's).
   const src = readFileSync(join(ROOT, 'mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx'), 'utf8');
   assert.match(src, /<BSMorningPanel>\n(\s+\{\/\*[\s\S]*?\*\/\}\n)?\s+\{todayDirective && todayDirective\.engine \? \(\n\s+<BSHomeMoveRow head=\{todayDirective\.head\} sub=\{todayDirective\.sub\} cta=\{todayDirective\.cta\} color=\{todayDirective\.c\} \/>/);
 });
 
-test('Team\'s next session opens the calendar on its day', () => {
+test('the next session opens the calendar on its day', () => {
   const opened = [];
   const next = { at: Date.parse('2026-10-24T13:00:00Z'), providerName: 'Jordan Chen', providerRole: 'trainer' };
   const d = drive(T.BSHomeTeamView, TEAM({ next, onCalendar: (day) => opened.push(day) }));
   const row = d.nodes().find((n) => n.type === 'button' && n.props['data-team-next'] != null);
   assert.match(textOf(row), /^Next session.*· Jordan Chen$/);
+  assert.ok(row.props.style.minHeight >= 44);
   row.props.onClick();
   assert.equal(opened.length, 1);
   assert.equal(opened[0].getTime(), next.at, 'the calendar opens on the session\'s day');
@@ -932,18 +1042,18 @@ test('Team\'s next session opens the calendar on its day', () => {
   assert.match(textOf(nameless.nodes().find((n) => n.props && n.props['data-team-next'] != null)), /· Trainer$/);
 });
 
-test('with no coach, Team is Today: the session and the food left without a face, and Find a coach only when Home asks', () => {
+test('with no coach, the plate is Today: the session and the food left with no coach named, and Find a coach only when Home asks', () => {
   let found = 0;
   const d = drive(T.BSHomeTeamView, TEAM({ coaches: [], notes: [], unread: {}, showFindCoach: true, onFindCoach: () => { found += 1; } }));
-  assert.match(d.text, /^Today\./);
-  assert.match(d.text, /Fri 11/);
-  assert.doesNotMatch(d.text, /coach(es)? ·|\d coach/, 'no coach count');
-  assert.match(textOf(coachBlock(d, 'none-session')), /Today’s workout9:00 AMLower Push — Peak/);
-  assert.match(textOf(coachBlock(d, 'none-fuel')), /Fuel left today532kcal left/);
+  assert.equal(d.nodes()[0].props['data-bs-home-team'], 'none');
+  assert.equal(d.nodes()[0].props['aria-label'], 'Today');
+  assert.doesNotMatch(d.text, /From |coach(es)? ·|\d coach/, 'no coach named, no coach count');
+  assert.equal(textOf(coachBlock(d, 'none-session')), 'Lower Push — PeakToday’s workout · 9:00 AM · 54 min · 6 moves');
+  assert.equal(textOf(coachBlock(d, 'none-fuel')), '532 kcal leftLunch 12:40 · bowl + rice');
   assert.equal(messages(d).length, 0, 'no coach, no Message');
-  assert.equal(d.nodes().filter(fn('BSHtFace')).length, 0, 'no face without a coach');
   const find = d.nodes().find((n) => n.type === 'button' && n.props['data-team-find'] != null);
   assert.match(textOf(find), /^Find a coachTrainers and nutritionists/);
+  assert.ok(find.props.style.minHeight >= 44);
   find.props.onClick();
   assert.equal(found, 1);
   // Find a coach waits for Home to know there is none (bsHomeCoachesKnown).
@@ -953,7 +1063,7 @@ test('with no coach, Team is Today: the session and the food left without a face
   assert.equal(drive(T.BSHomeTeamView, { coaches: [], notes: [] }).nodes().length, 0);
   // A trainer with no session today still offers Message.
   const rest = drive(T.BSHomeTeamView, TEAM({ coaches: [JORDAN], workout: null }));
-  assert.match(textOf(coachBlock(rest, 'trainer')), /No session today/);
+  assert.equal(textOf(coachBlock(rest, 'trainer')), 'No session todayJordan Chen · Trainer');
   assert.equal(messages(rest).length, 1);
 });
 
@@ -968,7 +1078,7 @@ const HABITS = [
 ];
 const ticks = (d) => d.nodes().filter((n) => n.type === 'button' && n.props['data-habit-tick']);
 
-test('Daily habits: how many are done today, the first three as ticks with the habit\'s short word, and the rest on the page', () => {
+test('Daily habits: how many are done today, the first three a row each with its tick, and the rest on the page', () => {
   signIn();
   try {
     const toggled = [];
@@ -977,22 +1087,29 @@ test('Daily habits: how many are done today, the first three as ticks with the h
     assert.equal(d.nodes()[0].props['data-tour'], 'hero-habits');
     assert.match(d.text, /^Daily habits2 of 5 done/);
     const list = ticks(d);
-    assert.deepEqual(list.map((b) => [b.props['data-habit-tick'], b.props['aria-pressed'], b.props['aria-label'], textOf(b)]), [
-      ['done', true, 'Drink 3 glasses of water', '✓water'],
-      ['open', false, 'Take vitamins', '✓vitamins'],
-      ['done', true, 'smoking', '✓No smoking'],
-    ], 'a tick a habit, labelled with its last word; a habit to avoid reads "No …"');
-    assert.ok(list.every((b) => b.props.style.minHeight === 44), 'a tick is a 44 px target');
+    assert.deepEqual(list.map((b) => [b.props['data-habit-tick'], b.props['aria-pressed'], b.props['aria-label']]), [
+      ['done', true, 'Drink 3 glasses of water'],
+      ['open', false, 'Take vitamins'],
+      ['done', true, 'smoking'],
+    ], 'a tick a habit, named by the habit as the member wrote it');
+    // A row a habit (owner, 2026-11-17, the approved Home): its own words beside the tick; a habit to avoid
+    // reads "No …".
+    assert.deepEqual(d.nodes().filter((n) => n.props && n.props['data-habit-name'] != null).map(textOf), ['Drink 3 glasses of water', 'Take vitamins', 'No smoking']);
+    assert.ok(list.every((b) => b.props.style.minHeight === 44 && b.props.style.width === 44), 'a tick is a 44 px target');
+    // The plate's square: filled in ink once done, an outline until then.
+    assert.deepEqual(list.map((b) => b.props.style.background), [THEME.INK, 'transparent', THEME.INK]);
+    assert.ok(list.every((b) => b.props.style.borderRadius === 12));
     list[1].props.onClick();
     assert.deepEqual(toggled, ['h2'], 'a tick here is the page\'s tick');
-    const more = d.nodes().find((n) => n.type === 'button' && textOf(n) === '+2');
-    assert.equal(more.props['aria-label'], '2 more habits');
+    const more = d.nodes().find((n) => n.type === 'button' && n.props['data-habits-more'] != null);
+    assert.match(textOf(more), /^2 more habits/);
+    assert.ok(more.props.style.minHeight >= 44);
     more.props.onClick();
     d.nodes().find((n) => n.type === 'button' && /^Daily habits/.test(textOf(n))).props.onClick();
-    assert.equal(opened, 2, '+2 and the title open the Habits page');
-    // Three or fewer: no "+".
+    assert.equal(opened, 2, 'the rest and the title open the Habits page');
+    // Three or fewer: no more to open.
     const three = drive(S.BSHomeHabitsRowView, { habits: HABITS.slice(0, 3), todayIso: '2026-10-22' });
-    assert.ok(!three.nodes().some((n) => n.type === 'button' && /^\+\d/.test(textOf(n))));
+    assert.ok(!three.nodes().some((n) => n.props && n.props['data-habits-more'] != null));
     // Still reading: a dash, no ticks. None yet: add the first.
     const reading = drive(S.BSHomeHabitsRowView, { habits: [], ready: false, todayIso: '2026-10-22' });
     assert.match(reading.text, /Daily habits—/);
@@ -1018,7 +1135,7 @@ test('signed out, Daily habits shows the sample\'s habits as today\'s ticks', ()
     const list = ticks(d);
     assert.deepEqual(list.map((b) => b.props['aria-label']), rows.slice(0, 3).map((h) => h.name));
     assert.deepEqual(list.map((b) => b.props['data-habit-tick']), rows.slice(0, 3).map((h) => (h.pattern[3] === 1 ? 'done' : 'open')));
-    assert.equal(textOf(list[1]), '✓steps', 'a number is not a word: "10,000 steps" reads steps');
+    assert.deepEqual(d.nodes().filter((n) => n.props && n.props['data-habit-name'] != null).map(textOf), rows.slice(0, 3).map((h) => h.name), 'each row says its habit whole');
   } finally { globalThis._BS_HABIT_DEMO_ROWS = prev; }
 });
 
@@ -1062,20 +1179,20 @@ test('This week: held by Home, a tap hands Home the day and the strip shows the 
   assert.equal(days(t0)[3].props['aria-pressed'], true);
 });
 
-test('Team on another day: its date, its session as a preview, its meals in order, nothing to log and no food left', () => {
+test('Today\'s plan on another day: its date, its session as a preview, its meals in order, nothing to log and no food left', () => {
   const started = [];
   const d = drive(T.BSHomeTeamView, TEAM({
     today: false, dayLabel: 'Sat 12', meal: null, fuel: null,
     workout: { ...TEAM().workout, title: 'Long run', time: '8:00 AM', onStart: () => started.push(1) },
     dayMeals: [{ slot: 'Breakfast', time: '7:00 AM', title: 'Oats + whey' }, { slot: 'Lunch', time: '12:40 PM', title: 'Chicken bowl' }],
   }));
-  assert.match(d.text, /Sat 12 · 2 coaches/);
-  const trainer = textOf(coachBlock(d, 'trainer'));
-  assert.match(trainer, /Trainer · Sat 12/, 'the day, not Today’s call');
-  assert.doesNotMatch(d.text, /Today’s call/);
-  assert.match(trainer, /Long run/);
+  // The plate says which day it shows, to the eye and to a screen reader.
+  assert.equal(textOf(d.nodes().find((n) => n.props && n.props['data-team-day'] != null)), 'Sat 12');
+  assert.equal(d.nodes()[0].props['aria-label'], 'Sat 12');
+  assert.equal(textOf(coachBlock(d, 'trainer')), 'Long runFrom Jordan · 8:00 AM · 54 min · 6 moves');
+  assert.match(textOf(coachBlock(d, 'nutritionist')), /^Meals · Sat 12From Maya/, 'the day\'s meals, from their nutritionist');
   const start = d.nodes().find((n) => n.type === 'button' && n.props['data-team-start'] != null);
-  assert.equal(textOf(start), 'Preview →', 'a preview, not I’ll train today');
+  assert.equal(start.props['aria-label'], 'Preview', 'a preview, not I’ll train today');
   start.props.onClick();
   assert.equal(started.length, 1);
   const meals = d.nodes().filter((n) => n.props && n.props['data-team-day-meal'] != null).map((n) => textOf(n));
@@ -1085,11 +1202,11 @@ test('Team on another day: its date, its session as a preview, its meals in orde
   assert.doesNotMatch(d.text, /kcal left|Fuel left today/);
 });
 
-test('Team on another day with no coach and no session: the date heads it, and the day says so', () => {
+test('Today\'s plan on another day with no coach and no session: the date heads it, and the day says so', () => {
   const d = drive(T.BSHomeTeamView, TEAM({ coaches: [], notes: [], today: false, dayLabel: 'Sun 13', workout: null, meal: null, fuel: null,
     dayMeals: [{ slot: 'Dinner', time: '7:00 PM', title: 'Salmon' }], showFindCoach: true, onFindCoach: () => {} }));
-  assert.match(d.text, /^Sun 13\./, 'the day in place of Today');
-  assert.doesNotMatch(d.text, /^Today/);
+  assert.match(d.text, /^Sun 13/, 'the day heads the plate');
+  assert.equal(d.nodes()[0].props['aria-label'], 'Sun 13', 'the day in place of Today');
   assert.match(d.text, /Meals · Sun 13/);
   assert.doesNotMatch(d.text, /Fuel left today/);
   const withSession = drive(T.BSHomeTeamView, TEAM({ coaches: [JORDAN], notes: [], today: false, dayLabel: 'Sun 13', workout: null, meal: null, fuel: null }));
@@ -1098,13 +1215,13 @@ test('Team on another day with no coach and no session: the date heads it, and t
   assert.match(orphan.text, /Workout · Sun 13/);
 });
 
-test('Home holds the picked day: the strip hands it up, and Team reads that day\'s session and meals', () => {
+test('Home holds the picked day: the strip hands it up, and Today\'s plan reads that day\'s session and meals', () => {
   const client = readFileSync(join(ROOT, 'mobile-app', 'src', 'broadsheet', 'iosAppBroadsheetClient.jsx'), 'utf8');
   assert.match(client, /const \[pickedDay, setPickedDay\] = useStateBSC\(null\);/);
   assert.match(client, /picked=\{pickedDay\} onPick=\{setPickedDay\} \/>/, 'the strip is Home’s');
   assert.match(client, /const pickWorkout = pickToday \? selWorkout : \(liveWeek \? liveWeek\.workoutByIdx\[pickIdx\] : bsClientWorkoutForDay\(pickIdx\)\);/);
   assert.match(client, /const pickMeals = pickToday \? selMeals : mealsForIdx\(pickIdx\);/);
-  assert.match(client, /dayLabel=\{`\$\{_dowShort\(pickDate\)\} \$\{pickDate\.getDate\(\)\}`\} today=\{pickToday\}/, 'Team’s date is the picked one');
+  assert.match(client, /dayLabel=\{`\$\{_dowShort\(pickDate\)\} \$\{pickDate\.getDate\(\)\}`\} today=\{pickToday\}/, 'the plate’s date is the picked one');
   assert.match(client, /fuel=\{pickToday \? fuel : null\}/, 'the food left is today’s alone');
   // The morning panel stays today's: Your move reads selIdx, which is today.
   assert.match(client, /const selIdx = todayIdx;/);
@@ -1113,11 +1230,12 @@ test('Home holds the picked day: the strip hands it up, and Team reads that day\
 // ── One check-in on Home (owner, 2026-11-11: "why are there 2 checkins for a signed in account") ───
 // The Weekly check-in is the coach's form: a line on Team naming who it is for, only with a coach, where it
 // was a second check-in row under the morning panel that every signed-in account saw.
-test('Team: the Weekly check-in is a line under the coaches it is for, and only when there is a coach', () => {
+test('Today\'s plan: the Weekly check-in is a line under the coaches it is for, and only when there is a coach', () => {
   let opened = 0;
   const one = drive(T.BSHomeTeamView, TEAM({ coaches: [JORDAN], notes: [], weekly: { onOpen: () => { opened += 1; } } }));
   const line = one.nodes().find((n) => n.type === 'button' && n.props['data-team-weekly'] != null);
   assert.ok(line, 'the line is drawn');
+  assert.ok(line.props.style.minHeight >= 44);
   assert.match(textOf(line), /Weekly check-in due\s*For Jordan\s*2 min/);
   assert.equal(line.props['aria-label'], 'Weekly check-in due · For Jordan · 2 min');
   line.props.onClick();
