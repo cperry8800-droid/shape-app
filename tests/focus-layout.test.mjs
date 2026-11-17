@@ -572,11 +572,12 @@ test('Home holds the check-in card, water and the daily habits in one morning pa
   assert.equal(typeof kids[2].props.onOpen, 'function', 'the habits row opens the Habits page');
 });
 
-// Owner, 2026-11-03, the Home the owner chose: "C on top, M3 below, but use this design at the top, and
-// move shape radio box above the graph", "the chart should just be goal progress", "move check in to above
-// in your corner", "change 'in your corner' to 'team'", "remove your crew", and Today's call off Home
-// ("remove this", "and replace with just this", "so you dont have them twice").
-test('Home reads: the deck (Shape Radio, the climb, the week), the morning panel, Team, then the shortcuts', () => {
+// Owner, 2026-11-17, the approved Home ("ok make new home screens live", "build those. Please make it look
+// like the preview"): Shape Radio, This week ("keep the week calendar towards the top"), the goal, the
+// invitation for a member with one coach, Today's plan, the morning's plate, then the shortcuts. Still
+// standing from the Home of 2026-11-03: "the chart should just be goal progress", "remove your crew", and
+// Today's call off Home ("so you dont have them twice").
+test('Home reads: Shape Radio, This week, the goal, the invitation, Today\'s plan, the morning panel, then the shortcuts', () => {
   delete globalThis.ShapeAuth;
   const d = drive(BSClientHome, { onProfile() {}, goCalendar() {}, goRadio() {}, goTrain() {}, goEat() {}, goMarket() {}, goScore() {}, goChat() {}, goIntegrations() {}, tweaks: {}, setTweak() {} });
   const order = d.nodes();
@@ -585,27 +586,37 @@ test('Home reads: the deck (Shape Radio, the climb, the week), the morning panel
   const deck = at(fn('BSHomeDeck'));
   const climb = at(fn('BSHomeClimb'));
   const week = at(fn('BSHomeWeekBars'));
+  const invite = at(fn('BSHomeInvite'));
   const checkin = at((n) => fn('BSTodayNudge')(n) && n.props.variant === 'bulletin');
   const team = at(fn('BSHomeTeam'));
   const shortcuts = at(fn('BSHomeShortcutList'));
   assert.ok(deck >= 0, 'no deck');
   // Shape Radio is a window global the shallow drive does not load, so its place is read from the source.
   assert.match(readFileSync(join(ROOT, 'mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx'), 'utf8'), /<BSHomeDeck radio=\{<BSNowPlaying onOpen=\{goRadio\} \/>\}>/, "Shape Radio is not the deck's first line");
-  assert.ok(climb > deck && week > climb, 'the climb, then the week, in the deck');
-  assert.ok(checkin > week && team > checkin && shortcuts > team, 'the morning panel, then Team, then the shortcuts');
+  assert.ok(week > deck && climb > week, 'This week, then the goal, under Shape Radio');
+  assert.ok(invite > climb && team > invite, 'the invitation under the goal, then Today\'s plan');
+  assert.ok(checkin > team && shortcuts > checkin, 'the morning panel under Today\'s plan, then the shortcuts');
   assert.equal(order[climb].props.tour, 'hero-goal', "the tour's goal step anchors on the climb");
   assert.equal(typeof order[climb].props.onOpen, 'function', 'the climb opens Your goals');
   assert.equal(order.filter((n) => n.props && n.props.tour === 'hero-goal').length, 1, 'one goal anchor');
-  assert.equal(order[team].props.tour, 'hero-home', "the tour's Home step anchors on Team");
+  assert.equal(order[team].props.tour, 'hero-home', "the tour's Home step anchors on Today's plan");
   for (const gone of ['BSHomeGoal', 'BSHomeWeekSoFar', 'BSHomeCoaches', 'BSFocusLine', 'BSHomeWallBulletin']) {
     assert.equal(at(fn(gone)), -1, `${gone} is still on Home`);
   }
   assert.equal(at((n) => fn('BSFocusHead')(n) && n.props.label === 'Today\u2019s call'), -1, "Today's call is on Home twice: Team's trainer card carries it");
   assert.doesNotMatch(d.text, /Your crew/, 'Your crew lives on the Wall');
   assert.doesNotMatch(d.text, /Kcal left|Protein to go|Next stop|Today's slate/);
-  // The signed-out preview is a member's account: the sample's two coaches, their faces and her note.
+  // The signed-out preview is a member with a team: the sample's two coaches, their faces and her note.
   const sample = order[team].props;
   assert.deepEqual(sample.coaches.map((c) => [c.role, c.name]), [['trainer', 'Jordan Chen'], ['nutritionist', 'Dr. Maya Patel']]);
+  // The same two reach the week, the goal and the invitation (which a team never sees).
+  for (const i of [week, climb, invite]) assert.equal(order[i].props.coaches, sample.coaches, 'a section reads other coaches');
+  assert.equal(typeof order[climb].props.onCoach, 'function', "a coach on the goal opens nothing");
+  assert.equal(typeof order[climb].props.onSeat, 'function');
+  assert.equal(typeof order[invite].props.onFind, 'function');
+  // The shortcuts end on the team.
+  assert.deepEqual(order[shortcuts].props.rows.map((r) => r.key), ['score', 'progress', 'grocery', 'devices', 'team']);
+  assert.equal(order[shortcuts].props.rows[4].sub, 'Jordan + Maya');
   assert.ok(sample.coaches.every((c) => /\/faces\/coach-[a-z]+\.jpg$/.test(c.photo)), 'a sample coach without their face');
   assert.equal(sample.showFindCoach, false, 'Find a coach beside two coaches');
   assert.ok(sample.notes.some((n) => n.role === 'nutritionist' && n.who === 'Dr. Maya Patel'), "the sample's note");

@@ -419,8 +419,9 @@ test('the morning panel holds the card over water, with a hairline between them'
     const panel = host.querySelector('[data-bs-morning]');
     assert.ok(panel, 'no morning panel');
     assert.equal(panel.tagName, 'SECTION');
-    // Round and raised as every box on Home (owner, 2026-11-04: "this doesnt go together now").
-    assert.equal(panel.style.borderRadius, '20px', 'the panel lost its rounded corners');
+    // A plate as every box on Home (owner, 2026-11-17, the approved Home: an 18px corner over the dot grid).
+    assert.equal(panel.style.borderRadius, '18px', 'the panel lost its rounded corners');
+    assert.match(panel.style.backgroundImage, /radial-gradient\(/, 'the panel lost the plate\'s dot grid');
     assert.equal(panel.style.clipPath, '', 'the notched corner came back');
     const card = panel.querySelector('[data-bs-checkin-card]');
     const water = panel.querySelector('[data-bs-water]');
@@ -452,9 +453,10 @@ test('the card on Home is one row: the words open the check-in, the ink ✓ squa
     assert.deepEqual([...row.children], [start, same], 'the row is the words, then one square');
     assert.equal(start.getAttribute('aria-label'), 'Start check-in · Morning check-in');
     assert.equal(start.style.minHeight, '44px');
-    assert.equal(same.style.width, '44px');
-    assert.equal(same.style.height, '44px');
-    assert.equal(same.style.borderRadius, '6px', 'the ✓ is not the panel\'s square');
+    // The plate's square (owner, 2026-11-17, the approved Home): 48px with a 12px corner.
+    assert.equal(same.style.width, '48px');
+    assert.equal(same.style.height, '48px');
+    assert.equal(same.style.borderRadius, '12px', 'the ✓ is not the panel\'s square');
     assert.notEqual(same.style.background, 'transparent', 'the ✓ square is ink: it does the thing');
     assert.equal(same.getAttribute('aria-label'), 'Same as yesterday · Good · 6h 30 · Fresh', 'the square says what it logs');
     const line = row.querySelector('[data-bs-checkin-sameline]');

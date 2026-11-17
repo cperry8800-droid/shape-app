@@ -567,9 +567,12 @@ test('the app station sits on Home for a signed-in member, after the check-ins, 
   // mean anything: a missing one reads -1 and the order check below would pass on nothing.
   assert.ok(home.indexOf('<BSTodayNudge variant="row"') > 0, 'the Check-ins-off row is gone from Home');
   assert.ok(home.indexOf('<BSMemberSetupStation') > home.indexOf('<BSTodayNudge variant="row"'), 'under the check-ins');
-  // Today's call came off Home into Team's trainer card (owner, 2026-11-03): the station sits above Team.
-  assert.ok(home.indexOf('<BSHomeTeam tour="hero-home"') > 0, 'Team is gone from Home');
-  assert.ok(home.indexOf('<BSMemberSetupStation') < home.indexOf('<BSHomeTeam tour="hero-home"'), 'above Team');
+  // Today's plan stands above the check-ins on the approved Home (owner, 2026-11-17), so the station, under
+  // the check-ins, is under it too, and above the shortcuts.
+  assert.ok(home.indexOf('<BSHomeTeam tour="hero-home"') > 0, 'Today\'s plan is gone from Home');
+  assert.ok(home.indexOf('<BSMemberSetupStation') > home.indexOf('<BSHomeTeam tour="hero-home"'), 'under Today\'s plan');
+  assert.ok(home.indexOf('<BSHomeShortcutList') > 0, 'the shortcuts are gone from Home');
+  assert.ok(home.indexOf('<BSMemberSetupStation') < home.indexOf('<BSHomeShortcutList'), 'above the shortcuts');
   const backend = read('mobile-app/src/services/shapeBackend.js');
   assert.match(backend, /fetch\(`\$\{apiBaseUrl \|\| ''\}\/api\/client\/onboarding`, \{ credentials: 'same-origin', headers: sessionsAuthHeaders\(\) \}\)/, 'Bearer in the installed app');
   assert.match(backend, /window\.ShapeMemberSetup = \{ get: getMemberSetup, setWeekOne: setMemberWeekOne \};/);

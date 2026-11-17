@@ -96,6 +96,8 @@ import { BSHomeHabitsRow, BSHomeShortcutList, BSHomeMoveRow } from './BSHomeSect
 import { BSHomeDeck, BSHomeClimb, BSHomeWeekBars } from './BSHomeDeck.jsx';
 import { BSHomeScoreQuote, bsQuoteInk } from './BSHomeScoreQuote.jsx';
 import { BSHomeTeam } from './BSHomeTeam.jsx';
+import { useBSHomeType, BSHomeType, BSHomeInvite, bsHomeCoachName } from './BSHomeCare.jsx';
+import { bsHomeCare } from '../services/homeCare.mjs';
 import { bsGlassFill, bsGlassBorder, BSGlassEdge } from './BSProInstrument.jsx';
 import { useBSClean, BSCleanType, bsCleanSheet, BS_CLEAN_HEAD, BS_CLEAN_SANS } from './bsCleanType.jsx';
 import { BSMpIcon, BSMpIconBox, bsMpTile, bsMpAction, bsMpCoachRing, BSMemberWallMosaic, BSMemberShelfCards } from './BSMemberBento.jsx';
@@ -3490,9 +3492,11 @@ function BSMemberSetupStation({ onGoal, onTrain, onCheckin, onFindCoach }) {
 }
 
 function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = () => {}, goMarket, goScore, goChat = () => {}, goIntegrations, tweaks = {}, setTweak = () => {}, checkinOpen = null, onCheckinOpenConsumed = () => {}, initialPage = '', initialViaNav = false, initialPreview = null, onStartConsumed = () => {} }) {
-  // The coach Today's clean type (owner, 2026-10-28: "Member/client home page font needs to match
-  // coaches"): Geist heads and Inter Tight words below the top bars, as the coach's (bsCleanType.jsx).
-  const t = useBSClean();
+  // Home's own type (owner, 2026-11-17, of the approved Home: "just make sure look and design is same as
+  // preview"): Saira for words and figures below the top bars, the app's mono for the small capitals
+  // (BSHomeCare.jsx's useBSHomeType). It took the coach pages' Geist and Inter Tight on 2026-10-28
+  // ("Member/client home page font needs to match coaches"); Train and Eat keep those.
+  const t = useBSHomeType();
   const tr = useShapeTr();
   const bsHomeProgram = useBSProgram();
   const prepEntries = useBSPrepEntries();   // PREPPED stamps on slate meal rows (PR C)
@@ -4060,9 +4064,29 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
   // Today's call and the day's line left Home (owner, 2026-11-03, the Home preview: "remove this" of Today's
   // call, the session on the trainer's Team card instead). fmtAt, mealMinutes and slotLabel stay for Team.
 
+  // ── WHO THE MEMBER HAS HIRED (owner, 2026-11-17: Home adjusts to no coach, one coach, or a team) ──
+  // The signed-out preview shows the sample's two coaches, the ones its Train and Eat already name
+  // (owner, 2026-11-03: "the coaches should be appearing on home page next to the daily tasks"), so the
+  // Preview is a member with a team. Signed in, only the coaches the member pays.
+  const sample = !bsHomeSignedIn;
+  const teamCoaches = sample
+    ? [{ role: 'trainer', name: 'Jordan Chen', conversationId: null, providerId: 'sample-trainer', photo: bsDemoFace('Jordan Chen') }, { role: 'nutritionist', name: 'Dr. Maya Patel', conversationId: null, providerId: 'sample-nutritionist', photo: bsDemoFace('Dr. Maya Patel') }]
+    : planCoaches;
+  const homeCare = bsHomeCare(teamCoaches);
+  // A coach's own page: Coaches, opened on their listing. The sample's two, and a coach whose listing
+  // could not be read, open Coaches itself, where Your team lists them.
+  const openCoach = (c) => {
+    const id = c && c.providerId != null && Number.isFinite(Number(c.providerId)) ? Number(c.providerId) : null;
+    if (id != null) {
+      try { window.dispatchEvent(new CustomEvent('shape:openMarket', { detail: { role: c.role === 'nutritionist' ? 'nutritionist' : 'trainer', coachId: id } })); return; } catch (e) { /* Coaches below */ }
+    }
+    goMarket?.();
+  };
+
   // ── ANTI-ACCRETION CONTRACT ────────────────────────────────────────────
-  // Do not add a plate. If it can't be a row, it lives on a tab and gets at
-  // most a row-door.
+  // Home's plates are the approved Home's (owner, 2026-11-17): This week, the goal, the invitation for a
+  // member with one coach, Today's plan, and the morning's. Do not add another. If it can't be a row, it
+  // lives on a tab and gets at most a row-door.
   // ────────────────────────────────────────────────────────────────────────
   return (
     <BSPage>
@@ -4088,17 +4112,15 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
       {/* Last week's recap, one row on Mondays (the full card is on Progress). */}
       {bsHomeSignedIn && bsIsRecapDay() ? <BSWeekRecap who={bsMyName()} variant="row" /> : null}
 
-      {/* Below the top bars, Home is set in the clean type (bsCleanType.jsx), as the coach's Today. The
-          pages Home opens keep their own type: they return above, and the steps history sits outside. */}
-      <BSCleanType t={t}>
-      {/* ── THE DECK (owner, 2026-11-03, the Home the owner chose: "go with The whole Home: C on top, M3
-          below, but use this design at the top, and move shape radio box above the graph", and "the chart
-          should just be goal progress"): an ink band holding Shape Radio's slim box, the climb to the
-          member's goal (what Your goal said, BSHomeDeck.jsx), and This week as five bars a day (what Week
-          so far's rows said: train, food, protein, steps, check-in). A day opens the calendar. */}
+      {/* Below the top bars, Home is set in its own type (BSHomeCare.jsx's BSHomeType: Saira, its weights as
+          written). The pages Home opens keep their own type: they return above, and the steps history sits
+          outside. */}
+      <BSHomeType t={t}>
+      {/* ── THE TOP (owner, 2026-11-17, the approved Home): Shape Radio's box, then This week on its own
+          plate ("keep the week calendar towards the top"; a day picked there moves Today's plan below), then
+          the goal plate (BSHomeDeck.jsx): every figure the climb showed ("keep this"), titled by who the
+          member has hired, with their coaches at its foot. */}
       <BSHomeDeck radio={<BSNowPlaying onOpen={goRadio} />}>
-        <BSHomeClimb tour="hero-goal" demo={bsHomeSignedIn ? null : BS_GOALS_DEFAULT} docKg={bsGoalDocKg} isWeightGoal={bsPrimaryGoalIsWeight}
-          goalWords={(id) => bsPrimaryGoalLabel(id, tr)} onOpen={() => setGoalsPage(true)} />
         <BSHomeWeekBars
           sessionsPlanned={bsHomeSessionsPlanned(livePlan)} plannedDays={bsHomeSessionsPlannedDays(livePlan)} planRead={planRead}
           proteinTarget={ticker && typeof ticker.protein_target === 'number' ? ticker.protein_target : null}
@@ -4112,43 +4134,26 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
             if (stepsToday.hasData || !stepsToday.known) { setStepsHistory(true); return; }
             try { window.dispatchEvent(new CustomEvent('shape:openIntegrations')); } catch (e) {}
           }}
-              picked={pickedDay} onPick={setPickedDay} />
+              coaches={teamCoaches} picked={pickedDay} onPick={setPickedDay} />
+        <BSHomeClimb tour="hero-goal" demo={bsHomeSignedIn ? null : BS_GOALS_DEFAULT} docKg={bsGoalDocKg} isWeightGoal={bsPrimaryGoalIsWeight}
+          goalWords={(id) => bsPrimaryGoalLabel(id, tr)} onOpen={() => setGoalsPage(true)}
+          // The coaches on the goal: each opens their own page, and the open seat (one coach) the coaches
+          // of the other discipline.
+          coaches={teamCoaches} onCoach={openCoach} onSeat={(role) => goMarket?.(role)} />
       </BSHomeDeck>
 
-      {/* ── CHECK-INS — up top, right under the week (owner, 2026-10-11: "check-in should be towards the
-          top"), and above Team (owner, 2026-11-03). One morning panel (owner, 2026-10-22, Option A): the
-          check-in card over water, then the day's habits (owner, 2026-11-03: "add daily habits in here
-          instead of at bottom"). Water shows all day and whatever the Check-ins setting (owner,
-          2026-10-19), so with Check-ins off the panel holds water and the habits. */}
-      <BSMorningPanel>
-        {/* Your move: the engine's one move today, first in the panel, only when it flags one (owner,
-            2026-11-04: "ok add it"). The plan's own fallbacks (the session, the next meal, the habits) are
-            Team's and the panel's already, so a day the engine flags nothing shows no row. */}
-        {todayDirective && todayDirective.engine ? (
-          <BSHomeMoveRow head={todayDirective.head} sub={todayDirective.sub} cta={todayDirective.cta} color={todayDirective.c} />
-        ) : null}
-        <BSTodayNudge onOpen={() => setMorningsPage(true)} variant="bulletin" openRequest={checkinPrefSettled ? checkinOpenReq : null} onOpenRequestConsumed={() => setCheckinOpenReq(null)} />
-        <BSWaterLine />
-        <BSHomeHabitsRow tour="hero-habits" tweaks={tweaks} setTweak={setTweak} onOpen={() => setHabitsPage(true)} onTicked={bsScoreDirty} />
-      </BSMorningPanel>
-      {/* The Weekly check-in is not here: it is the coach's form, a line on Team with the coaches it is for
-          (BSHomeTeam.jsx), so Home asks for one check-in, the morning's (owner, 2026-11-11). */}
-      {/* With Check-ins off, the quiet door to Your mornings: nothing is asked, the history still shows. */}
-      <BSTodayNudge variant="row" onOpen={() => setMorningsPage(true)} />
+      {/* ── THE INVITATION (owner, 2026-11-17: "i like this"), for a member with exactly one coach: what
+          adding a coach of the other discipline brings, and the way to them. It names no partner and
+          promises no joint review: a coach cannot yet name one (BSHomeCare.jsx's BSHomeInvite, which will
+          name the partner once coach pairing ships). "Not now" puts it away for a fortnight. */}
+      <BSHomeInvite coaches={teamCoaches} onFind={(role) => goMarket?.(role)} />
 
-      {/* ── YOUR FIRST 30 DAYS — the member's own board (client-onboarding review, fix 4), only while
-          there is one: the membership's first 30 days. The tour ends here, on Home, so it is the
-          first-run screen after the screening. */}
-      {bsHomeSignedIn && (
-        <BSMemberSetupStation onGoal={() => setGoalsPage(true)} onTrain={() => goTrain?.()} onCheckin={() => setCheckinPage(true)} onFindCoach={goMarket ? () => goMarket() : null} />
-      )}
-
-      {/* ── TEAM (owner, 2026-11-03: Today's call came off, "replace with just this" of the coaches'
-          cards, "so you dont have them twice", and "change 'in your corner' to 'team'"): the trainer's
-          card carries today's session, the nutritionist's their weekly note, the food left and the next
-          meal; with no coach it reads Today, with Find a coach. Your crew is not on Home (owner,
-          2026-11-03: "dont need to see them twice on home"; they are on the Wall). The hero-home tour
-          anchor rides it. */}
+      {/* ── TODAY'S PLAN (owner, 2026-11-17, the approved Home): one plate, a row a half, the trainer's
+          session for the picked day and the nutritionist's side, the food left and the next meal. It is
+          Team's two coach cards (owner, 2026-11-03: "so you dont have them twice") in rows: the session's
+          square, Log, each coach's Message and note are all still here (BSHomeTeam.jsx); with no coach it
+          reads Today, with Find a coach. Your crew is not on Home (owner, 2026-11-03: "dont need to see
+          them twice on home"; they are on the Wall). The hero-home tour anchor rides it. */}
       {(() => {
         const nextMeal = (() => {
           const open = selMeals.filter((m) => !mealLogged[m.id]).slice().sort((x, y) => mealMinutes(x) - mealMinutes(y));
@@ -4158,16 +4163,10 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
           ? { left: Math.max(0, Math.round(liveTarget - liveCal)), pct: Math.round((liveCal / liveTarget) * 100) }
           // The signed-out preview's day is the ticker's sample (CAL 1568/2100), so the two agree.
           : (!bsHomeSignedIn ? { left: 2100 - 1568, pct: Math.round((1568 / 2100) * 100) } : null);
-        // The signed-out preview shows the sample's two coaches, the ones its Train and Eat already name
-        // (owner, 2026-11-03: "the coaches should be appearing on home page next to the daily tasks"),
-        // with the sample's note on Eat. Signed in, only the coaches the member pays, and their notes.
-        const sample = !bsHomeSignedIn;
-        const teamCoaches = sample
-          ? [{ role: 'trainer', name: 'Jordan Chen', conversationId: null, providerId: 'sample-trainer', photo: bsDemoFace('Jordan Chen') }, { role: 'nutritionist', name: 'Dr. Maya Patel', conversationId: null, providerId: 'sample-nutritionist', photo: bsDemoFace('Dr. Maya Patel') }]
-          : planCoaches;
+        // The sample's note is on Eat too. Signed in, the notes of the coaches the member pays.
         const notes = [];
-        // Each note keeps its coach's listing id, so Team files it under that coach by id, not by a name two
-        // coaches may share or a lookup may miss (Codex P2 on #2583).
+        // Each note keeps its coach's listing id, so the plate files it under that coach by id, not by a name
+        // two coaches may share or a lookup may miss (Codex P2 on #2583).
         if (sample) notes.push({ role: 'nutritionist', text: tr('home:team.sampleNote', { defaultValue: 'Five plates. Three logged before noon. Don’t coast through the afternoon — refill at 16:00.' }), who: 'Dr. Maya Patel', providerId: 'sample-nutritionist' });
         else {
           const banners = bsHomePaidBanners(coachFeed.banners, planCoaches);
@@ -4189,29 +4188,66 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
             workout={!pickToday ? (pw && pw.title ? { title: pw.title, meta: pwMeta, time: pwTimed ? fmtAt(bsFocusMin(pw.time) ?? 540) : null, onStart: () => setShowWorkoutPreview({ workout: pw, day: pickDate }),
               coachId: sample ? 'sample-trainer' : (pw.coachId ?? null) } : null)
               : selWorkout && selWorkout.title ? { title: selWorkout.title, meta: _wkShortMeta, time: _wkTimed ? fmtAt(WORKOUT_AT) : null, onStart: () => setShowWorkoutPreview(true),
-              // Who wrote it (the plan read's trainer id): Team files it under that trainer. The sample's is Jordan's.
+              // Who wrote it (the plan read's trainer id): the plate files it under that trainer. The sample's is Jordan's.
               coachId: sample ? 'sample-trainer' : (selWorkout.coachId ?? null) } : null}
             meal={pickToday && nextMeal ? { slot: slotLabel(nextMeal), time: fmtAt(mealMinutes(nextMeal)), title: nextMeal.title, onLog: () => { setMealToLog(nextMeal); setLoggingMealId(nextMeal.id); setShowLogMeal(true); } } : null}
             dayMeals={dayMeals}
             fuel={pickToday ? fuel : null}
-            // Who wrote the meal plan (the plan read's nutritionist id): Team files the meals under them.
+            // Who wrote the meal plan (the plan read's nutritionist id): the plate files the meals under them.
             mealCoachId={sample ? 'sample-nutritionist' : ((livePlan && livePlan.meals && livePlan.meals.coachId) ?? null)}
             showFindCoach={!teamCoaches.length && coachesKnown}
             // Due when this week has no row, with Check-ins on (Home's lead never asks for it: bsCheckinLeadSuppressed).
             weekly={!sample && checkinDue && checkinPrefOn ? { onOpen: () => setCheckinPage(true) } : null}
-            onFindCoach={() => goMarket?.()} onCoaches={() => goChat()} onCalendar={goCalendar} />
+            onFindCoach={() => goMarket?.()} onCoaches={() => goChat()} onCalendar={goCalendar}
+            // A half with nothing of its own to open goes to its tab.
+            onEat={() => goEat()} onTrain={() => goTrain?.()} />
         );
       })()}
 
+      {/* ── CHECK-INS — one plate under Today's plan, as the approved Home orders them (owner, 2026-11-17;
+          it sat above Team from 2026-11-03). One morning panel (owner, 2026-10-22, Option A): the check-in
+          card over water, then the day's habits (owner, 2026-11-03: "add daily habits in here instead of at
+          bottom"; 2026-11-17: "keep habits"). Water shows all day and whatever the Check-ins setting (owner,
+          2026-10-19), so with Check-ins off the panel holds water and the habits. */}
+      <BSMorningPanel>
+        {/* Your move: the engine's one move today, first in the panel, only when it flags one (owner,
+            2026-11-04: "ok add it"). The plan's own fallbacks (the session, the next meal, the habits) are
+            Today's plan's and the panel's already, so a day the engine flags nothing shows no row. */}
+        {todayDirective && todayDirective.engine ? (
+          <BSHomeMoveRow head={todayDirective.head} sub={todayDirective.sub} cta={todayDirective.cta} color={todayDirective.c} />
+        ) : null}
+        <BSTodayNudge onOpen={() => setMorningsPage(true)} variant="bulletin" openRequest={checkinPrefSettled ? checkinOpenReq : null} onOpenRequestConsumed={() => setCheckinOpenReq(null)} />
+        <BSWaterLine />
+        <BSHomeHabitsRow tour="hero-habits" tweaks={tweaks} setTweak={setTweak} onOpen={() => setHabitsPage(true)} onTicked={bsScoreDirty} />
+      </BSMorningPanel>
+      {/* The Weekly check-in is not here: it is the coach's form, a line of Today's plan with the coaches it
+          is for (BSHomeTeam.jsx), so Home asks for one check-in, the morning's (owner, 2026-11-11). */}
+      {/* With Check-ins off, the quiet door to Your mornings: nothing is asked, the history still shows. */}
+      <BSTodayNudge variant="row" onOpen={() => setMorningsPage(true)} />
+
+      {/* ── YOUR FIRST 30 DAYS — the member's own board (client-onboarding review, fix 4), only while
+          there is one: the membership's first 30 days. The tour ends here, on Home, so it is the
+          first-run screen after the screening. */}
+      {bsHomeSignedIn && (
+        <BSMemberSetupStation onGoal={() => setGoalsPage(true)} onTrain={() => goTrain?.()} onCheckin={() => setCheckinPage(true)} onFindCoach={goMarket ? () => goMarket() : null} />
+      )}
+
       {/* ── SHORTCUTS — the doors Home does not already hold, as a plain list (owner, 2026-11-03, the Home
-          preview): Shape Score as a link with no figures (its progress is the profile's), Progress,
-          the grocery list and Watch & apps. Daily habits moved into the morning panel, Find a coach into
-          Team. Progress keeps its tour anchor. */}
+          preview; 2026-11-17: "incorporate shortcuts still on home"): Shape Score as a link with no figures
+          (its progress is the profile's), Progress, the grocery list and Watch & apps, then the member's
+          coach (their own page) or their team (Coaches, where Your team lists them) when they have one.
+          Daily habits moved into the morning panel, Find a coach into Today's plan. Progress keeps its tour
+          anchor. */}
       <BSHomeShortcutList title={tr('home:shortcut.title', { defaultValue: 'Shortcuts' })} rows={[
         { key: 'score', label: 'Shape Score', sub: tr('home:shortcut.scoreSub', { defaultValue: 'Points and tier' }), onOpen: () => goScore?.() },
         { key: 'progress', tour: 'hero-progress', label: tr('home:door.progress', { defaultValue: 'Progress' }), sub: tr('home:shortcut.progressSub', { defaultValue: 'Your record so far' }), onOpen: () => setHomeProgressPage(true) },
         { key: 'grocery', label: tr('home:shortcut.groceryList', { defaultValue: 'Grocery list' }), sub: tr('home:shortcut.grocerySub', { defaultValue: 'This week’s shopping' }), onOpen: () => goEat('grocery') },
         { key: 'devices', label: tr('home:shortcut.devices', { defaultValue: 'Watch & apps' }), sub: tr('home:shortcut.devicesSub', { defaultValue: 'Connect your steps and sleep' }), onOpen: () => goIntegrations?.() },
+        ...(homeCare.kind === 'one'
+          ? [{ key: 'coach', label: tr('home:shortcut.coach', { defaultValue: 'Your coach' }), sub: tr('home:care.coachPage', { defaultValue: '{name}’s page', name: bsHomeCoachName(tr, homeCare.only) }), onOpen: () => openCoach(homeCare.only) }]
+          : homeCare.kind !== 'none'
+            ? [{ key: 'team', label: homeCare.kind === 'team' ? tr('home:shortcut.team', { defaultValue: 'Your team' }) : tr('home:coaches.kicker', { defaultValue: 'Your coaches' }), sub: homeCare.coaches.map((c) => bsHomeCoachName(tr, c)).join(' + '), onOpen: () => goMarket?.() }]
+            : []),
       ]} />
 
       {/* THIS WEEK — (moved to top) */}
@@ -4242,7 +4278,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
         );
       })()}
 
-      </BSCleanType>
+      </BSHomeType>
 
       <BSFooter right={tr('home:footer.page', { defaultValue: 'Pg 1 of 1' })} />
       {stepsHistory && <BSStepsHistory onClose={() => setStepsHistory(false)} />}

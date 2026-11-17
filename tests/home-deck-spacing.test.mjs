@@ -1,8 +1,10 @@
 // tests/home-deck-spacing.test.mjs
 //
-// Member Home's top, spaced (owner, 2026-11-04):
-// - "there is some overlap with new home design and shape radio box, can we move the graph down a little"
-// - "the week calendar can be condensed a little to create more space"
+// Member Home's top, spaced. Owner, 2026-11-17, of the approved Home ("just make sure look and design is
+// same as preview"): This week and the goal are each a plate of their own under Shape Radio, 10px apart, and
+// the week's cell is the approved Home's. That took the place of two notes of 2026-11-04 on the one deck:
+// "can we move the graph down a little" (the climb 22px under the radio box) and "the week calendar can be
+// condensed a little to create more space" (52px days, 11px bars). Still standing from 2026-11-04:
 // - of the stats ticker under the masthead, "thin this bar slightly, make a little more narrow" (the
 //   ticker gave way to the score quote, 2026-11-09)
 // - of the calendar page Month opens, "remove this from month calendar page" (the "Section · Calendar"
@@ -17,32 +19,37 @@ const CAL = stripComments(readFileSync(new URL('../mobile-app/src/broadsheet/ios
 const CHROME = stripComments(readFileSync(new URL('../mobile-app/src/broadsheet/iosAppBroadsheet.jsx', import.meta.url), 'utf8'));
 const between = (src, a, b) => { const i = src.indexOf(a); assert.ok(i >= 0, `${a} is gone`); const j = src.indexOf(b, i + a.length); assert.ok(j > i, `${b} is gone`); return src.slice(i, j); };
 
-test('the goal climb sits 22px under the radio box, clear of its foot', () => {
+test('Home\'s plates stand 10px apart under Shape Radio, the goal\'s parts 12px apart inside its plate', () => {
+  const deck = between(DECK, 'export function BSHomeDeck(', '\n}\n');
+  assert.match(deck, /margin: radio \? '10px 10px 0' : '6px 10px 0', display: 'flex', flexDirection: 'column', gap: 10 \}\}>/);
   const climb = between(DECK, 'export function BSHomeClimbView(', '\nfunction ');
-  assert.match(climb, /style=\{\{ position: 'relative', margin: '22px 0 0', cursor:/);
+  assert.match(climb, /style=\{\{ \.\.\.bsHomePlate\(t\), padding: 16, display: 'flex', flexDirection: 'column', gap: 12, color: fg \}\}>/);
+  assert.doesNotMatch(climb, /margin: '22px 0 0'/, 'the climb hangs under the radio box again');
 });
 
-test('the week is condensed: 52px days, 11px bars, the head\'s Month a 44px tap that does not stand the row tall', () => {
+test('the week in the approved Home\'s cell: 74px days, 20px bars in a 22px row, the head\'s Month a 44px tap that does not stand the row tall', () => {
   const week = between(DECK, 'export function BSHomeWeekBarsView(', '\n}\n');
-  assert.match(week, /padding: `8px \$\{t\.padX - 6\}px \$\{10\}px`/);
-  assert.match(week, /minHeight: 52, padding: '4px 0 5px'/);
-  assert.match(week, /fontSize: 17, lineHeight: 1\.05/);
-  assert.match(week, /gap: 1\.5, height: 11 \}/);
+  assert.match(week, /\.\.\.bsHomePlate\(t\), padding: '10px 10px 14px'/);
+  assert.match(week, /minHeight: 74, padding: '8px 0', border: 0, borderRadius: 12/);
+  assert.match(week, /fontWeight: 600, fontSize: 19, lineHeight: 1\.35/);
+  assert.match(week, /gap: 2\.5, height: 22 \}/);
   // Month keeps its 44px tap target, pulled into the head's line by negative margins (no marginLeft beside
   // the shorthand, which React warns about).
   assert.match(week, /style=\{\{ minHeight: 44, margin: '-12px 0 -6px auto', padding: 0,/);
   // ⚠ No tap box overlaps another (Codex P2 on #2593). Month hangs 6px under the head's line and the days
   // start 6px under it; the picked day's → hangs 6px above its line, which starts 6px under the days, and
-  // 26px below its 12px line, into the section's 10px and the deck's 16px.
-  assert.match(week, /gridTemplateColumns: 'repeat\(7, minmax\(0, 1fr\)\)', gap: 3, marginTop: 6 \}/);
+  // 26px below its 12px line: over the line that says whose bars are whose (10px under it, 14px tall, and
+  // no door: it takes no tap) and into the plate's 14px foot, 38px in all, never past the plate.
+  assert.match(week, /gridTemplateColumns: 'repeat\(7, minmax\(0, 1fr\)\)', gap: 4, marginTop: 6 \}/);
   assert.match(week, /marginTop: 6, padding: '0 0 0 6px', height: 12,/);
   assert.match(week, /minHeight: 44, margin: '-6px 0 -26px', padding: '6px 0 0'/);
-  assert.match(DECK, /padding: '2px 0 16px'/, 'the deck\'s foot the → reaches into');
+  assert.match(week, /data-bs-home-week-whose=\{care\.kind\} style=\{\{ position: 'relative', pointerEvents: 'none', marginTop: 10, padding: '0 6px',[^\n]*lineHeight: '14px'/, 'the line the → reaches over');
+  assert.ok(10 + 14 + 14 >= 26, 'the → reaches past its plate');
   const bar = between(DECK, 'function BSHdBar(', '\n}\n');
-  assert.match(bar, /data-bar="hit" style=\{\{ \.\.\.base, height: 11,/);
-  assert.match(bar, /data-bar="ahead" style=\{\{ \.\.\.base, height: 11,/);
+  assert.match(bar, /data-bar="hit" style=\{\{ \.\.\.base, height: 20,/);
+  assert.match(bar, /data-bar="ahead" style=\{\{ \.\.\.base, height: 20,/);
   // Every day stays a tap of at least 44px.
-  assert.ok(Number(week.match(/minHeight: (\d+), padding: '4px 0 5px'/)[1]) >= 44);
+  assert.ok(Number(week.match(/minHeight: (\d+), padding: '8px 0'/)[1]) >= 44);
 });
 
 test('the calendar: no Section · Calendar eyebrow on your own; Month | Weeks two quiet words beside ← Back', () => {

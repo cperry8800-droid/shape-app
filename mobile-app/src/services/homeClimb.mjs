@@ -1,10 +1,10 @@
-// THE CLIMB: the member's goal drawn as a route up a ridge to a summit flag (owner, 2026-11-03, the
-// Home preview: "the chart should just be goal progress"). Pure, so the tests run it.
+// THE CLIMB: the member's goal drawn as a route climbing to a flag (owner, 2026-11-03, the Home preview:
+// "the chart should just be goal progress"). Pure, so the tests run it.
 //
 // Height is how far there, not the weight: 0 at the start, the flag at the target. A cut (the weight
 // going down) and a build (going up) both climb, because the route reads homeWeek.mjs's bsHomeGoalRead
 // share walked, (start − now) ÷ (start − target). The milestones sit at a quarter, a half and three
-// quarters of the route.
+// quarters of the way (the strip under the chart says them; the route itself carries no ticks).
 
 // What the climb shows, off the goal read (bsHomeGoalRead's) and the goal's words:
 //   'progress' a goal with a start, a target and a weigh-in, still to reach;
@@ -32,21 +32,24 @@ export function bsHomeClimbState({ read = null, words = '', weightGoal = false }
   return { kind: 'none', pct: 0, early: false };
 }
 
-// The route's geometry in a 340 × 150 box: from the foot (left, low) to the summit (right, high), with
-// a few rises and dips so it reads as a climb and not a ruler. `p` runs 0 to 1 along it. Deterministic,
-// so the same goal draws the same ridge every time.
+// The route's geometry in a 340 × 150 box, as the approved Home draws it (owner, 2026-11-17: "make it look
+// like the preview"): one smooth climb from the start, low and a little in from the left (the coaches'
+// trails lead into it, homeCare.mjs's BS_CARE_TRAIL), to the goal's flag high on the right. Two cubic
+// curves joined at the middle; `p` runs 0 to 1 along them. Deterministic, so the same goal draws the same
+// route every time.
 export const BS_CLIMB_W = 340;
 export const BS_CLIMB_H = 150;
-const FOOT = { x: 14, y: 136 };
-const TOP = { x: 300, y: 30 };
+const BS_CLIMB_CURVES = [
+  [[58, 112], [110, 100], [150, 84], [190, 66]],
+  [[190, 66], [240, 44], [290, 28], [318, 22]],
+];
 export function bsClimbPoint(p) {
   const q = Math.max(0, Math.min(1, Number(p) || 0));
-  const x = FOOT.x + (TOP.x - FOOT.x) * q;
-  // A slow start, a steady middle and a steeper last third, with two dips that vanish at both ends.
-  const rise = q * q * (3 - 2 * q) * 0.55 + q * 0.45;
-  const wiggle = Math.sin(q * Math.PI * 3) * 7 * q * (1 - q) * 4 + Math.sin(q * Math.PI * 7) * 2.5 * q * (1 - q) * 4;
-  const y = FOOT.y - (FOOT.y - TOP.y) * rise + wiggle * 0.6;
-  return { x: Math.round(x * 10) / 10, y: Math.round(y * 10) / 10 };
+  const [a, b, c, d] = BS_CLIMB_CURVES[q <= 0.5 ? 0 : 1];
+  const t = q <= 0.5 ? q * 2 : (q - 0.5) * 2;
+  const u = 1 - t;
+  const at = (i) => u * u * u * a[i] + 3 * u * u * t * b[i] + 3 * u * t * t * c[i] + t * t * t * d[i];
+  return { x: Math.round(at(0) * 10) / 10, y: Math.round(at(1) * 10) / 10 };
 }
 
 // Points along the route from `a` to `b` (0–1), as an SVG polyline string.
@@ -61,18 +64,11 @@ export function bsClimbPath(a = 0, b = 1, steps = 48) {
   return pts.join(' ');
 }
 
-// The ridge behind the route: the route lifted a little with sharper peaks, run on to the box's right
-// edge and closed along the bottom, as one polygon.
-export function bsClimbRidge(steps = 60) {
-  const pts = [`0,${BS_CLIMB_H}`, `0,${FOOT.y + 4}`];
-  for (let i = 0; i <= steps; i++) {
-    const q = i / steps;
-    const pt = bsClimbPoint(q);
-    const peak = Math.abs(Math.sin(q * Math.PI * 5)) * 6;
-    pts.push(`${pt.x},${Math.round((pt.y - 3 - peak) * 10) / 10}`);
-  }
-  pts.push(`${BS_CLIMB_W},${TOP.y + 14}`, `${BS_CLIMB_W},${BS_CLIMB_H}`);
-  return pts.join(' ');
+// The ground under the route: the whole route, closed along the bottom of the box, as one polygon. It
+// takes the goal's gold, fading down.
+export function bsClimbArea(steps = 48) {
+  const foot = bsClimbPoint(0), top = bsClimbPoint(1);
+  return [`${foot.x},${BS_CLIMB_H}`, bsClimbPath(0, 1, steps), `${top.x},${BS_CLIMB_H}`].join(' ');
 }
 
 export const BS_CLIMB_MILESTONES = [25, 50, 75];
@@ -97,8 +93,8 @@ export function bsClimbMilestones(read) {
   return { stops, next, away: next ? Math.round(Math.abs(next.kg - now) * 100) / 100 : 0 };
 }
 
-// The climb's two colours: Shape's teal at the foot and gold at the summit, the goal (owner, 2026-11-04:
-// "add a little more color to this graph"). A point `f` (0 to 1) of the way along is mixed between them.
+// The climb's two colours: Shape's teal for what is walked and gold for the goal (owner, 2026-11-04: "add
+// a little more color to this graph"). A point `f` (0 to 1) of the way along is mixed between them.
 export const bsClimbGold = (t) => (t && t.isLight ? '#b9861f' : '#e2ac44');
 export function bsClimbMix(a, b, f) {
   const pa = String(a || '').replace('#', ''), pb = String(b || '').replace('#', '');

@@ -130,12 +130,13 @@ test('the line is one row in the morning panel: a pip a glass beside the total, 
     assert.equal(pips.style.flexWrap, 'wrap');
     assert.ok(!row.contains(line.querySelector('[data-bs-water-add]')), '+ Glass sits beside the row, not in it');
     const add = line.querySelector('[data-bs-water-add]');
-    assert.equal(add.style.minHeight, '44px', "+ Glass's tap shrank");
-    assert.equal(add.style.width, '44px');
-    // The morning panel's square (owner, 2026-11-03, the Home preview): an outline box, the check-in's
-    // ✓ beside it in ink, so the panel's controls are one shape.
-    assert.equal(add.style.height, '44px');
-    assert.equal(add.style.borderRadius, '6px', '+ Glass is not the panel\'s square');
+    assert.equal(add.style.minHeight, '48px', "+ Glass's tap shrank");
+    assert.equal(add.style.width, '48px');
+    // The morning panel's square (owner, 2026-11-03, the Home preview; 2026-11-17, the approved Home's 48px
+    // box with a 12px corner): an outline box, the check-in's ✓ beside it in ink, so the panel's controls
+    // are one shape.
+    assert.equal(add.style.height, '48px');
+    assert.equal(add.style.borderRadius, '12px', '+ Glass is not the panel\'s square');
     assert.match(add.style.border, /^1px solid/, '+ Glass lost its outline');
     assert.equal(add.style.background, 'transparent', '+ Glass is filled: only the check-in\'s ✓ is ink');
     assert.equal(add.getAttribute('aria-label'), '+ Glass', 'the square still says what it does');
