@@ -187,7 +187,13 @@ node render.cjs coach work/music/shape-ad-music-A-deep-dark-house.mp3 0 work/out
 node render.cjs member work/music/shape-ad-music-B-melodic-uplifting-house.mp3 13.52 work/out/shape-ad-app.mp4
 ```
 
-A render takes six to eight minutes for each ad in software.
+A render takes six to eight minutes for each ad in software. `FRAMES=60 node render.cjs ...` renders
+only the first 60 frames, for a quick look.
+
+A render stops with exit 1 and says why, and leaves no finished video, when something it needs is
+missing or misnamed (a drawing, a dashboard page, the logo, the club's picture, a font, or a frame of
+a recording) and when ffmpeg fails (no music file, nowhere to write, a full disk). `frames.cjs` and
+`fit.cjs` stop the same way on a missing input.
 
 ## Found and fixed between cuts
 

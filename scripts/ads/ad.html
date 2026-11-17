@@ -120,7 +120,7 @@ window.setFrame = (n) => {
     const kick = el.querySelector('.kicker'); if (kick) kick.style.opacity = ease(u / 0.3);
     for (const sel of ['.tag', '.sub', '.fine', '.l2', '.url']) { const x = el.querySelector(sel); if (x) x.style.opacity = ease((u - 0.35) / 0.4); }
     // a recorded screen: the frame of the recording that belongs to this moment (it holds on its last)
-    if (s.seq) { const im = el.querySelector('.phone img'), src = SEQ + s.seq + '/f' + pad3(Math.min(s.frames - 1, Math.max(0, Math.round(u * FPS)))) + '.jpg'; if (!im.src.endsWith(src.split('/').slice(-2).join('/'))) { im.src = src; waits.push(im.decode().catch(() => {})); } }
+    if (s.seq) { const im = el.querySelector('.phone img'), src = SEQ + s.seq + '/f' + pad3(Math.min(s.frames - 1, Math.max(0, Math.round(u * FPS)))) + '.jpg'; if (!im.src.endsWith(src.split('/').slice(-2).join('/'))) { im.src = src; waits.push(im.decode().catch(() => { throw new Error('missing recording frame: ' + src); })); } }
     const pw = el.querySelector('.phonewrap');
     if (pw) { const k = ease(u / 0.42); pw.style.transform = `translateY(${(1 - k) * 150}px) scale(${0.94 + 0.06 * k + 0.018 * (u / len)})`; pw.style.opacity = ease(u / 0.2); }
     const num = el.querySelector('.num'); if (num) { const k = ease(u / 0.4); num.style.transform = `scale(${0.86 + 0.14 * k})`; num.style.transformOrigin = '0 60%'; num.style.opacity = k; }
@@ -153,5 +153,19 @@ window.setFrame = (n) => {
   return Promise.all(waits).then(() => N);
 };
 window.FRAMES = N;
-document.fonts.ready.then(() => Promise.all([...document.images].map((im) => im.decode().catch(() => {})))).then(() => { window.setFrame(Number(q.get('f') || 0)); window.READY = true; });
+// Everything a cut needs must be there before a frame is drawn: a drawing, recording, dashboard page, logo,
+// picture or font that is missing or misnamed stops the render with its name (READY becomes that message),
+// never a quiet empty scene. A recording's later frames are checked as they are reached (setFrame rejects).
+const missing = [];
+const fonts = [['Anybody', '640 40px Anybody'], ['JBMono', '500 40px JBMono'], ['Inter', '400 40px Inter']];
+const fontCheck = () => Promise.all(fonts.map(([name, f]) => document.fonts.load(f).then((got) => { if (!got.length || got.some((x) => x.status !== 'loaded')) missing.push('font ' + name); }, () => { missing.push('font ' + name); })));
+const pictures = () => Promise.all([
+  ...[...document.images].map((im) => im.decode().catch(() => { missing.push(im.getAttribute('src')); })),
+  // a club scene's picture is a CSS background, which no <img> stands for
+  ...AD.scenes.filter((s) => s.type === 'club').map((s) => { const im = new Image(); im.src = s.img; return im.decode().catch(() => { missing.push(s.img); }); }),
+]);
+document.fonts.ready.then(fontCheck).then(pictures).then(() => {
+  if (missing.length) { window.READY = 'missing: ' + missing.join(', '); return; }
+  window.setFrame(Number(q.get('f') || 0)); window.READY = true;
+});
 </script></body></html>

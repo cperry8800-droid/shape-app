@@ -6,7 +6,9 @@ const { chromium } = require('playwright');
   const p = await b.newPage({ viewport: { width: 1080, height: 1920 }, deviceScaleFactor: 1 });
   p.on('pageerror', (e) => console.log('[pageerror]', String(e).slice(0, 300)));
   await p.goto(`file://${__dirname}/ad.html?ad=${ad}`);
-  await p.waitForFunction(() => window.READY === true, null, { timeout: 30000 });
+  await p.waitForFunction(() => window.READY, null, { timeout: 30000 });
+  const ready = await p.evaluate(() => window.READY);
+  if (ready !== true) { await b.close(); console.error('no frames, ' + ready); process.exit(1); }
   await p.waitForTimeout(600);
   for (const s of list.split(',')) {
     await p.evaluate((n) => window.setFrame(n), Math.round(Number(s) * 30));
